@@ -200,7 +200,7 @@ impl ServerState {
                 output.send_mouse_action(&mouse_action)?;
             }
             Action::Window(window_action) => {
-                let mapper = self.mapper.lock().await;
+                let mut mapper = self.mapper.lock().await;
                 mapper.execute_action(&Action::Window(window_action))?;
             }
             Action::Launch(launch_action) => {

@@ -203,6 +203,24 @@ impl WindowManager {
         }
     }
 
+    /// 获取调试信息字符串
+    /// 格式类似 mrw 的 GetDebugInfo()
+    pub fn get_debug_info(&self) -> Result<String> {
+        let info = self.get_foreground_window_info()?;
+
+        Ok(format!(
+            "Window: {}\nID: {:?}\nPosition: [{}, {}]\nSize: {} x {}\nMonitor: [{} x {}]",
+            info.title,
+            info.hwnd,
+            info.frame.x,
+            info.frame.y,
+            info.frame.width,
+            info.frame.height,
+            info.work_area.width,
+            info.work_area.height
+        ))
+    }
+
     /// 设置窗口位置和大小
     pub fn set_window_frame(&self, hwnd: HWND, frame: &WindowFrame) -> Result<()> {
         unsafe {

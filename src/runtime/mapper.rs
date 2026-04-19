@@ -13,6 +13,9 @@ pub struct KeyMapper {
     /// 窗口管理器（用于执行窗口管理动作）
     #[cfg(target_os = "windows")]
     window_manager: Option<crate::platform::windows::WindowManager>,
+    /// 托盘图标（用于显示通知）
+    #[cfg(target_os = "windows")]
+    tray_icon: Option<crate::platform::windows::TrayIcon>,
 }
 
 impl KeyMapper {
@@ -24,6 +27,8 @@ impl KeyMapper {
             enabled: true,
             #[cfg(target_os = "windows")]
             window_manager: None,
+            #[cfg(target_os = "windows")]
+            tray_icon: None,
         }
     }
 
@@ -35,6 +40,7 @@ impl KeyMapper {
             rules: Vec::new(),
             enabled: true,
             window_manager: Some(window_manager),
+            tray_icon: None,
         }
     }
 
@@ -42,6 +48,12 @@ impl KeyMapper {
     #[cfg(target_os = "windows")]
     pub fn set_window_manager(&mut self, window_manager: crate::platform::windows::WindowManager) {
         self.window_manager = Some(window_manager);
+    }
+
+    /// 设置托盘图标
+    #[cfg(target_os = "windows")]
+    pub fn set_tray_icon(&mut self, tray_icon: crate::platform::windows::TrayIcon) {
+        self.tray_icon = Some(tray_icon);
     }
 
     /// 从配置加载映射规则
@@ -134,13 +146,17 @@ impl KeyMapper {
 
     /// 执行动作（包括窗口管理动作）
     #[cfg(target_os = "windows")]
-    pub fn execute_action(&self, action: &Action) -> anyhow::Result<()> {
+    pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
         use crate::types::WindowAction;
 
         match action {
             Action::Window(window_action) => {
                 if let Some(ref wm) = self.window_manager {
-                    self.execute_window_action(wm, window_action)?;
+                    Self::execute_window_action_internal(
+                        wm,
+                        self.tray_icon.as_mut(),
+                        window_action,
+                    )?;
                 } else {
                     debug!("WindowManager not available, skipping window action");
                 }
@@ -153,14 +169,14 @@ impl KeyMapper {
         Ok(())
     }
 
-    /// 执行窗口管理动作
+    /// 执行窗口管理动作（内部静态方法，避免借用冲突）
     #[cfg(target_os = "windows")]
-    fn execute_window_action(
-        &self,
+    fn execute_window_action_internal(
         wm: &crate::platform::windows::WindowManager,
+        tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
-        use crate::types::{Alignment, Edge, MonitorDirection, WindowAction};
+        use crate::types::{MonitorDirection, WindowAction};
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
         unsafe {
@@ -234,19 +250,18 @@ impl KeyMapper {
                     use windows::Win32::UI::WindowsAndMessaging::{
                         SetWindowPos, HWND_TOPMOST, HWND_NOTOPMOST, SWP_NOMOVE, SWP_NOSIZE,
                     };
-                    use windows::Win32::Foundation::BOOL;
-                    
+
                     let info = wm.get_window_info(hwnd)?;
                     // 简单判断：如果窗口在 (0,0) 附近，假设它是置顶窗口
                     // 实际应该使用 GetWindowLong 检查 WS_EX_TOPMOST 样式
                     let is_topmost = info.frame.x == 0 && info.frame.y == 0;
-                    
+
                     let hwnd_insert_after = if is_topmost {
                         HWND_NOTOPMOST
                     } else {
                         HWND_TOPMOST
                     };
-                    
+
                     SetWindowPos(hwnd, hwnd_insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
                         .ok();
                 }
@@ -256,17 +271,51 @@ impl KeyMapper {
                         GWL_EXSTYLE, WS_EX_LAYERED, LWA_ALPHA,
                     };
                     use windows::Win32::Foundation::COLORREF;
-                    
+
                     // 获取当前扩展样式
                     let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                    
+
                     // 添加 WS_EX_LAYERED 样式
                     if ex_style & WS_EX_LAYERED.0 as i32 == 0 {
                         SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
                     }
-                    
+
                     // 设置透明度
                     SetLayeredWindowAttributes(hwnd, COLORREF(0), *opacity, LWA_ALPHA).ok();
+                }
+                WindowAction::ShowDebugInfo => {
+                    // 显示调试信息对话框
+                    match wm.get_debug_info() {
+                        Ok(info) => {
+                            use windows::Win32::UI::WindowsAndMessaging::{
+                                MessageBoxW, MB_OK, MB_ICONINFORMATION,
+                            };
+                            use windows::core::HSTRING;
+
+                            let title = HSTRING::from("wakem - Debug Info");
+                            let message = HSTRING::from(&info);
+
+                            MessageBoxW(
+                                None,
+                                &message,
+                                &title,
+                                MB_OK | MB_ICONINFORMATION,
+                            );
+                        }
+                        Err(e) => {
+                            debug!("Failed to get debug info: {}", e);
+                        }
+                    }
+                }
+                WindowAction::ShowNotification { title, message } => {
+                    // 使用托盘图标显示通知
+                    if let Some(tray) = tray_icon {
+                        if let Err(e) = tray.show_notification(title, message) {
+                            debug!("Failed to show notification: {}", e);
+                        }
+                    } else {
+                        debug!("Tray icon not available, cannot show notification");
+                    }
                 }
                 WindowAction::None => {}
             }

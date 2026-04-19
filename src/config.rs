@@ -377,6 +377,7 @@ fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowA
         "Restore" => return Ok(WindowAction::Restore),
         "Close" => return Ok(WindowAction::Close),
         "ToggleTopmost" => return Ok(WindowAction::ToggleTopmost),
+        "ShowDebugInfo" => return Ok(WindowAction::ShowDebugInfo),
         _ => {}
     }
 
@@ -437,6 +438,11 @@ fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowA
             "SetOpacity" => {
                 let opacity = param_list.get(0).unwrap_or(&"255").parse::<u8>()?;
                 Ok(WindowAction::SetOpacity { opacity })
+            }
+            "ShowNotification" => {
+                let title = param_list.get(0).unwrap_or(&"wakem").to_string();
+                let message = param_list.get(1).unwrap_or(&"").to_string();
+                Ok(WindowAction::ShowNotification { title, message })
             }
             _ => Err(anyhow::anyhow!("Unknown window action: {}", name)),
         }
@@ -711,5 +717,32 @@ J = "Down"
         assert!(modifiers.ctrl);
         assert!(modifiers.alt);
         assert!(modifiers.meta);
+    }
+
+    #[test]
+    fn test_parse_window_action_debug() {
+        use crate::types::WindowAction;
+
+        // 测试 ShowDebugInfo
+        let action = parse_window_action("ShowDebugInfo").unwrap();
+        assert!(matches!(action, WindowAction::ShowDebugInfo));
+
+        // 测试 ShowNotification
+        let action = parse_window_action("ShowNotification(wakem, Hello World!)").unwrap();
+        if let WindowAction::ShowNotification { title, message } = action {
+            assert_eq!(title, "wakem");
+            assert_eq!(message, "Hello World!");
+        } else {
+            panic!("Expected ShowNotification action");
+        }
+
+        // 测试 ShowNotification 带默认值
+        let action = parse_window_action("ShowNotification(Test)").unwrap();
+        if let WindowAction::ShowNotification { title, message } = action {
+            assert_eq!(title, "Test");
+            assert_eq!(message, "");
+        } else {
+            panic!("Expected ShowNotification action");
+        }
     }
 }

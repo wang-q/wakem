@@ -56,4 +56,10 @@ shortcuts = [
     # ========== 跨显示器移动 ==========
     { "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)" },
     { "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)" },
+    
+    # ========== 调试功能 ==========
+    # Hyper+W: 显示当前窗口调试信息（类似 mrw 的 MsgBox(GetDebugInfo())）
+    { "Ctrl+Alt+Win+W" = "ShowDebugInfo" },
+    # Hyper+Shift+W: 显示测试通知（类似 mrw 的 TrayTip）
+    { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)" },
 ]

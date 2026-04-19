@@ -153,6 +153,10 @@ pub enum WindowAction {
     ToggleTopmost,
     /// 设置透明度
     SetOpacity { opacity: u8 },
+    /// 显示调试信息（Hyper+W）
+    ShowDebugInfo,
+    /// 显示通知（Hyper+Shift+W）
+    ShowNotification { title: String, message: String },
     /// 无操作
     None,
 }
