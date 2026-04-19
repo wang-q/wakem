@@ -45,6 +45,22 @@ impl KeyAction {
         }
     }
 
+    /// 创建按下动作
+    pub fn press(scan_code: u16, virtual_key: u16) -> Self {
+        Self::Press {
+            scan_code,
+            virtual_key,
+        }
+    }
+
+    /// 创建释放动作
+    pub fn release(scan_code: u16, virtual_key: u16) -> Self {
+        Self::Release {
+            scan_code,
+            virtual_key,
+        }
+    }
+
     /// 创建组合键动作
     pub fn combo(modifiers: super::ModifierState, scan_code: u16, virtual_key: u16) -> Self {
         Self::Combo {

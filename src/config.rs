@@ -223,6 +223,7 @@ fn default_wheel_speed() -> i32 {
 
 /// 解析简单的键位映射配置
 /// 格式: "CapsLock" -> "Backspace"
+/// 格式: "CapsLock" -> "Ctrl+Alt+Win" (映射为修饰键组合)
 fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
     use crate::types::{Action, KeyAction, Trigger};
 
@@ -235,12 +236,83 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
         return Ok(MappingRule::new(trigger, action));
     }
 
+    // 检查目标是否是带修饰键的快捷键（如 "Ctrl+Alt+Win"）
+    if to.contains('+') && !to.contains("->") {
+        // 解析修饰键组合（如 "Ctrl+Alt+Win"）
+        let modifiers = parse_modifier_combo(to)?;
+        let trigger = Trigger::key(from_key.0, from_key.1);
+        // 创建发送修饰键按下/释放的动作序列
+        let action = create_modifier_press_release_action(&modifiers);
+        return Ok(MappingRule::new(trigger, action));
+    }
+
     let to_key = parse_key(to)?;
 
     let trigger = Trigger::key(from_key.0, from_key.1);
     let action = Action::key(KeyAction::click(to_key.0, to_key.1));
 
     Ok(MappingRule::new(trigger, action))
+}
+
+/// 解析纯修饰键组合（如 "Ctrl+Alt+Win"）
+fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> {
+    use crate::types::ModifierState;
+
+    let mut modifiers = ModifierState::default();
+    let parts: Vec<&str> = s.split('+').map(|p| p.trim()).collect();
+
+    for part in parts {
+        match part.to_lowercase().as_str() {
+            "ctrl" | "control" => modifiers.ctrl = true,
+            "alt" => modifiers.alt = true,
+            "shift" => modifiers.shift = true,
+            "win" | "meta" | "command" => modifiers.meta = true,
+            _ => {
+                // 如果不是已知的修饰键，返回错误
+                return Err(anyhow::anyhow!("Unknown modifier: {}", part));
+            }
+        }
+    }
+
+    Ok(modifiers)
+}
+
+/// 创建修饰键按下和释放的动作序列
+/// 当按下 CapsLock 时，发送 Ctrl+Alt+Win 的按下，释放时发送释放
+fn create_modifier_press_release_action(modifiers: &crate::types::ModifierState) -> crate::types::Action {
+    use crate::types::{Action, KeyAction};
+
+    let mut actions = Vec::new();
+
+    // 按下修饰键（按特定顺序：Ctrl -> Alt -> Win -> Shift）
+    if modifiers.ctrl {
+        actions.push(Action::key(KeyAction::press(0x1D, 0x11))); // Ctrl
+    }
+    if modifiers.alt {
+        actions.push(Action::key(KeyAction::press(0x38, 0x12))); // Alt
+    }
+    if modifiers.meta {
+        actions.push(Action::key(KeyAction::press(0x5B, 0x5B))); // Win (Left)
+    }
+    if modifiers.shift {
+        actions.push(Action::key(KeyAction::press(0x2A, 0x10))); // Shift
+    }
+
+    // 立即释放修饰键（逆序）
+    if modifiers.shift {
+        actions.push(Action::key(KeyAction::release(0x2A, 0x10))); // Shift
+    }
+    if modifiers.meta {
+        actions.push(Action::key(KeyAction::release(0x5B, 0x5B))); // Win
+    }
+    if modifiers.alt {
+        actions.push(Action::key(KeyAction::release(0x38, 0x12))); // Alt
+    }
+    if modifiers.ctrl {
+        actions.push(Action::key(KeyAction::release(0x1D, 0x11))); // Ctrl
+    }
+
+    Action::Sequence(actions)
 }
 
 /// 解析窗口管理快捷键
@@ -566,5 +638,78 @@ J = "Down"
         assert_eq!(parse_key("capslock").unwrap(), (0x3A, 0x14));
         assert_eq!(parse_key("a").unwrap(), (0x1E, 0x41));
         assert_eq!(parse_key("1").unwrap(), (0x02, 0x31));
+    }
+
+    #[test]
+    fn test_parse_key_mapping_with_modifiers() {
+        // 测试 CapsLock -> Ctrl+Alt+Win 的映射
+        let rule = parse_key_mapping("CapsLock", "Ctrl+Alt+Win").unwrap();
+        
+        // 验证触发器是 CapsLock
+        if let crate::types::Trigger::Key { scan_code, virtual_key, .. } = &rule.trigger {
+            assert_eq!(*scan_code, Some(0x3A));
+            assert_eq!(*virtual_key, Some(0x14));
+        } else {
+            panic!("Expected Key trigger");
+        }
+        
+        // 验证动作是 Sequence（包含修饰键按下/释放）
+        if let crate::types::Action::Sequence(actions) = &rule.action {
+            // 应该有 6 个动作：Ctrl按下、Alt按下、Win按下、Win释放、Alt释放、Ctrl释放
+            assert_eq!(actions.len(), 6);
+            
+            // 验证第一个动作是 Ctrl 按下
+            if let crate::types::Action::Key(crate::types::KeyAction::Press { virtual_key, .. }) = &actions[0] {
+                assert_eq!(*virtual_key, 0x11); // VK_CONTROL
+            } else {
+                panic!("Expected Ctrl Press as first action, got {:?}", actions[0]);
+            }
+            
+            // 验证第二个动作是 Alt 按下
+            if let crate::types::Action::Key(crate::types::KeyAction::Press { virtual_key, .. }) = &actions[1] {
+                assert_eq!(*virtual_key, 0x12); // VK_MENU (Alt)
+            } else {
+                panic!("Expected Alt Press as second action, got {:?}", actions[1]);
+            }
+            
+            // 验证第三个动作是 Win 按下
+            if let crate::types::Action::Key(crate::types::KeyAction::Press { virtual_key, .. }) = &actions[2] {
+                assert_eq!(*virtual_key, 0x5B); // VK_LWIN
+            } else {
+                panic!("Expected Win Press as third action, got {:?}", actions[2]);
+            }
+            
+            // 验证第四、五、六个动作是释放
+            if let crate::types::Action::Key(crate::types::KeyAction::Release { virtual_key, .. }) = &actions[3] {
+                assert_eq!(*virtual_key, 0x5B); // VK_LWIN release
+            } else {
+                panic!("Expected Win Release as fourth action, got {:?}", actions[3]);
+            }
+        } else {
+            panic!("Expected Sequence action for modifier combo, got {:?}", rule.action);
+        }
+    }
+
+    #[test]
+    fn test_parse_modifier_combo() {
+        // 测试解析修饰键组合
+        let modifiers = parse_modifier_combo("Ctrl+Alt+Win").unwrap();
+        assert!(modifiers.ctrl);
+        assert!(modifiers.alt);
+        assert!(modifiers.meta);
+        assert!(!modifiers.shift);
+
+        // 测试不同顺序
+        let modifiers = parse_modifier_combo("Shift+Ctrl").unwrap();
+        assert!(modifiers.ctrl);
+        assert!(!modifiers.alt);
+        assert!(!modifiers.meta);
+        assert!(modifiers.shift);
+
+        // 测试大小写不敏感
+        let modifiers = parse_modifier_combo("ctrl+ALT+win").unwrap();
+        assert!(modifiers.ctrl);
+        assert!(modifiers.alt);
+        assert!(modifiers.meta);
     }
 }

@@ -1,49 +1,59 @@
 # wakem 窗口管理专用配置
 # 借鉴 mrw 项目的窗口管理功能
+# Hyper 键 = Ctrl + Alt + Win（参考 init.ahk 中的 #!^）
 
 [keyboard]
-# 可选的重映射
+# 将 CapsLock 映射为 Hyper 键（Ctrl+Alt+Win），方便窗口管理
+# 这样只需按 CapsLock + C 即可居中窗口，无需按三个修饰键
 remap = [
-    { from = "CapsLock", to = "Backspace" },
+    { from = "CapsLock", to = "Ctrl+Alt+Win" },
 ]
 
 [window]
-# 窗口管理快捷键（Hyper 键风格）
-# Hyper = Ctrl + Alt + Win（可在系统设置中配置）
+# 窗口管理快捷键（Hyper 键风格：Ctrl + Alt + Win）
 shortcuts = [
     # ========== 窗口居中 ==========
-    { "Ctrl+Alt+C" = "Center" },
+    { "Ctrl+Alt+Win+C" = "Center" },
+    { "Ctrl+Alt+Win+Shift+C" = "Center" },
+    { "Ctrl+Alt+Win+Delete" = "Center" },
+    { "Ctrl+Alt+Win+Shift+Delete" = "Center" },
     
     # ========== 移动到边缘 ==========
-    { "Ctrl+Alt+Home" = "MoveToEdge(Left)" },
-    { "Ctrl+Alt+End" = "MoveToEdge(Right)" },
-    { "Ctrl+Alt+PageUp" = "MoveToEdge(Top)" },
-    { "Ctrl+Alt+PageDown" = "MoveToEdge(Bottom)" },
+    { "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)" },
+    { "Ctrl+Alt+Win+Shift+Home" = "MoveToEdge(Left)" },
+    { "Ctrl+Alt+Win+End" = "MoveToEdge(Right)" },
+    { "Ctrl+Alt+Win+Shift+End" = "MoveToEdge(Right)" },
+    { "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)" },
+    { "Ctrl+Alt+Win+Shift+PageUp" = "MoveToEdge(Top)" },
+    { "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)" },
+    { "Ctrl+Alt+Win+Shift+PageDown" = "MoveToEdge(Bottom)" },
     
     # ========== 半屏显示 ==========
-    { "Ctrl+Alt+Shift+Left" = "HalfScreen(Left)" },
-    { "Ctrl+Alt+Shift+Right" = "HalfScreen(Right)" },
-    { "Ctrl+Alt+Shift+Up" = "HalfScreen(Top)" },
-    { "Ctrl+Alt+Shift+Down" = "HalfScreen(Bottom)" },
+    { "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)" },
+    { "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)" },
+    { "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)" },
+    { "Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)" },
     
     # ========== 循环调整尺寸 ==========
     # 宽度循环: 3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4
-    { "Ctrl+Alt+Left" = "LoopWidth(Left)" },
-    { "Ctrl+Alt+Right" = "LoopWidth(Right)" },
+    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
     # 高度循环: 3/4 -> 1/2 -> 1/4
-    { "Ctrl+Alt+Up" = "LoopHeight(Top)" },
-    { "Ctrl+Alt+Down" = "LoopHeight(Bottom)" },
+    { "Ctrl+Alt+Win+Up" = "LoopHeight(Top)" },
+    { "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)" },
     
     # ========== 固定比例窗口 ==========
     # 4:3 比例，循环缩放 100% -> 90% -> 70% -> 50%
-    { "Ctrl+Alt+M" = "FixedRatio(1.333, 0)" },
+    { "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)" },
     # 原生比例（基于屏幕比例）
-    { "Ctrl+Alt+Shift+M" = "NativeRatio(0)" },
+    { "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)" },
+    { "Ctrl+Alt+Win+Enter" = "FixedRatio(1.333, 0)" },
+    { "Ctrl+Alt+Win+Shift+Enter" = "NativeRatio(0)" },
     
     # ========== 同进程窗口切换 ==========
     { "Alt+Grave" = "SwitchToNextWindow" },
     
     # ========== 跨显示器移动 ==========
-    { "Ctrl+Alt+J" = "MoveToMonitor(Next)" },
-    { "Ctrl+Alt+K" = "MoveToMonitor(Prev)" },
+    { "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)" },
+    { "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)" },
 ]
