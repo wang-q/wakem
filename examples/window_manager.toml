@@ -1,0 +1,49 @@
+# wakem 窗口管理专用配置
+# 借鉴 mrw 项目的窗口管理功能
+
+[keyboard]
+# 可选的重映射
+remap = [
+    { from = "CapsLock", to = "Backspace" },
+]
+
+[window]
+# 窗口管理快捷键（Hyper 键风格）
+# Hyper = Ctrl + Alt + Win（可在系统设置中配置）
+shortcuts = [
+    # ========== 窗口居中 ==========
+    { "Ctrl+Alt+C" = "Center" },
+    
+    # ========== 移动到边缘 ==========
+    { "Ctrl+Alt+Home" = "MoveToEdge(Left)" },
+    { "Ctrl+Alt+End" = "MoveToEdge(Right)" },
+    { "Ctrl+Alt+PageUp" = "MoveToEdge(Top)" },
+    { "Ctrl+Alt+PageDown" = "MoveToEdge(Bottom)" },
+    
+    # ========== 半屏显示 ==========
+    { "Ctrl+Alt+Shift+Left" = "HalfScreen(Left)" },
+    { "Ctrl+Alt+Shift+Right" = "HalfScreen(Right)" },
+    { "Ctrl+Alt+Shift+Up" = "HalfScreen(Top)" },
+    { "Ctrl+Alt+Shift+Down" = "HalfScreen(Bottom)" },
+    
+    # ========== 循环调整尺寸 ==========
+    # 宽度循环: 3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4
+    { "Ctrl+Alt+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Right" = "LoopWidth(Right)" },
+    # 高度循环: 3/4 -> 1/2 -> 1/4
+    { "Ctrl+Alt+Up" = "LoopHeight(Top)" },
+    { "Ctrl+Alt+Down" = "LoopHeight(Bottom)" },
+    
+    # ========== 固定比例窗口 ==========
+    # 4:3 比例，循环缩放 100% -> 90% -> 70% -> 50%
+    { "Ctrl+Alt+M" = "FixedRatio(1.333, 0)" },
+    # 原生比例（基于屏幕比例）
+    { "Ctrl+Alt+Shift+M" = "NativeRatio(0)" },
+    
+    # ========== 同进程窗口切换 ==========
+    { "Alt+Grave" = "SwitchToNextWindow" },
+    
+    # ========== 跨显示器移动 ==========
+    { "Ctrl+Alt+J" = "MoveToMonitor(Next)" },
+    { "Ctrl+Alt+K" = "MoveToMonitor(Prev)" },
+]

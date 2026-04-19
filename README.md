@@ -1,6 +1,60 @@
 # wakem - Window Adjust, Keyboard Enhance, Mouse enhance
 
-一个跨平台的窗口管理、键盘增强、鼠标增强工具。初期先在 Windows 平台实现，后续扩展到 macOS 和 Linux。
+一个跨平台的窗口管理、键盘增强、鼠标增强工具。借鉴 [mrw](https://github.com/yourusername/mrw)、[keymapper](https://github.com/houmain/keymapper) 和 [AutoHotkey](https://www.autohotkey.com/) 的优秀设计。
+
+## 快速开始
+
+### 1. 安装
+
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/wakem.git
+cd wakem
+
+# 构建
+cargo build --release
+
+# 安装（可选）
+cargo install --path crates/wakemd
+cargo install --path crates/wakem
+```
+
+### 2. 创建配置文件
+
+复制示例配置到用户目录：
+
+```bash
+cp examples/minimal.toml %USERPROFILE%\wakem.toml
+```
+
+最小配置示例 (`wakem.toml`):
+
+```toml
+[keyboard]
+remap = [
+    { from = "CapsLock", to = "Backspace" },
+]
+```
+
+### 3. 启动服务
+
+```bash
+# 启动守护进程（需要管理员权限）
+wakemd
+
+# 启动客户端（系统托盘）
+wakem
+```
+
+### 4. 客户端命令
+
+```bash
+wakem status      # 查看服务状态
+wakem reload      # 重载配置
+wakem enable      # 启用映射
+wakem disable     # 禁用映射
+wakem config      # 打开配置文件夹
+```
 
 ## 功能规划
 
@@ -705,51 +759,58 @@ P = "PageDown"
 
 * [ ] 实现鼠标滚轮重映射
 
-#### 4.2 鼠标手势
+> **注**: 不实现鼠标手势功能，使用场景有限且实现复杂
 
-* [ ] 设计手势识别算法（方向、距离、速度）
-
-* [ ] 实现手势状态机（按下 -> 移动 -> 释放）
-
-* [ ] 支持基本手势（上、下、左、右、圆）
-
-* [ ] 实现手势到动作的绑定
-
-* [ ] 添加手势轨迹显示（可选）
-
-#### 4.3 滚轮增强
+#### 4.2 滚轮增强
 
 * [ ] 实现滚轮事件拦截和转换
 
-* [ ] 支持在特定区域调节音量/亮度
-
-* [ ] 支持在标签栏切换标签
+* [ ] 支持滚轮动作自定义（通过配置文件绑定到任意 Action）
+  - 例如：滚轮调节音量、亮度、切换标签等
+  - 用户自由配置，不硬编码特定区域逻辑
 
 * [ ] 实现滚轮加速（快速滚动）
 
-#### 4.4 边缘触发
-
-* [ ] 实现屏幕边缘检测
-
-* [ ] 实现触发延迟和防抖动
-
-* [ ] 支持角落触发
-
-* [ ] 绑定边缘触发动作
+> **注**: 不实现屏幕边缘触发功能，现代 Windows 已不依赖此类交互
 
 ***
 
 ### Phase 5: Windows 完善
 
-#### 5.1 系统托盘
+#### 5.1 系统托盘 ✅
 
-* [ ] 创建托盘图标（NOTIFYICONDATA）
+* [x] 创建托盘图标（NOTIFYICONDATA）
 
-* [ ] 实现右键菜单（启用/禁用、配置、退出）
+* [x] 实现右键菜单（启用/禁用、重载配置、打开配置文件夹、退出）
 
 * [ ] 实现启动项管理（注册表/计划任务）
 
 * [ ] 处理托盘图标重建（任务栏重启）
+
+**关键文件**: `crates/wakem/src/platform/windows/tray.rs`, `crates/wakem/src/window.rs`
+
+#### 5.2 输入捕获 ✅
+
+* [x] 实现 Raw Input 设备捕获（键盘、鼠标）
+
+* [x] 集成到服务端主流程
+
+* [x] 实现输入事件处理链路（捕获 -> 映射 -> 执行）
+
+* [x] 实现 Low Level Keyboard Hook（用于事件阻止）
+
+**关键文件**: `crates/wakemd/src/platform/windows/input.rs`, `crates/wakemd/src/platform/windows/hook.rs`
+
+#### 5.3 配置重载 ✅
+
+* [x] 实现手动重载（通过 IPC 命令）
+  - `Message::ReloadConfig` - IPC 协议支持
+  - `ServerState::reload_config_from_file()` - 从文件重新加载
+  - 错误处理：加载失败时保持旧配置
+
+* [ ] 托盘菜单集成（调用 IPC 重载）
+
+> **注**: 不实现自动热重载，通过手动 reload 简化实现，类似 AHK 的 Reload 功能
 
 #### 5.2 配置热重载
 

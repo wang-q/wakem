@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::{Parser, Subcommand};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -11,6 +12,33 @@ mod window;
 use client::DaemonClient;
 use window::{AppCommand, MessageWindow};
 
+/// wakem 客户端控制工具
+#[derive(Parser)]
+#[command(name = "wakem")]
+#[command(about = "wakem - Window/Keyboard/Mouse Enhancer")]
+#[command(version)]
+struct Cli {
+    /// 子命令
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// 获取服务端状态
+    Status,
+    /// 重载配置
+    Reload,
+    /// 启用映射
+    Enable,
+    /// 禁用映射
+    Disable,
+    /// 打开配置文件夹
+    Config,
+    /// 运行系统托盘（默认）
+    Tray,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // 初始化日志
@@ -18,6 +46,114 @@ async fn main() -> Result<()> {
         .with_env_filter("info")
         .init();
 
+    let cli = Cli::parse();
+
+    match cli.command {
+        Some(Commands::Status) => cmd_status().await,
+        Some(Commands::Reload) => cmd_reload().await,
+        Some(Commands::Enable) => cmd_enable().await,
+        Some(Commands::Disable) => cmd_disable().await,
+        Some(Commands::Config) => cmd_config().await,
+        Some(Commands::Tray) | None => run_tray().await,
+    }
+}
+
+/// 获取服务端状态
+async fn cmd_status() -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect().await {
+        Ok(_) => {
+            match client.get_status().await {
+                Ok((active, loaded)) => {
+                    println!("wakemd status:");
+                    println!("  Active: {}", if active { "enabled" } else { "disabled" });
+                    println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
+                }
+                Err(e) => {
+                    eprintln!("Failed to get status: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to daemon: {}", e);
+            eprintln!("Please make sure wakemd is running");
+        }
+    }
+    Ok(())
+}
+
+/// 重载配置
+async fn cmd_reload() -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect().await {
+        Ok(_) => {
+            match client.reload_config().await {
+                Ok(_) => {
+                    println!("Configuration reloaded successfully");
+                }
+                Err(e) => {
+                    eprintln!("Failed to reload config: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to daemon: {}", e);
+        }
+    }
+    Ok(())
+}
+
+/// 启用映射
+async fn cmd_enable() -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect().await {
+        Ok(_) => {
+            match client.set_active(true).await {
+                Ok(_) => {
+                    println!("wakem enabled");
+                }
+                Err(e) => {
+                    eprintln!("Failed to enable: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to daemon: {}", e);
+        }
+    }
+    Ok(())
+}
+
+/// 禁用映射
+async fn cmd_disable() -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect().await {
+        Ok(_) => {
+            match client.set_active(false).await {
+                Ok(_) => {
+                    println!("wakem disabled");
+                }
+                Err(e) => {
+                    eprintln!("Failed to disable: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to daemon: {}", e);
+        }
+    }
+    Ok(())
+}
+
+/// 打开配置文件夹
+async fn cmd_config() -> Result<()> {
+    open_config_folder().await?;
+    println!("Config folder opened");
+    Ok(())
+}
+
+/// 运行系统托盘
+async fn run_tray() -> Result<()> {
     info!("wakem client starting...");
 
     // 创建命令通道

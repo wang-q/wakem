@@ -1,10 +1,12 @@
 use anyhow::Result;
+use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use tracing::{debug, trace};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::{RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, MSG, RegisterClassW,
+    SetWindowLongPtrW, GetWindowLongPtrW, GWLP_USERDATA,
     WM_CREATE, WM_DESTROY, WM_INPUT, WM_QUIT,
     WNDCLASSW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, WS_EX_NOACTIVATE,
     WS_OVERLAPPEDWINDOW,
@@ -15,16 +17,26 @@ use windows::Win32::UI::Input::{
 };
 use wakem_common::types::{InputEvent, KeyEvent, KeyState, MouseEvent, MouseEventType, MouseButton, ModifierState};
 
+thread_local! {
+    static CURRENT_SENDER: RefCell<Option<Sender<InputEvent>>> = RefCell::new(None);
+}
+
 /// Raw Input 设备管理器
 pub struct RawInputDevice {
     hwnd: HWND,
     event_sender: Sender<InputEvent>,
     modifier_state: ModifierState,
+    running: bool,
 }
 
 impl RawInputDevice {
     /// 创建并初始化 Raw Input 设备
     pub fn new(event_sender: Sender<InputEvent>) -> Result<Self> {
+        // 设置线程本地存储的发送器
+        CURRENT_SENDER.with(|s| {
+            *s.borrow_mut() = Some(event_sender.clone());
+        });
+
         let hwnd = Self::create_message_window()?;
         
         // 注册 Raw Input 设备
@@ -34,6 +46,7 @@ impl RawInputDevice {
             hwnd,
             event_sender,
             modifier_state: ModifierState::default(),
+            running: false,
         })
     }
 
@@ -72,6 +85,7 @@ impl RawInputDevice {
                 return Err(anyhow::anyhow!("Failed to create window"));
             }
 
+            debug!("Raw Input message window created: {:?}", hwnd);
             Ok(hwnd)
         }
     }
@@ -104,11 +118,12 @@ impl RawInputDevice {
     /// 运行消息循环
     pub fn run(&mut self) -> Result<()> {
         debug!("Starting Raw Input message loop");
+        self.running = true;
         
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
             
-            while GetMessageW(&mut msg, None, 0, 0).into() {
+            while self.running && GetMessageW(&mut msg, None, 0, 0).into() {
                 DispatchMessageW(&msg);
             }
         }
@@ -118,7 +133,8 @@ impl RawInputDevice {
     }
 
     /// 停止消息循环
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
+        self.running = false;
         unsafe {
             windows::Win32::UI::WindowsAndMessaging::PostMessageW(
                 self.hwnd,
@@ -198,14 +214,19 @@ impl RawInputDevice {
                 KeyState::Released
             };
 
-            let _event = KeyEvent::new(scan_code, keyboard.VKey, state);
+            let event = KeyEvent::new(scan_code, keyboard.VKey, state);
             
             trace!(
                 "Keyboard: scan_code={:04X}, vk={:04X}, state={:?}",
                 scan_code, keyboard.VKey, state
             );
 
-            // TODO: 发送事件到处理线程
+            // 发送事件
+            CURRENT_SENDER.with(|s| {
+                if let Some(ref sender) = *s.borrow() {
+                    let _ = sender.send(InputEvent::Key(event));
+                }
+            });
         } else if device_type == RIM_TYPEMOUSE.0 {
             let mouse = &raw.data.mouse;
             let mouse_inner = mouse.Anonymous.Anonymous;
@@ -240,21 +261,26 @@ impl RawInputDevice {
                         MouseEventType::ButtonUp(btn)
                     };
 
-                    let _event = MouseEvent::new(event_type, mouse.lLastX, mouse.lLastY);
+                    let event = MouseEvent::new(event_type, mouse.lLastX, mouse.lLastY);
                     
                     trace!(
                         "Mouse button: {:?}, down={}, x={}, y={}",
                         btn, is_down, mouse.lLastX, mouse.lLastY
                     );
 
-                    // TODO: 发送事件到处理线程
+                    // 发送事件
+                    CURRENT_SENDER.with(|s| {
+                        if let Some(ref sender) = *s.borrow() {
+                            let _ = sender.send(InputEvent::Mouse(event));
+                        }
+                    });
                 }
             }
 
             // 处理滚轮
             if mouse_inner.usButtonFlags & 0x0400 != 0 {
                 let delta = mouse_inner.usButtonData as i16 as i32;
-                let _event = MouseEvent::new(
+                let event = MouseEvent::new(
                     MouseEventType::Wheel(delta / 120),
                     mouse.lLastX,
                     mouse.lLastY,
@@ -262,7 +288,12 @@ impl RawInputDevice {
                 
                 trace!("Mouse wheel: delta={}", delta);
                 
-                // TODO: 发送事件到处理线程
+                // 发送事件
+                CURRENT_SENDER.with(|s| {
+                    if let Some(ref sender) = *s.borrow() {
+                        let _ = sender.send(InputEvent::Mouse(event));
+                    }
+                });
             }
         }
     }
@@ -273,10 +304,19 @@ impl RawInputDevice {
             self.modifier_state.merge(&modifier);
         }
     }
+
+    /// 获取当前修饰键状态
+    pub fn get_modifier_state(&self) -> &ModifierState {
+        &self.modifier_state
+    }
 }
 
 impl Drop for RawInputDevice {
     fn drop(&mut self) {
         self.stop();
+        // 清理线程本地存储
+        CURRENT_SENDER.with(|s| {
+            *s.borrow_mut() = None;
+        });
     }
 }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
 
@@ -7,7 +7,7 @@ use wakem_common::config::Config;
 use wakem_common::ipc::{Message, IpcServer};
 use wakem_common::types::{Action, InputEvent};
 
-use crate::platform::windows::{OutputDevice, Launcher, WindowManager};
+use crate::platform::windows::{OutputDevice, Launcher, WindowManager, RawInputDevice};
 use crate::runtime::{KeyMapper, LayerManager};
 
 /// 服务端状态
@@ -105,6 +105,44 @@ impl ServerState {
         }
 
         info!("Configuration loaded successfully");
+        Ok(())
+    }
+
+    /// 从文件重新加载配置
+    pub async fn reload_config_from_file(&self) -> Result<()> {
+        use wakem_common::resolve_config_file_path;
+
+        info!("Reloading configuration from file...");
+
+        // 获取当前配置文件路径
+        let config_path = {
+            let config = self.config.read().await;
+            // 尝试从配置中获取路径，或使用默认路径
+            resolve_config_file_path(None)
+        };
+
+        let config_path = match config_path {
+            Some(path) => path,
+            None => {
+                return Err(anyhow::anyhow!("Config file not found"));
+            }
+        };
+
+        info!("Loading config from: {:?}", config_path);
+
+        // 尝试加载新配置
+        let new_config = match Config::from_file(&config_path) {
+            Ok(config) => config,
+            Err(e) => {
+                error!("Failed to load config: {}", e);
+                return Err(anyhow::anyhow!("Failed to load config: {}", e));
+            }
+        };
+
+        // 应用新配置
+        self.load_config(new_config).await?;
+
+        info!("Configuration reloaded successfully");
         Ok(())
     }
 
@@ -212,13 +250,43 @@ pub async fn run_server() -> Result<()> {
 
     info!("IPC server started");
 
-    // 启动输入处理（在单独线程中）
-    let state_clone = state.clone();
-    let (_input_tx, mut input_rx) = mpsc::channel(1000);
+    // 创建输入事件通道（使用 std::sync::mpsc 用于 Raw Input 线程）
+    let (input_tx, input_rx) = std::sync::mpsc::channel::<InputEvent>();
+    let input_rx = Arc::new(StdMutex::new(input_rx));
     
+    // 启动 Raw Input 捕获（在单独线程中）
+    let input_tx_clone = input_tx.clone();
+    std::thread::spawn(move || {
+        match RawInputDevice::new(input_tx_clone) {
+            Ok(mut device) => {
+                info!("Raw Input device initialized");
+                if let Err(e) = device.run() {
+                    error!("Raw Input error: {}", e);
+                }
+            }
+            Err(e) => {
+                error!("Failed to create Raw Input device: {}", e);
+            }
+        }
+    });
+
+    // 启动输入处理任务（将 std 通道转换为 tokio 任务）
+    let state_clone = state.clone();
+    let input_rx_clone = input_rx.clone();
     tokio::spawn(async move {
-        while let Some(event) = input_rx.recv().await {
-            state_clone.process_input_event(event).await;
+        loop {
+            // 在非阻塞模式下检查接收
+            let event = {
+                let rx = input_rx_clone.lock().unwrap();
+                rx.try_recv().ok()
+            };
+            
+            if let Some(event) = event {
+                state_clone.process_input_event(event).await;
+            } else {
+                // 没有事件时短暂休眠
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+            }
         }
     });
 
@@ -273,8 +341,10 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
             }
         }
         Message::ReloadConfig => {
-            // TODO: 从文件重新加载配置
-            Message::ConfigLoaded
+            match state.reload_config_from_file().await {
+                Ok(_) => Message::ConfigLoaded,
+                Err(e) => Message::ConfigError { error: e.to_string() },
+            }
         }
         Message::GetStatus => {
             let (active, loaded) = state.get_status().await;
