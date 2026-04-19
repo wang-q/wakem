@@ -1,4 +1,3 @@
-use super::{KeyEvent, MouseEvent, ModifierState};
 use serde::{Deserialize, Serialize};
 
 /// 按键动作
@@ -14,7 +13,7 @@ pub enum KeyAction {
     TypeText(String),
     /// 组合键（如 Ctrl+C）
     Combo {
-        modifiers: ModifierState,
+        modifiers: super::ModifierState,
         key: (u16, u16), // (scan_code, virtual_key)
     },
     /// 无操作
@@ -23,7 +22,7 @@ pub enum KeyAction {
 
 impl KeyAction {
     /// 从 KeyEvent 创建对应的 Press 动作
-    pub fn press_from_event(event: &KeyEvent) -> Self {
+    pub fn press_from_event(event: &super::KeyEvent) -> Self {
         Self::Press {
             scan_code: event.scan_code,
             virtual_key: event.virtual_key,
@@ -31,7 +30,7 @@ impl KeyAction {
     }
 
     /// 从 KeyEvent 创建对应的 Release 动作
-    pub fn release_from_event(event: &KeyEvent) -> Self {
+    pub fn release_from_event(event: &super::KeyEvent) -> Self {
         Self::Release {
             scan_code: event.scan_code,
             virtual_key: event.virtual_key,
@@ -47,7 +46,7 @@ impl KeyAction {
     }
 
     /// 创建组合键动作
-    pub fn combo(modifiers: ModifierState, scan_code: u16, virtual_key: u16) -> Self {
+    pub fn combo(modifiers: super::ModifierState, scan_code: u16, virtual_key: u16) -> Self {
         Self::Combo {
             modifiers,
             key: (scan_code, virtual_key),
@@ -74,10 +73,55 @@ pub enum MouseAction {
     None,
 }
 
-/// 窗口动作
+/// 边缘枚举（用于窗口管理）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum Edge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+/// 对齐方式枚举
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum Alignment {
+    Left,
+    Right,
+    Top,
+    Bottom,
+    Center,
+}
+
+/// 显示器方向枚举
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum MonitorDirection {
+    Next,
+    Prev,
+    Index(i32),
+}
+
+/// 窗口动作（借鉴 mrw 项目）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WindowAction {
-    /// 移动窗口
+    /// 窗口居中
+    Center,
+    /// 移动到屏幕边缘
+    MoveToEdge(Edge),
+    /// 半屏显示
+    HalfScreen(Edge),
+    /// 循环调整宽度
+    LoopWidth(Alignment),
+    /// 循环调整高度
+    LoopHeight(Alignment),
+    /// 固定比例窗口（比例值，缩放索引）
+    FixedRatio { ratio: f32, scale_index: usize },
+    /// 原生比例窗口（基于屏幕比例，缩放索引）
+    NativeRatio { scale_index: usize },
+    /// 同进程窗口切换（Alt+` 功能）
+    SwitchToNextWindow,
+    /// 跨显示器移动
+    MoveToMonitor(MonitorDirection),
+    /// 移动窗口（绝对坐标）
     Move { x: i32, y: i32 },
     /// 调整窗口大小
     Resize { width: i32, height: i32 },
@@ -93,8 +137,6 @@ pub enum WindowAction {
     ToggleTopmost,
     /// 设置透明度
     SetOpacity { opacity: u8 },
-    /// 移动到指定显示器
-    MoveToMonitor { monitor: i32 },
     /// 无操作
     None,
 }

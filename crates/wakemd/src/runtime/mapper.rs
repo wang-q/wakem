@@ -10,6 +10,9 @@ pub struct KeyMapper {
     rules: Vec<MappingRule>,
     /// 是否启用
     enabled: bool,
+    /// 窗口管理器（用于执行窗口管理动作）
+    #[cfg(target_os = "windows")]
+    window_manager: Option<crate::platform::windows::WindowManager>,
 }
 
 impl KeyMapper {
@@ -19,7 +22,26 @@ impl KeyMapper {
             mappings: HashMap::new(),
             rules: Vec::new(),
             enabled: true,
+            #[cfg(target_os = "windows")]
+            window_manager: None,
         }
+    }
+
+    /// 创建带窗口管理器的映射引擎
+    #[cfg(target_os = "windows")]
+    pub fn with_window_manager(window_manager: crate::platform::windows::WindowManager) -> Self {
+        Self {
+            mappings: HashMap::new(),
+            rules: Vec::new(),
+            enabled: true,
+            window_manager: Some(window_manager),
+        }
+    }
+
+    /// 设置窗口管理器
+    #[cfg(target_os = "windows")]
+    pub fn set_window_manager(&mut self, window_manager: crate::platform::windows::WindowManager) {
+        self.window_manager = Some(window_manager);
     }
 
     /// 从配置加载映射规则
@@ -108,6 +130,171 @@ impl KeyMapper {
         }
 
         None
+    }
+
+    /// 执行动作（包括窗口管理动作）
+    #[cfg(target_os = "windows")]
+    pub fn execute_action(&self, action: &Action) -> anyhow::Result<()> {
+        use wakem_common::types::WindowAction;
+
+        match action {
+            Action::Window(window_action) => {
+                if let Some(ref wm) = self.window_manager {
+                    self.execute_window_action(wm, window_action)?;
+                } else {
+                    debug!("WindowManager not available, skipping window action");
+                }
+            }
+            Action::Key(_) | Action::Mouse(_) | Action::Launch(_) | Action::Sequence(_) | Action::None => {
+                // 这些动作由其他组件处理
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 执行窗口管理动作
+    #[cfg(target_os = "windows")]
+    fn execute_window_action(
+        &self,
+        wm: &crate::platform::windows::WindowManager,
+        action: &wakem_common::types::WindowAction,
+    ) -> anyhow::Result<()> {
+        use wakem_common::types::{Alignment, Edge, MonitorDirection, WindowAction};
+        use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+
+        unsafe {
+            let hwnd = GetForegroundWindow();
+            if hwnd.0 == 0 {
+                return Err(anyhow::anyhow!("No foreground window"));
+            }
+
+            match action {
+                WindowAction::Center => wm.move_to_center(hwnd)?,
+                WindowAction::MoveToEdge(edge) => {
+                    let edge = match edge {
+                        Edge::Left => crate::platform::windows::Edge::Left,
+                        Edge::Right => crate::platform::windows::Edge::Right,
+                        Edge::Top => crate::platform::windows::Edge::Top,
+                        Edge::Bottom => crate::platform::windows::Edge::Bottom,
+                    };
+                    wm.move_to_edge(hwnd, edge)?;
+                }
+                WindowAction::HalfScreen(edge) => {
+                    let edge = match edge {
+                        Edge::Left => crate::platform::windows::Edge::Left,
+                        Edge::Right => crate::platform::windows::Edge::Right,
+                        Edge::Top => crate::platform::windows::Edge::Top,
+                        Edge::Bottom => crate::platform::windows::Edge::Bottom,
+                    };
+                    wm.set_half_screen(hwnd, edge)?;
+                }
+                WindowAction::LoopWidth(align) => {
+                    let align = match align {
+                        Alignment::Left => crate::platform::windows::Alignment::Left,
+                        Alignment::Right => crate::platform::windows::Alignment::Right,
+                        _ => crate::platform::windows::Alignment::Center,
+                    };
+                    wm.loop_width(hwnd, align)?;
+                }
+                WindowAction::LoopHeight(align) => {
+                    let align = match align {
+                        Alignment::Top => crate::platform::windows::Alignment::Top,
+                        Alignment::Bottom => crate::platform::windows::Alignment::Bottom,
+                        _ => crate::platform::windows::Alignment::Center,
+                    };
+                    wm.loop_height(hwnd, align)?;
+                }
+                WindowAction::FixedRatio { ratio, scale_index } => {
+                    wm.set_fixed_ratio(hwnd, *ratio, *scale_index)?;
+                }
+                WindowAction::NativeRatio { scale_index } => {
+                    wm.set_native_ratio(hwnd, *scale_index)?;
+                }
+                WindowAction::SwitchToNextWindow => {
+                    wm.switch_to_next_window_of_same_process()?;
+                }
+                WindowAction::MoveToMonitor(direction) => {
+                    let direction = match direction {
+                        MonitorDirection::Next => crate::platform::windows::MonitorDirection::Next,
+                        MonitorDirection::Prev => crate::platform::windows::MonitorDirection::Prev,
+                        MonitorDirection::Index(idx) => crate::platform::windows::MonitorDirection::Index(*idx),
+                    };
+                    wm.move_to_monitor(hwnd, direction)?;
+                }
+                WindowAction::Move { x, y } => {
+                    use crate::platform::windows::WindowFrame;
+                    let info = wm.get_window_info(hwnd)?;
+                    let new_frame = WindowFrame::new(*x, *y, info.frame.width, info.frame.height);
+                    wm.set_window_frame(hwnd, &new_frame)?;
+                }
+                WindowAction::Resize { width, height } => {
+                    use crate::platform::windows::WindowFrame;
+                    let info = wm.get_window_info(hwnd)?;
+                    let new_frame = WindowFrame::new(info.frame.x, info.frame.y, *width, *height);
+                    wm.set_window_frame(hwnd, &new_frame)?;
+                }
+                WindowAction::Minimize => {
+                    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MINIMIZE};
+                    ShowWindow(hwnd, SW_MINIMIZE).ok();
+                }
+                WindowAction::Maximize => {
+                    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MAXIMIZE};
+                    ShowWindow(hwnd, SW_MAXIMIZE).ok();
+                }
+                WindowAction::Restore => {
+                    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_RESTORE};
+                    ShowWindow(hwnd, SW_RESTORE).ok();
+                }
+                WindowAction::Close => {
+                    use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
+                    use windows::Win32::Foundation::{WPARAM, LPARAM};
+                    use windows::Win32::UI::WindowsAndMessaging::WM_CLOSE;
+                    PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+                }
+                WindowAction::ToggleTopmost => {
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        SetWindowPos, HWND_TOPMOST, HWND_NOTOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                    };
+                    use windows::Win32::Foundation::BOOL;
+                    
+                    let info = wm.get_window_info(hwnd)?;
+                    // 简单判断：如果窗口在 (0,0) 附近，假设它是置顶窗口
+                    // 实际应该使用 GetWindowLong 检查 WS_EX_TOPMOST 样式
+                    let is_topmost = info.frame.x == 0 && info.frame.y == 0;
+                    
+                    let hwnd_insert_after = if is_topmost {
+                        HWND_NOTOPMOST
+                    } else {
+                        HWND_TOPMOST
+                    };
+                    
+                    SetWindowPos(hwnd, hwnd_insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
+                        .ok();
+                }
+                WindowAction::SetOpacity { opacity } => {
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        SetLayeredWindowAttributes, GetWindowLongW, SetWindowLongW,
+                        GWL_EXSTYLE, WS_EX_LAYERED, LWA_ALPHA,
+                    };
+                    use windows::Win32::Foundation::COLORREF;
+                    
+                    // 获取当前扩展样式
+                    let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                    
+                    // 添加 WS_EX_LAYERED 样式
+                    if ex_style & WS_EX_LAYERED.0 as i32 == 0 {
+                        SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
+                    }
+                    
+                    // 设置透明度
+                    SetLayeredWindowAttributes(hwnd, COLORREF(0), *opacity, LWA_ALPHA).ok();
+                }
+                WindowAction::None => {}
+            }
+        }
+
+        Ok(())
     }
 
     /// 重建映射表

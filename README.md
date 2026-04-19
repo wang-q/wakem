@@ -579,112 +579,109 @@ P = "PageDown"
 
 ### Phase 3: Windows 窗口管理
 
-#### 3.1 窗口信息获取
+#### 3.1 窗口信息获取 ✅
 
-* [ ] 封装窗口枚举（EnumWindows）
+* [x] 封装窗口信息获取（GetForegroundWindow, GetWindowRect）
 
-* [ ] 获取窗口标题、类名、进程信息
+* [x] 获取窗口标题（GetWindowTextW）
 
-* [ ] 获取窗口位置和大小
+* [x] 获取窗口位置和大小
 
-* [ ] 获取窗口状态（最小化、最大化、置顶）
+* [x] 获取窗口状态（IsIconic, IsZoomed）
 
-* [ ] 实现窗口信息缓存
+* [x] 实现多显示器工作区计算（MonitorFromWindow, GetMonitorInfoW）
 
-#### 3.2 窗口操作基础
+**关键文件**: `crates/wakemd/src/platform/windows/window_manager.rs`
 
-* [ ] 实现窗口移动（SetWindowPos）
+**借鉴 mrw 的实现**:
+- `WindowFrame` 结构体 - 窗口位置和大小
+- `MonitorWorkArea` 结构体 - 显示器工作区（排除任务栏）
+- `WindowInfo` 结构体 - 完整的窗口信息
 
-* [ ] 实现窗口调整大小
+#### 3.2 窗口操作基础 ✅
 
-* [ ] 实现窗口最小化/最大化/还原
+* [x] 实现窗口移动（SetWindowPos）
+
+* [x] 实现窗口调整大小
+
+* [x] 实现窗口还原（ShowWindow + SW_RESTORE）
 
 * [ ] 实现窗口关闭（WM\_CLOSE）
 
 * [ ] 实现窗口置顶切换
 
-#### 3.3 窗口位置预设（借鉴 mrw）
+**借鉴 mrw 的实现**:
+- `ensure_window_restored()` - 移动前自动还原最小化/最大化窗口
+- `set_window_frame()` - 设置窗口位置和大小
+
+#### 3.3 窗口位置预设（借鉴 mrw）✅
 
 基于 [mrw](https://github.com/yourusername/mrw) 项目的窗口管理逻辑实现：
 
-* [ ] 计算屏幕区域（单显示器、多显示器）
+* [x] 计算屏幕区域（单显示器、多显示器）
 
-* [ ] 实现窗口居中 (hyper + C)
+* [x] 实现窗口居中 (hyper + C)
+  - `move_to_center()` - 计算居中坐标并移动
 
-* [ ] 实现移动到屏幕边缘 (hyper + Home/End/PgUp/PgDn)
-  - Left: 移到左边缘
-  - Right: 移到右边缘
-  - Top: 移到上边缘
-  - Bottom: 移到下边缘
+* [x] 实现移动到屏幕边缘 (hyper + Home/End/PgUp/PgDn)
+  - `move_to_edge()` - 支持 Left/Right/Top/Bottom 四个边缘
 
-* [ ] 实现半屏显示 (hyper + Shift + 方向键)
-  - 左半屏、右半屏、上半屏、下半屏
+* [x] 实现半屏显示 (hyper + Shift + 方向键)
+  - `set_half_screen()` - 左/右/上/下半屏
 
-* [ ] 实现宽度循环调整 (hyper + 左/右)
-  - 比例序列: 3/4 → 3/5 → 1/2 → 2/5 → 1/4 → (循环)
-  - 左键: 靠左对齐
-  - 右键: 靠右对齐
+* [x] 实现宽度循环调整 (hyper + 左/右)
+  - `loop_width()` - 比例序列: 3/4 → 3/5 → 1/2 → 2/5 → 1/4 → (循环)
 
-* [ ] 实现高度循环调整 (hyper + 上/下)
-  - 比例序列: 3/4 → 1/2 → 1/4 → (循环)
-  - 上键: 靠上对齐
-  - 下键: 靠下对齐
+* [x] 实现高度循环调整 (hyper + 上/下)
+  - `loop_height()` - 比例序列: 3/4 → 1/2 → 1/4 → (循环)
 
-* [ ] 实现固定比例窗口 (hyper + M)
-  - 4:3 比例
-  - 大小循环: 100% → 90% → 70% → 50% → (循环)
-  - 自动居中
+* [x] 实现固定比例窗口 (hyper + M)
+  - `set_fixed_ratio()` - 支持任意比例，循环缩放 100% → 90% → 70% → 50%
 
-* [ ] 实现原生比例窗口 (hyper + Shift + M)
-  - 基于屏幕宽高比
-  - 大小循环: 100% → 90% → 70% → 50% → (循环)
-  - 自动居中
+* [x] 实现原生比例窗口 (hyper + Shift + M)
+  - `set_native_ratio()` - 基于屏幕宽高比计算
 
-* [ ] 支持多显示器间的窗口移动 (hyper + J/K)
-  - J: 移到下一个显示器
-  - K: 移到上一个显示器
+* [x] 支持多显示器间的窗口移动 (hyper + J/K)
+  - `move_to_monitor()` - 支持 Next/Prev/Index 三种模式
 
 **参考实现**: `mrw/mac/init.lua`, `mrw/win/init.ahk`
 
-#### 3.4 窗口切换基础
+**关键代码**: `crates/wakemd/src/platform/windows/window_manager.rs`
 
-* [ ] 实现窗口列表获取（按进程分组）
+#### 3.4 窗口切换基础 ✅
 
-* [ ] 实现 Z-Order 排序
+* [x] 实现 Alt+\` 同进程窗口切换
+  - `switch_to_next_window_of_same_process()` - 切换到同进程下一个窗口
+  - 获取当前窗口进程 ID
+  - 枚举该进程所有可见窗口
+  - 按 Z-Order 排序
+  - 切换到下一个窗口
+  - 使用系统原生窗口激活（SetForegroundWindow）
 
-* [ ] 实现窗口切换逻辑（SetForegroundWindow）
+> **注**: 不实现自定义 Alt+Tab UI，直接使用系统原生切换，更加稳定可靠
 
-* [ ] 处理最小化窗口的还原
+#### 3.5 Action 系统集成 ✅
 
-* [ ] 实现 Alt+\` 同进程窗口切换
+* [x] 扩展 WindowAction 类型
+  - `Center`, `MoveToEdge`, `HalfScreen`
+  - `LoopWidth`, `LoopHeight`
+  - `FixedRatio`, `NativeRatio`
+  - `SwitchToNextWindow`
+  - `MoveToMonitor`
+  - `Minimize`, `Maximize`, `Restore`, `Close`
+  - `ToggleTopmost`, `SetOpacity`
 
-#### 3.5 窗口切换 UI
+* [x] 实现配置解析
+  - `parse_window_action()` - 解析窗口管理动作
+  - `parse_shortcut_trigger()` - 解析快捷键（如 Ctrl+Alt+C）
+  - 支持 `Window(Center)`, `Window(HalfScreen(Left))` 等语法
 
-* [ ] 创建分层窗口（WS\_EX\_LAYERED）
+* [x] 集成到映射引擎
+  - `KeyMapper::execute_action()` - 执行窗口管理动作
+  - `KeyMapper::execute_window_action()` - 具体动作实现
+  - `ServerState` 初始化时创建 WindowManager
 
-* [ ] 实现 GDI+ 初始化和资源管理
-
-* [ ] 绘制背景（圆角矩形、主题色）
-
-* [ ] 绘制应用图标（HICON 渲染）
-
-* [ ] 实现选中高亮效果
-
-* [ ] 实现窗口位置计算（居中显示）
-
-#### 3.6 图标系统
-
-* [ ] 实现图标获取（从 EXE、从窗口）
-
-* [ ] 实现 UWP 应用图标解析（AppxManifest.xml）
-
-* [ ] 实现图标缓存（避免重复加载）
-
-* [ ] 实现图标覆盖配置
-
-* [ ] 处理图标缩放和裁剪
-
-#### 3.7 虚拟桌面支持
+#### 3.6 虚拟桌面支持
 
 * [ ] 检测虚拟桌面 API 可用性
 

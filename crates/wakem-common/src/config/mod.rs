@@ -70,7 +70,57 @@ impl Config {
         rules.extend(self.keyboard.remap.iter().filter_map(|(k, v)| {
             parse_key_mapping(k, v).ok()
         }));
+        rules.extend(self.keyboard.layers.iter().filter_map(|(name, layer)| {
+            self.parse_layer_mappings(name, layer).ok()
+        }).flatten());
+        rules.extend(self.window.shortcuts.iter().filter_map(|(k, v)| {
+            parse_window_shortcut(k, v).ok()
+        }));
         rules
+    }
+
+    /// 解析层的映射规则
+    fn parse_layer_mappings(&self, layer_name: &str, layer: &LayerConfig) -> anyhow::Result<Vec<MappingRule>> {
+        use crate::types::{Action, KeyAction, Trigger, ModifierState};
+
+        let mut rules = Vec::new();
+
+        // 解析激活键
+        let activation_key = parse_key(&layer.activation_key)?;
+        let activation_trigger = Trigger::key(activation_key.0, activation_key.1);
+
+        // 根据模式创建层切换动作
+        let layer_action = match layer.mode {
+            LayerMode::Hold => Action::key(KeyAction::Press {
+                scan_code: activation_key.0,
+                virtual_key: activation_key.1,
+            }),
+            LayerMode::Toggle => Action::key(KeyAction::Click {
+                scan_code: activation_key.0,
+                virtual_key: activation_key.1,
+            }),
+        };
+
+        // 添加层激活规则
+        rules.push(MappingRule::new(activation_trigger, layer_action));
+
+        // 解析层内的映射
+        for (from, to) in &layer.mappings {
+            if let Ok(from_key) = parse_key(from) {
+                // 检查是否是窗口管理动作
+                if let Ok(window_action) = parse_window_action(to) {
+                    let trigger = Trigger::key(from_key.0, from_key.1);
+                    let action = Action::window(window_action);
+                    rules.push(MappingRule::new(trigger, action));
+                } else if let Ok(to_key) = parse_key(to) {
+                    let trigger = Trigger::key(from_key.0, from_key.1);
+                    let action = Action::key(KeyAction::click(to_key.0, to_key.1));
+                    rules.push(MappingRule::new(trigger, action));
+                }
+            }
+        }
+
+        Ok(rules)
     }
 }
 
@@ -123,6 +173,9 @@ pub struct WindowConfig {
     /// 窗口位置预设
     #[serde(default)]
     pub positions: HashMap<String, WindowPosition>,
+    /// 窗口管理快捷键（借鉴 mrw）
+    #[serde(default)]
+    pub shortcuts: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -174,12 +227,194 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
     use crate::types::{Action, KeyAction, Trigger};
 
     let from_key = parse_key(from)?;
+
+    // 检查是否是窗口管理动作
+    if let Ok(window_action) = parse_window_action(to) {
+        let trigger = Trigger::key(from_key.0, from_key.1);
+        let action = Action::window(window_action);
+        return Ok(MappingRule::new(trigger, action));
+    }
+
     let to_key = parse_key(to)?;
 
     let trigger = Trigger::key(from_key.0, from_key.1);
     let action = Action::key(KeyAction::click(to_key.0, to_key.1));
 
     Ok(MappingRule::new(trigger, action))
+}
+
+/// 解析窗口管理快捷键
+/// 格式: "Ctrl+Alt+C" -> "Center"
+fn parse_window_shortcut(from: &str, to: &str) -> anyhow::Result<MappingRule> {
+    use crate::types::{Action, Trigger};
+
+    // 解析快捷键（如 "Ctrl+Alt+C"）
+    let trigger = parse_shortcut_trigger(from)?;
+
+    // 解析窗口管理动作
+    let window_action = parse_window_action(to)?;
+    let action = Action::window(window_action);
+
+    Ok(MappingRule::new(trigger, action))
+}
+
+/// 解析快捷键触发器
+/// 格式: "Ctrl+Alt+C", "Ctrl+Alt+Win+Left"
+fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigger> {
+    use crate::types::{ModifierState, Trigger};
+
+    let parts: Vec<&str> = shortcut.split('+').map(|s| s.trim()).collect();
+    if parts.is_empty() {
+        return Err(anyhow::anyhow!("Empty shortcut"));
+    }
+
+    let mut modifiers = ModifierState::new();
+    let mut key_name = "";
+
+    for part in &parts {
+        match part.to_lowercase().as_str() {
+            "ctrl" | "control" => modifiers.ctrl = true,
+            "alt" => modifiers.alt = true,
+            "shift" => modifiers.shift = true,
+            "win" | "meta" | "command" | "cmd" => modifiers.meta = true,
+            _ => key_name = part,
+        }
+    }
+
+    if key_name.is_empty() {
+        return Err(anyhow::anyhow!("No key specified in shortcut: {}", shortcut));
+    }
+
+    let key = parse_key(key_name)?;
+    Ok(Trigger::key_with_modifiers(key.0, key.1, modifiers))
+}
+
+/// 解析窗口管理动作
+/// 格式: "Center", "MoveToEdge(Left)", "HalfScreen(Right)", "FixedRatio(1.333, 0)"
+fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowAction> {
+    use crate::types::{Alignment, Edge, MonitorDirection, WindowAction};
+
+    let action_str = action_str.trim();
+
+    // 简单动作（无参数）
+    match action_str {
+        "Center" => return Ok(WindowAction::Center),
+        "SwitchToNextWindow" => return Ok(WindowAction::SwitchToNextWindow),
+        "Minimize" => return Ok(WindowAction::Minimize),
+        "Maximize" => return Ok(WindowAction::Maximize),
+        "Restore" => return Ok(WindowAction::Restore),
+        "Close" => return Ok(WindowAction::Close),
+        "ToggleTopmost" => return Ok(WindowAction::ToggleTopmost),
+        _ => {}
+    }
+
+    // 带参数的动作
+    if let Some((name, params)) = action_str.split_once('(') {
+        let params = params.trim_end_matches(')');
+        let param_list: Vec<&str> = params.split(',').map(|s| s.trim()).collect();
+
+        match name.trim() {
+            "MoveToEdge" => {
+                let edge = parse_edge(param_list.get(0).unwrap_or(&""))?;
+                Ok(WindowAction::MoveToEdge(edge))
+            }
+            "HalfScreen" => {
+                let edge = parse_edge(param_list.get(0).unwrap_or(&""))?;
+                Ok(WindowAction::HalfScreen(edge))
+            }
+            "LoopWidth" => {
+                let align = parse_alignment(param_list.get(0).unwrap_or(&""))?;
+                Ok(WindowAction::LoopWidth(align))
+            }
+            "LoopHeight" => {
+                let align = parse_alignment(param_list.get(0).unwrap_or(&""))?;
+                Ok(WindowAction::LoopHeight(align))
+            }
+            "FixedRatio" => {
+                let ratio = param_list
+                    .get(0)
+                    .unwrap_or(&"1.333")
+                    .parse::<f32>()?;
+                let scale_index = param_list
+                    .get(1)
+                    .unwrap_or(&"0")
+                    .parse::<usize>()?;
+                Ok(WindowAction::FixedRatio { ratio, scale_index })
+            }
+            "NativeRatio" => {
+                let scale_index = param_list
+                    .get(0)
+                    .unwrap_or(&"0")
+                    .parse::<usize>()?;
+                Ok(WindowAction::NativeRatio { scale_index })
+            }
+            "MoveToMonitor" => {
+                let direction = parse_monitor_direction(param_list.get(0).unwrap_or(&""))?;
+                Ok(WindowAction::MoveToMonitor(direction))
+            }
+            "Move" => {
+                let x = param_list.get(0).unwrap_or(&"0").parse::<i32>()?;
+                let y = param_list.get(1).unwrap_or(&"0").parse::<i32>()?;
+                Ok(WindowAction::Move { x, y })
+            }
+            "Resize" => {
+                let width = param_list.get(0).unwrap_or(&"800").parse::<i32>()?;
+                let height = param_list.get(1).unwrap_or(&"600").parse::<i32>()?;
+                Ok(WindowAction::Resize { width, height })
+            }
+            "SetOpacity" => {
+                let opacity = param_list.get(0).unwrap_or(&"255").parse::<u8>()?;
+                Ok(WindowAction::SetOpacity { opacity })
+            }
+            _ => Err(anyhow::anyhow!("Unknown window action: {}", name)),
+        }
+    } else {
+        Err(anyhow::anyhow!("Invalid window action format: {}", action_str))
+    }
+}
+
+/// 解析边缘参数
+fn parse_edge(s: &str) -> anyhow::Result<crate::types::Edge> {
+    use crate::types::Edge;
+
+    match s.trim().to_lowercase().as_str() {
+        "left" => Ok(Edge::Left),
+        "right" => Ok(Edge::Right),
+        "top" => Ok(Edge::Top),
+        "bottom" => Ok(Edge::Bottom),
+        _ => Err(anyhow::anyhow!("Unknown edge: {}", s)),
+    }
+}
+
+/// 解析对齐参数
+fn parse_alignment(s: &str) -> anyhow::Result<crate::types::Alignment> {
+    use crate::types::Alignment;
+
+    match s.trim().to_lowercase().as_str() {
+        "left" => Ok(Alignment::Left),
+        "right" => Ok(Alignment::Right),
+        "top" => Ok(Alignment::Top),
+        "bottom" => Ok(Alignment::Bottom),
+        "center" => Ok(Alignment::Center),
+        _ => Err(anyhow::anyhow!("Unknown alignment: {}", s)),
+    }
+}
+
+/// 解析显示器方向参数
+fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirection> {
+    use crate::types::MonitorDirection;
+
+    match s.trim().to_lowercase().as_str() {
+        "next" => Ok(MonitorDirection::Next),
+        "prev" | "previous" => Ok(MonitorDirection::Prev),
+        s => {
+            if let Ok(index) = s.parse::<i32>() {
+                Ok(MonitorDirection::Index(index))
+            } else {
+                Err(anyhow::anyhow!("Unknown monitor direction: {}", s))
+            }
+        }
+    }
 }
 
 /// 解析键名到扫描码和虚拟键码

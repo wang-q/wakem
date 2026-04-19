@@ -7,7 +7,7 @@ use wakem_common::config::Config;
 use wakem_common::ipc::{Message, IpcServer};
 use wakem_common::types::{Action, InputEvent};
 
-use crate::platform::windows::{OutputDevice, Launcher, WindowContext};
+use crate::platform::windows::{OutputDevice, Launcher, WindowManager};
 use crate::runtime::{KeyMapper, LayerManager};
 
 /// 服务端状态
@@ -22,6 +22,8 @@ pub struct ServerState {
     output_device: Arc<Mutex<OutputDevice>>,
     /// 程序启动器
     launcher: Arc<Mutex<Launcher>>,
+    /// 窗口管理器
+    window_manager: Arc<Mutex<WindowManager>>,
     /// 是否启用映射
     active: Arc<RwLock<bool>>,
     /// 配置是否已加载
@@ -30,12 +32,16 @@ pub struct ServerState {
 
 impl ServerState {
     pub fn new() -> Self {
+        let window_manager = WindowManager::new();
+        let mapper = KeyMapper::with_window_manager(window_manager);
+
         Self {
             config: Arc::new(RwLock::new(Config::default())),
-            mapper: Arc::new(Mutex::new(KeyMapper::new())),
+            mapper: Arc::new(Mutex::new(mapper)),
             layer_manager: Arc::new(Mutex::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
+            window_manager: Arc::new(Mutex::new(WindowManager::new())),
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
         }
@@ -155,6 +161,10 @@ impl ServerState {
                 let output = self.output_device.lock().await;
                 output.send_mouse_action(&mouse_action)?;
             }
+            Action::Window(window_action) => {
+                let mapper = self.mapper.lock().await;
+                mapper.execute_action(&Action::Window(window_action))?;
+            }
             Action::Launch(launch_action) => {
                 let launcher = self.launcher.lock().await;
                 launcher.launch(&launch_action)?;
@@ -164,7 +174,7 @@ impl ServerState {
                     Box::pin(self.execute_action(a)).await?;
                 }
             }
-            _ => {}
+            Action::None => {}
         }
         
         Ok(())
