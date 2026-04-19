@@ -1,0 +1,224 @@
+use anyhow::Result;
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex, RwLock};
+use tracing::{debug, error, info};
+
+use wakem_common::config::Config;
+use wakem_common::ipc::{Message, IpcServer};
+use wakem_common::types::{Action, InputEvent};
+
+use crate::platform::windows::{OutputDevice, RawInputDevice};
+use crate::runtime::KeyMapper;
+
+/// 服务端状态
+pub struct ServerState {
+    /// 当前配置
+    config: Arc<RwLock<Config>>,
+    /// 键位映射引擎
+    mapper: Arc<Mutex<KeyMapper>>,
+    /// 输出设备
+    output_device: Arc<Mutex<OutputDevice>>,
+    /// 是否启用映射
+    active: Arc<RwLock<bool>>,
+    /// 配置是否已加载
+    config_loaded: Arc<RwLock<bool>>,
+}
+
+impl ServerState {
+    pub fn new() -> Self {
+        Self {
+            config: Arc::new(RwLock::new(Config::default())),
+            mapper: Arc::new(Mutex::new(KeyMapper::new())),
+            output_device: Arc::new(Mutex::new(OutputDevice::new())),
+            active: Arc::new(RwLock::new(true)),
+            config_loaded: Arc::new(RwLock::new(false)),
+        }
+    }
+
+    /// 加载配置
+    pub async fn load_config(&self, config: Config) -> Result<()> {
+        // 更新配置
+        {
+            let mut cfg = self.config.write().await;
+            *cfg = config.clone();
+        }
+
+        // 更新映射规则
+        {
+            let mut mapper = self.mapper.lock().await;
+            let rules = config.get_all_rules();
+            mapper.load_rules(rules);
+        }
+
+        // 标记配置已加载
+        {
+            let mut loaded = self.config_loaded.write().await;
+            *loaded = true;
+        }
+
+        info!("Configuration loaded successfully");
+        Ok(())
+    }
+
+    /// 处理输入事件
+    pub async fn process_input_event(&self, event: InputEvent) {
+        // 检查是否启用
+        if !*self.active.read().await {
+            return;
+        }
+
+        // 如果是注入的事件，忽略（避免循环）
+        if event.is_injected() {
+            return;
+        }
+
+        // 通过映射引擎处理
+        let action = {
+            let mapper = self.mapper.lock().await;
+            mapper.process_event(&event)
+        };
+
+        // 执行动作
+        if let Some(action) = action {
+            if let Err(e) = self.execute_action(action).await {
+                error!("Failed to execute action: {}", e);
+            }
+        }
+    }
+
+    /// 执行动作
+    async fn execute_action(&self, action: Action) -> Result<()> {
+        match action {
+            Action::Key(key_action) => {
+                let output = self.output_device.lock().await;
+                output.send_key_action(&key_action)?;
+            }
+            Action::Mouse(mouse_action) => {
+                let output = self.output_device.lock().await;
+                output.send_mouse_action(&mouse_action)?;
+            }
+            Action::Sequence(actions) => {
+                for a in actions {
+                    Box::pin(self.execute_action(a)).await?;
+                }
+            }
+            _ => {}
+        }
+        
+        Ok(())
+    }
+
+    /// 设置启用状态
+    pub async fn set_active(&self, active: bool) {
+        let mut a = self.active.write().await;
+        *a = active;
+        info!("Server active state: {}", active);
+    }
+
+    /// 获取状态
+    pub async fn get_status(&self) -> (bool, bool) {
+        (*self.active.read().await, *self.config_loaded.read().await)
+    }
+}
+
+impl Default for ServerState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// 运行服务端
+pub async fn run_server() -> Result<()> {
+    info!("Starting wakemd server...");
+
+    let state = Arc::new(ServerState::new());
+    
+    // 创建 IPC 服务端
+    let (message_tx, mut message_rx) = mpsc::channel(100);
+    let mut ipc_server = IpcServer::new(message_tx);
+    ipc_server.start().await?;
+
+    info!("IPC server started");
+
+    // 启动输入处理（在单独线程中）
+    let state_clone = state.clone();
+    let (_input_tx, mut input_rx) = mpsc::channel(1000);
+    
+    tokio::spawn(async move {
+        while let Some(event) = input_rx.recv().await {
+            state_clone.process_input_event(event).await;
+        }
+    });
+
+    // 启动 IPC 连接处理
+    let _state_clone = state.clone();
+    tokio::spawn(async move {
+        loop {
+            match ipc_server.accept().await {
+                Ok(mut connection) => {
+                    debug!("New IPC connection accepted");
+                    
+                    // 处理连接
+                    tokio::spawn(async move {
+                        if let Err(e) = connection.handle().await {
+                            error!("IPC connection error: {}", e);
+                        }
+                    });
+                }
+                Err(e) => {
+                    error!("Failed to accept IPC connection: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+    });
+
+    // 处理 IPC 消息
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        while let Some((message, response_tx)) = message_rx.recv().await {
+            let response = handle_message(message, &state_clone).await;
+            let _ = response_tx.send(response).await;
+        }
+    });
+
+    info!("Server is running");
+
+    // 等待退出信号
+    tokio::signal::ctrl_c().await?;
+    
+    info!("Shutting down server...");
+    Ok(())
+}
+
+/// 处理 IPC 消息
+async fn handle_message(message: Message, state: &ServerState) -> Message {
+    match message {
+        Message::SetConfig { config } => {
+            match state.load_config(config).await {
+                Ok(_) => Message::ConfigLoaded,
+                Err(e) => Message::ConfigError { error: e.to_string() },
+            }
+        }
+        Message::ReloadConfig => {
+            // TODO: 从文件重新加载配置
+            Message::ConfigLoaded
+        }
+        Message::GetStatus => {
+            let (active, loaded) = state.get_status().await;
+            Message::StatusResponse { 
+                active, 
+                config_loaded: loaded 
+            }
+        }
+        Message::SetActive { active } => {
+            state.set_active(active).await;
+            Message::StatusResponse { 
+                active, 
+                config_loaded: *state.config_loaded.read().await 
+            }
+        }
+        Message::Ping => Message::Pong,
+        _ => Message::Error { message: "Unknown message".to_string() },
+    }
+}
