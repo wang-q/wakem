@@ -1,4 +1,4 @@
-# wakem - Window Adjust, Keyboard Enhance, Mouse enhance
+# wakem - Window Adjust, Keyboard Enhance, and Mouse
 
 一个跨平台的窗口管理、键盘增强、鼠标增强工具。借鉴 [mrw](https://github.com/yourusername/mrw)、[keymapper](https://github.com/houmain/keymapper) 和 [AutoHotkey](https://www.autohotkey.com/) 的优秀设计。
 
