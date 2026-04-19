@@ -7,8 +7,8 @@ use wakem_common::config::Config;
 use wakem_common::ipc::{Message, IpcServer};
 use wakem_common::types::{Action, InputEvent};
 
-use crate::platform::windows::{OutputDevice, RawInputDevice};
-use crate::runtime::KeyMapper;
+use crate::platform::windows::{OutputDevice, Launcher, WindowContext};
+use crate::runtime::{KeyMapper, LayerManager};
 
 /// 服务端状态
 pub struct ServerState {
@@ -16,8 +16,12 @@ pub struct ServerState {
     config: Arc<RwLock<Config>>,
     /// 键位映射引擎
     mapper: Arc<Mutex<KeyMapper>>,
+    /// 层管理器
+    layer_manager: Arc<Mutex<LayerManager>>,
     /// 输出设备
     output_device: Arc<Mutex<OutputDevice>>,
+    /// 程序启动器
+    launcher: Arc<Mutex<Launcher>>,
     /// 是否启用映射
     active: Arc<RwLock<bool>>,
     /// 配置是否已加载
@@ -29,7 +33,9 @@ impl ServerState {
         Self {
             config: Arc::new(RwLock::new(Config::default())),
             mapper: Arc::new(Mutex::new(KeyMapper::new())),
+            layer_manager: Arc::new(Mutex::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
+            launcher: Arc::new(Mutex::new(Launcher::new())),
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
         }
@@ -43,11 +49,47 @@ impl ServerState {
             *cfg = config.clone();
         }
 
-        // 更新映射规则
+        // 更新基础映射规则
         {
             let mut mapper = self.mapper.lock().await;
             let rules = config.get_all_rules();
             mapper.load_rules(rules);
+        }
+
+        // 更新层管理器
+        {
+            let mut layer_manager = self.layer_manager.lock().await;
+            
+            // 加载基础映射
+            let base_rules = config.get_all_rules();
+            layer_manager.set_base_mappings(base_rules);
+            
+            // 加载层配置
+            for (name, layer_config) in &config.keyboard.layers {
+                let mode = match layer_config.mode {
+                    wakem_common::config::LayerMode::Hold => wakem_common::types::LayerMode::Hold,
+                    wakem_common::config::LayerMode::Toggle => wakem_common::types::LayerMode::Toggle,
+                };
+                let mappings: Vec<(String, String)> = layer_config.mappings
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                
+                match LayerManager::create_layer_from_config(
+                    name,
+                    &layer_config.activation_key,
+                    mode,
+                    &mappings,
+                ) {
+                    Ok(layer) => {
+                        layer_manager.register_layer(layer);
+                        info!("Registered layer: {}", name);
+                    }
+                    Err(e) => {
+                        error!("Failed to create layer {}: {}", name, e);
+                    }
+                }
+            }
         }
 
         // 标记配置已加载
@@ -72,7 +114,23 @@ impl ServerState {
             return;
         }
 
-        // 通过映射引擎处理
+        // 先尝试通过层管理器处理
+        let (handled, action) = {
+            let mut layer_manager = self.layer_manager.lock().await;
+            layer_manager.process_event(&event)
+        };
+
+        if handled {
+            // 如果层管理器处理了事件（包括层激活键）
+            if let Some(action) = action {
+                if let Err(e) = self.execute_action(action).await {
+                    error!("Failed to execute action: {}", e);
+                }
+            }
+            return;
+        }
+
+        // 层管理器未处理，使用基础映射引擎
         let action = {
             let mapper = self.mapper.lock().await;
             mapper.process_event(&event)
@@ -96,6 +154,10 @@ impl ServerState {
             Action::Mouse(mouse_action) => {
                 let output = self.output_device.lock().await;
                 output.send_mouse_action(&mouse_action)?;
+            }
+            Action::Launch(launch_action) => {
+                let launcher = self.launcher.lock().await;
+                launcher.launch(&launch_action)?;
             }
             Action::Sequence(actions) => {
                 for a in actions {

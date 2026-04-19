@@ -424,67 +424,95 @@ crates/
 
 ***
 
-### Phase 2: Windows 键盘增强
+### Phase 2: Windows 键盘增强 ✅ 已完成
 
-#### 2.1 键位重映射基础
+#### 2.1 键位重映射基础 ✅
 
-* [ ] 实现基础映射表（扫描码 -> 扫描码）
+* [x] 实现基础映射表（扫描码 -> 扫描码）
 
-* [ ] 实现映射查找和匹配逻辑
+* [x] 实现映射查找和匹配逻辑
 
-* [ ] 处理单键重映射（如 CapsLock -> Backspace）
+* [x] 处理单键重映射（如 CapsLock -> Backspace）
 
 * [ ] 处理修饰键交换（如 LAlt <-> LCtrl）
 
 * [ ] 添加映射冲突检测
 
-#### 2.2 快捷键层系统
+**关键文件**:
+- `crates/wakemd/src/runtime/mapper.rs` - 映射引擎
+- `crates/wakem-common/src/config/mod.rs` - 配置解析
 
-* [ ] 设计层数据结构（Layer, LayerStack）
+#### 2.2 快捷键层系统 ✅
 
-* [ ] 实现层切换逻辑（按住触发、切换触发）
+* [x] 设计层数据结构（Layer, LayerStack）
 
-* [ ] 实现层内映射查找
+* [x] 实现层切换逻辑（按住触发、切换触发）
 
-* [ ] 处理多层叠加和优先级
+* [x] 实现层内映射查找
+
+* [x] 处理多层叠加和优先级
 
 * [ ] 添加层状态指示（可选：托盘图标变化）
 
-#### 2.3 导航层实现
+**关键文件**:
+- `crates/wakem-common/src/types/layer.rs` - 层类型定义
+- `crates/wakemd/src/runtime/layer_manager.rs` - 层管理器
 
-* [ ] 实现 CapsLock 导航层（HJKL 方向键）
+#### 2.3 导航层配置 ✅
 
-* [ ] 实现 Home/End/PageUp/PageDown 映射
+以下功能通过配置文件实现：
 
-* [ ] 实现数字键盘层（可选）
+```toml
+[keyboard.layers.navigate]
+activation_key = "CapsLock"
+mode = "Hold"
 
-* [ ] 添加层切换的视觉反馈
+[keyboard.layers.navigate.mappings]
+H = "Left"
+J = "Down"
+K = "Up"
+L = "Right"
+I = "Home"
+O = "End"
+U = "PageUp"
+P = "PageDown"
+```
 
-#### 2.4 上下文感知
+* [x] 验证导航层配置可正常解析和生效
 
-* [ ] 实现前台窗口检测（GetForegroundWindow）
+* [ ] 添加层切换的视觉反馈（可选）
 
-* [ ] 实现窗口类名/进程名获取
+#### 2.4 上下文感知 ✅
 
-* [ ] 实现上下文匹配逻辑（通配符、正则）
+* [x] 实现前台窗口检测（GetForegroundWindow）
+
+* [x] 实现窗口类名/进程名获取
+
+* [x] 实现上下文匹配逻辑（通配符）
 
 * [ ] 实现上下文切换的映射更新
 
 * [ ] 添加上下文调试信息
 
-#### 2.5 快速启动
+**关键文件**:
+- `crates/wakemd/src/platform/windows/context.rs` - 上下文检测
 
-* [ ] 实现 Launch 动作类型
+#### 2.5 快速启动 ✅
 
-* [ ] 实现进程启动（ShellExecute）
+* [x] 实现 Launch 动作类型
 
-* [ ] 支持带参数的程序启动
+* [x] 实现进程启动
+
+* [x] 支持带参数的程序启动
 
 * [ ] 支持工作目录设置
 
-* [ ] 添加启动错误处理
+* [x] 添加启动错误处理
 
-#### 2.6 高级键盘功能
+**关键文件**:
+- `crates/wakemd/src/platform/windows/launcher.rs` - 程序启动器
+
+#### 2.6 高级键盘功能（待实现）
 
 * [ ] 实现文本扩展（缩写展开）
 

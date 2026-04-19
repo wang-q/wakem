@@ -183,7 +183,7 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
 }
 
 /// 解析键名到扫描码和虚拟键码
-fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
+pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     // 常见键名映射
     let result = match name.to_lowercase().as_str() {
         "capslock" | "caps" => (0x3A, 0x14),
@@ -282,15 +282,20 @@ auto_reload = true
 [keyboard.remap]
 CapsLock = "Backspace"
 
-[[keyboard.layers]]
-name = "navigate"
+[keyboard.layers.navigate]
 activation_key = "CapsLock"
+mode = "Hold"
+
+[keyboard.layers.navigate.mappings]
+H = "Left"
+J = "Down"
 "#;
 
         let config: Config = toml::from_str(config_str).unwrap();
         assert_eq!(config.log_level, "debug");
         assert!(config.tray_icon);
         assert!(config.keyboard.remap.contains_key("CapsLock"));
+        assert!(config.keyboard.layers.contains_key("navigate"));
     }
 
     #[test]

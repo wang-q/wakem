@@ -1,9 +1,11 @@
 pub mod action;
 pub mod input;
+pub mod layer;
 pub mod mapping;
 
 pub use action::*;
 pub use input::*;
+pub use layer::*;
 pub use mapping::*;
 
 use serde::{Deserialize, Serialize};
