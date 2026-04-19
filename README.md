@@ -8,12 +8,22 @@
 
 | 功能      | 描述                                 | 参考实现                        |
 | ------- | ---------------------------------- | --------------------------- |
-| 窗口移动    | 快捷键移动窗口到屏幕各位置（左半、右半、上半、下半、四角、中心等）  | window-switcher, AutoHotkey |
-| 窗口调整大小  | 快捷键调整窗口大小（最大化、最小化、1/2屏、1/3屏、1/4屏等） | AutoHotkey                  |
+| 窗口移动    | 快捷键移动窗口到屏幕各位置（左半、右半、上半、下半、四角、中心等）  | window-switcher, AutoHotkey, mrw |
+| 窗口调整大小  | 快捷键调整窗口大小（最大化、最小化、1/2屏、1/3屏、1/4屏等） | AutoHotkey, mrw             |
 | 窗口切换    | Alt-Tab 增强、同应用窗口切换（Alt+\`）、窗口预览    | window-switcher             |
-| 多显示器支持  | 窗口跨显示器移动、每个显示器独立布局                 | AutoHotkey                  |
+| 多显示器支持  | 窗口跨显示器移动、每个显示器独立布局                 | AutoHotkey, mrw             |
 | 窗口置顶/透明 | 快捷键设置窗口置顶或调整透明度                    | AutoHotkey                  |
 | 虚拟桌面    | 快捷键切换/移动窗口到不同虚拟桌面                  | window-switcher             |
+
+**从 mrw 项目借鉴的窗口管理功能**:
+- 窗口居中显示 (hyper + C)
+- 移动到屏幕边缘 (hyper + Home/End/PgUp/PgDn)
+- 半屏显示 (hyper + Shift + 方向键)
+- 宽度循环调整 (hyper + 左/右): 3/4 → 3/5 → 1/2 → 2/5 → 1/4
+- 高度循环调整 (hyper + 上/下): 3/4 → 1/2 → 1/4
+- 固定比例窗口 (hyper + M): 4:3 比例，循环 100% → 90% → 70% → 50%
+- 原生比例窗口 (hyper + Shift + M): 基于屏幕比例
+- 跨显示器移动 (hyper + J/K)
 
 ### 2. 键盘增强 (Keyboard Enhance)
 
@@ -229,19 +239,40 @@ auto_reload = true
 # 窗口调整 (Window Adjust)
 # ============================================
 
-# 窗口位置快捷键
+# 窗口位置快捷键 (借鉴 mrw 项目)
 [window.position]
-# Win + Alt + 方向键移动窗口
-Meta{A}Left  >> MoveWindow(LeftHalf)
-Meta{A}Right >> MoveWindow(RightHalf)
-Meta{A}Up    >> MoveWindow(TopHalf)
-Meta{A}Down  >> MoveWindow(BottomHalf)
+# Hyper 键定义: Ctrl + Alt + Win
+# Hyper + C 窗口居中
+Ctrl{Alt{Meta{C}}} >> MoveWindow(Center)
 
-# Win + Alt + 数字键调整大小
-Meta{A}1 >> ResizeWindow(1/2)
-Meta{A}2 >> ResizeWindow(1/3)
-Meta{A}3 >> ResizeWindow(2/3)
-Meta{A}4 >> ResizeWindow(1/4)
+# Hyper + Home/End/PgUp/PgDn 移动到边缘
+Ctrl{Alt{Meta{Home}}}     >> MoveWindow(LeftEdge)
+Ctrl{Alt{Meta{End}}}      >> MoveWindow(RightEdge)
+Ctrl{Alt{Meta{PageUp}}}   >> MoveWindow(TopEdge)
+Ctrl{Alt{Meta{PageDown}}} >> MoveWindow(BottomEdge)
+
+# Hyper + Shift + 方向键 半屏显示
+Ctrl{Alt{Meta{Shift}}}Left  >> MoveWindow(LeftHalf)
+Ctrl{Alt{Meta{Shift}}}Right >> MoveWindow(RightHalf)
+Ctrl{Alt{Meta{Shift}}}Up    >> MoveWindow(TopHalf)
+Ctrl{Alt{Meta{Shift}}}Down  >> MoveWindow(BottomHalf)
+
+# Hyper + 方向键 循环调整尺寸 (mrw 风格)
+# 宽度循环: 3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4
+Ctrl{Alt{Meta{Left}}}  >> ResizeWindow(LoopWidthPrev)
+Ctrl{Alt{Meta{Right}}} >> ResizeWindow(LoopWidthNext)
+# 高度循环: 3/4 -> 1/2 -> 1/4
+Ctrl{Alt{Meta{Up}}}   >> ResizeWindow(LoopHeightPrev)
+Ctrl{Alt{Meta{Down}}} >> ResizeWindow(LoopHeightNext)
+
+# Hyper + M 固定比例窗口 (4:3，循环缩放 100% -> 90% -> 70% -> 50%)
+Ctrl{Alt{Meta{M}}} >> ResizeWindow(FixedRatio43)
+# Hyper + Shift + M 原生比例窗口 (基于屏幕比例)
+Ctrl{Alt{Meta{Shift}}}M >> ResizeWindow(NativeRatio)
+
+# 多显示器移动 (mrw 风格)
+Ctrl{Alt{Meta{J}}} >> MoveToMonitor(Next)
+Ctrl{Alt{Meta{K}}} >> MoveToMonitor(Prev)
 
 # 窗口切换
 [window.switch]
@@ -424,7 +455,7 @@ crates/
 
 ***
 
-### Phase 2: Windows 键盘增强 ✅ 已完成
+### Phase 2: Windows 键盘增强 + 系统托盘 ✅ 已完成
 
 #### 2.1 键位重映射基础 ✅
 
@@ -512,7 +543,29 @@ P = "PageDown"
 **关键文件**:
 - `crates/wakemd/src/platform/windows/launcher.rs` - 程序启动器
 
-#### 2.6 高级键盘功能（待实现）
+#### 2.6 系统托盘客户端 ✅
+
+* [x] 实现托盘图标显示（Shell_NotifyIconW）
+
+* [x] 实现右键菜单（启用/禁用、重载配置、打开配置文件夹、退出）
+
+* [x] 实现 IPC 客户端与服务端通信
+
+* [x] 实现菜单命令处理（切换激活状态、重载配置、打开文件夹、退出）
+
+* [x] 实现消息窗口和消息循环
+
+* [ ] 添加自定义图标资源
+
+* [ ] 添加托盘气泡通知
+
+**关键文件**:
+- `crates/wakem/src/main.rs` - 客户端主程序
+- `crates/wakem/src/window.rs` - 消息窗口
+- `crates/wakem/src/platform/windows/tray.rs` - 托盘图标
+- `crates/wakem/src/client.rs` - IPC 客户端
+
+#### 2.7 高级键盘功能（待实现）
 
 * [ ] 实现文本扩展（缩写展开）
 
@@ -550,17 +603,48 @@ P = "PageDown"
 
 * [ ] 实现窗口置顶切换
 
-#### 3.3 窗口位置预设
+#### 3.3 窗口位置预设（借鉴 mrw）
+
+基于 [mrw](https://github.com/yourusername/mrw) 项目的窗口管理逻辑实现：
 
 * [ ] 计算屏幕区域（单显示器、多显示器）
 
-* [ ] 实现左半屏、右半屏、上半屏、下半屏
+* [ ] 实现窗口居中 (hyper + C)
 
-* [ ] 实现四角定位（左上、右上、左下、右下）
+* [ ] 实现移动到屏幕边缘 (hyper + Home/End/PgUp/PgDn)
+  - Left: 移到左边缘
+  - Right: 移到右边缘
+  - Top: 移到上边缘
+  - Bottom: 移到下边缘
 
-* [ ] 实现居中、最大化、1/3屏、1/4屏
+* [ ] 实现半屏显示 (hyper + Shift + 方向键)
+  - 左半屏、右半屏、上半屏、下半屏
 
-* [ ] 支持多显示器间的窗口移动
+* [ ] 实现宽度循环调整 (hyper + 左/右)
+  - 比例序列: 3/4 → 3/5 → 1/2 → 2/5 → 1/4 → (循环)
+  - 左键: 靠左对齐
+  - 右键: 靠右对齐
+
+* [ ] 实现高度循环调整 (hyper + 上/下)
+  - 比例序列: 3/4 → 1/2 → 1/4 → (循环)
+  - 上键: 靠上对齐
+  - 下键: 靠下对齐
+
+* [ ] 实现固定比例窗口 (hyper + M)
+  - 4:3 比例
+  - 大小循环: 100% → 90% → 70% → 50% → (循环)
+  - 自动居中
+
+* [ ] 实现原生比例窗口 (hyper + Shift + M)
+  - 基于屏幕宽高比
+  - 大小循环: 100% → 90% → 70% → 50% → (循环)
+  - 自动居中
+
+* [ ] 支持多显示器间的窗口移动 (hyper + J/K)
+  - J: 移到下一个显示器
+  - K: 移到上一个显示器
+
+**参考实现**: `mrw/mac/init.lua`, `mrw/win/init.ahk`
 
 #### 3.4 窗口切换基础
 
@@ -768,11 +852,12 @@ P = "PageDown"
 
 ## 参考项目
 
-| 项目                                                            | 语言   | 核心特点           | 学习重点              | 本地路径                      |
-| ------------------------------------------------------------- | ---- | -------------- | ----------------- | ------------------------- |
-| [keymapper](https://github.com/houmain/keymapper)             | C++  | 跨平台、客户端-服务端架构  | 架构设计、配置语法、输入处理    | `keymapper-5.5.0/`        |
-| [AutoHotkey](https://github.com/AutoHotkey/AutoHotkey)        | C++  | 完整脚本语言、强大热键系统  | 热键变体、窗口操作、消息循环    | `AutoHotkey-2.0.23/`      |
-| [window-switcher](https://github.com/sigoden/window-switcher) | Rust | 精致窗口切换、GDI+ 界面 | 窗口切换 UI、图标获取、虚拟桌面 | `window-switcher-1.17.0/` |
+| 项目                                                            | 语言       | 核心特点           | 学习重点              | 本地路径                      |
+| ------------------------------------------------------------- | -------- | -------------- | ----------------- | ------------------------- |
+| [keymapper](https://github.com/houmain/keymapper)             | C++      | 跨平台、客户端-服务端架构  | 架构设计、配置语法、输入处理    | `keymapper-5.5.0/`        |
+| [AutoHotkey](https://github.com/AutoHotkey/AutoHotkey)        | C++      | 完整脚本语言、强大热键系统  | 热键变体、窗口操作、消息循环    | `AutoHotkey-2.0.23/`      |
+| [window-switcher](https://github.com/sigoden/window-switcher) | Rust     | 精致窗口切换、GDI+ 界面 | 窗口切换 UI、图标获取、虚拟桌面 | `window-switcher-1.17.0/` |
+| **mrw** (个人项目)                                               | Lua/AHK  | 简洁窗口管理、循环尺寸调整 | 窗口布局算法、多显示器支持     | `mrw/`                    |
 
 ### 本地参考项目结构
 
@@ -803,6 +888,15 @@ wakem/
         ├── trayicon.rs          # 系统托盘
         ├── keyboard.rs          # 键盘监听
         └── ...
+
+├── mrw/                        # 个人窗口管理项目 (已归档)
+│   ├── mac/
+│   │   ├── init.lua           # Hammerspoon 配置，窗口管理核心逻辑
+│   │   └── install.sh         # macOS 安装脚本
+│   ├── win/
+│   │   ├── init.ahk           # AutoHotkey v2 脚本，Windows 窗口管理
+│   │   └── install.ps1        # Windows 安装脚本
+│   └── README.md              # 项目文档
 ```
 
 ### 关键参考代码
@@ -858,6 +952,32 @@ wakem/
 * `src/keyboard.rs` - 低级别键盘钩子
 
 * `src/trayicon.rs` - 系统托盘实现
+
+#### 4. mrw - 窗口布局算法（个人项目）
+
+* `mac/init.lua` - Hammerspoon 窗口管理
+
+  * 获取窗口和屏幕信息 (`getWindowFrame`)
+  * 窗口居中 (`moveToCenter`)
+  * 移动到屏幕边缘 (`moveToEdge`)
+  * 半屏显示 (`toHalfScreen`)
+  * 宽度循环调整 (`loopWidth`): 3/4 → 3/5 → 1/2 → 2/5 → 1/4
+  * 高度循环调整 (`loopHeight`): 3/4 → 1/2 → 1/4
+  * 固定比例窗口 (`loopFixedRatio`): 4:3 比例，循环缩放
+  * 跨显示器移动 (`moveToScreen`)
+
+* `win/init.ahk` - AutoHotkey v2 窗口管理
+
+  * 多显示器检测 (`GetMonitorNumber`)
+  * 工作区域计算 (`MonitorGetWorkArea`)
+  * 窗口恢复处理 (`EnsureWindowIsRestored`)
+  * 与 Lua 版本相同的布局算法
+
+**借鉴要点**:
+- 循环尺寸调整算法（连续按键循环切换预设比例）
+- 多显示器坐标计算
+- 保持窗口比例的缩放逻辑
+- 简洁的快捷键映射（hyper 键概念）
 
 ***
 
