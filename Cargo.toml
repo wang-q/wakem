@@ -1,20 +1,24 @@
-[workspace]
-members = [
-    "crates/wakem-common",
-    "crates/wakemd",
-    "crates/wakem",
-    "crates/wakemctl",
-]
-resolver = "2"
-
-[workspace.package]
+[package]
+name = "wakem"
 version = "0.1.0"
 authors = ["wang-q <wang-q@outlook.com>"]
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/wang-q/wakem"
 
-[workspace.dependencies]
+[[bin]]
+name = "wakem"
+path = "src/main.rs"
+
+[[bin]]
+name = "wakemd"
+path = "src/main.rs"
+
+[[bin]]
+name = "wakemctl"
+path = "src/main.rs"
+
+[dependencies]
 # Windows API
 windows = { version = "0.52", features = [
     "Win32_Foundation",
@@ -55,9 +59,6 @@ clap = { version = "4.4", features = ["derive"] }
 
 # 其他
 indexmap = "2.0"
-
-# 共享依赖
-wakem-common = { path = "crates/wakem-common" }
 
 [profile.release]
 lto = true
