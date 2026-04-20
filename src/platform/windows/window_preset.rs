@@ -27,18 +27,6 @@ impl WindowPresetManager {
         debug!("Loaded {} window presets", self.presets.len());
     }
 
-    /// 获取所有预设
-    #[allow(dead_code)]
-    pub fn get_presets(&self) -> &[WindowPreset] {
-        &self.presets
-    }
-
-    /// 获取所有预设（可变）
-    #[allow(dead_code)]
-    pub fn get_presets_mut(&mut self) -> &mut Vec<WindowPreset> {
-        &mut self.presets
-    }
-
     /// 保存当前窗口为预设
     pub fn save_preset(
         &mut self,
@@ -139,36 +127,6 @@ impl WindowPresetManager {
             info.title, process_name
         );
         Ok(false)
-    }
-
-    /// 查找当前窗口匹配的预设
-    #[allow(dead_code)]
-    pub fn find_matching_preset(&self, hwnd: HWND) -> Result<Option<&WindowPreset>> {
-        let info = self.window_manager.get_window_info(hwnd)?;
-
-        let (process_name, executable_path) = unsafe {
-            let pid = Self::get_window_process_id(hwnd)?;
-            let proc_name = Self::get_process_name_by_pid(pid).unwrap_or_default();
-            let exec_path = Self::get_window_executable_path(hwnd).unwrap_or_default();
-            (proc_name, Some(exec_path))
-        };
-
-        Ok(self
-            .presets
-            .iter()
-            .find(|p| p.matches(&process_name, executable_path.as_deref(), &info.title)))
-    }
-
-    /// 删除指定预设
-    #[allow(dead_code)]
-    pub fn remove_preset(&mut self, name: &str) -> bool {
-        let initial_len = self.presets.len();
-        self.presets.retain(|p| p.name != name);
-        let removed = self.presets.len() < initial_len;
-        if removed {
-            debug!("Removed preset '{}'", name);
-        }
-        removed
     }
 
     /// 获取窗口进程ID

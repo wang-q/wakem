@@ -210,6 +210,199 @@ shortcuts = [
 
 连续按键循环: 100% → 90% → 70% → 50% → 100%
 
+## 窗口预设配置
+
+窗口预设允许你保存和恢复特定应用程序的窗口布局。
+
+### 自动应用预设
+
+当窗口创建或激活时，自动应用匹配的预设：
+
+```toml
+[window]
+# 自动应用预设（当窗口创建或激活时）
+auto_apply_preset = true
+
+# 定义窗口预设
+[[window.presets]]
+name = "browser"
+process_name = "chrome.exe"
+x = 100
+y = 100
+width = 1200
+height = 800
+
+[[window.presets]]
+name = "editor"
+process_name = "code.exe"
+executable_path = "C:\Program Files\Microsoft VS Code\Code.exe"
+x = 200
+y = 50
+width = 1400
+height = 900
+
+# 预设快捷键
+[window.shortcuts]
+"Ctrl+Alt+S" = "SavePreset(main)"
+"Ctrl+Alt+L" = "LoadPreset(main)"
+"Ctrl+Alt+A" = "ApplyPreset"
+```
+
+### 预设字段说明
+
+| 字段 | 类型 | 说明 |
+|-----|------|------|
+| `name` | string | 预设名称 |
+| `process_name` | string | 进程名匹配（支持通配符） |
+| `executable_path` | string | 可执行文件路径匹配（支持通配符） |
+| `x`, `y` | int | 窗口位置 |
+| `width`, `height` | int | 窗口大小 |
+
+## 上下文感知快捷键配置
+
+上下文感知快捷键允许你为特定应用程序定义专属快捷键。
+
+```toml
+# Chrome 浏览器专属快捷键
+[[keyboard.context_mappings]]
+context = { process_name = "chrome.exe" }
+"CapsLock" = "Backspace"
+"Ctrl+H" = "ShowNotification(Browser, History)"
+"Ctrl+J" = "ShowNotification(Browser, Downloads)"
+
+# VS Code 专属快捷键
+[[keyboard.context_mappings]]
+context = { process_name = "code.exe" }
+"CapsLock" = "Esc"
+"Ctrl+P" = "ShowNotification(VSCode, Quick Open)"
+"Ctrl+Shift+F" = "ShowNotification(VSCode, Search)"
+
+# 使用通配符匹配多个编辑器
+[[keyboard.context_mappings]]
+context = { process_name = "*edit*.exe" }
+"Ctrl+S" = "ShowNotification(Editor, Save)"
+
+# 窗口标题匹配（如 YouTube）
+[[keyboard.context_mappings]]
+context = { window_title = "*YouTube*" }
+"Space" = "ShowNotification(YouTube, Play/Pause)"
+
+# 可执行文件路径匹配
+[[keyboard.context_mappings]]
+context = { executable_path = "C:\Program Files\JetBrains\*" }
+"Ctrl+Shift+A" = "ShowNotification(JetBrains, Find Action)"
+```
+
+### 上下文条件字段
+
+| 字段 | 类型 | 说明 |
+|-----|------|------|
+| `process_name` | string | 进程名匹配，支持通配符 `*` 和 `?` |
+| `window_class` | string | 窗口类名匹配 |
+| `window_title` | string | 窗口标题匹配 |
+| `executable_path` | string | 可执行文件路径匹配 |
+
+**说明**：上下文规则优先级高于全局规则。
+
+## 网络通信配置
+
+启用网络通信以支持远程控制：
+
+```toml
+# 启用网络通信（用于远程控制）
+[network]
+enabled = true
+bind_address = "0.0.0.0:57427"
+auth_key = "your-secret-key-here"
+```
+
+### 安全特性
+
+- 自动拒绝外网连接（只允许 RFC 1918 内网地址）
+- 挑战-响应认证（HMAC-SHA256）
+- 密钥不在网络上传输
+
+### 远程控制示例
+
+```bash
+# 在被控制的电脑上启动 wakemd（配置好 auth_key）
+wakemd
+
+# 在另一台电脑上查看远程状态
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" status
+
+# 重新加载远程配置
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" reload
+
+# 启用/禁用远程映射
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" enable
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" disable
+```
+
+## 多实例配置
+
+wakem 支持同时运行多个实例，每个实例有独立的配置和端口。
+
+### 实例配置
+
+```toml
+# 实例0配置（默认）: ~/.wakem.toml
+[network]
+enabled = true
+instance_id = 0
+auth_key = "instance0-secret"
+```
+
+```toml
+# 实例1配置: ~/.wakem-instance1.toml
+[network]
+enabled = true
+instance_id = 1
+auth_key = "instance1-secret"
+```
+
+### 端口分配
+
+- 实例0: 127.0.0.1:57427
+- 实例1: 127.0.0.1:57428
+- 实例2: 127.0.0.1:57429
+- ...
+
+### 使用示例
+
+```bash
+# 启动实例0（默认）
+wakemd
+
+# 启动实例1
+wakemd --instance 1
+
+# 查看运行中的实例
+wakem instances
+
+# 连接到实例1
+wakem --instance 1 status
+wakem --instance 1 reload
+
+# 启动实例1的托盘
+wakem --instance 1
+```
+
+## 启动配置
+
+快速启动程序配置支持带参数的命令：
+
+```toml
+[launch]
+# 简单命令
+"Ctrl+Alt+T" = "wt.exe"
+
+# 带参数的命令
+"Ctrl+Alt+N" = "notepad.exe C:\Users\note.txt"
+"Ctrl+Alt+G" = "git.exe status"
+"Ctrl+Alt+E" = "explorer.exe D:\"
+```
+
 ## 滚轮增强配置
 
 ### 滚轮加速
@@ -280,8 +473,6 @@ file_manager = "explorer.exe"  # 文件管理器
 
 ## 宏配置
 
-### 录制和使用宏
-
 宏允许你录制一系列键盘和鼠标操作，然后通过快捷键触发。
 
 **命令行操作**:
@@ -305,70 +496,26 @@ wakem macros
 wakem delete-macro my-macro
 ```
 
-### 配置文件定义宏
-
-你也可以直接在配置文件中定义宏：
+**配置文件示例**:
 
 ```toml
 # 宏定义
 [macros]
-# 打开终端（Win+R, 输入 wt, 回车）
 "open-terminal" = [
-    { KeyPress = { scan_code = 91, virtual_key = 91 } },      # Win
-    { KeyRelease = { scan_code = 91, virtual_key = 91 } },
-    { Delay = { milliseconds = 100 } },
-    { KeyPress = { scan_code = 19, virtual_key = 82 } },      # R
-    { KeyRelease = { scan_code = 19, virtual_key = 82 } },
-    { Delay = { milliseconds = 100 } },
-    { KeyPress = { scan_code = 20, virtual_key = 84 } },      # T
-    { KeyRelease = { scan_code = 20, virtual_key = 84 } },
-    { KeyPress = { scan_code = 28, virtual_key = 13 } },      # Enter
-    { KeyRelease = { scan_code = 28, virtual_key = 13 } },
-]
-
-# 复制粘贴
-"copy-paste" = [
-    { KeyPress = { scan_code = 29, virtual_key = 17 } },      # Ctrl
-    { KeyPress = { scan_code = 46, virtual_key = 67 } },      # C
-    { KeyRelease = { scan_code = 46, virtual_key = 67 } },
-    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
-    { Delay = { milliseconds = 100 } },
-    { KeyPress = { scan_code = 29, virtual_key = 17 } },      # Ctrl
-    { KeyPress = { scan_code = 47, virtual_key = 86 } },      # V
-    { KeyRelease = { scan_code = 47, virtual_key = 86 } },
-    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
+    { delay_ms = 0, action = { Key = { Press = { scan_code = 91, virtual_key = 91 } } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 0 },
+    { delay_ms = 100, action = { Delay = { milliseconds = 100 } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 110 },
 ]
 
 # 宏触发键绑定
 [macro_bindings]
 "F1" = "open-terminal"
-"Ctrl+Shift+V" = "copy-paste"
 ```
 
-### 宏动作类型
-
-| 动作 | 参数 | 说明 |
-|-----|------|------|
-| `KeyPress` | `scan_code`, `virtual_key` | 按键按下 |
-| `KeyRelease` | `scan_code`, `virtual_key` | 按键释放 |
-| `MousePress` | `button`, `x`, `y` | 鼠标按下 |
-| `MouseRelease` | `button`, `x`, `y` | 鼠标释放 |
-| `MouseMove` | `x`, `y` | 鼠标移动 |
-| `MouseWheel` | `delta`, `horizontal` | 鼠标滚轮 |
-| `Delay` | `milliseconds` | 延迟等待 |
-
-### 获取按键扫描码
-
-如果你需要获取特定按键的扫描码，可以使用 `wakem daemon` 启动守护进程后查看日志，或使用在线工具查询。
-
-常见按键扫描码参考：
-- `Ctrl`: scan_code=29, virtual_key=17
-- `Shift`: scan_code=42, virtual_key=16
-- `Alt`: scan_code=56, virtual_key=18
-- `Win`: scan_code=91, virtual_key=91
-- `A-Z`: scan_code=30-45, virtual_key=65-90
-- `Enter`: scan_code=28, virtual_key=13
-- `Space`: scan_code=57, virtual_key=32
+> **详细文档**: 完整的宏系统文档请参考 [MACROS.md](MACROS.md)，包括：
+> - MacroStep 格式详细说明
+> - 支持的宏动作类型
+> - 智能录制特性
+> - 按键扫描码参考
 
 ## 按键名称
 

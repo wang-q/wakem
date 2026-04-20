@@ -33,12 +33,6 @@ pub struct MessageWindow {
 }
 
 impl MessageWindow {
-    /// 创建新的消息窗口
-    #[allow(dead_code)]
-    pub fn new() -> Result<Self> {
-        Self::with_icon_path(None)
-    }
-
     /// 创建带自定义图标路径的消息窗口
     pub fn with_icon_path(icon_path: Option<String>) -> Result<Self> {
         let hwnd = Self::create_window()?;
@@ -150,15 +144,8 @@ impl MessageWindow {
     }
 
     /// 获取窗口句柄
-    #[allow(dead_code)]
     pub fn hwnd(&self) -> HWND {
         self.hwnd
-    }
-
-    /// 获取托盘图标
-    #[allow(dead_code)]
-    pub fn tray_icon(&self) -> Arc<Mutex<TrayIcon>> {
-        self.tray_icon.clone()
     }
 
     /// 从窗口句柄获取实例引用

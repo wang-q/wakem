@@ -51,12 +51,6 @@ impl IpcClient {
         Ok(())
     }
 
-    /// 检查是否已连接
-    #[allow(dead_code)]
-    pub fn is_connected(&self) -> bool {
-        self.stream.is_some()
-    }
-
     /// 发送消息
     pub async fn send(&mut self, message: &Message) -> Result<()> {
         let stream = self.stream.as_mut().ok_or(IpcError::ConnectionClosed)?;
@@ -73,15 +67,6 @@ impl IpcClient {
     pub async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         self.send(message).await?;
         timeout(Duration::from_secs(5), self.receive()).await?
-    }
-
-    /// 关闭连接
-    #[allow(dead_code)]
-    pub async fn close(mut self) -> Result<()> {
-        if let Some(mut stream) = self.stream.take() {
-            stream.shutdown().await?;
-        }
-        Ok(())
     }
 }
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::platform::windows::Launcher;
-use crate::types::{Action, ContextCondition, MappingRule};
+use crate::types::{ContextCondition, MacroStep, MappingRule};
 
 /// 全局配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,9 +35,9 @@ pub struct Config {
     /// 网络通信设置
     #[serde(default)]
     pub network: NetworkConfig,
-    /// 宏定义: macro_name -> [(delay_ms, action), ...]
+    /// 宏定义: macro_name -> [MacroStep, ...]
     #[serde(default)]
-    pub macros: HashMap<String, Vec<(u64, Action)>>,
+    pub macros: HashMap<String, Vec<MacroStep>>,
     /// 宏触发键映射: trigger -> macro_name
     #[serde(default)]
     pub macro_bindings: HashMap<String, String>,

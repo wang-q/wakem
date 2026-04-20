@@ -123,15 +123,6 @@ impl DaemonClient {
         }
     }
 
-    /// 关闭连接
-    #[allow(dead_code)]
-    pub async fn close(self) -> Result<()> {
-        if let Some(client) = self.client {
-            let _ = client.close().await;
-        }
-        Ok(())
-    }
-
     /// 开始录制宏
     pub async fn start_macro_recording(&mut self, name: &str) -> Result<()> {
         let response = self

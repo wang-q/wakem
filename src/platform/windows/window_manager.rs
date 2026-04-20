@@ -57,17 +57,6 @@ impl WindowFrame {
             height: rect.bottom - rect.top,
         }
     }
-
-    /// 转换为 RECT
-    #[allow(dead_code)]
-    pub fn to_rect(&self) -> RECT {
-        RECT {
-            left: self.x,
-            top: self.y,
-            right: self.x + self.width,
-            bottom: self.y + self.height,
-        }
-    }
 }
 
 /// 显示器工作区信息
@@ -97,10 +86,6 @@ pub struct WindowInfo {
     pub title: String,
     pub frame: WindowFrame,
     pub work_area: MonitorWorkArea,
-    #[allow(dead_code)]
-    pub is_minimized: bool,
-    #[allow(dead_code)]
-    pub is_maximized: bool,
 }
 
 /// 窗口管理器
@@ -144,13 +129,9 @@ impl WindowManager {
             // 获取显示器工作区
             let work_area = self.get_monitor_work_area(hwnd)?;
 
-            // 获取窗口状态
-            let is_minimized = IsIconic(hwnd).as_bool();
-            let is_maximized = IsZoomed(hwnd).as_bool();
-
             debug!(
-                "Window info: hwnd={:?}, title={}, frame={:?}, work_area={:?}, minimized={}, maximized={}",
-                hwnd, title, frame, work_area, is_minimized, is_maximized
+                "Window info: hwnd={:?}, title={}, frame={:?}, work_area={:?}",
+                hwnd, title, frame, work_area
             );
 
             Ok(WindowInfo {
@@ -158,8 +139,6 @@ impl WindowManager {
                 title,
                 frame,
                 work_area,
-                is_minimized,
-                is_maximized,
             })
         }
     }

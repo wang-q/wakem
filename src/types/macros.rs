@@ -6,16 +6,58 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-use crate::types::{Action, InputEvent};
+use crate::types::{Action, InputEvent, KeyState, ModifierState, Timestamp};
+
+/// 宏步骤（包含完整上下文）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MacroStep {
+    /// 延迟（毫秒）
+    pub delay_ms: u64,
+    /// 动作
+    pub action: Action,
+    /// 录制时的修饰键状态
+    pub modifiers: ModifierState,
+    /// 事件时间戳
+    pub timestamp: Timestamp,
+}
+
+impl MacroStep {
+    /// 创建新的宏步骤
+    pub fn new(
+        delay_ms: u64,
+        action: Action,
+        modifiers: ModifierState,
+        timestamp: Timestamp,
+    ) -> Self {
+        Self {
+            delay_ms,
+            action,
+            modifiers,
+            timestamp,
+        }
+    }
+}
 
 /// 宏定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Macro {
     pub name: String,
-    /// 动作列表，每个动作包含延迟（毫秒）和动作本身
-    pub actions: Vec<(u64, Action)>,
+    /// 步骤列表
+    pub steps: Vec<MacroStep>,
     pub created_at: Option<String>,
     pub description: Option<String>,
+}
+
+impl Macro {
+    /// 获取步骤数量
+    pub fn step_count(&self) -> usize {
+        self.steps.len()
+    }
+
+    /// 获取总延迟（毫秒）
+    pub fn total_delay(&self) -> u64 {
+        self.steps.iter().map(|s| s.delay_ms).sum()
+    }
 }
 
 /// 宏录制器
@@ -26,7 +68,24 @@ pub struct MacroRecorder {
 struct MacroRecording {
     name: String,
     start_time: Instant,
-    actions: Vec<(Duration, Action)>, // (相对时间, 动作)
+    steps: Vec<(Duration, MacroStep)>,
+    /// 当前修饰键状态（实时跟踪）
+    current_modifiers: ModifierState,
+}
+
+impl MacroRecording {
+    /// 根据事件更新当前修饰键状态
+    fn update_modifiers(&mut self, event: &InputEvent) {
+        if let InputEvent::Key(key_event) = event {
+            if let Some((modifier, _pressed)) = ModifierState::from_virtual_key(
+                key_event.virtual_key,
+                key_event.state == KeyState::Pressed,
+            ) {
+                // 合并修饰键状态
+                self.current_modifiers.merge(&modifier);
+            }
+        }
+    }
 }
 
 impl MacroRecorder {
@@ -46,7 +105,8 @@ impl MacroRecorder {
         *recording = Some(MacroRecording {
             name: name.to_string(),
             start_time: Instant::now(),
-            actions: Vec::new(),
+            steps: Vec::new(),
+            current_modifiers: ModifierState::default(),
         });
 
         info!("Started recording macro: {}", name);
@@ -61,17 +121,17 @@ impl MacroRecorder {
             .ok_or_else(|| anyhow::anyhow!("Not recording"))?;
 
         // 转换为 Macro（简化延迟信息）
-        let actions = simplify_delays(recording.actions);
+        let steps = simplify_delays(recording.steps);
 
         info!(
-            "Stopped recording macro: {} with {} actions",
+            "Stopped recording macro: {} with {} steps",
             recording.name,
-            actions.len()
+            steps.len()
         );
 
         Ok(Macro {
             name: recording.name,
-            actions,
+            steps,
             created_at: Some(
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -87,11 +147,33 @@ impl MacroRecorder {
     pub async fn record_event(&self, event: &InputEvent) {
         let mut recording = self.recording.write().await;
         if let Some(ref mut rec) = *recording {
+            // 更新当前修饰键状态
+            rec.update_modifiers(event);
+
+            // 跳过单独的修饰键事件
+            if Self::is_standalone_modifier(event) {
+                return;
+            }
+
             let elapsed = rec.start_time.elapsed();
             if let Some(action) = Action::from_input_event(event) {
-                debug!("Recorded action at {:?}: {:?}", elapsed, action);
-                rec.actions.push((elapsed, action));
+                let step = MacroStep::new(
+                    elapsed.as_millis() as u64,
+                    action,
+                    rec.current_modifiers,
+                    event.timestamp(),
+                );
+                debug!("Recorded step at {:?}: {:?}", elapsed, step);
+                rec.steps.push((elapsed, step));
             }
+        }
+    }
+
+    /// 检查是否是单独的修饰键事件
+    fn is_standalone_modifier(event: &InputEvent) -> bool {
+        match event {
+            InputEvent::Key(e) => e.is_modifier(),
+            _ => false,
         }
     }
 
@@ -107,8 +189,8 @@ impl MacroRecorder {
 }
 
 /// 简化延迟：将连续的动作合并，只保留必要的延迟
-fn simplify_delays(actions: Vec<(Duration, Action)>) -> Vec<(u64, Action)> {
-    if actions.is_empty() {
+fn simplify_delays(steps: Vec<(Duration, MacroStep)>) -> Vec<MacroStep> {
+    if steps.is_empty() {
         return Vec::new();
     }
 
@@ -116,15 +198,21 @@ fn simplify_delays(actions: Vec<(Duration, Action)>) -> Vec<(u64, Action)> {
     let mut last_time = Duration::from_millis(0);
     const MIN_DELAY_MS: u64 = 50; // 最小延迟 50ms
 
-    for (time, action) in actions {
+    for (time, mut step) in steps {
         let delay_ms = time.as_millis() as u64 - last_time.as_millis() as u64;
 
         // 如果延迟超过阈值，添加延迟动作
         if delay_ms > MIN_DELAY_MS {
-            result.push((delay_ms, Action::delay(delay_ms)));
+            result.push(MacroStep::new(
+                delay_ms,
+                Action::delay(delay_ms),
+                ModifierState::default(),
+                0,
+            ));
         }
 
-        result.push((0, action));
+        step.delay_ms = 0; // 实际动作没有延迟
+        result.push(step);
         last_time = time;
     }
 
@@ -163,12 +251,12 @@ impl MacroManager {
         self.macros.keys().cloned().collect()
     }
 
-    /// 从配置加载宏
-    pub fn load_from_config(&mut self, macros: &HashMap<String, Vec<(u64, Action)>>) {
-        for (name, actions) in macros {
+    /// 从配置加载宏（新格式）
+    pub fn load_from_config(&mut self, macros: &HashMap<String, Vec<MacroStep>>) {
+        for (name, steps) in macros {
             let macro_def = Macro {
                 name: name.clone(),
-                actions: actions.clone(),
+                steps: steps.clone(),
                 created_at: None,
                 description: None,
             };
@@ -201,51 +289,72 @@ mod tests {
             let macro_def = recorder.stop_recording().await.unwrap();
             assert!(!recorder.is_recording().await);
             assert_eq!(macro_def.name, "test-macro");
+            assert!(macro_def.steps.is_empty());
         });
     }
 
     #[test]
     fn test_simplify_delays() {
-        let actions = vec![
+        let steps = vec![
             (
                 Duration::from_millis(0),
-                Action::key(KeyAction::Press {
-                    scan_code: 30,
-                    virtual_key: 65,
-                }),
+                MacroStep::new(
+                    0,
+                    Action::key(KeyAction::Press {
+                        scan_code: 30,
+                        virtual_key: 65,
+                    }),
+                    ModifierState::default(),
+                    0,
+                ),
             ),
             (
                 Duration::from_millis(10),
-                Action::key(KeyAction::Release {
-                    scan_code: 30,
-                    virtual_key: 65,
-                }),
+                MacroStep::new(
+                    0,
+                    Action::key(KeyAction::Release {
+                        scan_code: 30,
+                        virtual_key: 65,
+                    }),
+                    ModifierState::default(),
+                    10,
+                ),
             ), // 10ms，不添加延迟
             (
                 Duration::from_millis(100),
-                Action::key(KeyAction::Press {
-                    scan_code: 31,
-                    virtual_key: 66,
-                }),
+                MacroStep::new(
+                    0,
+                    Action::key(KeyAction::Press {
+                        scan_code: 31,
+                        virtual_key: 66,
+                    }),
+                    ModifierState::default(),
+                    100,
+                ),
             ), // 90ms，添加延迟
             (
                 Duration::from_millis(200),
-                Action::key(KeyAction::Release {
-                    scan_code: 31,
-                    virtual_key: 66,
-                }),
+                MacroStep::new(
+                    0,
+                    Action::key(KeyAction::Release {
+                        scan_code: 31,
+                        virtual_key: 66,
+                    }),
+                    ModifierState::default(),
+                    200,
+                ),
             ), // 100ms，添加延迟
         ];
 
-        let simplified = simplify_delays(actions);
+        let simplified = simplify_delays(steps);
 
-        // 应该包含: KeyPress(0), KeyRelease(0), Delay(90), KeyPress(0), Delay(100), KeyRelease(0)
+        // 应该包含: KeyPress, KeyRelease, Delay(90), KeyPress, Delay(100), KeyRelease
         assert_eq!(simplified.len(), 6);
 
         // 验证延迟动作
-        if let Action::Delay { milliseconds } = simplified[2].1 {
+        if let Action::Delay { milliseconds } = &simplified[2].action {
             assert!(
-                milliseconds >= 80 && milliseconds <= 100,
+                *milliseconds >= 80 && *milliseconds <= 100,
                 "Expected delay around 90ms, got {}",
                 milliseconds
             );
@@ -255,22 +364,39 @@ mod tests {
     }
 
     #[test]
-    fn test_action_from_input_event() {
-        let key_event = KeyEvent::new(30, 65, KeyState::Pressed);
-        let input_event = InputEvent::Key(key_event);
+    fn test_macro_step_creation() {
+        let step = MacroStep::new(
+            100,
+            Action::key(KeyAction::Press {
+                scan_code: 30,
+                virtual_key: 65,
+            }),
+            ModifierState::default(),
+            1234567890,
+        );
 
-        let action = Action::from_input_event(&input_event);
-        assert!(action.is_some());
+        assert_eq!(step.delay_ms, 100);
+        assert_eq!(step.timestamp, 1234567890);
+        assert!(step.modifiers.is_empty());
+    }
 
-        if let Some(Action::Key(KeyAction::Press {
-            scan_code,
-            virtual_key,
-        })) = action
-        {
-            assert_eq!(scan_code, 30);
-            assert_eq!(virtual_key, 65);
-        } else {
-            panic!("Expected Key Press action");
-        }
+    #[test]
+    fn test_is_standalone_modifier() {
+        // 创建修饰键事件
+        let shift_event = InputEvent::Key(KeyEvent::new(42, 0x10, KeyState::Pressed));
+        assert!(MacroRecorder::is_standalone_modifier(&shift_event));
+
+        // 创建普通键事件
+        let normal_event = InputEvent::Key(KeyEvent::new(30, 65, KeyState::Pressed));
+        assert!(!MacroRecorder::is_standalone_modifier(&normal_event));
+
+        // 创建鼠标事件
+        use crate::types::{MouseButton, MouseEvent, MouseEventType};
+        let mouse_event = InputEvent::Mouse(MouseEvent::new(
+            MouseEventType::ButtonDown(MouseButton::Left),
+            0,
+            0,
+        ));
+        assert!(!MacroRecorder::is_standalone_modifier(&mouse_event));
     }
 }

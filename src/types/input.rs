@@ -33,20 +33,19 @@ impl KeyEvent {
         }
     }
 
-    #[allow(dead_code)]
+    /// 设置修饰键状态（用于构建事件）
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
-    #[allow(dead_code)]
+    /// 标记为注入事件（用于模拟输入）
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
     }
 
     /// 检查是否是修饰键
-    #[allow(dead_code)]
     pub fn is_modifier(&self) -> bool {
         matches!(
             self.virtual_key,
@@ -58,7 +57,6 @@ impl KeyEvent {
     }
 
     /// 获取修饰键的标识（如果是修饰键）
-    #[allow(dead_code)]
     pub fn modifier_identifier(&self) -> Option<&'static str> {
         match self.virtual_key {
             0x10 | 0xA0 | 0xA1 => Some("Shift"),
@@ -123,13 +121,13 @@ impl MouseEvent {
         }
     }
 
-    #[allow(dead_code)]
+    /// 设置修饰键状态（用于构建事件）
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
-    #[allow(dead_code)]
+    /// 标记为注入事件（用于模拟输入）
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
@@ -141,7 +139,6 @@ impl MouseEvent {
     }
 
     /// 检查是否是按钮释放事件
-    #[allow(dead_code)]
     pub fn is_button_up(&self, button: MouseButton) -> bool {
         matches!(&self.event_type, MouseEventType::ButtonUp(b) if *b == button)
     }
@@ -155,7 +152,7 @@ pub enum InputEvent {
 }
 
 impl InputEvent {
-    #[allow(dead_code)]
+    /// 获取事件时间戳
     pub fn timestamp(&self) -> Timestamp {
         match self {
             InputEvent::Key(e) => e.timestamp,

@@ -70,26 +70,8 @@ impl KeyMapper {
         }
     }
 
-    /// 设置窗口管理器
-    #[cfg(target_os = "windows")]
-    #[allow(dead_code)]
-    pub fn set_window_manager(
-        &mut self,
-        window_manager: crate::platform::windows::WindowManager,
-    ) {
-        self.window_manager = Some(window_manager);
-    }
-
-    /// 设置托盘图标
-    #[cfg(target_os = "windows")]
-    #[allow(dead_code)]
-    pub fn set_tray_icon(&mut self, tray_icon: crate::platform::windows::TrayIcon) {
-        self.tray_icon = Some(tray_icon);
-    }
-
     /// 设置窗口预设管理器
     #[cfg(target_os = "windows")]
-    #[allow(dead_code)]
     pub fn set_window_preset_manager(
         &mut self,
         manager: crate::platform::windows::WindowPresetManager,
@@ -97,53 +79,11 @@ impl KeyMapper {
         self.window_preset_manager = Some(manager);
     }
 
-    /// 获取窗口预设管理器的可变引用
-    #[cfg(target_os = "windows")]
-    #[allow(dead_code)]
-    pub fn window_preset_manager_mut(
-        &mut self,
-    ) -> Option<&mut crate::platform::windows::WindowPresetManager> {
-        self.window_preset_manager.as_mut()
-    }
-
     /// 从配置加载映射规则
     pub fn load_rules(&mut self, rules: Vec<MappingRule>) {
         self.rules = rules;
         self.rebuild_mappings();
         debug!("Loaded {} mapping rules", self.rules.len());
-    }
-
-    /// 添加单条映射规则
-    #[allow(dead_code)]
-    pub fn add_rule(&mut self, rule: MappingRule) {
-        self.rules.push(rule);
-        self.rebuild_mappings();
-    }
-
-    /// 清除所有映射
-    #[allow(dead_code)]
-    pub fn clear(&mut self) {
-        self.rules.clear();
-        self.mappings.clear();
-    }
-
-    /// 启用/禁用映射
-    #[allow(dead_code)]
-    pub fn set_enabled(&mut self, enabled: bool) {
-        self.enabled = enabled;
-        debug!("KeyMapper enabled: {}", enabled);
-    }
-
-    /// 检查是否启用
-    #[allow(dead_code)]
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
-    }
-
-    /// 处理输入事件，返回要执行的动作
-    #[allow(dead_code)]
-    pub fn process_event(&self, event: &InputEvent) -> Option<Action> {
-        self.process_event_with_context(event, None)
     }
 
     /// 处理输入事件（带上下文感知）
@@ -165,12 +105,6 @@ impl KeyMapper {
                 None
             }
         }
-    }
-
-    /// 处理键盘事件
-    #[allow(dead_code)]
-    fn process_key_event(&self, event: &KeyEvent) -> Option<Action> {
-        self.process_key_event_with_context(event, None)
     }
 
     /// 处理键盘事件（带上下文感知）
@@ -616,20 +550,6 @@ impl KeyMapper {
             from,
             to
         ))
-    }
-
-    /// 添加简单的键位重映射
-    #[allow(dead_code)]
-    pub fn add_simple_remap(
-        &mut self,
-        from_scan_code: u16,
-        to_scan_code: u16,
-        to_vk: u16,
-    ) {
-        let trigger = Trigger::key(from_scan_code, 0);
-        let action = Action::key(KeyAction::click(to_scan_code, to_vk));
-
-        self.add_rule(MappingRule::new(trigger, action));
     }
 }
 

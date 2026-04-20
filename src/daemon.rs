@@ -26,9 +26,6 @@ pub struct ServerState {
     output_device: Arc<Mutex<OutputDevice>>,
     /// 程序启动器
     launcher: Arc<Mutex<Launcher>>,
-    /// 窗口管理器
-    #[allow(dead_code)]
-    window_manager: Arc<Mutex<WindowManager>>,
     /// 窗口预设管理器
     window_preset_manager: Arc<Mutex<WindowPresetManager>>,
     /// 是否启用映射
@@ -54,7 +51,6 @@ impl ServerState {
             layer_manager: Arc::new(Mutex::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_manager: Arc::new(Mutex::new(WindowManager::new())),
             window_preset_manager: Arc::new(Mutex::new(WindowPresetManager::new())),
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
@@ -410,13 +406,13 @@ impl ServerState {
         self.save_macro(&macro_def).await?;
 
         // 显示录制完成通知
-        let action_count = macro_def.actions.len();
+        let step_count = macro_def.steps.len();
         let _ = self
             .show_notification(
                 "wakem - 宏录制",
                 &format!(
-                    "宏 '{}' 录制完成，包含 {} 个动作",
-                    macro_def.name, action_count
+                    "宏 '{}' 录制完成，包含 {} 个步骤",
+                    macro_def.name, step_count
                 ),
             )
             .await;
@@ -429,7 +425,7 @@ impl ServerState {
         let mut config = self.config.write().await;
         config
             .macros
-            .insert(macro_def.name.clone(), macro_def.actions.clone());
+            .insert(macro_def.name.clone(), macro_def.steps.clone());
 
         // 保存到文件
         let config_path =
@@ -444,7 +440,7 @@ impl ServerState {
     /// 执行宏
     pub async fn play_macro(&self, name: &str) -> Result<()> {
         let config = self.config.read().await;
-        let actions = config
+        let steps = config
             .macros
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Macro '{}' not found", name))?
@@ -452,7 +448,7 @@ impl ServerState {
 
         let macro_def = Macro {
             name: name.to_string(),
-            actions,
+            steps,
             created_at: None,
             description: None,
         };
@@ -859,7 +855,7 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
         Message::StopMacroRecording => match state.stop_macro_recording().await {
             Ok(macro_def) => Message::MacroRecordingResult {
                 name: macro_def.name,
-                action_count: macro_def.actions.len(),
+                action_count: macro_def.steps.len(),
             },
             Err(e) => Message::Error {
                 message: format!("Failed to stop recording: {}", e),

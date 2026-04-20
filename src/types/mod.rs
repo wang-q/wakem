@@ -40,12 +40,12 @@ impl ModifierState {
         Self::default()
     }
 
-    #[allow(dead_code)]
+    /// 检查是否没有任何修饰键
     pub fn is_empty(&self) -> bool {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }
 
-    #[allow(dead_code)]
+    /// 从虚拟键码创建修饰键状态
     pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)> {
         let mut state = Self::new();
         match key {
@@ -58,7 +58,7 @@ impl ModifierState {
         Some((state, pressed))
     }
 
-    #[allow(dead_code)]
+    /// 合并另一个修饰键状态
     pub fn merge(&mut self, other: &ModifierState) {
         self.shift |= other.shift;
         self.ctrl |= other.ctrl;

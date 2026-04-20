@@ -9,9 +9,6 @@ use super::{get_instance_address, get_instance_port};
 pub struct InstanceInfo {
     /// 实例ID
     pub id: u32,
-    /// 端口号
-    #[allow(dead_code)]
-    pub port: u16,
     /// 绑定地址
     pub address: String,
     /// 是否活跃（可连接）
@@ -25,7 +22,7 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
 
     for id in 0..10 {
         let address = get_instance_address(id);
-        let port = get_instance_port(id);
+        let _port = get_instance_port(id);
 
         // 尝试连接，超时100ms
         let active = match timeout(
@@ -43,30 +40,12 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
 
         instances.push(InstanceInfo {
             id,
-            port,
             address,
             active,
         });
     }
 
     instances
-}
-
-/// 获取第一个活跃的实例
-#[allow(dead_code)]
-pub async fn find_first_active_instance() -> Option<InstanceInfo> {
-    let instances = discover_instances().await;
-    instances.into_iter().find(|i| i.active)
-}
-
-/// 检查指定实例是否活跃
-#[allow(dead_code)]
-pub async fn is_instance_active(instance_id: u32) -> bool {
-    let address = get_instance_address(instance_id);
-    matches!(
-        timeout(Duration::from_millis(100), TcpStream::connect(&address)).await,
-        Ok(Ok(_))
-    )
 }
 
 #[cfg(test)]
