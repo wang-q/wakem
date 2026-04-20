@@ -284,88 +284,21 @@ wakem/
 
 ---
 
-## 完整配置示例
+## 配置参考
+
+用户配置请参考 [CONFIG.md](CONFIG.md)。
+
+开发相关配置示例：
 
 ```toml
-# wakem.toml - 完整配置示例
-
-# ============================================
-# 基本设置
-# ============================================
-log_level = "info"
+# 开发调试配置
+log_level = "debug"
 tray_icon = true
 auto_reload = true
-icon_path = "assets/icon.ico"
 
-# ============================================
-# 键盘重映射
-# ============================================
-[keyboard]
-remap = [
-    { from = "CapsLock", to = "Backspace" },
-    { from = "RightAlt", to = "Ctrl" },
-]
-
-# 导航层 - 按住 CapsLock 时
-[[keyboard.layers]]
-name = "navigation"
-activation_key = "CapsLock"
-mode = "Hold"
-mappings = [
-    { from = "H", to = "Left" },
-    { from = "J", to = "Down" },
-    { from = "K", to = "Up" },
-    { from = "L", to = "Right" },
-]
-
-# ============================================
-# 窗口管理
-# ============================================
 [window]
 shortcuts = [
-    # 窗口居中
-    { "Ctrl+Alt+Win+C" = "Center" },
-    { "Ctrl+Alt+Win+Shift+C" = "Center" },
-    
-    # 移动到边缘
-    { "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)" },
-    { "Ctrl+Alt+Win+End" = "MoveToEdge(Right)" },
-    { "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)" },
-    { "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)" },
-    
-    # 半屏显示
-    { "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)" },
-    { "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)" },
-    { "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)" },
-    { "Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)" },
-    
-    # 循环调整
-    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
-    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
-    { "Ctrl+Alt+Win+Up" = "LoopHeight(Top)" },
-    { "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)" },
-    
-    # 固定比例
-    { "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)" },
-    { "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)" },
-    
-    # 窗口切换
-    { "Alt+Grave" = "SwitchToNextWindow" },
-    
-    # 跨显示器
-    { "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)" },
-    { "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)" },
-    
-    # 调试功能
     { "Ctrl+Alt+Win+W" = "ShowDebugInfo" },
-    { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)" },
+    { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Debug Mode)" },
 ]
-
-# ============================================
-# 快速启动
-# ============================================
-[launch]
-terminal = "wt.exe"
-editor = "code.exe"
-browser = "chrome.exe"
 ```

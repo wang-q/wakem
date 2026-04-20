@@ -120,9 +120,7 @@ wakem config      # 打开配置文件夹
 
 ## 文档
 
-- [键盘配置指南](docs/KEYBOARD.md)
-- [窗口管理配置](docs/WINDOW.md)
-- [完整配置参考](docs/CONFIG.md)
+- [配置指南](docs/CONFIG.md) - 完整的键盘和窗口管理配置说明
 - [开发文档](docs/developer.md) - 架构说明和开发计划
 
 ## 配置文件示例

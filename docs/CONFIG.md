@@ -4,11 +4,29 @@
 
 ## 配置文件位置
 
-wakem 会在以下位置查找配置文件：
+### Windows
 
-1. `%USERPROFILE%\wakem.toml` (Windows)
-2. `%USERPROFILE%\.config\wakem\config.toml`
-3. 当前工作目录下的 `wakem.toml`
+wakem 使用以下目录结构（遵循 XDG Base Directory 规范的 Windows 适配）：
+
+| 类型 | 路径 | 说明 |
+|------|------|------|
+| 程序 | `%LOCALAPPDATA%\Programs\wakem\` | 可执行文件安装位置 |
+| 配置 | `%APPDATA%\wakem\` | 配置文件目录 |
+| 数据 | `%LOCALAPPDATA%\wakem\` | 日志等数据文件 |
+| 启动项 | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\` | 开机启动快捷方式 |
+
+配置文件按以下优先级查找（找到即停止）：
+
+| 优先级 | 路径 | 说明 |
+|:------:|------|------|
+| 1 | `%USERPROFILE%\.wakem.toml` | 用户主目录下的单文件配置 |
+| 2 | `%APPDATA%\wakem\config.toml` | 配置目录（推荐） |
+
+**推荐**：使用 `%APPDATA%\wakem\config.toml`，遵循 Windows 标准配置目录规范。
+
+> `%APPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Roaming`，`%LOCALAPPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Local`
+
+> 注：目前 wakem 仅支持 Windows 平台，macOS 和 Linux 支持正在开发中。
 
 ## 快捷键符号
 
@@ -191,6 +209,26 @@ shortcuts = [
 - `scale_index`: 初始缩放索引（0 = 100%, 1 = 90%, 2 = 70%, 3 = 50%）
 
 连续按键循环: 100% → 90% → 70% → 50% → 100%
+
+## 快速启动配置
+
+通过快捷键快速启动应用程序：
+
+```toml
+[launch]
+terminal = "wt.exe"      # 终端
+editor = "code.exe"      # 编辑器
+browser = "chrome.exe"   # 浏览器
+file_manager = "explorer.exe"  # 文件管理器
+```
+
+**支持的字段**:
+- `terminal` - 终端应用
+- `editor` - 代码编辑器
+- `browser` - 浏览器
+- `file_manager` - 文件管理器
+
+> **注意**: 快速启动功能需要配合键盘层的映射使用，将快捷键映射到相应的启动动作。
 
 ## 按键名称
 
