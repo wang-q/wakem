@@ -373,6 +373,10 @@ impl ServerState {
                 let output = self.output_device.lock().await;
                 output.send_system_action(&system_action)?;
             }
+            Action::Delay { milliseconds } => {
+                tokio::time::sleep(tokio::time::Duration::from_millis(milliseconds))
+                    .await;
+            }
             Action::None => {}
         }
 

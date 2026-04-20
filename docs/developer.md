@@ -772,17 +772,19 @@ wakem delete-macro my-macro
 
 **位置**: `src/types/action.rs`
 
-| API | 说明 | 启用条件 |
-|-----|------|----------|
-| `KeyAction::press_from_event()` | 从事件创建 Press | 事件转发时 |
-| `KeyAction::release_from_event()` | 从事件创建 Release | 事件转发时 |
-| `KeyAction::combo()` | 创建组合键 | 构建复杂快捷键时 |
-| `Action::mouse()` | 创建鼠标动作 | 程序化创建鼠标动作 |
-| `Action::launch()` | 创建启动动作 | 程序化创建启动动作 |
-| `Action::sequence()` | 创建动作序列 | 批量执行动作时 |
-| `Action::is_none()` | 检查是否为空操作 | 验证动作时 |
+| API | 说明 | 状态 |
+|-----|------|------|
+| `KeyAction::press_from_event()` | 从事件创建 Press | ✅ 已启用（宏系统使用） |
+| `KeyAction::release_from_event()` | 从事件创建 Release | ✅ 已启用（宏系统使用） |
+| `KeyAction::combo()` | 创建组合键 | ✅ 已启用 |
+| `Action::mouse()` | 创建鼠标动作 | ✅ 已启用 |
+| `Action::launch()` | 创建启动动作 | ✅ 已启用 |
+| `Action::sequence()` | 创建动作序列 | ✅ 已启用 |
+| `Action::is_none()` | 检查是否为空操作 | ✅ 已启用 |
+| `Action::delay()` | 创建延迟动作 | ✅ 新增（宏回放使用） |
+| `Action::from_input_event()` | 从输入事件创建动作 | ✅ 新增（宏录制使用） |
 
-**启用建议**: 当需要程序化构建动作（如通过 UI 配置快捷键）时启用。
+**说明**: 这些 API 已与宏系统整合，用于宏录制和回放功能。
 
 ### 8. 窗口管理扩展 API
 

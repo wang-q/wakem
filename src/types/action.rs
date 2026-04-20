@@ -22,7 +22,6 @@ pub enum KeyAction {
 
 impl KeyAction {
     /// 从 KeyEvent 创建对应的 Press 动作
-    #[allow(dead_code)]
     pub fn press_from_event(event: &super::KeyEvent) -> Self {
         Self::Press {
             scan_code: event.scan_code,
@@ -31,7 +30,6 @@ impl KeyAction {
     }
 
     /// 从 KeyEvent 创建对应的 Release 动作
-    #[allow(dead_code)]
     pub fn release_from_event(event: &super::KeyEvent) -> Self {
         Self::Release {
             scan_code: event.scan_code,
@@ -64,7 +62,6 @@ impl KeyAction {
     }
 
     /// 创建组合键动作
-    #[allow(dead_code)]
     pub fn combo(
         modifiers: super::ModifierState,
         scan_code: u16,
@@ -208,6 +205,10 @@ pub enum Action {
     System(SystemAction),
     /// 执行多个动作
     Sequence(Vec<Action>),
+    /// 延迟（用于宏回放）
+    Delay {
+        milliseconds: u64,
+    },
     /// 无操作
     None,
 }
@@ -219,7 +220,6 @@ impl Action {
     }
 
     /// 创建鼠标动作
-    #[allow(dead_code)]
     pub fn mouse(action: MouseAction) -> Self {
         Self::Mouse(action)
     }
@@ -230,7 +230,6 @@ impl Action {
     }
 
     /// 创建启动程序动作
-    #[allow(dead_code)]
     pub fn launch(program: impl Into<String>) -> Self {
         Self::Launch(LaunchAction {
             program: program.into(),
@@ -241,14 +240,51 @@ impl Action {
     }
 
     /// 创建动作序列
-    #[allow(dead_code)]
     pub fn sequence(actions: Vec<Action>) -> Self {
         Self::Sequence(actions)
     }
 
+    /// 创建延迟动作
+    pub fn delay(milliseconds: u64) -> Self {
+        Self::Delay { milliseconds }
+    }
+
     /// 检查是否是空操作
-    #[allow(dead_code)]
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
+    }
+
+    /// 从输入事件创建对应的 Action
+    pub fn from_input_event(event: &super::InputEvent) -> Option<Self> {
+        match event {
+            super::InputEvent::Key(key_event) => {
+                let key_action = if key_event.state == super::KeyState::Pressed {
+                    KeyAction::press_from_event(key_event)
+                } else {
+                    KeyAction::release_from_event(key_event)
+                };
+                Some(Self::Key(key_action))
+            }
+            super::InputEvent::Mouse(mouse_event) => {
+                let mouse_action = match mouse_event.event_type {
+                    super::MouseEventType::ButtonDown(button) => {
+                        MouseAction::ButtonDown { button }
+                    }
+                    super::MouseEventType::ButtonUp(button) => {
+                        MouseAction::ButtonUp { button }
+                    }
+                    super::MouseEventType::Move => MouseAction::Move {
+                        x: mouse_event.x,
+                        y: mouse_event.y,
+                        relative: false,
+                    },
+                    super::MouseEventType::Wheel(delta) => MouseAction::Wheel { delta },
+                    super::MouseEventType::HWheel(delta) => {
+                        MouseAction::HWheel { delta }
+                    }
+                };
+                Some(Self::Mouse(mouse_action))
+            }
+        }
     }
 }

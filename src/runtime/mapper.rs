@@ -281,6 +281,7 @@ impl KeyMapper {
             | Action::Launch(_)
             | Action::Sequence(_)
             | Action::System(_)
+            | Action::Delay { .. }
             | Action::None => {
                 // 这些动作由其他组件处理
             }

@@ -6,27 +6,16 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-use crate::types::{InputEvent, KeyState, MouseButton, MouseEventType};
+use crate::types::{Action, InputEvent};
 
 /// 宏定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Macro {
     pub name: String,
-    pub actions: Vec<MacroAction>,
+    /// 动作列表，每个动作包含延迟（毫秒）和动作本身
+    pub actions: Vec<(u64, Action)>,
     pub created_at: Option<String>,
     pub description: Option<String>,
-}
-
-/// 宏动作（简化版，只记录关键信息）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum MacroAction {
-    KeyPress { scan_code: u16, virtual_key: u16 },
-    KeyRelease { scan_code: u16, virtual_key: u16 },
-    MousePress { button: MouseButton, x: i32, y: i32 },
-    MouseRelease { button: MouseButton, x: i32, y: i32 },
-    MouseMove { x: i32, y: i32 },
-    MouseWheel { delta: i32, horizontal: bool },
-    Delay { milliseconds: u64 },
 }
 
 /// 宏录制器
@@ -37,7 +26,7 @@ pub struct MacroRecorder {
 struct MacroRecording {
     name: String,
     start_time: Instant,
-    actions: Vec<(Duration, MacroAction)>, // (相对时间, 动作)
+    actions: Vec<(Duration, Action)>, // (相对时间, 动作)
 }
 
 impl MacroRecorder {
@@ -99,7 +88,7 @@ impl MacroRecorder {
         let mut recording = self.recording.write().await;
         if let Some(ref mut rec) = *recording {
             let elapsed = rec.start_time.elapsed();
-            if let Some(action) = convert_event_to_macro_action(event) {
+            if let Some(action) = Action::from_input_event(event) {
                 debug!("Recorded action at {:?}: {:?}", elapsed, action);
                 rec.actions.push((elapsed, action));
             }
@@ -117,51 +106,8 @@ impl MacroRecorder {
     }
 }
 
-/// 将输入事件转换为宏动作
-fn convert_event_to_macro_action(event: &InputEvent) -> Option<MacroAction> {
-    match event {
-        InputEvent::Key(key_event) => {
-            if key_event.state == KeyState::Pressed {
-                Some(MacroAction::KeyPress {
-                    scan_code: key_event.scan_code,
-                    virtual_key: key_event.virtual_key,
-                })
-            } else {
-                Some(MacroAction::KeyRelease {
-                    scan_code: key_event.scan_code,
-                    virtual_key: key_event.virtual_key,
-                })
-            }
-        }
-        InputEvent::Mouse(mouse_event) => match mouse_event.event_type {
-            MouseEventType::ButtonDown(button) => Some(MacroAction::MousePress {
-                button,
-                x: mouse_event.x,
-                y: mouse_event.y,
-            }),
-            MouseEventType::ButtonUp(button) => Some(MacroAction::MouseRelease {
-                button,
-                x: mouse_event.x,
-                y: mouse_event.y,
-            }),
-            MouseEventType::Move => Some(MacroAction::MouseMove {
-                x: mouse_event.x,
-                y: mouse_event.y,
-            }),
-            MouseEventType::Wheel(delta) => Some(MacroAction::MouseWheel {
-                delta,
-                horizontal: false,
-            }),
-            MouseEventType::HWheel(delta) => Some(MacroAction::MouseWheel {
-                delta,
-                horizontal: true,
-            }),
-        },
-    }
-}
-
 /// 简化延迟：将连续的动作合并，只保留必要的延迟
-fn simplify_delays(actions: Vec<(Duration, MacroAction)>) -> Vec<MacroAction> {
+fn simplify_delays(actions: Vec<(Duration, Action)>) -> Vec<(u64, Action)> {
     if actions.is_empty() {
         return Vec::new();
     }
@@ -175,12 +121,10 @@ fn simplify_delays(actions: Vec<(Duration, MacroAction)>) -> Vec<MacroAction> {
 
         // 如果延迟超过阈值，添加延迟动作
         if delay_ms > MIN_DELAY_MS {
-            result.push(MacroAction::Delay {
-                milliseconds: delay_ms,
-            });
+            result.push((delay_ms, Action::delay(delay_ms)));
         }
 
-        result.push(action);
+        result.push((0, action));
         last_time = time;
     }
 
@@ -220,7 +164,7 @@ impl MacroManager {
     }
 
     /// 从配置加载宏
-    pub fn load_from_config(&mut self, macros: &HashMap<String, Vec<MacroAction>>) {
+    pub fn load_from_config(&mut self, macros: &HashMap<String, Vec<(u64, Action)>>) {
         for (name, actions) in macros {
             let macro_def = Macro {
                 name: name.clone(),
@@ -236,6 +180,7 @@ impl MacroManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{KeyAction, KeyEvent, KeyState};
 
     #[test]
     fn test_macro_recorder_start_stop() {
@@ -264,41 +209,41 @@ mod tests {
         let actions = vec![
             (
                 Duration::from_millis(0),
-                MacroAction::KeyPress {
+                Action::key(KeyAction::Press {
                     scan_code: 30,
                     virtual_key: 65,
-                },
+                }),
             ),
             (
                 Duration::from_millis(10),
-                MacroAction::KeyRelease {
+                Action::key(KeyAction::Release {
                     scan_code: 30,
                     virtual_key: 65,
-                },
+                }),
             ), // 10ms，不添加延迟
             (
                 Duration::from_millis(100),
-                MacroAction::KeyPress {
+                Action::key(KeyAction::Press {
                     scan_code: 31,
                     virtual_key: 66,
-                },
+                }),
             ), // 90ms，添加延迟
             (
                 Duration::from_millis(200),
-                MacroAction::KeyRelease {
+                Action::key(KeyAction::Release {
                     scan_code: 31,
                     virtual_key: 66,
-                },
+                }),
             ), // 100ms，添加延迟
         ];
 
         let simplified = simplify_delays(actions);
 
-        // 应该包含: KeyPress, KeyRelease, Delay(90), KeyPress, Delay(100), KeyRelease
+        // 应该包含: KeyPress(0), KeyRelease(0), Delay(90), KeyPress(0), Delay(100), KeyRelease(0)
         assert_eq!(simplified.len(), 6);
 
         // 验证延迟动作
-        if let MacroAction::Delay { milliseconds } = simplified[2] {
+        if let Action::Delay { milliseconds } = simplified[2].1 {
             assert!(
                 milliseconds >= 80 && milliseconds <= 100,
                 "Expected delay around 90ms, got {}",
@@ -306,6 +251,26 @@ mod tests {
             );
         } else {
             panic!("Expected Delay at index 2");
+        }
+    }
+
+    #[test]
+    fn test_action_from_input_event() {
+        let key_event = KeyEvent::new(30, 65, KeyState::Pressed);
+        let input_event = InputEvent::Key(key_event);
+
+        let action = Action::from_input_event(&input_event);
+        assert!(action.is_some());
+
+        if let Some(Action::Key(KeyAction::Press {
+            scan_code,
+            virtual_key,
+        })) = action
+        {
+            assert_eq!(scan_code, 30);
+            assert_eq!(virtual_key, 65);
+        } else {
+            panic!("Expected Key Press action");
         }
     }
 }

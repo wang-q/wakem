@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::types::{ContextCondition, MacroAction, MappingRule};
+use crate::types::{Action, ContextCondition, MappingRule};
 
 /// 全局配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,9 +34,9 @@ pub struct Config {
     /// 网络通信设置
     #[serde(default)]
     pub network: NetworkConfig,
-    /// 宏定义
+    /// 宏定义: macro_name -> [(delay_ms, action), ...]
     #[serde(default)]
-    pub macros: HashMap<String, Vec<MacroAction>>,
+    pub macros: HashMap<String, Vec<(u64, Action)>>,
     /// 宏触发键映射: trigger -> macro_name
     #[serde(default)]
     pub macro_bindings: HashMap<String, String>,

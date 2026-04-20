@@ -4,7 +4,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
 
 use crate::platform::windows::OutputDevice;
-use crate::types::{KeyAction, Macro, MacroAction};
+use crate::types::{Action, Macro};
 
 pub struct MacroPlayer;
 
@@ -20,83 +20,59 @@ impl MacroPlayer {
             macro_def.actions.len()
         );
 
-        for action in &macro_def.actions {
-            Self::execute_macro_action(output_device, action).await?;
+        for (delay_ms, action) in &macro_def.actions {
+            // 执行延迟
+            if *delay_ms > 0 {
+                debug!("Macro Delay: {}ms", delay_ms);
+                sleep(Duration::from_millis(*delay_ms)).await;
+            }
+
+            Self::execute_action(output_device, action)?;
         }
 
         info!("Macro '{}' completed", macro_def.name);
         Ok(())
     }
 
-    /// 执行单个宏动作
-    async fn execute_macro_action(
+    /// 执行单个动作
+    fn execute_action(
         output_device: &OutputDevice,
-        action: &MacroAction,
+        action: &Action,
     ) -> anyhow::Result<()> {
         match action {
-            MacroAction::KeyPress {
-                scan_code,
-                virtual_key,
-            } => {
-                debug!(
-                    "Macro KeyPress: scan_code={}, virtual_key={}",
-                    scan_code, virtual_key
-                );
-                output_device.send_key_action(&KeyAction::Press {
-                    scan_code: *scan_code,
-                    virtual_key: *virtual_key,
-                })?;
+            Action::Key(key_action) => {
+                debug!("Macro KeyAction: {:?}", key_action);
+                output_device.send_key_action(key_action)?;
             }
-            MacroAction::KeyRelease {
-                scan_code,
-                virtual_key,
-            } => {
-                debug!(
-                    "Macro KeyRelease: scan_code={}, virtual_key={}",
-                    scan_code, virtual_key
-                );
-                output_device.send_key_action(&KeyAction::Release {
-                    scan_code: *scan_code,
-                    virtual_key: *virtual_key,
-                })?;
+            Action::Mouse(mouse_action) => {
+                debug!("Macro MouseAction: {:?}", mouse_action);
+                output_device.send_mouse_action(mouse_action)?;
             }
-            MacroAction::MousePress {
-                button: _,
-                x: _,
-                y: _,
-            } => {
-                // 鼠标动作通过 send_mouse_action 处理
-                debug!("Macro MousePress (not implemented)");
+            Action::Delay { milliseconds } => {
+                debug!("Macro Delay: {}ms", milliseconds);
+                // 延迟在 play_macro 中处理
             }
-            MacroAction::MouseRelease {
-                button: _,
-                x: _,
-                y: _,
-            } => {
-                // 鼠标动作通过 send_mouse_action 处理
-                debug!("Macro MouseRelease (not implemented)");
+            Action::Window(window_action) => {
+                debug!("Macro WindowAction: {:?}", window_action);
+                // 窗口动作需要通过 ActionMapper 执行
+                // 这里暂时只记录日志
             }
-            MacroAction::MouseMove { x: _, y: _ } => {
-                // 鼠标移动需要额外实现
-                debug!("Macro MouseMove (not implemented)");
+            Action::Launch(launch_action) => {
+                debug!("Macro LaunchAction: {:?}", launch_action);
+                // 启动程序动作
             }
-            MacroAction::MouseWheel { delta, horizontal } => {
-                debug!(
-                    "Macro MouseWheel: delta={}, horizontal={}",
-                    delta, horizontal
-                );
-                use crate::types::MouseAction;
-                if *horizontal {
-                    output_device
-                        .send_mouse_action(&MouseAction::HWheel { delta: *delta })?;
-                } else {
-                    output_device
-                        .send_mouse_action(&MouseAction::Wheel { delta: *delta })?;
+            Action::System(system_action) => {
+                debug!("Macro SystemAction: {:?}", system_action);
+                // 系统控制动作
+            }
+            Action::Sequence(actions) => {
+                debug!("Macro Sequence: {} actions", actions.len());
+                for sub_action in actions {
+                    Self::execute_action(output_device, sub_action)?;
                 }
             }
-            MacroAction::Delay { milliseconds } => {
-                debug!("Macro Delay: {}ms", milliseconds);
-                sleep(Duration::from_millis(*milliseconds)).await;
+            Action::None => {
+                // 无操作
             }
         }
 
@@ -107,7 +83,9 @@ impl MacroPlayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Macro, MacroAction};
+    use crate::types::{
+        Action, KeyAction, Macro, MouseAction, MouseButton, WindowAction,
+    };
 
     #[test]
     fn test_macro_player_creation() {
@@ -117,33 +95,36 @@ mod tests {
 
     #[test]
     fn test_macro_action_variants() {
-        // 验证所有宏动作变体可以创建
-        use crate::types::MouseButton;
-        let actions = vec![
-            MacroAction::KeyPress {
-                scan_code: 30,
-                virtual_key: 65,
-            },
-            MacroAction::KeyRelease {
-                scan_code: 30,
-                virtual_key: 65,
-            },
-            MacroAction::MousePress {
-                button: MouseButton::Left,
-                x: 100,
-                y: 200,
-            },
-            MacroAction::MouseRelease {
-                button: MouseButton::Left,
-                x: 100,
-                y: 200,
-            },
-            MacroAction::MouseMove { x: 300, y: 400 },
-            MacroAction::MouseWheel {
-                delta: 120,
-                horizontal: false,
-            },
-            MacroAction::Delay { milliseconds: 100 },
+        // 验证所有动作变体可以创建
+        let actions: Vec<(u64, Action)> = vec![
+            (
+                0,
+                Action::key(KeyAction::Press {
+                    scan_code: 30,
+                    virtual_key: 65,
+                }),
+            ),
+            (
+                0,
+                Action::key(KeyAction::Release {
+                    scan_code: 30,
+                    virtual_key: 65,
+                }),
+            ),
+            (
+                50,
+                Action::mouse(MouseAction::ButtonDown {
+                    button: MouseButton::Left,
+                }),
+            ),
+            (
+                0,
+                Action::mouse(MouseAction::ButtonUp {
+                    button: MouseButton::Left,
+                }),
+            ),
+            (100, Action::window(WindowAction::Center)),
+            (0, Action::delay(200)),
         ];
 
         let macro_def = Macro {
@@ -153,6 +134,6 @@ mod tests {
             description: None,
         };
 
-        assert_eq!(macro_def.actions.len(), 7);
+        assert_eq!(macro_def.actions.len(), 6);
     }
 }
