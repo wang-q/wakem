@@ -29,24 +29,24 @@ pub struct MessageWindow {
     hwnd: HWND,
     tray_icon: Arc<Mutex<TrayIcon>>,
     running: Arc<Mutex<bool>>,
-    command_callback: Option<Box<dyn Fn(AppCommand) + Send>>,
+    command_callback: Arc<Mutex<Option<Box<dyn Fn(AppCommand) + Send + 'static>>>>,
 }
 
 impl MessageWindow {
     /// 创建带自定义图标路径的消息窗口
-    pub fn with_icon_path(icon_path: Option<String>) -> Result<Self> {
+    pub fn with_icon_path(icon_path: Option<String>) -> Result<Arc<Self>> {
         let hwnd = Self::create_window()?;
 
-        let window = Self {
+        let window = Arc::new(Self {
             hwnd,
             tray_icon: Arc::new(Mutex::new(TrayIcon::with_icon_path(icon_path))),
             running: Arc::new(Mutex::new(true)),
-            command_callback: None,
-        };
+            command_callback: Arc::new(Mutex::new(None)),
+        });
 
-        // 将窗口实例存储在窗口数据中
+        // 将 Arc 的原始指针存储在窗口数据中（安全：Arc 使用堆分配，不会移动）
         unsafe {
-            let ptr = &window as *const Self as isize;
+            let ptr = Arc::into_raw(Arc::clone(&window)) as isize;
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, ptr);
         }
 
@@ -102,16 +102,18 @@ impl MessageWindow {
     }
 
     /// 设置命令回调
-    pub fn set_command_callback<F>(&mut self, callback: F)
+    pub fn set_command_callback<F>(&self, callback: F)
     where
         F: Fn(AppCommand) + Send + 'static,
     {
-        self.command_callback = Some(Box::new(callback));
+        let mut cb = self.command_callback.lock().unwrap();
+        *cb = Some(Box::new(callback));
     }
 
     /// 发送命令（从窗口过程调用）
     fn send_command(&self, cmd: AppCommand) {
-        if let Some(ref callback) = self.command_callback {
+        let cb = self.command_callback.lock().unwrap();
+        if let Some(ref callback) = *cb {
             callback(cmd);
         }
     }
@@ -148,13 +150,14 @@ impl MessageWindow {
         self.hwnd
     }
 
-    /// 从窗口句柄获取实例引用
-    unsafe fn get_instance(hwnd: HWND) -> Option<&'static Self> {
+    /// 从窗口句柄获取实例引用（安全地重建 Arc）
+    unsafe fn get_instance(hwnd: HWND) -> Option<Arc<Self>> {
         let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
         if ptr == 0 {
             return None;
         }
-        Some(&*(ptr as *const Self))
+        // 从原始指针安全地重建 Arc
+        Some(Arc::from_raw(ptr as *const Self))
     }
 
     /// 窗口过程
@@ -268,7 +271,9 @@ impl Drop for MessageWindow {
         debug!("MessageWindow dropping");
         // 清理托盘图标
         if let Ok(mut tray) = self.tray_icon.lock() {
-            let _ = tray.unregister();
+            if let Err(e) = tray.unregister() {
+                debug!("Failed to unregister tray icon: {}", e);
+            }
         }
     }
 }

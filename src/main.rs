@@ -124,101 +124,89 @@ async fn run_daemon(instance_id: u32) -> Result<()> {
     daemon::run_server(instance_id).await
 }
 
-/// 获取服务端状态
-async fn cmd_status(instance_id: u32) -> Result<()> {
+/// 通用 daemon 命令执行器（消除样板代码）
+async fn execute_daemon_command<F>(instance_id: u32, operation: F) -> Result<()>
+where
+    F: FnOnce(
+        &mut DaemonClient,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send + '_>,
+    >,
+{
     let mut client = DaemonClient::new();
     match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.get_status().await {
-            Ok((active, loaded)) => {
-                println!("wakemd instance {}:", instance_id);
-                println!("  Active: {}", if active { "yes" } else { "no" });
-                println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
+        Ok(_) => {
+            if let Err(e) = operation(&mut client).await {
+                eprintln!("Command failed: {}", e);
             }
-            Err(e) => {
-                eprintln!("Failed to get status: {}", e);
-            }
-        },
+        }
         Err(e) => {
             eprintln!("Failed to connect to daemon: {}", e);
         }
     }
     Ok(())
+}
+
+/// 获取服务端状态
+async fn cmd_status(instance_id: u32) -> Result<()> {
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            let (active, loaded) = client.get_status().await?;
+            println!("wakemd instance {}:", instance_id);
+            println!("  Active: {}", if active { "yes" } else { "no" });
+            println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 重载配置
 async fn cmd_reload(instance_id: u32) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.reload_config().await {
-            Ok(_) => {
-                println!("Configuration reloaded successfully");
-            }
-            Err(e) => {
-                eprintln!("Failed to reload config: {}", e);
-            }
-        },
-        Err(e) => {
-            eprintln!("Failed to connect to daemon: {}", e);
-        }
-    }
-    Ok(())
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.reload_config().await?;
+            println!("Configuration reloaded successfully");
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 保存配置到文件
 async fn cmd_save(instance_id: u32) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.save_config().await {
-            Ok(_) => {
-                println!("Configuration saved successfully");
-            }
-            Err(e) => {
-                eprintln!("Failed to save config: {}", e);
-            }
-        },
-        Err(e) => {
-            eprintln!("Failed to connect to daemon: {}", e);
-        }
-    }
-    Ok(())
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.save_config().await?;
+            println!("Configuration saved successfully");
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 启用映射
 async fn cmd_enable(instance_id: u32) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.set_active(true).await {
-            Ok(_) => {
-                println!("wakem enabled");
-            }
-            Err(e) => {
-                eprintln!("Failed to enable: {}", e);
-            }
-        },
-        Err(e) => {
-            eprintln!("Failed to connect to daemon: {}", e);
-        }
-    }
-    Ok(())
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.set_active(true).await?;
+            println!("wakem enabled");
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 禁用映射
 async fn cmd_disable(instance_id: u32) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.set_active(false).await {
-            Ok(_) => {
-                println!("wakem disabled");
-            }
-            Err(e) => {
-                eprintln!("Failed to disable: {}", e);
-            }
-        },
-        Err(e) => {
-            eprintln!("Failed to connect to daemon: {}", e);
-        }
-    }
-    Ok(())
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.set_active(false).await?;
+            println!("wakem disabled");
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 打开配置文件夹

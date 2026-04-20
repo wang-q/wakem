@@ -319,14 +319,13 @@ impl KeyMapper {
                 }
                 WindowAction::ToggleTopmost => {
                     use windows::Win32::UI::WindowsAndMessaging::{
-                        SetWindowPos, HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOMOVE,
-                        SWP_NOSIZE,
+                        GetWindowLongW, SetWindowPos, GWL_EXSTYLE, HWND_NOTOPMOST,
+                        HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOPMOST,
                     };
 
-                    let info = wm.get_window_info(hwnd)?;
-                    // 简单判断：如果窗口在 (0,0) 附近，假设它是置顶窗口
-                    // 实际应该使用 GetWindowLong 检查 WS_EX_TOPMOST 样式
-                    let is_topmost = info.frame.x == 0 && info.frame.y == 0;
+                    // 正确判断：检查 WS_EX_TOPMOST 扩展窗口样式
+                    let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                    let is_topmost = (ex_style & WS_EX_TOPMOST.0 as i32) != 0;
 
                     let hwnd_insert_after = if is_topmost {
                         HWND_NOTOPMOST

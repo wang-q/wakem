@@ -41,63 +41,71 @@ impl MacroPlayer {
         Ok(())
     }
 
-    /// 确保修饰键状态与录制时一致
+    /// 确保修饰键状态与录制时一致（使用 spawn_blocking 避免阻塞 Tokio 运行时）
     async fn ensure_modifiers(
         output: &OutputDevice,
         target: &ModifierState,
     ) -> anyhow::Result<()> {
-        // 这里简化处理：假设当前没有修饰键按下
-        // 实际应该跟踪当前修饰键状态，只调整差异
+        let output_clone = output.clone();
+        let target_clone = target.clone();
 
-        if target.ctrl {
-            output.send_key_action(&KeyAction::Press {
-                scan_code: 0x1D,
-                virtual_key: 0x11,
-            })?;
-        }
-        if target.shift {
-            output.send_key_action(&KeyAction::Press {
-                scan_code: 0x2A,
-                virtual_key: 0x10,
-            })?;
-        }
-        if target.alt {
-            output.send_key_action(&KeyAction::Press {
-                scan_code: 0x38,
-                virtual_key: 0x12,
-            })?;
-        }
-        if target.meta {
-            output.send_key_action(&KeyAction::Press {
-                scan_code: 0x5B,
-                virtual_key: 0x5B,
-            })?;
-        }
+        tokio::task::spawn_blocking(move || {
+            if target_clone.ctrl {
+                output_clone.send_key_action(&KeyAction::Press {
+                    scan_code: 0x1D,
+                    virtual_key: 0x11,
+                })?;
+            }
+            if target_clone.shift {
+                output_clone.send_key_action(&KeyAction::Press {
+                    scan_code: 0x2A,
+                    virtual_key: 0x10,
+                })?;
+            }
+            if target_clone.alt {
+                output_clone.send_key_action(&KeyAction::Press {
+                    scan_code: 0x38,
+                    virtual_key: 0x12,
+                })?;
+            }
+            if target_clone.meta {
+                output_clone.send_key_action(&KeyAction::Press {
+                    scan_code: 0x5B,
+                    virtual_key: 0x5B,
+                })?;
+            }
 
-        Ok(())
+            Ok::<(), anyhow::Error>(())
+        })
+        .await?
     }
 
-    /// 释放所有修饰键
+    /// 释放所有修饰键（使用 spawn_blocking 避免阻塞 Tokio 运行时）
     async fn release_all_modifiers(output: &OutputDevice) -> anyhow::Result<()> {
-        // 释放顺序：与按下相反
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x5B,
-            virtual_key: 0x5B,
-        })?; // Meta
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x38,
-            virtual_key: 0x12,
-        })?; // Alt
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x2A,
-            virtual_key: 0x10,
-        })?; // Shift
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x1D,
-            virtual_key: 0x11,
-        })?; // Ctrl
+        let output_clone = output.clone();
 
-        Ok(())
+        tokio::task::spawn_blocking(move || {
+            // 释放顺序：与按下相反
+            output_clone.send_key_action(&KeyAction::Release {
+                scan_code: 0x5B,
+                virtual_key: 0x5B,
+            })?; // Meta
+            output_clone.send_key_action(&KeyAction::Release {
+                scan_code: 0x38,
+                virtual_key: 0x12,
+            })?; // Alt
+            output_clone.send_key_action(&KeyAction::Release {
+                scan_code: 0x2A,
+                virtual_key: 0x10,
+            })?; // Shift
+            output_clone.send_key_action(&KeyAction::Release {
+                scan_code: 0x1D,
+                virtual_key: 0x11,
+            })?; // Ctrl
+
+            Ok::<(), anyhow::Error>(())
+        })
+        .await?
     }
 
     /// 执行单个动作

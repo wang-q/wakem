@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
 use windows::Win32::Foundation::HWND;
@@ -654,16 +654,17 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         config.network.instance_id = instance_id;
     }
 
-    // 创建 IPC 服务端
+    // 创建 IPC 服务端（强制启用认证）
     let (message_tx, mut message_rx) = mpsc::channel(100);
-    let bind_address = {
-        let config = state.config.read().await;
-        config.network.get_bind_address()
+    let (bind_address, auth_key) = {
+        let mut config = state.config.write().await;
+        let addr = config.network.get_bind_address();
+        // 确保存在认证密钥（安全要求）
+        let key = config.network.ensure_auth_key().to_string();
+        (addr, Some(key))
     };
-    let auth_key = {
-        let config = state.config.read().await;
-        config.network.auth_key.clone()
-    };
+
+    info!("Server authentication enabled");
 
     let mut ipc_server =
         IpcServer::new(bind_address.clone(), auth_key, message_tx.clone());
@@ -671,79 +672,80 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     info!("Server listening on {}", bind_address);
 
-    // 创建输入事件通道（使用 std::sync::mpsc 用于 Raw Input 线程）
-    let (input_tx, input_rx) = std::sync::mpsc::channel::<InputEvent>();
-    let input_rx = Arc::new(StdMutex::new(input_rx));
+    // 创建输入事件通道（使用 tokio::sync::mpsc 用于高效的异步处理）
+    let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<InputEvent>(1000);
 
-    // 启动 Raw Input 捕获（在单独线程中）
-    let input_tx_clone = input_tx.clone();
-    std::thread::spawn(move || match RawInputDevice::new(input_tx_clone) {
-        Ok(mut device) => {
-            info!("Raw Input device initialized");
-            if let Err(e) = device.run() {
-                error!("Raw Input error: {}", e);
+    // 启动 Raw Input 捕获（在单独线程中，通过 bridge 发送到 tokio channel）
+    let input_tx_bridge = input_tx.clone();
+    std::thread::spawn(move || {
+        let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
+        let tx_clone = input_tx_bridge;
+
+        std::thread::spawn(move || match RawInputDevice::new(std_tx) {
+            Ok(mut device) => {
+                info!("Raw Input device initialized");
+                if let Err(e) = device.run() {
+                    error!("Raw Input error: {}", e);
+                }
             }
-        }
-        Err(e) => {
-            error!("Failed to create Raw Input device: {}", e);
+            Err(e) => {
+                error!("Failed to create Raw Input device: {}", e);
+            }
+        });
+
+        // Bridge: 从 std channel 接收并发送到 tokio channel
+        while let Ok(event) = std_rx.recv() {
+            if tx_clone.blocking_send(event).is_err() {
+                break;
+            }
         }
     });
 
-    // 启动输入处理任务（将 std 通道转换为 tokio 任务）
+    // 启动输入处理任务（直接使用 tokio channel，无需轮询）
     let state_clone = state.clone();
-    let input_rx_clone = input_rx.clone();
     tokio::spawn(async move {
-        loop {
-            // 在非阻塞模式下检查接收
-            let event = {
-                let rx = input_rx_clone.lock().unwrap();
-                rx.try_recv().ok()
-            };
-
-            if let Some(event) = event {
-                state_clone.process_input_event(event).await;
-            } else {
-                // 没有事件时短暂休眠
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-            }
+        while let Some(event) = input_rx.recv().await {
+            state_clone.process_input_event(event).await;
         }
     });
 
     // 启动窗口事件监听（用于自动应用预设）
-    let (window_event_tx, window_event_rx) =
-        std::sync::mpsc::channel::<crate::platform::windows::WindowEvent>();
-    let window_event_rx = Arc::new(StdMutex::new(window_event_rx));
+    let mut window_event_rx = {
+        let (tx, mut rx) =
+            tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(100);
 
-    std::thread::spawn(move || {
-        let mut hook = crate::platform::windows::WindowEventHook::new(window_event_tx);
-        if let Err(e) = hook.start() {
-            error!("Failed to start window event hook: {}", e);
-        } else {
-            info!("Window event hook started");
-            // 保持线程运行，钩子会在 Drop 时自动清理
-            loop {
-                std::thread::sleep(std::time::Duration::from_secs(1));
+        std::thread::spawn(move || {
+            let (std_tx, std_rx) =
+                std::sync::mpsc::channel::<crate::platform::windows::WindowEvent>();
+
+            std::thread::spawn(move || {
+                let mut hook = crate::platform::windows::WindowEventHook::new(std_tx);
+                if let Err(e) = hook.start() {
+                    error!("Failed to start window event hook: {}", e);
+                } else {
+                    info!("Window event hook started");
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    }
+                }
+            });
+
+            // Bridge: 从 std channel 接收并发送到 tokio channel
+            while let Ok(event) = std_rx.recv() {
+                if tx.blocking_send(event).is_err() {
+                    break;
+                }
             }
-        }
-    });
+        });
 
-    // 启动窗口事件处理任务（自动应用预设）
+        rx
+    };
+
+    // 启动窗口事件处理任务（直接使用 tokio channel，无需轮询）
     let state_clone = state.clone();
-    let window_event_rx_clone = window_event_rx.clone();
     tokio::spawn(async move {
-        loop {
-            // 在非阻塞模式下检查接收
-            let event = {
-                let rx = window_event_rx_clone.lock().unwrap();
-                rx.try_recv().ok()
-            };
-
-            if let Some(event) = event {
-                state_clone.handle_window_event(event).await;
-            } else {
-                // 没有事件时短暂休眠
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            }
+        while let Some(event) = window_event_rx.recv().await {
+            state_clone.handle_window_event(event).await;
         }
     });
 

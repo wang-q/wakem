@@ -1,4 +1,4 @@
-use super::{auth, IpcError, Message, Result};
+use super::{auth, read_message, send_message, IpcError, Message, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
@@ -94,43 +94,6 @@ async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Resul
         .map_err(|_| IpcError::Timeout)??;
 
     Ok(true)
-}
-
-/// 读取消息
-async fn read_message(stream: &mut TcpStream) -> Result<Message> {
-    // 读取长度（4字节）
-    let mut len_bytes = [0u8; 4];
-    stream.read_exact(&mut len_bytes).await?;
-    let len = u32::from_be_bytes(len_bytes) as usize;
-
-    // 限制最大消息大小
-    if len > 1024 * 1024 {
-        return Err(IpcError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Message too large",
-        )));
-    }
-
-    // 读取数据
-    let mut buffer = vec![0u8; len];
-    stream.read_exact(&mut buffer).await?;
-
-    // 反序列化
-    let message = serde_json::from_slice(&buffer)?;
-    Ok(message)
-}
-
-/// 发送消息
-async fn send_message(stream: &mut TcpStream, message: &Message) -> Result<()> {
-    let data = serde_json::to_vec(message)?;
-    let len = data.len() as u32;
-
-    // 发送长度
-    stream.write_all(&len.to_be_bytes()).await?;
-    // 发送数据
-    stream.write_all(&data).await?;
-
-    Ok(())
 }
 
 #[cfg(test)]

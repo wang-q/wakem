@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 pub mod auth;
 pub mod client;
@@ -99,4 +101,41 @@ pub fn get_instance_port(instance_id: u32) -> u16 {
 /// 获取实例绑定地址
 pub fn get_instance_address(instance_id: u32) -> String {
     format!("127.0.0.1:{}", get_instance_port(instance_id))
+}
+
+/// 从 TCP 流读取消息（公共实现，消除重复）
+pub async fn read_message(stream: &mut TcpStream) -> Result<Message> {
+    // 读取长度（4字节）
+    let mut len_bytes = [0u8; 4];
+    stream.read_exact(&mut len_bytes).await?;
+    let len = u32::from_be_bytes(len_bytes) as usize;
+
+    // 限制最大消息大小
+    if len > 1024 * 1024 {
+        return Err(IpcError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Message too large",
+        )));
+    }
+
+    // 读取数据
+    let mut buffer = vec![0u8; len];
+    stream.read_exact(&mut buffer).await?;
+
+    // 反序列化
+    let message = serde_json::from_slice(&buffer)?;
+    Ok(message)
+}
+
+/// 发送消息到 TCP 流（公共实现，消除重复）
+pub async fn send_message(stream: &mut TcpStream, message: &Message) -> Result<()> {
+    let data = serde_json::to_vec(message)?;
+    let len = data.len() as u32;
+
+    // 发送长度
+    stream.write_all(&len.to_be_bytes()).await?;
+    // 发送数据
+    stream.write_all(&data).await?;
+
+    Ok(())
 }

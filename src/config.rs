@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use tracing::info;
 
 use crate::platform::windows::Launcher;
 use crate::types::{ContextCondition, MacroStep, MappingRule};
@@ -238,6 +239,24 @@ impl NetworkConfig {
     /// 获取绑定地址
     pub fn get_bind_address(&self) -> String {
         crate::ipc::get_instance_address(self.instance_id)
+    }
+
+    /// 确保存在认证密钥，如果不存在则生成随机密钥
+    pub fn ensure_auth_key(&mut self) -> &str {
+        if self.auth_key.is_none() {
+            let key = Self::generate_random_key();
+            info!("Generated new authentication key for security");
+            self.auth_key = Some(key);
+        }
+        self.auth_key.as_deref().unwrap()
+    }
+
+    /// 生成随机认证密钥（32 字符 hex）
+    fn generate_random_key() -> String {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let bytes: [u8; 16] = rng.gen();
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
     }
 }
 

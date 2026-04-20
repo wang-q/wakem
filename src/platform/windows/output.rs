@@ -10,6 +10,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 
 /// 输出设备（用于发送模拟输入）
+#[derive(Clone, Copy)]
 pub struct OutputDevice;
 
 impl OutputDevice {
