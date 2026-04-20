@@ -8,7 +8,7 @@
 wakem/
 ├── Cargo.toml              # 项目配置
 ├── src/
-│   ├── main.rs             # 统一入口（wakem/wakemd/wakemctl）
+│   ├── main.rs             # 统一入口（wakem）
 │   ├── lib.rs              # 库导出
 │   ├── cli.rs              # 命令行定义
 │   ├── client.rs           # 客户端逻辑
@@ -41,7 +41,12 @@ wakem/
 │       └── mapper.rs
 ├── tests/                  # 集成测试
 │   ├── action_test.rs
+│   ├── benchmark_test.rs
+│   ├── config_parser_test.rs
 │   ├── input_test.rs
+│   ├── integration_test.rs
+│   ├── ipc_test.rs
+│   ├── layer_manager_test.rs
 │   ├── layer_test.rs
 │   ├── mapping_test.rs
 │   ├── window_calc_test.rs
@@ -94,9 +99,9 @@ wakem/
 - [x] 系统托盘
 - [x] 输入捕获（Raw Input + LLKH）
 - [x] 配置重载
-- [ ] 启动项管理
-- [ ] 错误处理和日志
-- [ ] 安装和打包
+- [x] 启动项管理（install.ps1 支持）
+- [x] 错误处理和日志
+- [x] 安装和打包（install.ps1 脚本）
 
 ### Phase 6: macOS 移植 ⏳ 待实现
 

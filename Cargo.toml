@@ -10,14 +10,6 @@ repository = "https://github.com/wang-q/wakem"
 name = "wakem"
 path = "src/main.rs"
 
-[[bin]]
-name = "wakemd"
-path = "src/main.rs"
-
-[[bin]]
-name = "wakemctl"
-path = "src/main.rs"
-
 [dependencies]
 # Windows API
 windows = { version = "0.52", features = [

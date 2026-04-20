@@ -95,7 +95,7 @@ shortcuts = [
 | `log_level` | string | "info" | 日志级别 |
 | `tray_icon` | bool | true | 显示系统托盘图标 |
 | `auto_reload` | bool | true | 自动重新加载配置 |
-| `icon_path` | string | "assets/icon.ico" | 自定义托盘图标路径 |
+| `icon_path` | string | `null` | 自定义托盘图标路径（默认尝试加载程序目录下 assets/icon.ico） |
 
 ## 键盘配置
 

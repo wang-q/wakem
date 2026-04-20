@@ -26,14 +26,12 @@ $StartupDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
 $ShortcutPath = "$StartupDir\$AppName.lnk"
 
 # 安装后的可执行文件路径
-$InstalledClient = "$InstallDir\wakem.exe"
-$InstalledDaemon = "$InstallDir\wakemd.exe"
+$InstalledExe = "$InstallDir\wakem.exe"
 
 # 构建目录（源代码位置）
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $ProjectDir = Split-Path -Parent $ScriptDir
-$BuildClient = "$ProjectDir\target\release\wakem.exe"
-$BuildDaemon = "$ProjectDir\target\release\wakemd.exe"
+$BuildExe = "$ProjectDir\target\release\wakem.exe"
 
 function Show-Help {
     Write-Host @"
@@ -74,8 +72,8 @@ function Install-Wakem {
     Write-Host ""
 
     # 检查构建产物
-    if (-not (Test-Path $BuildClient)) {
-        Write-Error "Client executable not found: $BuildClient"
+    if (-not (Test-Path $BuildExe)) {
+        Write-Error "Executable not found: $BuildExe"
         Write-Host "Please build the project first: cargo build --release"
         exit 1
     }
@@ -87,9 +85,8 @@ function Install-Wakem {
     }
 
     # 复制可执行文件
-    Copy-Item $BuildClient $InstalledClient -Force
-    Copy-Item $BuildDaemon $InstalledDaemon -Force
-    Write-Host "Copied executables to: $InstallDir" -ForegroundColor Green
+    Copy-Item $BuildExe $InstalledExe -Force
+    Write-Host "Copied executable to: $InstallDir" -ForegroundColor Green
 
     # 创建配置目录
     if (-not (Test-Path $ConfigDir)) {
@@ -142,7 +139,7 @@ action = "SwitchToNextWindow"
     # 创建启动项快捷方式
     $WshShell = New-Object -comObject WScript.Shell
     $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = $InstalledClient
+    $Shortcut.TargetPath = $InstalledExe
     $Shortcut.WorkingDirectory = $ConfigDir
     $Shortcut.Description = $AppDisplayName
     $Shortcut.Save()
@@ -162,8 +159,8 @@ action = "SwitchToNextWindow"
     Write-Host "  3. Client will start automatically on next login"
     Write-Host ""
     Write-Host "Or start now:"
-    Write-Host "  - Start client: $InstalledClient"
-    Write-Host "  - Start daemon (Admin): $InstalledDaemon"
+    Write-Host "  - Start client: $InstalledExe"
+    Write-Host "  - Start daemon (Admin): wakem daemon"
 }
 
 function Install-Service {
@@ -174,7 +171,7 @@ function Install-Service {
     }
 
     # 确保已安装
-    if (-not (Test-Path $InstalledDaemon)) {
+    if (-not (Test-Path $InstalledExe)) {
         Write-Host "wakem not installed. Installing first..."
         Install-Wakem
     }
@@ -193,7 +190,7 @@ function Install-Service {
     }
 
     # 创建服务
-    $binPath = "`"$InstalledDaemon`" daemon"
+    $binPath = "`"$InstalledExe`" daemon"
     sc.exe create $serviceName binPath= $binPath start= auto displayname= "wakem Daemon" | Out-Null
 
     if ($LASTEXITCODE -eq 0) {
@@ -230,7 +227,7 @@ function Uninstall-Wakem {
     }
 
     # 停止运行中的进程
-    $processes = Get-Process -Name "wakem", "wakemd" -ErrorAction SilentlyContinue
+    $processes = Get-Process -Name "wakem" -ErrorAction SilentlyContinue
     if ($processes) {
         $processes | Stop-Process -Force
         Write-Host "Stopped running processes" -ForegroundColor Green

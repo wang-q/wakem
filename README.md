@@ -26,7 +26,7 @@ cargo install --path .
 cp examples/minimal.toml %USERPROFILE%\.wakem.toml
 ```
 
-最小配置示例 (`wakem.toml`):
+最小配置示例 (`.wakem.toml`):
 
 ```toml
 [keyboard]
@@ -40,8 +40,6 @@ remap = [
 ```bash
 # 启动守护进程（需要管理员权限）
 wakem daemon
-# 或
-wakemd
 
 # 启动客户端（系统托盘）
 wakem
