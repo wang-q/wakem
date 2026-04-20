@@ -607,3 +607,293 @@ wakem --instance 1
 | API | 说明 | 计划用途 |
 |-----|------|----------|
 | `DaemonClient::close()` | 关闭客户端 | 优雅关闭 |
+
+---
+
+## 未使用代码总结
+
+以下代码已实现但当前未被主流程使用，使用 `#[allow(dead_code)]` 标记保留。这些代码为未来功能扩展提供了基础。
+
+### 1. 层系统扩展 API
+
+**位置**: `src/types/layer.rs`, `src/runtime/layer_manager.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `LayerStack::is_layer_active()` | 检查层是否激活 | 添加层状态查询功能 |
+| `LayerStack::get_active_layers()` | 获取所有激活层 | 添加层状态显示 |
+| `LayerStack::clear_active_layers()` | 清除所有激活层 | 添加层重置功能 |
+| `LayerManager::get_active_layers()` | 获取激活层列表 | 添加层状态查询 |
+| `LayerManager::is_layer_active()` | 检查层是否激活 | 添加层状态查询 |
+| `LayerManager::clear_layers()` | 清除所有层 | 添加层重置功能 |
+
+**启用建议**: 当需要添加层状态显示或层管理 UI 时启用。
+
+### 2. 运行时动态管理 API
+
+**位置**: `src/runtime/mapper.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `KeyMapper::set_window_manager()` | 动态设置窗口管理器 | 支持运行时切换窗口管理器 |
+| `KeyMapper::set_tray_icon()` | 动态设置托盘图标 | 支持运行时更新托盘 |
+| `KeyMapper::add_rule()` | 运行时添加单条规则 | 支持动态添加映射 |
+| `KeyMapper::clear()` | 清除所有规则 | 支持重置映射 |
+| `KeyMapper::set_enabled()` / `is_enabled()` | 启用/禁用映射 | 添加全局开关功能 |
+| `KeyMapper::add_simple_remap()` | 简化 API 添加重映射 | 添加简化配置接口 |
+
+**启用建议**: 当需要添加运行时配置修改功能（如通过托盘菜单动态添加映射）时启用。
+
+### 3. 配置持久化 API ✅ 已启用
+
+**位置**: `src/config.rs`, `src/daemon.rs`, `src/client.rs`, `src/main.rs`
+
+| API | 说明 | 状态 |
+|-----|------|------|
+| `Config::save_to_file()` | 保存配置到文件 | ✅ 已启用 |
+| `ServerState::save_config_to_file()` | 守护进程保存配置 | ✅ 已启用 |
+| `DaemonClient::save_config()` | 客户端保存配置 | ✅ 已启用 |
+| `cmd_save()` | 命令行保存命令 | ✅ 已启用 |
+| `Message::SaveConfig` | IPC 保存消息 | ✅ 已启用 |
+| `NetworkConfig::get_port()` | 获取实例端口 | 需要直接访问端口时 |
+
+**使用方式**:
+```bash
+# 保存当前配置到文件
+wakem save
+
+# 保存指定实例的配置
+wakem --instance 1 save
+```
+
+**典型应用场景**:
+- 保存当前窗口状态到配置文件
+- 保存动态添加的映射规则
+- 保存修改后的层配置
+
+### 4. IPC 系统扩展 API
+
+**位置**: `src/ipc/client.rs`, `src/ipc/server.rs`, `src/ipc/discovery.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `IpcClient::is_connected()` | 检查连接状态 | 需要查询连接状态时 |
+| `IpcClient::close()` | 优雅关闭连接 | 需要显式关闭连接时 |
+| `IpcServer::stop()` | 停止服务器 | 需要运行时停止服务器时 |
+| `InstanceInfo::port` | 实例端口号 | 需要直接访问端口时 |
+| `find_first_active_instance()` | 查找第一个活跃实例 | 自动连接功能 |
+| `is_instance_active()` | 检查指定实例是否活跃 | 实例健康检查 |
+
+**启用建议**: 当需要添加连接状态监控、自动重连或实例健康检查功能时启用。
+
+### 5. Windows 平台备用方案
+
+**位置**: `src/platform/windows/hook.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `KeyboardHook` | 低级键盘钩子 | Raw Input 出现问题时备用 |
+| `KeyboardHook::new()` | 创建钩子 | 启用钩子方案时 |
+| `KeyboardHook::run_message_loop()` | 运行消息循环 | 启用钩子方案时 |
+| `KeyboardHook::uninstall()` | 卸载钩子 | 启用钩子方案时 |
+| `is_hook_installed()` | 检查钩子状态 | 启用钩子方案时 |
+
+**启用建议**: 当 Raw Input 在某些场景下工作不正常时，可切换到低级键盘钩子方案。
+
+### 6. 输入事件构建 API
+
+**位置**: `src/types/input.rs`, `src/types/mod.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `KeyEvent::with_modifiers()` | 设置修饰键 | 构建模拟事件时 |
+| `KeyEvent::injected()` | 标记为注入事件 | 需要区分模拟输入时 |
+| `KeyEvent::is_modifier()` | 检查修饰键 | 特殊键处理时 |
+| `KeyEvent::modifier_identifier()` | 获取修饰键标识 | 显示修饰键状态时 |
+| `MouseEvent::with_modifiers()` | 设置修饰键 | 构建模拟鼠标事件时 |
+| `MouseEvent::injected()` | 标记为注入事件 | 需要区分模拟输入时 |
+| `MouseEvent::is_button_up()` | 检查按钮释放 | 鼠标事件处理时 |
+| `InputEvent::timestamp()` | 获取时间戳 | 时序分析功能 |
+| `ModifierState::is_empty()` | 检查是否为空 | 验证修饰键状态时 |
+| `ModifierState::from_virtual_key()` | 从虚拟键创建 | 解析事件时 |
+| `ModifierState::merge()` | 合并修饰键状态 | 组合多个状态时 |
+
+**启用建议**: 当需要构建模拟输入事件、显示修饰键状态或进行时序分析时启用。
+
+### 7. 动作系统构建 API
+
+**位置**: `src/types/action.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `KeyAction::press_from_event()` | 从事件创建 Press | 事件转发时 |
+| `KeyAction::release_from_event()` | 从事件创建 Release | 事件转发时 |
+| `KeyAction::combo()` | 创建组合键 | 构建复杂快捷键时 |
+| `Action::mouse()` | 创建鼠标动作 | 程序化创建鼠标动作 |
+| `Action::launch()` | 创建启动动作 | 程序化创建启动动作 |
+| `Action::sequence()` | 创建动作序列 | 批量执行动作时 |
+| `Action::is_none()` | 检查是否为空操作 | 验证动作时 |
+
+**启用建议**: 当需要程序化构建动作（如通过 UI 配置快捷键）时启用。
+
+### 8. 窗口管理扩展 API
+
+**位置**: `src/platform/windows/window_manager.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `WindowFrame::to_rect()` | 转换为 RECT | 需要 Windows API 交互时 |
+| `WindowInfo::is_minimized` | 是否最小化 | 窗口状态检测 |
+| `WindowInfo::is_maximized` | 是否最大化 | 窗口状态检测 |
+
+**启用建议**: 当需要更复杂的窗口状态检测或与 Windows API 深度交互时启用。
+
+### 9. 窗口预设管理 API
+
+**位置**: `src/platform/windows/window_preset.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `WindowPresetManager::get_presets()` | 获取所有预设 | 显示预设列表时 |
+| `WindowPresetManager::get_presets_mut()` | 获取可变更预设 | 修改预设时 |
+| `WindowPresetManager::find_matching_preset()` | 查找匹配预设 | 自动应用预设时 |
+| `WindowPresetManager::remove_preset()` | 删除预设 | 管理预设时 |
+
+**启用建议**: 当需要添加窗口预设管理 UI（如保存/加载/删除预设）时启用。
+
+### 10. 上下文感知扩展 API
+
+**位置**: `src/platform/windows/context.rs`, `src/types/mapping.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `WindowContext::matches()` | 匹配窗口条件 | 自定义上下文匹配逻辑时 |
+| `ContextCondition::new()` | 创建上下文条件 | 程序化构建条件时 |
+| `ContextCondition::with_window_class()` | 窗口类名匹配 | 添加类名匹配时 |
+| `ContextCondition::with_process_name()` | 进程名匹配 | 添加进程匹配时 |
+| `ContextCondition::with_window_title()` | 窗口标题匹配 | 添加标题匹配时 |
+| `ContextCondition::matches()` | 检查上下文匹配 | 自定义匹配逻辑时 |
+| `ContextInfo` | 上下文信息结构体 | 扩展上下文信息时 |
+| `MappingRule::with_name()` | 设置规则名称 | 添加规则命名时 |
+| `MappingRule::with_context()` | 添加上下文条件 | 程序化构建规则时 |
+| `MappingRule::matches()` | 检查规则匹配 | 自定义匹配逻辑时 |
+| `wildcard_match()` | 通配符匹配 | 需要通配符匹配时 |
+
+**启用建议**: 当需要扩展上下文感知功能（如添加更多匹配条件）时启用。
+
+### 11. 系统托盘扩展 API
+
+**位置**: `src/platform/windows/tray.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `TrayIcon::set_active()` | 设置激活状态 | 需要视觉反馈时 |
+
+**启用建议**: 当需要添加激活状态视觉反馈（如切换图标颜色）时启用。
+
+### 12. 程序启动扩展 API
+
+**位置**: `src/platform/windows/launcher.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `Launcher::create_action()` | 创建启动动作 | 程序化构建启动动作 |
+| `Launcher::parse_command()` | 解析命令字符串 | 支持命令行语法 |
+
+**启用建议**: 当需要程序化构建启动动作（如通过 UI 配置快速启动）时启用。
+
+### 13. 消息窗口扩展 API
+
+**位置**: `src/window.rs`
+
+| API | 说明 | 启用条件 |
+|-----|------|----------|
+| `MessageWindow::new()` | 创建消息窗口 | 多窗口支持 |
+| `MessageWindow::hwnd()` | 获取窗口句柄 | 外部集成 |
+| `MessageWindow::tray_icon()` | 获取托盘图标 | 外部控制托盘 |
+
+**启用建议**: 当需要多窗口支持或外部系统集成时启用。
+
+### 14. 守护进程状态字段
+
+**位置**: `src/daemon.rs`
+
+| 字段 | 说明 | 启用条件 |
+|------|------|----------|
+| `ServerState::window_manager` | 窗口管理器 | 启用窗口管理功能 |
+
+**启用建议**: `window_manager` 已初始化但未在事件处理中使用，当需要添加窗口管理相关功能时启用。
+
+---
+
+## 如何启用未使用代码
+
+当需要启用某个功能时，按以下步骤操作：
+
+1. **移除 `#[allow(dead_code)]` 标记**（可选，保留也无害）
+2. **在 daemon.rs 或 client.rs 中添加调用逻辑**
+3. **添加对应的配置支持**（如需要）
+4. **添加对应的命令行支持**（如需要）
+5. **更新文档**
+
+### 示例：启用层状态查询功能
+
+```rust
+// 1. 在 daemon.rs 中添加消息处理
+async fn handle_message(&self, message: Message) -> Message {
+    match message {
+        // ... 现有处理
+        Message::GetActiveLayers => {
+            let layers = self.layer_manager.lock().await.get_active_layers();
+            Message::ActiveLayersResponse { layers }
+        }
+    }
+}
+
+// 2. 在 ipc/mod.rs 中添加消息类型
+pub enum Message {
+    // ... 现有消息
+    GetActiveLayers,
+    ActiveLayersResponse { layers: Vec<String> },
+}
+
+// 3. 在 client.rs 中添加客户端 API
+pub async fn get_active_layers(&mut self) -> Result<Vec<String>> {
+    let response = self.send_receive(&Message::GetActiveLayers).await?;
+    match response {
+        Message::ActiveLayersResponse { layers } => Ok(layers),
+        _ => Err(anyhow::anyhow!("Unexpected response")),
+    }
+}
+
+// 4. 在 main.rs 中添加命令行支持
+async fn cmd_layers() -> Result<()> {
+    let mut client = DaemonClient::new().await?;
+    let layers = client.get_active_layers().await?;
+    println!("Active layers: {:?}", layers);
+    Ok(())
+}
+```
+
+---
+
+## 代码统计
+
+- **总未使用 API 数量**: 约 60+
+- **层系统扩展**: 6 个
+- **运行时管理**: 6 个
+- **配置持久化**: 2 个
+- **IPC 扩展**: 6 个
+- **Windows 平台**: 5 个
+- **输入事件**: 9 个
+- **动作系统**: 7 个
+- **修饰键状态**: 3 个
+- **窗口管理**: 3 个
+- **窗口预设**: 4 个
+- **上下文感知**: 11 个
+- **系统托盘**: 1 个
+- **程序启动**: 2 个
+- **消息窗口**: 3 个
+- **守护进程字段**: 1 个
+
+这些代码为未来功能扩展提供了坚实的基础，可以根据需求逐步启用。

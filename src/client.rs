@@ -94,6 +94,22 @@ impl DaemonClient {
         }
     }
 
+    /// 保存配置到文件
+    pub async fn save_config(&mut self) -> Result<()> {
+        let response = self.send_receive(&Message::SaveConfig).await?;
+
+        match response {
+            Message::ConfigLoaded => {
+                info!("Configuration saved");
+                Ok(())
+            }
+            Message::ConfigError { error } => {
+                Err(anyhow::anyhow!("Config error: {}", error))
+            }
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
+
     /// 发送消息并等待响应
     async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         let client = self

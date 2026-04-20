@@ -17,6 +17,8 @@ pub enum Message {
     SetConfig { config: crate::config::Config },
     /// 重新加载配置
     ReloadConfig,
+    /// 保存当前配置到文件
+    SaveConfig,
     /// 获取当前状态
     GetStatus,
     /// 启用/禁用映射

@@ -173,6 +173,43 @@ impl ServerState {
         Ok(())
     }
 
+    /// 保存当前配置到文件
+    pub async fn save_config_to_file(&self) -> Result<()> {
+        use crate::config::resolve_config_file_path;
+
+        info!("Saving configuration to file...");
+
+        // 获取当前实例ID和配置文件路径
+        let (_instance_id, config_path) = {
+            let config = self.config.read().await;
+            let id = config.network.instance_id;
+            let path = resolve_config_file_path(None, id);
+            (id, path)
+        };
+
+        let config_path = match config_path {
+            Some(path) => path,
+            None => {
+                return Err(anyhow::anyhow!("Config file path not found"));
+            }
+        };
+
+        info!("Saving config to: {:?}", config_path);
+
+        // 获取当前配置并保存
+        let config = self.config.read().await;
+        match config.save_to_file(&config_path) {
+            Ok(_) => {
+                info!("Configuration saved successfully");
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to save config: {}", e);
+                Err(anyhow::anyhow!("Failed to save config: {}", e))
+            }
+        }
+    }
+
     /// 处理输入事件
     pub async fn process_input_event(&self, event: InputEvent) {
         // 检查是否启用
@@ -577,6 +614,12 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
             },
         },
         Message::ReloadConfig => match state.reload_config_from_file().await {
+            Ok(_) => Message::ConfigLoaded,
+            Err(e) => Message::ConfigError {
+                error: e.to_string(),
+            },
+        },
+        Message::SaveConfig => match state.save_config_to_file().await {
             Ok(_) => Message::ConfigLoaded,
             Err(e) => Message::ConfigError {
                 error: e.to_string(),

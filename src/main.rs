@@ -46,6 +46,8 @@ enum Commands {
     Status,
     /// 重载配置
     Reload,
+    /// 保存当前配置到文件
+    Save,
     /// 启用映射
     Enable,
     /// 禁用映射
@@ -69,6 +71,7 @@ async fn main() -> Result<()> {
         Some(Commands::Daemon { instance }) => run_daemon(instance).await,
         Some(Commands::Status) => cmd_status(cli.instance).await,
         Some(Commands::Reload) => cmd_reload(cli.instance).await,
+        Some(Commands::Save) => cmd_save(cli.instance).await,
         Some(Commands::Enable) => cmd_enable(cli.instance).await,
         Some(Commands::Disable) => cmd_disable(cli.instance).await,
         Some(Commands::Config) => cmd_config().await,
@@ -120,6 +123,25 @@ async fn cmd_reload(instance_id: u32) -> Result<()> {
             }
             Err(e) => {
                 eprintln!("Failed to reload config: {}", e);
+            }
+        },
+        Err(e) => {
+            eprintln!("Failed to connect to daemon: {}", e);
+        }
+    }
+    Ok(())
+}
+
+/// 保存配置到文件
+async fn cmd_save(instance_id: u32) -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect_to_instance(instance_id).await {
+        Ok(_) => match client.save_config().await {
+            Ok(_) => {
+                println!("Configuration saved successfully");
+            }
+            Err(e) => {
+                eprintln!("Failed to save config: {}", e);
             }
         },
         Err(e) => {
