@@ -1,4 +1,7 @@
-use crate::types::{InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent, MouseEventType};
+use crate::types::{
+    InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
+    MouseEventType,
+};
 use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -52,7 +55,7 @@ impl RawInputDevice {
     /// 创建新的 Raw Input 设备
     pub fn new(config: InputDeviceConfig) -> Result<Self> {
         let (sender, receiver) = channel();
-        
+
         Ok(Self {
             config,
             event_receiver: receiver,
@@ -66,7 +69,7 @@ impl RawInputDevice {
     /// 创建带自定义发送器的 Raw Input 设备（用于与现有系统集成）
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
         let (_, receiver) = channel();
-        
+
         Ok(Self {
             config: InputDeviceConfig::default(),
             event_receiver: receiver,
@@ -89,7 +92,9 @@ impl RawInputDevice {
 
     /// 更新修饰键状态
     fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
-        if let Some((modifier, _)) = ModifierState::from_virtual_key(virtual_key, pressed) {
+        if let Some((modifier, _)) =
+            ModifierState::from_virtual_key(virtual_key, pressed)
+        {
             self.modifier_state.merge(&modifier);
         }
     }
@@ -111,12 +116,15 @@ impl InputDevice for RawInputDevice {
         if !self.running {
             return None;
         }
-        
+
         match self.event_receiver.try_recv() {
             Ok(event) => {
                 // 更新修饰键状态
                 if let InputEvent::Key(key_event) = &event {
-                    self.update_modifier_state(key_event.virtual_key, key_event.state == KeyState::Pressed);
+                    self.update_modifier_state(
+                        key_event.virtual_key,
+                        key_event.state == KeyState::Pressed,
+                    );
                 }
                 Some(event)
             }
@@ -249,22 +257,22 @@ impl InputDevice for MockInputDevice {
         }
 
         let event = self.events.borrow_mut().pop_front();
-        
+
         if let Some(ref e) = event {
             // 记录捕获的事件
             self.captured_events.borrow_mut().push(e.clone());
-            
+
             // 更新修饰键状态
             if let InputEvent::Key(key_event) = e {
                 if let Some((modifier, _)) = ModifierState::from_virtual_key(
-                    key_event.virtual_key, 
-                    key_event.state == KeyState::Pressed
+                    key_event.virtual_key,
+                    key_event.state == KeyState::Pressed,
                 ) {
                     self.modifier_state.borrow_mut().merge(&modifier);
                 }
             }
         }
-        
+
         event
     }
 
@@ -327,10 +335,10 @@ mod tests {
     fn test_mock_input_device_register() {
         let mut device = MockInputDevice::new();
         assert!(!device.is_running());
-        
+
         device.register().unwrap();
         assert!(device.is_running());
-        
+
         device.unregister();
         assert!(!device.is_running());
     }
@@ -338,10 +346,10 @@ mod tests {
     #[test]
     fn test_mock_inject_key_events() {
         let device = MockInputDevice::new();
-        
+
         device.inject_key_press(0x1E, 0x41); // 'A' key
         device.inject_key_release(0x1E, 0x41);
-        
+
         assert_eq!(device.pending_count(), 2);
     }
 
@@ -349,18 +357,30 @@ mod tests {
     fn test_mock_poll_key_events() {
         let mut device = MockInputDevice::new();
         device.register().unwrap();
-        
+
         device.inject_key_press(0x1E, 0x41);
         device.inject_key_release(0x1E, 0x41);
-        
+
         // 轮询第一个事件
         let event1 = device.poll_event().unwrap();
-        assert!(matches!(event1, InputEvent::Key(KeyEvent { state: KeyState::Pressed, .. })));
-        
+        assert!(matches!(
+            event1,
+            InputEvent::Key(KeyEvent {
+                state: KeyState::Pressed,
+                ..
+            })
+        ));
+
         // 轮询第二个事件
         let event2 = device.poll_event().unwrap();
-        assert!(matches!(event2, InputEvent::Key(KeyEvent { state: KeyState::Released, .. })));
-        
+        assert!(matches!(
+            event2,
+            InputEvent::Key(KeyEvent {
+                state: KeyState::Released,
+                ..
+            })
+        ));
+
         // 没有更多事件
         assert!(device.poll_event().is_none());
     }
@@ -369,7 +389,7 @@ mod tests {
     fn test_mock_poll_without_register() {
         let mut device = MockInputDevice::new();
         device.inject_key_press(0x1E, 0x41);
-        
+
         // 未注册时应该返回 None
         assert!(device.poll_event().is_none());
     }
@@ -377,12 +397,12 @@ mod tests {
     #[test]
     fn test_mock_inject_mouse_events() {
         let device = MockInputDevice::new();
-        
+
         device.inject_mouse_move(100, 200);
         device.inject_mouse_button_down(MouseButton::Left, 100, 200);
         device.inject_mouse_button_up(MouseButton::Left, 100, 200);
         device.inject_wheel(120, 100, 200);
-        
+
         assert_eq!(device.pending_count(), 4);
     }
 
@@ -390,14 +410,14 @@ mod tests {
     fn test_mock_captured_events() {
         let mut device = MockInputDevice::new();
         device.register().unwrap();
-        
+
         device.inject_key_press(0x1E, 0x41);
         device.inject_key_release(0x1E, 0x41);
-        
+
         // 轮询所有事件
         let _ = device.poll_event();
         let _ = device.poll_event();
-        
+
         // 检查捕获的事件
         let captured = device.get_captured_events();
         assert_eq!(captured.len(), 2);
@@ -407,19 +427,19 @@ mod tests {
     fn test_mock_modifier_state() {
         let mut device = MockInputDevice::new();
         device.register().unwrap();
-        
+
         // 注入 Ctrl 按下
         device.inject_key_press(0x1D, 0x11); // Ctrl
         let _ = device.poll_event();
-        
+
         let state = device.get_modifier_state();
         assert!(state.ctrl);
-        
+
         // 注入 Ctrl 释放 - 注意：merge 使用 |= 所以不会清除状态
         // 这是设计上的，实际设备会跟踪每个键的状态
         device.inject_key_release(0x1D, 0x11);
         let _ = device.poll_event();
-        
+
         // 由于 merge 使用 |=，释放后状态仍然保持
         // 这是 MockInputDevice 的已知限制
         let state = device.get_modifier_state();
@@ -431,11 +451,11 @@ mod tests {
     #[test]
     fn test_mock_clear() {
         let device = MockInputDevice::new();
-        
+
         device.inject_key_press(0x1E, 0x41);
         device.inject_key_press(0x30, 0x42);
         assert_eq!(device.pending_count(), 2);
-        
+
         device.clear();
         assert_eq!(device.pending_count(), 0);
     }

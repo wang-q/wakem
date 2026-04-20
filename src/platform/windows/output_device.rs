@@ -13,21 +13,11 @@ pub enum OutputEvent {
         release: bool,
     },
     /// 鼠标移动
-    MouseMove {
-        x: i32,
-        y: i32,
-        relative: bool,
-    },
+    MouseMove { x: i32, y: i32, relative: bool },
     /// 鼠标按钮
-    MouseButton {
-        button: MouseButton,
-        release: bool,
-    },
+    MouseButton { button: MouseButton, release: bool },
     /// 鼠标滚轮
-    MouseWheel {
-        delta: i32,
-        horizontal: bool,
-    },
+    MouseWheel { delta: i32, horizontal: bool },
 }
 
 /// 输出设备抽象接口
@@ -664,89 +654,137 @@ mod tests {
     #[test]
     fn test_mock_send_key() {
         let device = MockOutputDevice::new();
-        
+
         device.send_key(0x1E, 0x41, false).unwrap();
         device.send_key(0x1E, 0x41, true).unwrap();
-        
+
         assert_eq!(device.event_count(), 2);
-        
+
         let events = device.get_events();
-        assert_eq!(events[0], OutputEvent::Key { scan_code: 0x1E, virtual_key: 0x41, release: false });
-        assert_eq!(events[1], OutputEvent::Key { scan_code: 0x1E, virtual_key: 0x41, release: true });
+        assert_eq!(
+            events[0],
+            OutputEvent::Key {
+                scan_code: 0x1E,
+                virtual_key: 0x41,
+                release: false
+            }
+        );
+        assert_eq!(
+            events[1],
+            OutputEvent::Key {
+                scan_code: 0x1E,
+                virtual_key: 0x41,
+                release: true
+            }
+        );
     }
 
     #[test]
     fn test_mock_send_key_action_press() {
         let device = MockOutputDevice::new();
-        
-        let action = KeyAction::Press { scan_code: 0x1E, virtual_key: 0x41 };
+
+        let action = KeyAction::Press {
+            scan_code: 0x1E,
+            virtual_key: 0x41,
+        };
         device.send_key_action(&action).unwrap();
-        
+
         assert_eq!(device.event_count(), 1);
-        assert_eq!(device.last_event(), Some(OutputEvent::Key { scan_code: 0x1E, virtual_key: 0x41, release: false }));
+        assert_eq!(
+            device.last_event(),
+            Some(OutputEvent::Key {
+                scan_code: 0x1E,
+                virtual_key: 0x41,
+                release: false
+            })
+        );
     }
 
     #[test]
     fn test_mock_send_key_action_click() {
         let device = MockOutputDevice::new();
-        
-        let action = KeyAction::Click { scan_code: 0x1E, virtual_key: 0x41 };
+
+        let action = KeyAction::Click {
+            scan_code: 0x1E,
+            virtual_key: 0x41,
+        };
         device.send_key_action(&action).unwrap();
-        
+
         assert_eq!(device.event_count(), 2);
     }
 
     #[test]
     fn test_mock_send_mouse_move() {
         let device = MockOutputDevice::new();
-        
+
         device.send_mouse_move(100, 200, true).unwrap();
-        
+
         assert_eq!(device.event_count(), 1);
-        assert_eq!(device.last_event(), Some(OutputEvent::MouseMove { x: 100, y: 200, relative: true }));
+        assert_eq!(
+            device.last_event(),
+            Some(OutputEvent::MouseMove {
+                x: 100,
+                y: 200,
+                relative: true
+            })
+        );
     }
 
     #[test]
     fn test_mock_send_mouse_button() {
         let device = MockOutputDevice::new();
-        
+
         device.send_mouse_button(MouseButton::Left, false).unwrap();
         device.send_mouse_button(MouseButton::Left, true).unwrap();
-        
+
         assert_eq!(device.event_count(), 2);
     }
 
     #[test]
     fn test_mock_send_mouse_wheel() {
         let device = MockOutputDevice::new();
-        
+
         device.send_mouse_wheel(3, false).unwrap();
         device.send_mouse_wheel(-3, true).unwrap();
-        
+
         assert_eq!(device.event_count(), 2);
-        
+
         let events = device.get_events();
-        assert_eq!(events[0], OutputEvent::MouseWheel { delta: 3, horizontal: false });
-        assert_eq!(events[1], OutputEvent::MouseWheel { delta: -3, horizontal: true });
+        assert_eq!(
+            events[0],
+            OutputEvent::MouseWheel {
+                delta: 3,
+                horizontal: false
+            }
+        );
+        assert_eq!(
+            events[1],
+            OutputEvent::MouseWheel {
+                delta: -3,
+                horizontal: true
+            }
+        );
     }
 
     #[test]
     fn test_mock_send_mouse_action_click() {
         let device = MockOutputDevice::new();
-        
-        let action = MouseAction::ButtonClick { button: MouseButton::Right };
+
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Right,
+        };
         device.send_mouse_action(&action).unwrap();
-        
+
         assert_eq!(device.event_count(), 2);
     }
 
     #[test]
     fn test_mock_clear() {
         let device = MockOutputDevice::new();
-        
+
         device.send_key(0x1E, 0x41, false).unwrap();
         assert_eq!(device.event_count(), 1);
-        
+
         device.clear();
         assert_eq!(device.event_count(), 0);
     }
@@ -754,7 +792,7 @@ mod tests {
     #[test]
     fn test_mock_send_combo() {
         let device = MockOutputDevice::new();
-        
+
         let modifiers = ModifierState {
             shift: false,
             ctrl: true,
@@ -766,7 +804,7 @@ mod tests {
             key: (0x1E, 0x41), // 'A' key
         };
         device.send_key_action(&action).unwrap();
-        
+
         // Ctrl down, A down, A up, Ctrl up = 4 events
         assert_eq!(device.event_count(), 4);
     }

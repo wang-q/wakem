@@ -57,9 +57,7 @@ impl KeyMapper {
 
     /// 创建带窗口管理器的映射引擎
     #[cfg(target_os = "windows")]
-    pub fn with_window_manager(
-        window_manager: RealWindowManager,
-    ) -> Self {
+    pub fn with_window_manager(window_manager: RealWindowManager) -> Self {
         Self {
             mappings: HashMap::new(),
             rules: Vec::new(),
@@ -594,7 +592,7 @@ mod tests {
 
         // 创建简单的映射规则
         let rules = vec![MappingRule::new(
-            Trigger::key(0x3A, 0x14), // CapsLock
+            Trigger::key(0x3A, 0x14),                  // CapsLock
             Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
         )];
 

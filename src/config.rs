@@ -472,7 +472,7 @@ pub struct MouseConfig {
     pub wheel: WheelConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WheelConfig {
     /// 滚轮速度
     #[serde(default = "default_wheel_speed")]
@@ -495,6 +495,20 @@ pub struct WheelConfig {
     /// 亮度控制配置
     #[serde(default)]
     pub brightness_control: Option<WheelModifierConfig>,
+}
+
+impl Default for WheelConfig {
+    fn default() -> Self {
+        Self {
+            speed: default_wheel_speed(),
+            invert: false,
+            acceleration: false,
+            acceleration_multiplier: default_acceleration_multiplier(),
+            horizontal_scroll: None,
+            volume_control: None,
+            brightness_control: None,
+        }
+    }
 }
 
 fn default_wheel_speed() -> i32 {
@@ -1098,6 +1112,387 @@ J = "Down"
         } else {
             panic!("Expected ShowNotification action");
         }
+    }
+
+    #[test]
+    fn test_parse_window_action_center() {
+        use crate::types::WindowAction;
+
+        let action = parse_window_action("Center").unwrap();
+        assert!(matches!(action, WindowAction::Center));
+    }
+
+    #[test]
+    fn test_parse_window_action_move_to_edge() {
+        use crate::types::{Edge, WindowAction};
+
+        let action = parse_window_action("MoveToEdge(Left)").unwrap();
+        assert!(matches!(action, WindowAction::MoveToEdge(Edge::Left)));
+
+        let action = parse_window_action("MoveToEdge(Right)").unwrap();
+        assert!(matches!(action, WindowAction::MoveToEdge(Edge::Right)));
+    }
+
+    #[test]
+    fn test_parse_window_action_half_screen() {
+        use crate::types::{Edge, WindowAction};
+
+        let action = parse_window_action("HalfScreen(Left)").unwrap();
+        assert!(matches!(action, WindowAction::HalfScreen(Edge::Left)));
+    }
+
+    #[test]
+    fn test_parse_window_action_loop_width() {
+        use crate::types::{Alignment, WindowAction};
+
+        let action = parse_window_action("LoopWidth(Left)").unwrap();
+        assert!(matches!(action, WindowAction::LoopWidth(Alignment::Left)));
+
+        let action = parse_window_action("LoopWidth(Right)").unwrap();
+        assert!(matches!(action, WindowAction::LoopWidth(Alignment::Right)));
+    }
+
+    #[test]
+    fn test_parse_window_action_fixed_ratio() {
+        use crate::types::WindowAction;
+
+        let action = parse_window_action("FixedRatio(1.333, 0)").unwrap();
+        if let WindowAction::FixedRatio { ratio, scale_index } = action {
+            assert!((ratio - 1.333).abs() < 0.001);
+            assert_eq!(scale_index, 0);
+        } else {
+            panic!("Expected FixedRatio action");
+        }
+    }
+
+    #[test]
+    fn test_parse_window_action_minimize_maximize() {
+        use crate::types::WindowAction;
+
+        let action = parse_window_action("Minimize").unwrap();
+        assert!(matches!(action, WindowAction::Minimize));
+
+        let action = parse_window_action("Maximize").unwrap();
+        assert!(matches!(action, WindowAction::Maximize));
+    }
+
+    #[test]
+    fn test_parse_window_action_invalid() {
+        // 测试无效的动作
+        let result = parse_window_action("InvalidAction");
+        assert!(result.is_err());
+
+        let result = parse_window_action("MoveToEdge(InvalidEdge)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_edge() {
+        use crate::types::Edge;
+
+        assert!(matches!(parse_edge("left").unwrap(), Edge::Left));
+        assert!(matches!(parse_edge("right").unwrap(), Edge::Right));
+        assert!(matches!(parse_edge("top").unwrap(), Edge::Top));
+        assert!(matches!(parse_edge("bottom").unwrap(), Edge::Bottom));
+
+        // 测试大小写不敏感
+        assert!(matches!(parse_edge("LEFT").unwrap(), Edge::Left));
+        assert!(matches!(parse_edge("Left").unwrap(), Edge::Left));
+
+        // 测试无效值
+        assert!(parse_edge("invalid").is_err());
+    }
+
+    #[test]
+    fn test_parse_alignment() {
+        use crate::types::Alignment;
+
+        assert!(matches!(parse_alignment("left").unwrap(), Alignment::Left));
+        assert!(matches!(
+            parse_alignment("right").unwrap(),
+            Alignment::Right
+        ));
+        assert!(matches!(parse_alignment("top").unwrap(), Alignment::Top));
+        assert!(matches!(
+            parse_alignment("bottom").unwrap(),
+            Alignment::Bottom
+        ));
+        assert!(matches!(
+            parse_alignment("center").unwrap(),
+            Alignment::Center
+        ));
+
+        // 测试无效值
+        assert!(parse_alignment("invalid").is_err());
+    }
+
+    #[test]
+    fn test_parse_monitor_direction() {
+        use crate::types::MonitorDirection;
+
+        assert!(matches!(
+            parse_monitor_direction("next").unwrap(),
+            MonitorDirection::Next
+        ));
+        assert!(matches!(
+            parse_monitor_direction("prev").unwrap(),
+            MonitorDirection::Prev
+        ));
+        assert!(matches!(
+            parse_monitor_direction("previous").unwrap(),
+            MonitorDirection::Prev
+        ));
+
+        // 测试数字索引
+        if let MonitorDirection::Index(idx) = parse_monitor_direction("2").unwrap() {
+            assert_eq!(idx, 2);
+        } else {
+            panic!("Expected Index direction");
+        }
+
+        // 测试无效值
+        assert!(parse_monitor_direction("invalid").is_err());
+    }
+
+    #[test]
+    fn test_config_default() {
+        let config = Config::default();
+        assert_eq!(config.log_level, "info");
+        assert!(config.tray_icon);
+        assert!(config.auto_reload);
+        assert!(config.keyboard.remap.is_empty());
+        assert!(config.keyboard.layers.is_empty());
+    }
+
+    #[test]
+    fn test_config_from_str_minimal() {
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Backspace"
+"#;
+
+        let config = Config::from_str(config_str).unwrap();
+        assert_eq!(config.log_level, "info"); // 默认值
+        assert!(config.keyboard.remap.contains_key("CapsLock"));
+    }
+
+    #[test]
+    fn test_config_full() {
+        let config_str = r#"
+log_level = "debug"
+tray_icon = false
+auto_reload = false
+
+[keyboard.remap]
+CapsLock = "Backspace"
+Escape = "CapsLock"
+
+[keyboard.layers.vim]
+activation_key = "RightAlt"
+mode = "Hold"
+
+[keyboard.layers.vim.mappings]
+H = "Left"
+J = "Down"
+K = "Up"
+L = "Right"
+
+[window.shortcuts]
+"Ctrl+Alt+C" = "Center"
+"Ctrl+Alt+Left" = "HalfScreen(Left)"
+
+[launch]
+F1 = "notepad.exe"
+F2 = "calc.exe"
+
+[network]
+enabled = true
+instance_id = 1
+auth_key = "secret"
+
+[macros]
+test_macro = []
+"#;
+
+        let config = Config::from_str(config_str).unwrap();
+        assert_eq!(config.log_level, "debug");
+        assert!(!config.tray_icon);
+        assert!(!config.auto_reload);
+        assert_eq!(config.keyboard.remap.len(), 2);
+        assert_eq!(config.keyboard.layers.len(), 1);
+        assert_eq!(config.window.shortcuts.len(), 2);
+        assert_eq!(config.launch.len(), 2);
+        assert!(config.network.enabled);
+        assert_eq!(config.network.instance_id, 1);
+    }
+
+    #[test]
+    fn test_network_config_default() {
+        let config = NetworkConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.instance_id, 0);
+        assert!(config.auth_key.is_none());
+    }
+
+    #[test]
+    fn test_network_config_get_bind_address() {
+        let config = NetworkConfig {
+            instance_id: 0,
+            ..Default::default()
+        };
+        assert_eq!(config.get_bind_address(), "127.0.0.1:57427");
+
+        let config = NetworkConfig {
+            instance_id: 5,
+            ..Default::default()
+        };
+        assert_eq!(config.get_bind_address(), "127.0.0.1:57432");
+    }
+
+    #[test]
+    fn test_window_preset_matches() {
+        let preset = WindowPreset {
+            name: "test".to_string(),
+            process_name: Some("chrome.exe".to_string()),
+            executable_path: None,
+            title_pattern: None,
+            x: 100,
+            y: 100,
+            width: 800,
+            height: 600,
+        };
+
+        assert!(preset.matches("chrome.exe", None, "Google Chrome"));
+        assert!(!preset.matches("firefox.exe", None, "Firefox"));
+    }
+
+    #[test]
+    fn test_window_preset_wildcard_match() {
+        // 测试通配符匹配
+        assert!(WindowPreset::wildcard_match("chrome.exe", "*.exe"));
+        assert!(WindowPreset::wildcard_match("test.txt", "*.txt"));
+        assert!(WindowPreset::wildcard_match("abc", "a*c"));
+        assert!(WindowPreset::wildcard_match("abc", "a?c"));
+        assert!(!WindowPreset::wildcard_match("abc", "a?d"));
+        assert!(WindowPreset::wildcard_match("ABC", "abc")); // 大小写不敏感
+    }
+
+    #[test]
+    fn test_wildcard_match_function() {
+        // 测试公共通配符匹配函数
+        assert!(wildcard_match("test.exe", "*.exe"));
+        assert!(wildcard_match("file.txt", "*.txt"));
+        assert!(wildcard_match("document.pdf", "*.pdf"));
+        assert!(!wildcard_match("test.exe", "*.txt"));
+    }
+
+    #[test]
+    fn test_parse_shortcut_trigger() {
+        use crate::types::Trigger;
+
+        let trigger = parse_shortcut_trigger("Ctrl+Alt+C").unwrap();
+        if let Trigger::Key {
+            scan_code,
+            virtual_key,
+            modifiers,
+            ..
+        } = trigger
+        {
+            assert!(modifiers.ctrl);
+            assert!(modifiers.alt);
+            assert!(!modifiers.shift);
+            assert!(!modifiers.meta);
+        } else {
+            panic!("Expected Key trigger");
+        }
+
+        // 测试带 Win 键
+        let trigger = parse_shortcut_trigger("Ctrl+Win+Left").unwrap();
+        if let Trigger::Key { modifiers, .. } = trigger {
+            assert!(modifiers.ctrl);
+            assert!(modifiers.meta);
+        } else {
+            panic!("Expected Key trigger");
+        }
+    }
+
+    #[test]
+    fn test_parse_shortcut_trigger_invalid() {
+        // 空快捷键
+        assert!(parse_shortcut_trigger("").is_err());
+
+        // 只有修饰键
+        assert!(parse_shortcut_trigger("Ctrl+Alt").is_err());
+    }
+
+    #[test]
+    fn test_parse_launch_mapping() {
+        let rule = parse_launch_mapping("F1", "notepad.exe").unwrap();
+
+        // 验证触发器
+        if let crate::types::Trigger::Key { virtual_key, .. } = &rule.trigger {
+            assert_eq!(*virtual_key, Some(0x70)); // VK_F1
+        } else {
+            panic!("Expected Key trigger");
+        }
+
+        // 验证动作
+        if let crate::types::Action::Launch(cmd) = &rule.action {
+            assert_eq!(cmd.program, "notepad.exe");
+        } else {
+            panic!("Expected Launch action");
+        }
+    }
+
+    #[test]
+    fn test_mouse_config_default() {
+        let config = MouseConfig::default();
+        assert!(config.button_remap.is_empty());
+        assert_eq!(config.wheel.speed, 3);
+        assert!(!config.wheel.invert);
+        assert!(!config.wheel.acceleration);
+        assert!((config.wheel.acceleration_multiplier - 2.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_wheel_config_default() {
+        let config = WheelConfig::default();
+        assert_eq!(config.speed, 3);
+        assert!(!config.invert);
+        assert!(!config.acceleration);
+    }
+
+    #[test]
+    fn test_config_get_all_rules() {
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Backspace"
+
+[window.shortcuts]
+"Ctrl+Alt+C" = "Center"
+"#;
+
+        let config = Config::from_str(config_str).unwrap();
+        let rules = config.get_all_rules();
+        assert!(!rules.is_empty());
+    }
+
+    #[test]
+    fn test_config_with_macros() {
+        let config_str = r#"
+[macros]
+test_macro = []
+
+[macro_bindings]
+F5 = "test_macro"
+"#;
+
+        let config = Config::from_str(config_str).unwrap();
+        assert!(config.macros.contains_key("test_macro"));
+        assert_eq!(
+            config.macro_bindings.get("F5"),
+            Some(&"test_macro".to_string())
+        );
     }
 }
 

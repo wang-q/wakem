@@ -33,18 +33,48 @@ pub struct MonitorWorkArea {
 #[derive(Debug, Clone)]
 pub enum WindowOperation {
     GetForegroundWindow,
-    GetWindowRect { hwnd: HWND },
-    SetWindowPos { hwnd: HWND, x: i32, y: i32, width: i32, height: i32 },
-    GetMonitorInfo { hwnd: HWND },
-    IsWindow { hwnd: HWND },
-    GetWindowTitle { hwnd: HWND },
-    MinimizeWindow { hwnd: HWND },
-    MaximizeWindow { hwnd: HWND },
-    RestoreWindow { hwnd: HWND },
-    CloseWindow { hwnd: HWND },
-    SetTopmost { hwnd: HWND, topmost: bool },
-    SetOpacity { hwnd: HWND, opacity: u8 },
-    EnsureRestored { hwnd: HWND },
+    GetWindowRect {
+        hwnd: HWND,
+    },
+    SetWindowPos {
+        hwnd: HWND,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    },
+    GetMonitorInfo {
+        hwnd: HWND,
+    },
+    IsWindow {
+        hwnd: HWND,
+    },
+    GetWindowTitle {
+        hwnd: HWND,
+    },
+    MinimizeWindow {
+        hwnd: HWND,
+    },
+    MaximizeWindow {
+        hwnd: HWND,
+    },
+    RestoreWindow {
+        hwnd: HWND,
+    },
+    CloseWindow {
+        hwnd: HWND,
+    },
+    SetTopmost {
+        hwnd: HWND,
+        topmost: bool,
+    },
+    SetOpacity {
+        hwnd: HWND,
+        opacity: u8,
+    },
+    EnsureRestored {
+        hwnd: HWND,
+    },
 }
 
 /// 窗口状态
@@ -74,7 +104,14 @@ pub trait WindowApi {
     /// 获取窗口矩形
     fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame>;
     /// 设置窗口位置
-    fn set_window_pos(&self, hwnd: HWND, x: i32, y: i32, width: i32, height: i32) -> Result<()>;
+    fn set_window_pos(
+        &self,
+        hwnd: HWND,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()>;
     /// 获取显示器信息
     fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo>;
     /// 获取显示器工作区
@@ -136,7 +173,14 @@ impl WindowApi for RealWindowApi {
         }
     }
 
-    fn set_window_pos(&self, hwnd: HWND, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
+    fn set_window_pos(
+        &self,
+        hwnd: HWND,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
         unsafe {
             SetWindowPos(
                 hwnd,
@@ -249,8 +293,14 @@ impl WindowApi for RealWindowApi {
 
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()> {
         unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, HWND_NOTOPMOST, SWP_NOMOVE, SWP_NOSIZE};
-            let pos = if topmost { HWND_TOPMOST } else { HWND_NOTOPMOST };
+            use windows::Win32::UI::WindowsAndMessaging::{
+                SetWindowPos, HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+            };
+            let pos = if topmost {
+                HWND_TOPMOST
+            } else {
+                HWND_NOTOPMOST
+            };
             SetWindowPos(hwnd, pos, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             Ok(())
         }
@@ -258,12 +308,14 @@ impl WindowApi for RealWindowApi {
 
     fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()> {
         unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{SetLayeredWindowAttributes, GetWindowLongW, SetWindowLongW, GWL_EXSTYLE};
-            use windows::Win32::UI::WindowsAndMessaging::{WS_EX_LAYERED, LWA_ALPHA};
-            
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetWindowLongW, SetLayeredWindowAttributes, SetWindowLongW, GWL_EXSTYLE,
+            };
+            use windows::Win32::UI::WindowsAndMessaging::{LWA_ALPHA, WS_EX_LAYERED};
+
             let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
             SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
-            
+
             SetLayeredWindowAttributes(hwnd, None, opacity, LWA_ALPHA);
             Ok(())
         }
@@ -340,19 +392,32 @@ impl WindowApi for MockWindowApi {
         self.window_rects.borrow().get(&hwnd.0).copied()
     }
 
-    fn set_window_pos(&self, hwnd: HWND, x: i32, y: i32, width: i32, height: i32) -> Result<()> {
-        self.log_operation(WindowOperation::SetWindowPos { hwnd, x, y, width, height });
-        
+    fn set_window_pos(
+        &self,
+        hwnd: HWND,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        self.log_operation(WindowOperation::SetWindowPos {
+            hwnd,
+            x,
+            y,
+            width,
+            height,
+        });
+
         let mut rects = self.window_rects.borrow_mut();
         rects.insert(hwnd.0, WindowFrame::new(x, y, width, height));
-        
+
         // 更新窗口状态
         let mut states = self.window_states.borrow_mut();
         if let Some(state) = states.get_mut(&hwnd.0) {
             state.minimized = false;
             state.maximized = false;
         }
-        
+
         Ok(())
     }
 

@@ -4,8 +4,8 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
 use crate::config::WindowPreset;
-use crate::platform::windows::WindowFrame;
 use crate::platform::windows::window_manager::RealWindowManager;
+use crate::platform::windows::WindowFrame;
 
 /// 窗口预设管理器
 pub struct WindowPresetManager {

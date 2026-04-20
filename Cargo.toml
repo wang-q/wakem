@@ -64,6 +64,9 @@ rand = "0.8"
 # 时间处理
 chrono = { version = "0.4", features = ["serde"] }
 
+# 异步 trait
+async-trait = "0.1"
+
 [profile.release]
 lto = true
 opt-level = 3
