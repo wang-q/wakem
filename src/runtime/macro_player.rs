@@ -3,7 +3,7 @@
 use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
 
-use crate::platform::windows::OutputDevice;
+use crate::platform::windows::LegacyOutputDevice as OutputDevice;
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
 pub struct MacroPlayer;

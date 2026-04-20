@@ -10,7 +10,7 @@ use crate::runtime::macro_player::MacroPlayer;
 use crate::types::{macros::MacroRecorder, Action, InputEvent, Macro, ModifierState};
 
 use crate::platform::windows::{
-    Launcher, OutputDevice, LegacyRawInputDevice as RawInputDevice, WindowManager, WindowPresetManager,
+    Launcher, LegacyOutputDevice as OutputDevice, LegacyRawInputDevice as RawInputDevice, WindowManager, WindowPresetManager,
 };
 use crate::runtime::{KeyMapper, LayerManager};
 
