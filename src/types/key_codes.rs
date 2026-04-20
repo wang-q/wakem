@@ -1,43 +1,43 @@
 use std::fmt;
 use std::num::NonZeroU16;
 
-/// 扫描码（硬件相关的键盘标识符）
+/// Scan code (hardware-related keyboard identifier)
 ///
-/// 使用 newtype 包装确保类型安全：
-/// - 区分"有值"和"无值"（0 表示无效）
-/// - 防止与其他 u16 类型混淆
-/// - 提供语义化的构造方法
+/// Using newtype wrapper to ensure type safety:
+/// - Distinguish between "has value" and "no value" (0 means invalid)
+/// - Prevent confusion with other u16 types
+/// - Provide semantic construction methods
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScanCode(NonZeroU16);
 
 impl ScanCode {
-    /// 创建新的扫描码
+    /// Create a new scan code
     ///
-    /// # 参数
-    /// * `code` - 扫描码值（必须 > 0）
+    /// # Parameters
+    /// * `code` - Scan code value (must be > 0)
     ///
-    /// # 返回值
-    /// * `Some(ScanCode)` - 如果 code > 0
-    /// * `None` - 如果 code == 0（表示无效）
+    /// # Returns
+    /// * `Some(ScanCode)` - If code > 0
+    /// * `None` - If code == 0 (invalid)
     pub fn new(code: u16) -> Option<Self> {
         NonZeroU16::new(code).map(ScanCode)
     }
 
-    /// 创建扫描码，0 值被视为 None
+    /// Create scan code, 0 value is treated as None
     ///
-    /// 这是最常用的构造方法，用于处理可能为 0 的输入
+    /// This is the most commonly used construction method for handling inputs that may be 0
     pub fn from_option(code: u16) -> Option<Self> {
         Self::new(code)
     }
 
-    /// 获取原始值
+    /// Get raw value
     pub fn value(&self) -> u16 {
         self.0.get()
     }
 
-    /// 检查是否有效（总是返回 true，因为 0 无法创建）
+    /// Check if valid (always returns true since 0 cannot be created)
     pub fn is_valid(&self) -> bool {
-        true // NonZeroU16 保证非零
+        true // NonZeroU16 guarantees non-zero
     }
 }
 
@@ -47,35 +47,35 @@ impl fmt::Display for ScanCode {
     }
 }
 
-/// 虚拟键码（Windows VK_* 标识符）
+/// Virtual key code (Windows VK_* identifier)
 ///
-/// 特点：
-/// - 0 表示无效/未指定
-/// - 非 0 值表示有效的虚拟键码
-/// - 提供常用键的常量定义
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Characteristics:
+/// - 0 means invalid/not specified
+/// - Non-zero values represent valid virtual key codes
+/// - Provides constant definitions for common keys
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct VirtualKey(u16);
 
 impl VirtualKey {
-    /// 创建虚拟键码
+    /// Create virtual key code
     ///
-    /// # 参数
-    /// * `key` - 虚拟键码值（0 表示无效）
+    /// # Parameters
+    /// * `key` - Virtual key code value (0 means invalid)
     pub fn new(key: u16) -> Self {
         VirtualKey(key)
     }
 
-    /// 获取原始值
+    /// Get raw value
     pub fn value(&self) -> u16 {
         self.0
     }
 
-    /// 检查是否有效（非零）
+    /// Check if valid (non-zero)
     pub fn is_valid(&self) -> bool {
         self.0 != 0
     }
 
-    /// 检查是否为修饰键
+    /// Check if modifier key
     pub fn is_modifier(&self) -> bool {
         matches!(
             self.0,
@@ -86,7 +86,7 @@ impl VirtualKey {
         )
     }
 
-    /// 获取修饰键名称（如果是修饰键）
+    /// Get modifier key name (if it's a modifier key)
     pub fn modifier_name(&self) -> Option<&'static str> {
         match self.0 {
             0x10 | 0xA0 | 0xA1 => Some("Shift"),
@@ -97,7 +97,7 @@ impl VirtualKey {
         }
     }
 
-    // === 常用键常量 ===
+    // === Common Key Constants ===
 
     /// Backspace (VK_BACK = 0x08)
     pub const BACKSPACE: Self = VirtualKey(0x08);
@@ -112,7 +112,7 @@ impl VirtualKey {
     /// CapsLock (VK_CAPITAL = 0x14)
     pub const CAPSLOCK: Self = VirtualKey(0x14);
 
-    // === 字母键 ===
+    // === Letter Keys ===
     pub const A: Self = VirtualKey(0x41);
     pub const B: Self = VirtualKey(0x42);
     pub const C: Self = VirtualKey(0x43);
@@ -140,7 +140,7 @@ impl VirtualKey {
     pub const Y: Self = VirtualKey(0x59);
     pub const Z: Self = VirtualKey(0x5A);
 
-    // === 数字键 ===
+    // === Number Keys ===
     pub const KEY_0: Self = VirtualKey(0x30);
     pub const KEY_1: Self = VirtualKey(0x31);
     pub const KEY_2: Self = VirtualKey(0x32);
@@ -152,7 +152,7 @@ impl VirtualKey {
     pub const KEY_8: Self = VirtualKey(0x38);
     pub const KEY_9: Self = VirtualKey(0x39);
 
-    // === 功能键 ===
+    // === Function Keys ===
     pub const F1: Self = VirtualKey(0x70);
     pub const F2: Self = VirtualKey(0x71);
     pub const F3: Self = VirtualKey(0x72);
@@ -166,23 +166,17 @@ impl VirtualKey {
     pub const F11: Self = VirtualKey(0x7A);
     pub const F12: Self = VirtualKey(0x7B);
 
-    // === 修饰键 ===
+    // === Modifier Keys ===
     pub const SHIFT: Self = VirtualKey(0x10);
     pub const CONTROL: Self = VirtualKey(0x11);
     pub const ALT: Self = VirtualKey(0x12);
     pub const META: Self = VirtualKey(0x5B);
 
-    // === 方向键 ===
+    // === Arrow Keys ===
     pub const LEFT: Self = VirtualKey(0x25);
     pub const UP: Self = VirtualKey(0x26);
     pub const RIGHT: Self = VirtualKey(0x27);
     pub const DOWN: Self = VirtualKey(0x28);
-}
-
-impl Default for VirtualKey {
-    fn default() -> Self {
-        VirtualKey(0) // 无效值
-    }
 }
 
 impl fmt::Display for VirtualKey {

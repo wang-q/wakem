@@ -1,6 +1,6 @@
-/// wakem global constants definition
-///
-/// Centralized management of all configuration constants to avoid magic numbers and improve code maintainability
+// wakem global constants definition
+//
+// Centralized management of all configuration constants to avoid magic numbers and improve code maintainability
 
 // ==================== IPC Related Constants ====================
 
@@ -48,27 +48,27 @@ pub const AUTH_CHALLENGE_SIZE: usize = 32;
 /// Response length (bytes, HMAC-SHA256 output)
 pub const AUTH_RESPONSE_SIZE: usize = 32;
 
-/// 认证操作超时时间（秒）
+/// Authentication operation timeout (seconds)
 pub const AUTH_OPERATION_TIMEOUT_SECS: u64 = 5;
 
-// ==================== 速率限制相关常量 ====================
+// ==================== Rate Limiting Constants ====================
 
-/// 默认最大连接尝试次数
+/// Default maximum connection attempts
 pub const RATE_LIMIT_MAX_ATTEMPTS: u32 = 5;
 
-/// 速率限制时间窗口（秒）
+/// Rate limiting time window (seconds)
 pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
 
-// ==================== 滚轮相关常量 ====================
+// ==================== Wheel Constants ====================
 
-/// WHEEL_DELTA 标准值
+/// WHEEL_DELTA standard value
 pub const WHEEL_DELTA: i32 = 120;
 
-/// 默认滚轮速度
+/// Default wheel speed
 pub const DEFAULT_WHEEL_SPEED: i32 = 3;
 
-/// 默认滚轮加速倍数
+/// Default wheel acceleration multiplier
 pub const DEFAULT_ACCELERATION_MULTIPLIER: f32 = 2.0;
 
-/// 默认滚轮步进值
+/// Default wheel step value
 pub const DEFAULT_WHEEL_STEP: i32 = 1;

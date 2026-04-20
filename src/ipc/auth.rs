@@ -5,7 +5,7 @@ use sha2::Sha256;
 /// 挑战长度（32 字节）
 pub const CHALLENGE_SIZE: usize = 32;
 
-/// 响应长度（32 字节，HMAC-SHA256 输出）
+/// Response长度（32 字节，HMAC-SHA256 输出）
 pub const RESPONSE_SIZE: usize = 32;
 
 /// 生成随机挑战

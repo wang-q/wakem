@@ -59,12 +59,12 @@ impl MockTimeSource {
         }
     }
 
-    /// 推进时间（毫秒）
+    /// Advance time（毫秒）
     pub fn advance_ms(&self, ms: u64) {
         *self.current_time_ms.borrow_mut() += ms;
     }
 
-    /// 推进时间（微秒）
+    /// Advance time（微秒）
     pub fn advance_us(&self, us: u64) {
         *self.current_time_ms.borrow_mut() += us / 1000;
     }
@@ -74,7 +74,7 @@ impl MockTimeSource {
         *self.current_time_ms.borrow_mut() = ms;
     }
 
-    /// 获取当前时间
+    /// Get current time
     pub fn get_time(&self) -> u64 {
         *self.current_time_ms.borrow()
     }

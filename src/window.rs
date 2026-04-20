@@ -110,7 +110,7 @@ impl MessageWindow {
         *cb = Some(Box::new(callback));
     }
 
-    /// 发送命令（从窗口过程调用）
+    /// Send command（从窗口过程调用）
     fn send_command(&self, cmd: AppCommand) {
         let cb = self.command_callback.lock().unwrap();
         if let Some(ref callback) = *cb {

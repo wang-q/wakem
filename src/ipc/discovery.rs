@@ -15,7 +15,7 @@ pub struct InstanceInfo {
     pub active: bool,
 }
 
-/// 发现运行中的实例
+/// Discovery运行中的实例
 /// 扫描端口 57427-57436（最多10个实例，ID 0-9）
 pub async fn discover_instances() -> Vec<InstanceInfo> {
     let mut instances = Vec::new();

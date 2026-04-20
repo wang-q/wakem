@@ -18,7 +18,7 @@ pub struct WindowContext {
     pub hwnd: isize,
     /// 窗口类名
     pub window_class: String,
-    /// 窗口标题
+    /// Window title
     pub window_title: String,
     /// 进程 ID
     pub process_id: u32,
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_get_current() {
-        // 测试能否获取当前窗口
+        // Test能否获取当前窗口
         let context = WindowContext::get_current();
         assert!(context.is_some());
 
@@ -182,19 +182,19 @@ mod tests {
             executable_path: "C:\\Program Files\\Firefox\\firefox.exe".to_string(),
         };
 
-        // 测试进程名匹配
+        // Test进程名匹配
         assert!(context.matches(None, Some("firefox.exe"), None, None));
         assert!(context.matches(None, Some("*.exe"), None, None));
         assert!(!context.matches(None, Some("chrome.exe"), None, None));
 
-        // 测试窗口类名匹配
+        // Test窗口类名匹配
         assert!(context.matches(Some("Mozilla*"), None, None, None));
         assert!(!context.matches(Some("Chrome*"), None, None, None));
 
-        // 测试窗口标题匹配
+        // Test窗口标题匹配
         assert!(context.matches(None, None, Some("Fire*"), None));
 
-        // 测试路径匹配
+        // Test路径匹配
         assert!(context.matches(None, None, None, Some("*Firefox*")));
     }
 }

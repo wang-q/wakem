@@ -5,13 +5,13 @@ use crate::types::{
 use std::collections::HashMap;
 use tracing::{debug, trace};
 
-/// 层管理器
+/// Layer manager
 pub struct LayerManager {
     /// 所有可用的层
     layers: HashMap<String, Layer>,
-    /// 层栈（管理激活状态）
+    /// Layer stack（管理激活状态）
     stack: LayerStack,
-    /// 基础层映射（从配置加载的简单重映射）
+    /// Base layer映射（从配置加载的简单重映射）
     base_mappings: Vec<MappingRule>,
 }
 
@@ -36,7 +36,7 @@ impl LayerManager {
         self.stack.set_base_layer(mappings);
     }
 
-    /// 处理输入事件，检查是否是层激活键
+    /// Process input event，检查是否是层激活键
     /// 返回 (是否处理了事件, 可选的动作)
     pub fn process_event(&mut self, event: &InputEvent) -> (bool, Option<Action>) {
         match event {

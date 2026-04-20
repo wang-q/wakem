@@ -130,17 +130,17 @@ pub trait WindowApi {
     fn is_iconic(&self, hwnd: HWND) -> bool;
     /// 检查窗口是否最大化
     fn is_zoomed(&self, hwnd: HWND) -> bool;
-    /// 最小化窗口
+    /// Minimize window
     fn minimize_window(&self, hwnd: HWND) -> Result<()>;
-    /// 最大化窗口
+    /// Maximize window
     fn maximize_window(&self, hwnd: HWND) -> Result<()>;
-    /// 还原窗口
+    /// Restore window
     fn restore_window(&self, hwnd: HWND) -> Result<()>;
-    /// 关闭窗口
+    /// Close window
     fn close_window(&self, hwnd: HWND) -> Result<()>;
     /// 设置置顶状态
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()>;
-    /// 设置透明度
+    /// Set transparency
     fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()>;
     /// 确保窗口已还原
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;

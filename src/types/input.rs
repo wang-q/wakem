@@ -1,22 +1,22 @@
 use super::{now, DeviceType, KeyState, ModifierState, Timestamp};
 use serde::{Deserialize, Serialize};
 
-/// 键盘事件
+/// Keyboard event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyEvent {
-    /// 扫描码（硬件相关）
+    /// Scan code (hardware related)
     pub scan_code: u16,
-    /// 虚拟键码（Windows VK_*)
+    /// Virtual key code (Windows VK_*)
     pub virtual_key: u16,
-    /// 按键状态
+    /// Key state
     pub state: KeyState,
-    /// 修饰键状态
+    /// Modifier key state
     pub modifiers: ModifierState,
-    /// 设备类型
+    /// Device type
     pub device_type: DeviceType,
-    /// 时间戳
+    /// Timestamp
     pub timestamp: Timestamp,
-    /// 是否来自物理设备（而非模拟输入）
+    /// Whether from physical device (not simulated input)
     pub is_injected: bool,
 }
 
@@ -33,19 +33,19 @@ impl KeyEvent {
         }
     }
 
-    /// 设置修饰键状态（用于构建事件）
+    /// Set modifier key state (for building events)
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
-    /// 标记为注入事件（用于模拟输入）
+    /// Mark as injected event (for simulated input)
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
     }
 
-    /// 检查是否是修饰键
+    /// Check if is modifier key
     pub fn is_modifier(&self) -> bool {
         matches!(
             self.virtual_key,
@@ -56,7 +56,7 @@ impl KeyEvent {
         )
     }
 
-    /// 获取修饰键的标识（如果是修饰键）
+    /// Get modifier key identifier (if is modifier key)
     pub fn modifier_identifier(&self) -> Option<&'static str> {
         match self.virtual_key {
             0x10 | 0xA0 | 0xA1 => Some("Shift"),
@@ -68,28 +68,28 @@ impl KeyEvent {
     }
 }
 
-/// 鼠标按钮
+/// Mouse button
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MouseButton {
     Left,
     Right,
     Middle,
-    X1, // 侧键1
-    X2, // 侧键2
+    X1, // Side button 1
+    X2, // Side button 2
 }
 
-/// 鼠标事件
+/// Mouse event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MouseEvent {
-    /// 事件类型
+    /// Event type
     pub event_type: MouseEventType,
-    /// X 坐标（屏幕坐标）
+    /// X coordinate (screen coordinates)
     pub x: i32,
-    /// Y 坐标（屏幕坐标）
+    /// Y coordinate (screen coordinates)
     pub y: i32,
-    /// 修饰键状态
+    /// Modifier key state
     pub modifiers: ModifierState,
-    /// 时间戳
+    /// Timestamp
     pub timestamp: Timestamp,
     /// 是否来自物理设备
     pub is_injected: bool,
@@ -97,15 +97,15 @@ pub struct MouseEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MouseEventType {
-    /// 鼠标移动
+    /// Mouse move
     Move,
-    /// 按钮按下
+    /// Button press
     ButtonDown(MouseButton),
-    /// 按钮释放
+    /// Button release
     ButtonUp(MouseButton),
-    /// 滚轮滚动（正值向上，负值向下）
+    /// Scroll wheel (positive up, negative down)
     Wheel(i32),
-    /// 水平滚轮（正值向右，负值向左）
+    /// Horizontal scroll (positive right, negative left)
     HWheel(i32),
 }
 
@@ -121,30 +121,30 @@ impl MouseEvent {
         }
     }
 
-    /// 设置修饰键状态（用于构建事件）
+    /// Set modifier key state (for building events)
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
-    /// 标记为注入事件（用于模拟输入）
+    /// Mark as injected event (for simulated input)
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
     }
 
-    /// 检查是否是按钮按下事件
+    /// Check if is button press event
     pub fn is_button_down(&self, button: MouseButton) -> bool {
         matches!(&self.event_type, MouseEventType::ButtonDown(b) if *b == button)
     }
 
-    /// 检查是否是按钮释放事件
+    /// Check if is button release event
     pub fn is_button_up(&self, button: MouseButton) -> bool {
         matches!(&self.event_type, MouseEventType::ButtonUp(b) if *b == button)
     }
 }
 
-/// 输入事件（键盘或鼠标）
+/// Input event (keyboard or mouse)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InputEvent {
     Key(KeyEvent),
@@ -152,7 +152,7 @@ pub enum InputEvent {
 }
 
 impl InputEvent {
-    /// 获取事件时间戳
+    /// Get event timestamp
     pub fn timestamp(&self) -> Timestamp {
         match self {
             InputEvent::Key(e) => e.timestamp,
@@ -167,7 +167,7 @@ impl InputEvent {
         }
     }
 
-    /// 获取事件类型名称（用于日志记录）
+    /// Get event type name (for logging)
     pub fn event_type_name(&self) -> &'static str {
         match self {
             InputEvent::Key(_) => "key",

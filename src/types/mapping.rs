@@ -1,7 +1,7 @@
 use super::{Action, InputEvent, ModifierState};
 use serde::{Deserialize, Serialize};
 
-/// 映射规则
+/// Mapping rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MappingRule {
     /// 规则名称（可选）
@@ -10,7 +10,7 @@ pub struct MappingRule {
     pub trigger: Trigger,
     /// 执行的动作
     pub action: Action,
-    /// 上下文条件（可选）
+    /// Context condition（可选）
     pub context: Option<ContextCondition>,
     /// 是否启用
     pub enabled: bool,
@@ -71,7 +71,7 @@ pub enum Trigger {
         virtual_key: Option<u16>,
         modifiers: ModifierState,
     },
-    /// 鼠标按钮
+    /// Mouse button
     MouseButton {
         button: super::MouseButton,
         modifiers: ModifierState,
@@ -145,7 +145,7 @@ impl Trigger {
     }
 }
 
-/// 上下文条件
+/// Context condition
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextCondition {
     /// 窗口类名匹配（支持通配符）
@@ -154,7 +154,7 @@ pub struct ContextCondition {
     /// 进程名匹配（支持通配符）
     #[serde(default)]
     pub process_name: Option<String>,
-    /// 窗口标题匹配（支持通配符）
+    /// Window title匹配（支持通配符）
     #[serde(default)]
     pub window_title: Option<String>,
     /// 可执行文件路径匹配（支持通配符）
@@ -228,7 +228,7 @@ impl ContextCondition {
     }
 }
 
-/// 上下文信息（当前活动窗口等）
+/// Context信息（当前活动窗口等）
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
 pub struct ContextInfo {

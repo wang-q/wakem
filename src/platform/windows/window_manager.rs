@@ -60,7 +60,7 @@ pub struct WindowInfo {
 }
 
 #[allow(dead_code)]
-/// 窗口管理器（泛型版本）
+/// Window manager（泛型版本）
 pub struct WindowManager<A: WindowApi> {
     api: A,
 }
@@ -352,22 +352,22 @@ impl<A: WindowApi> WindowManager<A> {
         self.set_window_frame(hwnd, &new_frame)
     }
 
-    /// 最小化窗口
+    /// Minimize window
     pub fn minimize_window(&self, hwnd: HWND) -> Result<()> {
         self.api.minimize_window(hwnd)
     }
 
-    /// 最大化窗口
+    /// Maximize window
     pub fn maximize_window(&self, hwnd: HWND) -> Result<()> {
         self.api.maximize_window(hwnd)
     }
 
-    /// 还原窗口
+    /// Restore window
     pub fn restore_window(&self, hwnd: HWND) -> Result<()> {
         self.api.restore_window(hwnd)
     }
 
-    /// 关闭窗口
+    /// Close window
     pub fn close_window(&self, hwnd: HWND) -> Result<()> {
         self.api.close_window(hwnd)
     }
@@ -386,7 +386,7 @@ impl<A: WindowApi> WindowManager<A> {
         Ok(new_state)
     }
 
-    /// 设置透明度
+    /// Set transparency
     pub fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()> {
         self.api.set_opacity(hwnd, opacity)
     }
@@ -787,12 +787,12 @@ mod tests {
 
         let wm = WindowManager::with_api(api);
 
-        // 测试左边缘
+        // Test左边缘
         wm.move_to_edge(hwnd, Edge::Left).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 0);
 
-        // 测试右边缘
+        // Test右边缘
         wm.move_to_edge(hwnd, Edge::Right).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 1920 - 800);
@@ -816,7 +816,7 @@ mod tests {
 
         let wm = WindowManager::with_api(api);
 
-        // 测试左半屏
+        // Test左半屏
         wm.set_half_screen(hwnd, Edge::Left).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 0);
@@ -824,7 +824,7 @@ mod tests {
         assert_eq!(frame.width, 960); // 1920 / 2
         assert_eq!(frame.height, 1080);
 
-        // 测试右半屏
+        // Test右半屏
         wm.set_half_screen(hwnd, Edge::Right).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 960);
@@ -850,7 +850,7 @@ mod tests {
 
         let wm = WindowManager::with_api(api);
 
-        // 测试从 50% 开始循环
+        // Test从 50% 开始循环
         wm.loop_width(hwnd, Alignment::Left).unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
@@ -878,7 +878,7 @@ mod tests {
 
         let wm = WindowManager::with_api(api);
 
-        // 测试 4:3 比例，100% 缩放
+        // Test 4:3 比例，100% 缩放
         wm.set_fixed_ratio(hwnd, 4.0 / 3.0, 0).unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
@@ -896,15 +896,15 @@ mod tests {
 
         let wm = WindowManager::with_api(api);
 
-        // 测试最小化
+        // Test最小化
         wm.minimize_window(hwnd).unwrap();
         assert!(wm.api().is_iconic(hwnd));
 
-        // 测试还原
+        // Test还原
         wm.restore_window(hwnd).unwrap();
         assert!(!wm.api().is_iconic(hwnd));
 
-        // 测试最大化
+        // Test最大化
         wm.maximize_window(hwnd).unwrap();
         assert!(wm.api().is_zoomed(hwnd));
     }

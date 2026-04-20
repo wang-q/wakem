@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{Action, MappingRule, Trigger};
 
-/// 层模式
+/// Layers模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum LayerMode {
     /// 按住激活，释放退出
@@ -12,18 +12,18 @@ pub enum LayerMode {
     Toggle,
 }
 
-/// 层定义
+/// Layer definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Layer {
-    /// 层名称
+    /// Layer name
     pub name: String,
-    /// 激活键（扫描码）
+    /// Activation key（扫描码）
     pub activation_key: u16,
-    /// 激活键虚拟键码
+    /// Activation key虚拟键码
     pub activation_vk: u16,
-    /// 层模式
+    /// Layers模式
     pub mode: LayerMode,
-    /// 层内映射规则
+    /// Layers内映射规则
     pub mappings: Vec<MappingRule>,
 }
 
@@ -57,10 +57,10 @@ impl Layer {
     }
 }
 
-/// 层栈（管理多个激活的层）
+/// Layer stack（管理多个激活的层）
 #[derive(Debug, Clone, Default)]
 pub struct LayerStack {
-    /// 基础层（最底层）
+    /// Base layer（最底层）
     base_layer: Vec<MappingRule>,
     /// 当前激活的层（按优先级排序）
     active_layers: Vec<Layer>,

@@ -4,7 +4,7 @@ use tracing::{debug, info};
 
 use crate::ipc::{get_instance_address, IpcClient, Message};
 
-/// 守护进程客户端
+/// Daemon client
 pub struct DaemonClient {
     client: Option<IpcClient>,
 }
@@ -78,7 +78,7 @@ impl DaemonClient {
         }
     }
 
-    /// 重新加载配置
+    /// Reload配置
     pub async fn reload_config(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::ReloadConfig).await?;
 
@@ -110,7 +110,7 @@ impl DaemonClient {
         }
     }
 
-    /// 发送消息并等待响应
+    /// Send message并等待响应
     async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         let client = self
             .client
@@ -123,7 +123,7 @@ impl DaemonClient {
         }
     }
 
-    /// 开始录制宏
+    /// Start recording宏
     pub async fn start_macro_recording(&mut self, name: &str) -> Result<()> {
         let response = self
             .send_receive(&Message::StartMacroRecording {
@@ -138,7 +138,7 @@ impl DaemonClient {
         }
     }
 
-    /// 停止录制宏
+    /// Stop recording宏
     pub async fn stop_macro_recording(&mut self) -> Result<(String, usize)> {
         let response = self.send_receive(&Message::StopMacroRecording).await?;
 

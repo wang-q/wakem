@@ -26,7 +26,7 @@ impl ShutdownSignal {
         self.receiver.clone()
     }
 
-    /// 触发关闭信号
+    /// Trigger shutdown信号
     pub async fn shutdown(&self) {
         info!("Initiating graceful shutdown...");
         if self.sender.send(true).is_ok() {
@@ -43,7 +43,7 @@ impl ShutdownSignal {
         self.receiver.changed().await.is_ok() && *self.receiver.borrow()
     }
 
-    /// 等待关闭信号或完成操作
+    /// Wait for shutdown信号或完成操作
     ///
     /// # 参数
     /// * `operation` - 要执行的操作（Future）

@@ -135,7 +135,9 @@ fn test_macro_messages() {
 #[test]
 fn test_config_message() {
     let config = Config::default();
-    let msg = Message::SetConfig { config };
+    let msg = Message::SetConfig {
+        config: Box::new(config),
+    };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
     let deserialized: Message =

@@ -1,27 +1,27 @@
 use serde::{Deserialize, Serialize};
 
-/// 按键动作
+/// Key action
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum KeyAction {
-    /// 按下按键
+    /// Press key
     Press { scan_code: u16, virtual_key: u16 },
-    /// 释放按键
+    /// Release key
     Release { scan_code: u16, virtual_key: u16 },
-    /// 点击按键（按下并释放）
+    /// Click key (press and release)
     Click { scan_code: u16, virtual_key: u16 },
-    /// 输入文本
+    /// Input text
     TypeText(String),
-    /// 组合键（如 Ctrl+C）
+    /// Key combination (e.g., Ctrl+C)
     Combo {
         modifiers: super::ModifierState,
         key: (u16, u16), // (scan_code, virtual_key)
     },
-    /// 无操作
+    /// No operation
     None,
 }
 
 impl KeyAction {
-    /// 从 KeyEvent 创建对应的 Press 动作
+    /// Create corresponding Press action from KeyEvent
     pub fn press_from_event(event: &super::KeyEvent) -> Self {
         Self::Press {
             scan_code: event.scan_code,
@@ -29,7 +29,7 @@ impl KeyAction {
         }
     }
 
-    /// 从 KeyEvent 创建对应的 Release 动作
+    /// Create corresponding Release action from KeyEvent
     pub fn release_from_event(event: &super::KeyEvent) -> Self {
         Self::Release {
             scan_code: event.scan_code,
@@ -37,7 +37,7 @@ impl KeyAction {
         }
     }
 
-    /// 创建点击动作
+    /// Create click action
     pub fn click(scan_code: u16, virtual_key: u16) -> Self {
         Self::Click {
             scan_code,
@@ -45,7 +45,7 @@ impl KeyAction {
         }
     }
 
-    /// 创建按下动作
+    /// Create press action
     pub fn press(scan_code: u16, virtual_key: u16) -> Self {
         Self::Press {
             scan_code,
@@ -53,7 +53,7 @@ impl KeyAction {
         }
     }
 
-    /// 创建释放动作
+    /// Create release action
     pub fn release(scan_code: u16, virtual_key: u16) -> Self {
         Self::Release {
             scan_code,
@@ -61,7 +61,7 @@ impl KeyAction {
         }
     }
 
-    /// 创建组合键动作
+    /// Create key combination action
     pub fn combo(
         modifiers: super::ModifierState,
         scan_code: u16,
@@ -74,26 +74,26 @@ impl KeyAction {
     }
 }
 
-/// 鼠标动作
+/// Mouse action
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MouseAction {
-    /// 移动鼠标
+    /// Move mouse
     Move { x: i32, y: i32, relative: bool },
-    /// 按下按钮
+    /// Press button
     ButtonDown { button: super::MouseButton },
-    /// 释放按钮
+    /// Release button
     ButtonUp { button: super::MouseButton },
-    /// 点击按钮
+    /// Click button
     ButtonClick { button: super::MouseButton },
-    /// 滚轮滚动
+    /// Scroll wheel
     Wheel { delta: i32 },
-    /// 水平滚轮
+    /// Horizontal scroll
     HWheel { delta: i32 },
-    /// 无操作
+    /// No operation
     None,
 }
 
-/// 边缘枚举（用于窗口管理）
+/// Edge enum (for window management)
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Edge {
     Left,
@@ -102,7 +102,7 @@ pub enum Edge {
     Bottom,
 }
 
-/// 对齐方式枚举
+/// Alignment enum
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Alignment {
     Left,
@@ -112,7 +112,7 @@ pub enum Alignment {
     Center,
 }
 
-/// 显示器方向枚举
+/// Monitor direction enum
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum MonitorDirection {
     Next,
@@ -120,58 +120,58 @@ pub enum MonitorDirection {
     Index(i32),
 }
 
-/// 窗口动作（借鉴 mrw 项目）
+/// Window action (inspired by mrw project)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WindowAction {
-    /// 窗口居中
+    /// Center window
     Center,
-    /// 移动到屏幕边缘
+    /// Move to screen edge
     MoveToEdge(Edge),
-    /// 半屏显示
+    /// Half screen display
     HalfScreen(Edge),
-    /// 循环调整宽度
+    /// Cycle width adjustment
     LoopWidth(Alignment),
-    /// 循环调整高度
+    /// Cycle height adjustment
     LoopHeight(Alignment),
-    /// 固定比例窗口（比例值，缩放索引）
+    /// Fixed ratio window (ratio value, scale index)
     FixedRatio { ratio: f32, scale_index: usize },
-    /// 原生比例窗口（基于屏幕比例，缩放索引）
+    /// Native ratio window (based on screen ratio, scale index)
     NativeRatio { scale_index: usize },
-    /// 同进程窗口切换（Alt+` 功能）
+    /// Same process window switch (Alt+` feature)
     SwitchToNextWindow,
-    /// 跨显示器移动
+    /// Move across monitors
     MoveToMonitor(MonitorDirection),
-    /// 移动窗口（绝对坐标）
+    /// Move window (absolute coordinates)
     Move { x: i32, y: i32 },
-    /// 调整窗口大小
+    /// Resize window
     Resize { width: i32, height: i32 },
-    /// 最小化窗口
+    /// Minimize window
     Minimize,
-    /// 最大化窗口
+    /// Maximize window
     Maximize,
-    /// 还原窗口
+    /// Restore window
     Restore,
-    /// 关闭窗口
+    /// Close window
     Close,
-    /// 置顶/取消置顶
+    /// Toggle always on top
     ToggleTopmost,
-    /// 设置透明度
+    /// Set transparency
     SetOpacity { opacity: u8 },
-    /// 显示调试信息（Hyper+W）
+    /// Show debug info (Hyper+W)
     ShowDebugInfo,
-    /// 显示通知（Hyper+Shift+W）
+    /// Show notification (Hyper+Shift+W)
     ShowNotification { title: String, message: String },
-    /// 保存当前窗口为预设
+    /// Save current window as preset
     SavePreset { name: String },
-    /// 加载指定预设到当前窗口
+    /// Load specified preset to current window
     LoadPreset { name: String },
-    /// 为当前窗口应用匹配的预设
+    /// Apply matching preset to current window
     ApplyPreset,
-    /// 无操作
+    /// No operation
     None,
 }
 
-/// 启动程序动作
+/// Launch program action
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LaunchAction {
     pub program: String,
@@ -180,22 +180,22 @@ pub struct LaunchAction {
     pub env_vars: Vec<(String, String)>,
 }
 
-/// 系统控制动作
+/// System control action
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SystemAction {
-    /// 增加音量
+    /// Increase volume
     VolumeUp,
-    /// 降低音量
+    /// Decrease volume
     VolumeDown,
-    /// 静音切换
+    /// Toggle mute
     VolumeMute,
-    /// 增加亮度
+    /// Increase brightness
     BrightnessUp,
-    /// 降低亮度
+    /// Decrease brightness
     BrightnessDown,
 }
 
-/// 所有可能的动作类型
+/// All possible action types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Action {
     Key(KeyAction),
@@ -203,33 +203,33 @@ pub enum Action {
     Window(WindowAction),
     Launch(LaunchAction),
     System(SystemAction),
-    /// 执行多个动作
+    /// Execute multiple actions
     Sequence(Vec<Action>),
-    /// 延迟（用于宏回放）
+    /// Delay (for macro playback)
     Delay {
         milliseconds: u64,
     },
-    /// 无操作
+    /// No operation
     None,
 }
 
 impl Action {
-    /// 创建按键动作
+    /// Create key action
     pub fn key(action: KeyAction) -> Self {
         Self::Key(action)
     }
 
-    /// 创建鼠标动作
+    /// Create mouse action
     pub fn mouse(action: MouseAction) -> Self {
         Self::Mouse(action)
     }
 
-    /// 创建窗口动作
+    /// Create window action
     pub fn window(action: WindowAction) -> Self {
         Self::Window(action)
     }
 
-    /// 创建启动程序动作
+    /// Create launch program action
     pub fn launch(program: impl Into<String>) -> Self {
         Self::Launch(LaunchAction {
             program: program.into(),
@@ -239,22 +239,22 @@ impl Action {
         })
     }
 
-    /// 创建动作序列
+    /// Create action sequence
     pub fn sequence(actions: Vec<Action>) -> Self {
         Self::Sequence(actions)
     }
 
-    /// 创建延迟动作
+    /// Create delay action
     pub fn delay(milliseconds: u64) -> Self {
         Self::Delay { milliseconds }
     }
 
-    /// 检查是否是空操作
+    /// Check if no operation
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
 
-    /// 从输入事件创建对应的 Action
+    /// Create corresponding Action from input event
     pub fn from_input_event(event: &super::InputEvent) -> Option<Self> {
         match event {
             super::InputEvent::Key(key_event) => {

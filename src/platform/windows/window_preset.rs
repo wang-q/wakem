@@ -7,7 +7,7 @@ use crate::config::WindowPreset;
 use crate::platform::windows::window_manager::RealWindowManager;
 use crate::platform::windows::WindowFrame;
 
-/// 窗口预设管理器
+/// Window preset管理器
 #[allow(dead_code)]
 pub struct WindowPresetManager {
     presets: Vec<WindowPreset>,
@@ -30,7 +30,7 @@ impl WindowPresetManager {
         debug!("Loaded {} window presets", self.presets.len());
     }
 
-    /// 保存当前窗口为预设
+    /// Save current window as preset
     pub fn save_preset(
         &mut self,
         name: &str,
@@ -99,7 +99,7 @@ impl WindowPresetManager {
         Ok(())
     }
 
-    /// 为当前窗口应用匹配的预设
+    /// Apply matching preset to current window
     pub fn apply_preset_for_window(&self, hwnd: HWND) -> Result<bool> {
         let info = self.window_manager.get_window_info(hwnd)?;
 

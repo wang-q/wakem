@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_macro_with_modifiers() {
-        // 测试带修饰键的宏步骤
+        // Test带修饰键的宏步骤
         let mut modifiers = ModifierState::default();
         modifiers.ctrl = true;
         modifiers.shift = true;

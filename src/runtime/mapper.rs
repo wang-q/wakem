@@ -8,7 +8,7 @@ use tracing::{debug, trace};
 #[cfg(target_os = "windows")]
 use crate::platform::windows::window_manager::RealWindowManager;
 
-/// 上下文感知映射规则
+/// Context感知映射规则
 ///
 /// 根据当前窗口的属性（进程名、窗口类、标题等）来选择不同的映射表。
 /// 这使得同一个按键在不同应用中可以有不同的行为。
@@ -29,7 +29,7 @@ use crate::platform::windows::window_manager::RealWindowManager;
 /// ```
 #[derive(Debug, Clone)]
 pub struct ContextMappingRule {
-    /// 上下文条件（决定何时应用此规则）
+    /// Context condition（决定何时应用此规则）
     pub context: ContextCondition,
     /// 映射表：扫描码 -> 动作（当条件满足时使用）
     pub mappings: HashMap<u16, Action>,
@@ -85,7 +85,7 @@ pub struct KeyMapper {
     /// 保留原始规则用于调试和序列化。
     rules: Vec<MappingRule>,
 
-    /// 上下文感知映射规则列表
+    /// Context感知映射规则列表
     ///
     /// 这些规则仅在满足特定上下文条件时生效，
     /// 例如：只在 VSCode 中将 CapsLock 映射为 Ctrl。
@@ -96,15 +96,15 @@ pub struct KeyMapper {
     /// 当为 false 时，所有输入事件直接透传，不进行任何映射。
     enabled: bool,
 
-    /// 窗口管理器（用于执行窗口管理动作）
+    /// Window manager（用于执行窗口管理动作）
     #[cfg(target_os = "windows")]
     window_manager: Option<RealWindowManager>,
 
-    /// 托盘图标（用于显示通知）
+    /// Tray图标（用于显示通知）
     #[cfg(target_os = "windows")]
     tray_icon: Option<crate::platform::windows::TrayIcon>,
 
-    /// 窗口预设管理器（用于保存/加载窗口预设）
+    /// Window preset管理器（用于保存/加载窗口预设）
     #[cfg(target_os = "windows")]
     window_preset_manager: Option<crate::platform::windows::WindowPresetManager>,
 }
@@ -158,7 +158,7 @@ impl KeyMapper {
         debug!("Loaded {} mapping rules", self.rules.len());
     }
 
-    /// 处理输入事件（带上下文感知）
+    /// Process input event（带上下文感知）
     pub fn process_event_with_context(
         &self,
         event: &InputEvent,
@@ -266,7 +266,7 @@ impl KeyMapper {
         }
     }
 
-    /// 执行动作（包括窗口管理动作）
+    /// Execute action（包括窗口管理动作）
     #[cfg(target_os = "windows")]
     pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
         match action {
@@ -638,7 +638,7 @@ mod tests {
     fn test_key_mapper_basic() {
         let mapper = KeyMapper::new();
 
-        // 测试创建成功
+        // Test创建成功
         assert!(mapper.enabled);
     }
 
@@ -649,7 +649,7 @@ mod tests {
         // 禁用映射器
         mapper.enabled = false;
 
-        // 测试事件处理返回 None
+        // Test事件处理返回 None
         let event = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         let result = mapper.process_event_with_context(&InputEvent::Key(event), None);
 

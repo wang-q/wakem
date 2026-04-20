@@ -19,7 +19,7 @@ pub enum WindowEvent {
     WindowActivated(HWND),
 }
 
-/// 窗口事件钩子管理器
+/// Window event hook管理器
 pub struct WindowEventHook {
     hook: Option<HWINEVENTHOOK>,
     event_tx: Sender<WindowEvent>,

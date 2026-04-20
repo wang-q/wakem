@@ -472,7 +472,7 @@ impl ServerState {
 
                 // Handle delay actions (wait without locks)
                 Delay { milliseconds } => {
-                    drop(i); // Explicitly drop reference for sleep
+                    let _ = i; // Explicitly ignore for sleep
                     tokio::time::sleep(tokio::time::Duration::from_millis(
                         *milliseconds,
                     ))
@@ -844,7 +844,6 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     let state_clone = state.clone();
     let mut input_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
-        use crate::constants::INPUT_CHANNEL_CAPACITY;
         use tokio::time::{Duration, Instant};
 
         let batch_size_limit = 50; // Max batch size per processing
@@ -1106,7 +1105,7 @@ impl ServerState {
 /// Handle IPC messages
 async fn handle_message(message: Message, state: &ServerState) -> Message {
     match message {
-        Message::SetConfig { config } => match state.load_config(config).await {
+        Message::SetConfig { config } => match state.load_config(*config).await {
             Ok(_) => Message::ConfigLoaded,
             Err(e) => Message::ConfigError {
                 error: e.to_string(),

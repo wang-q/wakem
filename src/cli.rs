@@ -48,25 +48,25 @@ pub enum Commands {
         /// Macro name
         name: String,
     },
-    /// 停止录制宏
+    /// Stop recording macro
     StopRecord,
-    /// 播放宏
+    /// Play macro
     Play {
-        /// 宏名称
+        /// Macro name
         name: String,
     },
-    /// 列出所有宏
+    /// List all macros
     Macros,
-    /// 绑定宏到触发键
+    /// Bind macro to trigger key
     BindMacro {
-        /// 宏名称
+        /// Macro name
         macro_name: String,
-        /// 触发键
+        /// Trigger key
         trigger: String,
     },
-    /// 删除宏
+    /// Delete macro
     DeleteMacro {
-        /// 宏名称
+        /// Macro name
         name: String,
     },
 }

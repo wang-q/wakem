@@ -10,7 +10,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
 };
 
-/// 输出设备（用于发送模拟输入）
+/// Output device（用于发送模拟输入）
 #[derive(Clone, Copy)]
 pub struct OutputDevice;
 

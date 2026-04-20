@@ -11,14 +11,14 @@ use tracing::{debug, error, info, warn};
 
 /// IPC 服务端（基于 TCP）
 ///
-/// 安全特性：
+/// Security特性：
 /// - IP 白名单（仅允许内网连接）
 /// - 挑战-响应认证机制
 /// - 连接速率限制（防止暴力破解）
 pub struct IpcServer {
     listener: Option<TcpListener>,
     bind_address: String,
-    /// 认证密钥（使用 Arc<RwLock> 支持动态更新）
+    /// Authentication密钥（使用 Arc<RwLock> 支持动态更新）
     auth_key: Option<Arc<RwLock<String>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
     /// 连接速率限制器（防止暴力破解）

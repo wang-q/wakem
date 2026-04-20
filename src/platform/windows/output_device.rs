@@ -5,7 +5,7 @@ use std::cell::RefCell;
 #[allow(unused_imports)]
 use tracing::trace;
 
-/// 输出事件类型
+/// Output事件类型
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub enum OutputEvent {
@@ -15,15 +15,15 @@ pub enum OutputEvent {
         virtual_key: u16,
         release: bool,
     },
-    /// 鼠标移动
+    /// Mouse move
     MouseMove { x: i32, y: i32, relative: bool },
-    /// 鼠标按钮
+    /// Mouse button
     MouseButton { button: MouseButton, release: bool },
     /// 鼠标滚轮
     MouseWheel { delta: i32, horizontal: bool },
 }
 
-/// 输出设备抽象接口
+/// Output device抽象接口
 #[allow(dead_code)]
 pub trait OutputDevice {
     /// 发送按键动作

@@ -2,28 +2,28 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
-/// 连接速率限制器
+/// Connection rate limiter
 ///
-/// 用于防止暴力破解和拒绝服务攻击
-/// 特性：
-/// - 基于 IP 地址的速率限制
-/// - 可配置的最大尝试次数和时间窗口
-/// - 自动清理过期记录
+/// Used to prevent brute force and denial of service attacks
+/// Features:
+/// - IP-based rate limiting
+/// - Configurable max attempts and time window
+/// - Automatic cleanup of expired records
 pub struct ConnectionLimiter {
-    /// 每个 IP 的尝试记录
+    /// Attempt records for each IP
     attempts: HashMap<IpAddr, Vec<Instant>>,
-    /// 最大允许的尝试次数
+    /// Maximum allowed attempts
     max_attempts: u32,
-    /// 时间窗口（秒）
+    /// Time window (seconds)
     window_seconds: u64,
 }
 
 impl ConnectionLimiter {
-    /// 创建新的速率限制器
+    /// Create a new rate limiter
     ///
-    /// # 参数
-    /// * `max_attempts` - 时间窗口内允许的最大尝试次数
-    /// * `window_seconds` - 时间窗口大小（秒）
+    /// # Parameters
+    /// * `max_attempts` - Maximum allowed attempts within the time window
+    /// * `window_seconds` - Time window size (seconds)
     pub fn new(max_attempts: u32, window_seconds: u64) -> Self {
         Self {
             attempts: HashMap::new(),
@@ -32,51 +32,51 @@ impl ConnectionLimiter {
         }
     }
 
-    /// 使用默认配置创建速率限制器
+    /// Create rate limiter with default configuration
     ///
-    /// 默认值：
-    /// - 最大尝试次数: 5 次
-    /// - 时间窗口: 60 秒
+    /// Defaults:
+    /// - Max attempts: 5
+    /// - Time window: 60 seconds
     pub fn with_defaults() -> Self {
         Self::new(5, 60)
     }
 
-    /// 检查是否允许连接
+    /// Check if connection is allowed
     ///
-    /// # 返回值
-    /// * `true` - 允许连接
-    /// * `false` - 超过速率限制，拒绝连接
+    /// # Returns
+    /// * `true` - Connection allowed
+    /// * `false` - Rate limit exceeded, connection denied
     pub fn check_rate_limit(&mut self, ip: IpAddr) -> bool {
         let now = Instant::now();
         let window = Duration::from_secs(self.window_seconds);
 
-        // 获取或创建该 IP 的记录
-        let attempt_times = self.attempts.entry(ip).or_insert_with(Vec::new);
+        // Get or create record for this IP
+        let attempt_times = self.attempts.entry(ip).or_default();
 
-        // 清理过期的记录
+        // Cleanup expired records
         attempt_times.retain(|&time| now.duration_since(time) < window);
 
-        // 检查是否超过限制
+        // Check if limit exceeded
         if attempt_times.len() >= self.max_attempts as usize {
             return false;
         }
 
-        // 记录此次尝试
+        // Record this attempt
         attempt_times.push(now);
         true
     }
 
-    /// 重置指定 IP 的限制计数
+    /// Reset limit count for specified IP
     pub fn reset(&mut self, ip: &IpAddr) {
         self.attempts.remove(ip);
     }
 
-    /// 清除所有记录
+    /// Clear all records
     pub fn clear(&mut self) {
         self.attempts.clear();
     }
 
-    /// 获取当前跟踪的 IP 数量
+    /// Get current number of tracked IPs
     pub fn tracked_count(&self) -> usize {
         self.attempts.len()
     }
@@ -95,15 +95,15 @@ mod tests {
 
     #[test]
     fn test_basic_rate_limiting() {
-        let mut limiter = ConnectionLimiter::new(3, 60); // 3次/60秒
+        let mut limiter = ConnectionLimiter::new(3, 60); // 3 times/60 seconds
         let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
-        // 前3次应该成功
+        // First 3 attempts should succeed
         assert!(limiter.check_rate_limit(ip));
         assert!(limiter.check_rate_limit(ip));
         assert!(limiter.check_rate_limit(ip));
 
-        // 第4次应该失败
+        // 4th attempt should fail
         assert!(!limiter.check_rate_limit(ip));
     }
 
@@ -113,12 +113,12 @@ mod tests {
         let ip1 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
         let ip2 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2));
 
-        // 每个IP有独立的限制
+        // Each IP has independent limits
         assert!(limiter.check_rate_limit(ip1));
         assert!(limiter.check_rate_limit(ip1));
-        assert!(!limiter.check_rate_limit(ip1)); // ip1 达到限制
+        assert!(!limiter.check_rate_limit(ip1)); // ip1 reached limit
 
-        // ip2 不受影响
+        // ip2 is not affected
         assert!(limiter.check_rate_limit(ip2));
         assert!(limiter.check_rate_limit(ip2));
     }
@@ -128,12 +128,12 @@ mod tests {
         let mut limiter = ConnectionLimiter::new(2, 60);
         let ip = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
-        // 用完配额
+        // Use up quota
         assert!(limiter.check_rate_limit(ip));
         assert!(limiter.check_rate_limit(ip));
         assert!(!limiter.check_rate_limit(ip));
 
-        // 重置后应该可以再次使用
+        // Should be usable again after reset
         limiter.reset(&ip);
         assert!(limiter.check_rate_limit(ip));
         assert!(limiter.check_rate_limit(ip));

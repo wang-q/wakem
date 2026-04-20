@@ -14,27 +14,27 @@ pub use mapping::*;
 
 use serde::{Deserialize, Serialize};
 
-/// 设备类型
+/// Device type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeviceType {
     Keyboard,
     Mouse,
 }
 
-/// 按键状态
+/// Key state
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KeyState {
     Pressed,
     Released,
 }
 
-/// 修饰键状态
+/// Modifier key state
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct ModifierState {
     pub shift: bool,
     pub ctrl: bool,
     pub alt: bool,
-    pub meta: bool, // Windows 键 / Command 键
+    pub meta: bool, // Windows key / Command key
 }
 
 impl ModifierState {
@@ -42,12 +42,12 @@ impl ModifierState {
         Self::default()
     }
 
-    /// 检查是否没有任何修饰键
+    /// Check if no modifier keys are pressed
     pub fn is_empty(&self) -> bool {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }
 
-    /// 从虚拟键码创建修饰键状态
+    /// Create modifier key state from virtual key code
     pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)> {
         let mut state = Self::new();
         match key {
@@ -60,7 +60,7 @@ impl ModifierState {
         Some((state, pressed))
     }
 
-    /// 合并另一个修饰键状态
+    /// Merge another modifier key state
     pub fn merge(&mut self, other: &ModifierState) {
         self.shift |= other.shift;
         self.ctrl |= other.ctrl;
@@ -69,10 +69,10 @@ impl ModifierState {
     }
 }
 
-/// 时间戳（毫秒）
+/// Timestamp (milliseconds)
 pub type Timestamp = u64;
 
-/// 获取当前时间戳
+/// Get current timestamp
 pub fn now() -> Timestamp {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

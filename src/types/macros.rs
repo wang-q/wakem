@@ -60,7 +60,7 @@ impl Macro {
     }
 }
 
-/// 宏录制器
+/// Macro recorder
 #[allow(dead_code)]
 #[derive(Default)]
 pub struct MacroRecorder {
@@ -97,7 +97,7 @@ impl MacroRecorder {
         }
     }
 
-    /// 开始录制宏
+    /// Start recording宏
     pub async fn start_recording(&self, name: &str) -> anyhow::Result<()> {
         let mut recording = self.recording.write().await;
         if recording.is_some() {
@@ -115,7 +115,7 @@ impl MacroRecorder {
         Ok(())
     }
 
-    /// 停止录制并返回宏
+    /// Stop recording并返回宏
     pub async fn stop_recording(&self) -> anyhow::Result<Macro> {
         let mut recording = self.recording.write().await;
         let recording = recording
@@ -179,7 +179,7 @@ impl MacroRecorder {
         }
     }
 
-    /// 检查是否正在录制
+    /// Check if is recording
     pub async fn is_recording(&self) -> bool {
         self.recording.read().await.is_some()
     }

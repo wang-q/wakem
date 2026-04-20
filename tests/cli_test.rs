@@ -17,7 +17,7 @@ fn test_cli_no_args() {
 #[test]
 fn test_cli_daemon_command() {
     let cli = Cli::try_parse_from(["wakem", "daemon"]).unwrap();
-    assert!(matches!(cli.command, Some(Commands::Daemon)));
+    assert!(matches!(cli.command, Some(Commands::Daemon { .. })));
 }
 
 /// 测试 status 子命令

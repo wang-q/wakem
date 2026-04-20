@@ -3,39 +3,39 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-/// 托盘图标操作 trait - 用于抽象 Windows API 调用，便于测试
+/// Tray icon operation trait - used to abstract Windows API calls for easier testing
 #[async_trait]
 #[allow(dead_code)]
 pub trait TrayApi: Send + Sync {
-    /// 注册托盘图标
+    /// Register tray icon
     async fn register(&self, hwnd: isize) -> Result<()>;
 
-    /// 注销托盘图标
+    /// Unregister tray icon
     async fn unregister(&self) -> Result<()>;
 
-    /// 显示气泡通知
+    /// Show balloon notification
     async fn show_notification(&self, title: &str, message: &str) -> Result<()>;
 
-    /// 显示右键菜单，返回选中的菜单项 ID
+    /// Show context menu, return selected menu item ID
     async fn show_menu(&self) -> Result<u32>;
 
-    /// 设置激活状态
+    /// Set active status
     async fn set_active(&self, active: bool) -> Result<()>;
 
-    /// 获取激活状态
+    /// Get active status
     async fn is_active(&self) -> bool;
 
-    /// 获取已发送的通知（仅用于测试）
+    /// Get sent notifications (for testing only)
     fn get_notifications(&self) -> Vec<(String, String)>;
 
-    /// 检查是否已注册（仅用于测试）
+    /// Check if registered (for testing only)
     fn is_registered(&self) -> bool;
 
-    /// 预设菜单选择（仅用于测试）
+    /// Preset menu selections (for testing only)
     fn set_menu_selections(&self, selections: Vec<u32>);
 }
 
-/// 真实的托盘图标 API 实现
+/// Real tray icon API implementation
 #[allow(dead_code)]
 pub struct RealTrayApi {
     inner: Arc<Mutex<TrayIconInner>>,
@@ -45,6 +45,12 @@ struct TrayIconInner {
     tray_icon: super::tray::TrayIcon,
     hwnd: isize,
     active: bool,
+}
+
+impl Default for RealTrayApi {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RealTrayApi {
@@ -74,8 +80,8 @@ impl TrayApi for RealTrayApi {
     async fn register(&self, hwnd: isize) -> Result<()> {
         let mut inner = self.inner.lock().await;
         inner.hwnd = hwnd;
-        // 注意：实际的 TrayIcon::register 需要 HWND 类型
-        // 这里为了兼容性，我们使用类型转换
+        // Note: Actual TrayIcon::register requires HWND type
+        // Here we use type conversion for compatibility
         let hwnd = windows::Win32::Foundation::HWND(hwnd);
         inner.tray_icon.register(hwnd)?;
         Ok(())
@@ -110,21 +116,21 @@ impl TrayApi for RealTrayApi {
     }
 
     fn get_notifications(&self) -> Vec<(String, String)> {
-        // 真实实现不存储通知
+        // Real implementation doesn't store notifications
         Vec::new()
     }
 
     fn is_registered(&self) -> bool {
-        // 真实实现无法轻易检测，返回 true
+        // Real implementation cannot easily detect, return true
         true
     }
 
     fn set_menu_selections(&self, _selections: Vec<u32>) {
-        // 真实实现不支持预设
+        // Real implementation doesn't support preset
     }
 }
 
-/// Mock 托盘图标 API 实现 - 用于测试
+/// Mock tray icon API implementation - for testing
 pub struct MockTrayApi {
     state: Arc<Mutex<MockTrayState>>,
 }
@@ -151,7 +157,7 @@ impl MockTrayApi {
             state: Arc::new(Mutex::new(MockTrayState {
                 registered: false,
                 hwnd: 0,
-                active: true, // 默认激活
+                active: true, // Default active
                 notifications: Vec::new(),
                 menu_selections: Vec::new(),
                 menu_index: 0,
@@ -190,7 +196,7 @@ impl TrayApi for MockTrayApi {
             state.menu_index += 1;
             Ok(selection)
         } else {
-            Ok(0) // 无选择
+            Ok(0) // No selection
         }
     }
 
@@ -206,7 +212,7 @@ impl TrayApi for MockTrayApi {
     }
 
     fn get_notifications(&self) -> Vec<(String, String)> {
-        // 使用 try_lock 获取通知
+        // Use try_lock to get notifications
         let state = self.state.clone();
         let result = state.try_lock();
         match result {
@@ -234,7 +240,7 @@ impl TrayApi for MockTrayApi {
     }
 }
 
-/// 托盘图标管理器
+/// Tray icon manager
 #[allow(dead_code)]
 pub struct TrayManager<T: TrayApi> {
     pub api: T,
@@ -246,22 +252,22 @@ impl<T: TrayApi> TrayManager<T> {
         Self { api }
     }
 
-    /// 初始化托盘图标
+    /// Initialize tray icon
     pub async fn init(&self, hwnd: isize) -> Result<()> {
         self.api.register(hwnd).await
     }
 
-    /// 清理托盘图标
+    /// Cleanup tray icon
     pub async fn cleanup(&self) -> Result<()> {
         self.api.unregister().await
     }
 
-    /// 显示通知
+    /// Show notification
     pub async fn notify(&self, title: &str, message: &str) -> Result<()> {
         self.api.show_notification(title, message).await
     }
 
-    /// 显示菜单并处理选择
+    /// Show menu and handle selection
     pub async fn show_context_menu(&self) -> Result<MenuAction> {
         let selection = self.api.show_menu().await?;
         Ok(match selection {
@@ -273,7 +279,7 @@ impl<T: TrayApi> TrayManager<T> {
         })
     }
 
-    /// 切换激活状态
+    /// Toggle active status
     pub async fn toggle_active(&self) -> Result<bool> {
         let current = self.api.is_active().await;
         let new_state = !current;
@@ -281,13 +287,13 @@ impl<T: TrayApi> TrayManager<T> {
         Ok(new_state)
     }
 
-    /// 获取激活状态
+    /// Get active status
     pub async fn is_active(&self) -> bool {
         self.api.is_active().await
     }
 }
 
-/// 菜单操作
+/// Menu action
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum MenuAction {
@@ -298,6 +304,6 @@ pub enum MenuAction {
     Exit,
 }
 
-/// 向后兼容的类型别名
+/// Backward compatible type alias
 #[allow(dead_code)]
 pub type TrayIcon = super::tray::TrayIcon;

@@ -8,9 +8,9 @@ use std::cell::RefCell;
 #[allow(unused_imports)]
 use std::collections::VecDeque;
 use std::sync::mpsc::{channel, Receiver, Sender};
-use tracing::{debug, trace};
+use tracing::debug;
 
-/// 输入设备抽象接口
+/// Input device抽象接口
 #[allow(dead_code)]
 pub trait InputDevice {
     /// 注册设备
@@ -25,7 +25,7 @@ pub trait InputDevice {
     fn stop(&mut self);
 }
 
-/// 输入设备配置
+/// Input device配置
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct InputDeviceConfig {
@@ -297,7 +297,7 @@ impl Default for MockInputDevice {
     }
 }
 
-/// 输入设备工厂
+/// Input device工厂
 #[allow(dead_code)]
 pub struct InputDeviceFactory;
 
@@ -679,7 +679,7 @@ mod tests {
         let mut device = MockInputDevice::new();
         device.register().unwrap();
 
-        // 测试边界扫描码值
+        // Test边界扫描码值
         device.inject_key_press(0x0000, 0x00); // 最小扫描码
         device.inject_key_press(0x00FF, 0xFF); // 最大扫描码
         device.inject_key_press(0xE05B, 0x5B); // 扩展键（LWin）

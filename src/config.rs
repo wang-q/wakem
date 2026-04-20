@@ -2,8 +2,8 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-use tracing::{debug, info};
+use std::sync::Mutex;
+use tracing::debug;
 
 use crate::platform::windows::Launcher;
 use crate::types::{ContextCondition, MacroStep, MappingRule};
@@ -92,13 +92,13 @@ impl Config {
             }
         }
 
-        // 2. 验证网络端口范围（u16 最大值是 65535，只需检查最小值）
+        // 2. Validate network port range (u16 max is 65535, only need to check minimum)
         let port = crate::ipc::get_instance_port(self.network.instance_id);
         if port < 1024 {
             anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
         }
 
-        // 3. 验证实例 ID 范围
+        // 3. Validate instance ID range
         if self.network.instance_id > 255 {
             anyhow::bail!(
                 "Invalid instance_id {}: must be in range 0-255",
@@ -106,7 +106,7 @@ impl Config {
             );
         }
 
-        // 4. 验证宏绑定引用的宏是否存在
+        // 4. Validate macro bindings reference existing macros
         for (trigger, macro_name) in &self.macro_bindings {
             if !self.macros.contains_key(macro_name) {
                 anyhow::bail!(
@@ -117,7 +117,7 @@ impl Config {
             }
         }
 
-        // 5. 验证宏步骤不为空（仅警告）
+        // 5. Validate macro steps are not empty (warning only)
         for (macro_name, steps) in &self.macros {
             if steps.is_empty() {
                 tracing::warn!(
@@ -127,7 +127,7 @@ impl Config {
             }
         }
 
-        // 6. 验证层激活键不为空
+        // 6. Validate layer activation keys are not empty
         for (layer_name, layer) in &self.keyboard.layers {
             if layer.activation_key.is_empty() {
                 anyhow::bail!("Layer '{}' has empty activation_key", layer_name);
@@ -137,7 +137,7 @@ impl Config {
         Ok(())
     }
 
-    /// 保存配置到文件
+    /// Save configuration to file
     #[allow(dead_code)]
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let content = toml::to_string_pretty(self)?;
@@ -145,7 +145,7 @@ impl Config {
         Ok(())
     }
 
-    /// 获取所有映射规则
+    /// Get all mapping rules
     pub fn get_all_rules(&self) -> Vec<MappingRule> {
         let mut rules = Vec::new();
         rules.extend(
@@ -167,7 +167,7 @@ impl Config {
                 .iter()
                 .filter_map(|(k, v)| parse_window_shortcut(k, v).ok()),
         );
-        // 添加启动项映射
+        // Add launch item mappings
         rules.extend(
             self.launch
                 .iter()
@@ -176,7 +176,7 @@ impl Config {
         rules
     }
 
-    /// 解析层的映射规则
+    /// Parse layer mapping rules
     fn parse_layer_mappings(
         &self,
         _layer_name: &str,
@@ -186,11 +186,11 @@ impl Config {
 
         let mut rules = Vec::new();
 
-        // 解析激活键
+        // Parse activation key
         let activation_key = parse_key(&layer.activation_key)?;
         let activation_trigger = Trigger::key(activation_key.0, activation_key.1);
 
-        // 根据模式创建层切换动作
+        // Create layer switch action based on mode
         let layer_action = match layer.mode {
             LayerMode::Hold => Action::key(KeyAction::Press {
                 scan_code: activation_key.0,
@@ -202,13 +202,13 @@ impl Config {
             }),
         };
 
-        // 添加层激活规则
+        // Add layer activation rule
         rules.push(MappingRule::new(activation_trigger, layer_action));
 
-        // 解析层内的映射
+        // Parse mappings within layer
         for (from, to) in &layer.mappings {
             if let Ok(from_key) = parse_key(from) {
-                // 检查是否是窗口管理动作
+                // Check if it's a window management action
                 if let Ok(window_action) = parse_window_action(to) {
                     let trigger = Trigger::key(from_key.0, from_key.1);
                     let action = Action::window(window_action);
@@ -233,77 +233,77 @@ fn default_true() -> bool {
     true
 }
 
-/// 键盘配置
+/// Keyboard configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct KeyboardConfig {
-    /// 键位重映射（简单映射）
+    /// Key remapping (simple mapping)
     #[serde(default)]
     pub remap: HashMap<String, String>,
-    /// 快捷键层
+    /// Shortcut layers
     #[serde(default)]
     pub layers: HashMap<String, LayerConfig>,
-    /// 上下文感知映射
+    /// Context-aware mappings
     #[serde(default)]
     pub context_mappings: Vec<ContextMapping>,
 }
 
-/// 层配置
+/// Layer configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayerConfig {
-    /// 层激活键
+    /// Layer activation key
     pub activation_key: String,
-    /// 层内映射
+    /// Mappings within layer
     pub mappings: HashMap<String, String>,
-    /// 层激活模式
+    /// Layer activation mode
     #[serde(default)]
     pub mode: LayerMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum LayerMode {
-    /// 按住激活，释放退出
+    /// Hold to activate, release to exit
     #[default]
     Hold,
-    /// 切换模式（按一次进入，再按一次退出）
+    /// Toggle mode (press once to enter, press again to exit)
     Toggle,
 }
 
-/// 上下文感知映射
+/// Context-aware mapping
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextMapping {
-    /// 上下文条件
+    /// Context condition
     pub context: ContextCondition,
-    /// 在此上下文下的映射规则
+    /// Mapping rules under this context
     pub mappings: HashMap<String, String>,
 }
 
-/// 网络通信配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Network communication configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NetworkConfig {
-    /// 是否启用网络通信
+    /// Whether to enable network communication
     #[serde(default)]
     pub enabled: bool,
-    /// 实例ID（决定端口号：57427 + instance_id）
+    /// Instance ID (determines port: 57427 + instance_id)
     #[serde(default)]
     pub instance_id: u32,
-    /// 预共享密钥
+    /// Pre-shared key
     #[serde(default)]
     pub auth_key: Option<String>,
 }
 
 impl NetworkConfig {
-    /// 获取实例通信端口
+    /// Get instance communication port
     #[allow(dead_code)]
     pub fn get_port(&self) -> u16 {
         crate::ipc::get_instance_port(self.instance_id)
     }
 
-    /// 获取绑定地址
+    /// Get bind address
     pub fn get_bind_address(&self) -> String {
         crate::ipc::get_instance_address(self.instance_id)
     }
 
-    /// 确保存在认证密钥，如果不存在则生成随机密钥
+    /// Ensure authentication key exists, generate random key if not
     pub fn ensure_auth_key(&mut self) -> &str {
         if self.auth_key.is_none() {
             let key = Self::generate_random_key();
@@ -313,7 +313,7 @@ impl NetworkConfig {
         self.auth_key.as_deref().unwrap()
     }
 
-    /// 生成随机认证密钥（32 字符 hex）
+    /// Generate random authentication key (32 character hex)
     fn generate_random_key() -> String {
         use rand::Rng;
         let mut rng = rand::thread_rng();
@@ -322,42 +322,32 @@ impl NetworkConfig {
     }
 }
 
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            instance_id: 0,
-            auth_key: None,
-        }
-    }
-}
-
-/// 窗口配置
+/// Window configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WindowConfig {
-    /// 窗口切换设置
+    /// Window switching settings
     #[serde(default)]
     pub switch: WindowSwitchConfig,
-    /// 窗口位置预设（已废弃，保留用于向后兼容）
+    /// Window position presets (deprecated, kept for backward compatibility)
     #[serde(default)]
     pub positions: HashMap<String, WindowPosition>,
-    /// 窗口管理快捷键（借鉴 mrw）
+    /// Window management shortcuts (inspired by mrw)
     #[serde(default)]
     pub shortcuts: HashMap<String, String>,
-    /// 窗口预设列表
+    /// Window preset list
     #[serde(default)]
     pub presets: Vec<WindowPreset>,
-    /// 是否自动应用预设
+    /// Whether to auto-apply presets
     #[serde(default = "default_true")]
     pub auto_apply_preset: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WindowSwitchConfig {
-    /// 是否忽略最小化窗口
+    /// Whether to ignore minimized windows
     #[serde(default = "default_true")]
     pub ignore_minimal: bool,
-    /// 是否只在当前虚拟桌面切换
+    /// Whether to only switch on current virtual desktop
     #[serde(default = "default_true")]
     pub only_current_desktop: bool,
 }
@@ -370,21 +360,21 @@ pub struct WindowPosition {
     pub height: i32,
 }
 
-/// 窗口预设
+/// Window preset
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WindowPreset {
-    /// 预设名称
+    /// Preset name
     pub name: String,
-    /// 匹配的进程名（如 chrome.exe）
+    /// Matching process name (e.g., chrome.exe)
     #[serde(default)]
     pub process_name: Option<String>,
-    /// 匹配的可执行文件路径
+    /// Matching executable path
     #[serde(default)]
     pub executable_path: Option<String>,
-    /// 窗口标题匹配模式（支持通配符）
+    /// Window title matching pattern (supports wildcards)
     #[serde(default)]
     pub title_pattern: Option<String>,
-    /// 窗口位置
+    /// Window position
     pub x: i32,
     pub y: i32,
     pub width: i32,
@@ -392,21 +382,21 @@ pub struct WindowPreset {
 }
 
 impl WindowPreset {
-    /// 检查预设是否匹配指定窗口信息
+    /// Check if preset matches specified window info
     pub fn matches(
         &self,
         process_name: &str,
         executable_path: Option<&str>,
         title: &str,
     ) -> bool {
-        // 检查进程名匹配
+        // Check process name match
         if let Some(ref pattern) = self.process_name {
             if !Self::wildcard_match(process_name, pattern) {
                 return false;
             }
         }
 
-        // 检查可执行路径匹配
+        // Check executable path match
         if let Some(ref pattern) = self.executable_path {
             let path = executable_path.unwrap_or("");
             if !Self::wildcard_match(path, pattern) {
@@ -414,32 +404,32 @@ impl WindowPreset {
             }
         }
 
-        // 检查窗口标题匹配
+        // Check window title match
         if let Some(ref pattern) = self.title_pattern {
             if !Self::wildcard_match(title, pattern) {
                 return false;
             }
         }
 
-        // 至少需要一个匹配条件
+        // At least one matching condition is required
         self.process_name.is_some()
             || self.executable_path.is_some()
             || self.title_pattern.is_some()
     }
 
-    /// 简单的通配符匹配（* 匹配任意字符，? 匹配单个字符）
+    /// Simple wildcard matching (* matches any characters, ? matches single character)
     fn wildcard_match(text: &str, pattern: &str) -> bool {
         wildcard_match(text, pattern)
     }
 }
 
-/// 公共通配符匹配函数（支持 * 和 ?）
-/// 统一实现，避免代码重复
+/// Public wildcard matching function (supports * and ?)
+/// Unified implementation to avoid code duplication
 ///
-/// 性能优化：
-/// - 使用动态规划（DP）替代递归实现
-/// - 时间复杂度: O(m*n)，空间复杂度: O(m*n)
-/// - 防止栈溢出和指数级时间复杂度
+/// Performance optimizations:
+/// - Uses dynamic programming (DP) instead of recursive implementation
+/// - Time complexity: O(m*n), space complexity: O(m*n)
+/// - Prevents stack overflow and exponential time complexity
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
     let text = text.to_lowercase();
     let pattern = pattern.to_lowercase();
@@ -447,62 +437,62 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
     wildcard_match_dp(&text, &pattern)
 }
 
-/// 使用动态规划的通配符匹配实现
+/// Dynamic programming implementation of wildcard matching
 ///
-/// 算法说明：
-/// - dp[i][j] 表示 text[0..i] 是否匹配 pattern[0..j]
-/// - 状态转移：
-///   - 如果 pattern[j-1] == '*'，可以匹配 0 个或多个字符
-///   - 如果 pattern[j-1] == '?' 或字符相等，则匹配当前字符
+/// Algorithm description:
+/// - dp[i][j] indicates whether text[0..i] matches pattern[0..j]
+/// - State transitions:
+///   - If pattern[j-1] == '*', can match 0 or more characters
+///   - If pattern[j-1] == '?' or characters are equal, match current character
 fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
-    let text_chars: Vec<char> = text.chars().collect();
-    let pattern_chars: Vec<char> = pattern.chars().collect();
+    let text_chars: Vec<char> = text.to_lowercase().chars().collect();
+    let pattern_chars: Vec<char> = pattern.to_lowercase().chars().collect();
 
     let m = text_chars.len();
     let n = pattern_chars.len();
 
-    // 边界情况处理
+    // Boundary case handling
     if n == 0 {
         return m == 0;
     }
 
-    // 防止过大的输入导致内存问题
+    // Prevent large inputs from causing memory issues
     const MAX_SIZE: usize = 1024;
     if m > MAX_SIZE || n > MAX_SIZE {
         return false;
     }
 
-    // 创建 DP 表 (m+1) x (n+1)
+    // Create DP table (m+1) x (n+1)
     let mut dp = vec![vec![false; n + 1]; m + 1];
 
-    // 空字符串匹配空模式
+    // Empty string matches empty pattern
     dp[0][0] = true;
 
-    // 处理模式开头的 '*'（可以匹配空字符串）
+    // Handle '*' at the beginning of pattern (can match empty string)
     for j in 1..=n {
         if pattern_chars[j - 1] == '*' {
             dp[0][j] = dp[0][j - 1];
         } else {
-            break; // 遇到非 '*' 字符就停止
+            break; // Stop when encountering non-'*' character
         }
     }
 
-    // 填充 DP 表
+    // Fill DP table
     for i in 1..=m {
         for j in 1..=n {
             match pattern_chars[j - 1] {
                 '*' => {
-                    // '*' 可以匹配：
-                    // 1. 0 个字符（dp[i][j-1]）
-                    // 2. 1 个或多个字符（dp[i-1][j]）
+                    // '*' can match:
+                    // 1. 0 characters (dp[i][j-1])
+                    // 2. 1 or more characters (dp[i-1][j])
                     dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
                 }
                 '?' => {
-                    // '?' 匹配任意单个字符
+                    // '?' matches any single character
                     dp[i][j] = dp[i - 1][j - 1];
                 }
                 _ => {
-                    // 普通字符必须精确匹配（已转换为小写）
+                    // Regular characters must match exactly (already converted to lowercase)
                     dp[i][j] =
                         dp[i - 1][j - 1] && (text_chars[i - 1] == pattern_chars[j - 1]);
                 }
@@ -513,38 +503,38 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
     dp[m][n]
 }
 
-/// 鼠标配置
+/// Mouse configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MouseConfig {
-    /// 按钮重映射
+    /// Button remapping
     #[serde(default)]
     pub button_remap: HashMap<String, String>,
-    /// 滚轮设置
+    /// Wheel settings
     #[serde(default)]
     pub wheel: WheelConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WheelConfig {
-    /// 滚轮速度
+    /// Wheel speed
     #[serde(default = "default_wheel_speed")]
     pub speed: i32,
-    /// 是否反转滚轮方向
+    /// Whether to invert wheel direction
     #[serde(default)]
     pub invert: bool,
-    /// 是否启用滚轮加速
+    /// Whether to enable wheel acceleration
     #[serde(default)]
     pub acceleration: bool,
-    /// 加速倍数
+    /// Acceleration multiplier
     #[serde(default = "default_acceleration_multiplier")]
     pub acceleration_multiplier: f32,
-    /// 水平滚动配置
+    /// Horizontal scroll configuration
     #[serde(default)]
     pub horizontal_scroll: Option<WheelModifierConfig>,
-    /// 音量控制配置
+    /// Volume control configuration
     #[serde(default)]
     pub volume_control: Option<WheelModifierConfig>,
-    /// 亮度控制配置
+    /// Brightness control configuration
     #[serde(default)]
     pub brightness_control: Option<WheelModifierConfig>,
 }
@@ -571,12 +561,12 @@ fn default_acceleration_multiplier() -> f32 {
     2.0
 }
 
-/// 滚轮修饰键配置
+/// Wheel modifier configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WheelModifierConfig {
-    /// 修饰键（如 "Shift", "RightAlt", "RightCtrl"）
+    /// Modifier key (e.g., "Shift", "RightAlt", "RightCtrl")
     pub modifier: String,
-    /// 每次滚动的步进值
+    /// Step value for each scroll
     #[serde(default = "default_wheel_step")]
     pub step: i32,
 }
@@ -585,27 +575,27 @@ fn default_wheel_step() -> i32 {
     1
 }
 
-/// 解析简单的键位映射配置
-/// 格式: "CapsLock" -> "Backspace"
-/// 格式: "CapsLock" -> "Ctrl+Alt+Win" (映射为修饰键组合)
+/// Parse simple key mapping configuration
+/// Format: "CapsLock" -> "Backspace"
+/// Format: "CapsLock" -> "Ctrl+Alt+Win" (mapped as modifier key combination)
 fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
     use crate::types::{Action, KeyAction, Trigger};
 
     let from_key = parse_key(from)?;
 
-    // 检查是否是窗口管理动作
+    // Check if it's a window management action
     if let Ok(window_action) = parse_window_action(to) {
         let trigger = Trigger::key(from_key.0, from_key.1);
         let action = Action::window(window_action);
         return Ok(MappingRule::new(trigger, action));
     }
 
-    // 检查目标是否是带修饰键的快捷键（如 "Ctrl+Alt+Win"）
+    // Check if target is a shortcut with modifier keys (e.g., "Ctrl+Alt+Win")
     if to.contains('+') && !to.contains("->") {
-        // 解析修饰键组合（如 "Ctrl+Alt+Win"）
+        // Parse modifier key combination (e.g., "Ctrl+Alt+Win")
         let modifiers = parse_modifier_combo(to)?;
         let trigger = Trigger::key(from_key.0, from_key.1);
-        // 创建发送修饰键按下/释放的动作序列
+        // Create action sequence for pressing/releasing modifier keys
         let action = create_modifier_press_release_action(&modifiers);
         return Ok(MappingRule::new(trigger, action));
     }
@@ -618,7 +608,7 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
     Ok(MappingRule::new(trigger, action))
 }
 
-/// 解析纯修饰键组合（如 "Ctrl+Alt+Win"）
+/// Parse pure modifier key combination (e.g., "Ctrl+Alt+Win")
 fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> {
     use crate::types::ModifierState;
 
@@ -632,7 +622,7 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
             "shift" => modifiers.shift = true,
             "win" | "meta" | "command" => modifiers.meta = true,
             _ => {
-                // 如果不是已知的修饰键，返回错误
+                // If not a known modifier key, return error
                 return Err(anyhow::anyhow!("Unknown modifier: {}", part));
             }
         }
@@ -641,8 +631,8 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
     Ok(modifiers)
 }
 
-/// 创建修饰键按下和释放的动作序列
-/// 当按下 CapsLock 时，发送 Ctrl+Alt+Win 的按下，释放时发送释放
+/// Create action sequence for pressing and releasing modifier keys
+/// When CapsLock is pressed, send Ctrl+Alt+Win press, send release on release
 fn create_modifier_press_release_action(
     modifiers: &crate::types::ModifierState,
 ) -> crate::types::Action {
@@ -650,7 +640,7 @@ fn create_modifier_press_release_action(
 
     let mut actions = Vec::new();
 
-    // 按下修饰键（按特定顺序：Ctrl -> Alt -> Win -> Shift）
+    // Press modifier keys (in specific order: Ctrl -> Alt -> Win -> Shift)
     if modifiers.ctrl {
         actions.push(Action::key(KeyAction::press(0x1D, 0x11))); // Ctrl
     }
@@ -664,7 +654,7 @@ fn create_modifier_press_release_action(
         actions.push(Action::key(KeyAction::press(0x2A, 0x10))); // Shift
     }
 
-    // 立即释放修饰键（逆序）
+    // Release modifier keys immediately (reverse order)
     if modifiers.shift {
         actions.push(Action::key(KeyAction::release(0x2A, 0x10))); // Shift
     }
@@ -681,23 +671,23 @@ fn create_modifier_press_release_action(
     Action::Sequence(actions)
 }
 
-/// 解析窗口管理快捷键
-/// 格式: "Ctrl+Alt+C" -> "Center"
+/// Parse window management shortcut
+/// Format: "Ctrl+Alt+C" -> "Center"
 fn parse_window_shortcut(from: &str, to: &str) -> anyhow::Result<MappingRule> {
     use crate::types::Action;
 
-    // 解析快捷键（如 "Ctrl+Alt+C"）
+    // Parse shortcut (e.g., "Ctrl+Alt+C")
     let trigger = parse_shortcut_trigger(from)?;
 
-    // 解析窗口管理动作
+    // Parse window management action
     let window_action = parse_window_action(to)?;
     let action = Action::window(window_action);
 
     Ok(MappingRule::new(trigger, action))
 }
 
-/// 解析快捷键触发器
-/// 格式: "Ctrl+Alt+C", "Ctrl+Alt+Win+Left"
+/// Parse shortcut trigger
+/// Format: "Ctrl+Alt+C", "Ctrl+Alt+Win+Left"
 fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigger> {
     use crate::types::{ModifierState, Trigger};
 
@@ -730,8 +720,8 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
     Ok(Trigger::key_with_modifiers(key.0, key.1, modifiers))
 }
 
-/// 解析窗口管理动作
-/// 格式: "Center", "MoveToEdge(Left)", "HalfScreen(Right)", "FixedRatio(1.333, 0)"
+/// Parse window management action
+/// Format: "Center", "MoveToEdge(Left)", "HalfScreen(Right)", "FixedRatio(1.333, 0)"
 pub fn parse_window_action(
     action_str: &str,
 ) -> anyhow::Result<crate::types::WindowAction> {
@@ -739,7 +729,7 @@ pub fn parse_window_action(
 
     let action_str = action_str.trim();
 
-    // 简单动作（无参数）
+    // Simple actions (no parameters)
     match action_str {
         "Center" => return Ok(WindowAction::Center),
         "SwitchToNextWindow" => return Ok(WindowAction::SwitchToNextWindow),
@@ -753,67 +743,67 @@ pub fn parse_window_action(
         _ => {}
     }
 
-    // 带参数的动作
+    // Actions with parameters
     if let Some((name, params)) = action_str.split_once('(') {
         let params = params.trim_end_matches(')');
         let param_list: Vec<&str> = params.split(',').map(|s| s.trim()).collect();
 
         match name.trim() {
             "MoveToEdge" => {
-                let edge = parse_edge(param_list.get(0).unwrap_or(&""))?;
+                let edge = parse_edge(param_list.first().unwrap_or(&""))?;
                 Ok(WindowAction::MoveToEdge(edge))
             }
             "HalfScreen" => {
-                let edge = parse_edge(param_list.get(0).unwrap_or(&""))?;
+                let edge = parse_edge(param_list.first().unwrap_or(&""))?;
                 Ok(WindowAction::HalfScreen(edge))
             }
             "LoopWidth" => {
-                let align = parse_alignment(param_list.get(0).unwrap_or(&""))?;
+                let align = parse_alignment(param_list.first().unwrap_or(&""))?;
                 Ok(WindowAction::LoopWidth(align))
             }
             "LoopHeight" => {
-                let align = parse_alignment(param_list.get(0).unwrap_or(&""))?;
+                let align = parse_alignment(param_list.first().unwrap_or(&""))?;
                 Ok(WindowAction::LoopHeight(align))
             }
             "FixedRatio" => {
-                let ratio = param_list.get(0).unwrap_or(&"1.333").parse::<f32>()?;
+                let ratio = param_list.first().unwrap_or(&"1.333").parse::<f32>()?;
                 let scale_index = param_list.get(1).unwrap_or(&"0").parse::<usize>()?;
                 Ok(WindowAction::FixedRatio { ratio, scale_index })
             }
             "NativeRatio" => {
-                let scale_index = param_list.get(0).unwrap_or(&"0").parse::<usize>()?;
+                let scale_index = param_list.first().unwrap_or(&"0").parse::<usize>()?;
                 Ok(WindowAction::NativeRatio { scale_index })
             }
             "MoveToMonitor" => {
                 let direction =
-                    parse_monitor_direction(param_list.get(0).unwrap_or(&""))?;
+                    parse_monitor_direction(param_list.first().unwrap_or(&""))?;
                 Ok(WindowAction::MoveToMonitor(direction))
             }
             "Move" => {
-                let x = param_list.get(0).unwrap_or(&"0").parse::<i32>()?;
+                let x = param_list.first().unwrap_or(&"0").parse::<i32>()?;
                 let y = param_list.get(1).unwrap_or(&"0").parse::<i32>()?;
                 Ok(WindowAction::Move { x, y })
             }
             "Resize" => {
-                let width = param_list.get(0).unwrap_or(&"800").parse::<i32>()?;
+                let width = param_list.first().unwrap_or(&"800").parse::<i32>()?;
                 let height = param_list.get(1).unwrap_or(&"600").parse::<i32>()?;
                 Ok(WindowAction::Resize { width, height })
             }
             "SetOpacity" => {
-                let opacity = param_list.get(0).unwrap_or(&"255").parse::<u8>()?;
+                let opacity = param_list.first().unwrap_or(&"255").parse::<u8>()?;
                 Ok(WindowAction::SetOpacity { opacity })
             }
             "ShowNotification" => {
-                let title = param_list.get(0).unwrap_or(&"wakem").to_string();
+                let title = param_list.first().unwrap_or(&"wakem").to_string();
                 let message = param_list.get(1).unwrap_or(&"").to_string();
                 Ok(WindowAction::ShowNotification { title, message })
             }
             "SavePreset" => {
-                let name = param_list.get(0).unwrap_or(&"default").to_string();
+                let name = param_list.first().unwrap_or(&"default").to_string();
                 Ok(WindowAction::SavePreset { name })
             }
             "LoadPreset" => {
-                let name = param_list.get(0).unwrap_or(&"default").to_string();
+                let name = param_list.first().unwrap_or(&"default").to_string();
                 Ok(WindowAction::LoadPreset { name })
             }
             _ => Err(anyhow::anyhow!("Unknown window action: {}", name)),
@@ -826,7 +816,7 @@ pub fn parse_window_action(
     }
 }
 
-/// 解析边缘参数
+/// Parse edge parameter
 fn parse_edge(s: &str) -> anyhow::Result<crate::types::Edge> {
     use crate::types::Edge;
 
@@ -839,7 +829,7 @@ fn parse_edge(s: &str) -> anyhow::Result<crate::types::Edge> {
     }
 }
 
-/// 解析对齐参数
+/// Parse alignment parameter
 fn parse_alignment(s: &str) -> anyhow::Result<crate::types::Alignment> {
     use crate::types::Alignment;
 
@@ -853,7 +843,7 @@ fn parse_alignment(s: &str) -> anyhow::Result<crate::types::Alignment> {
     }
 }
 
-/// 解析显示器方向参数
+/// Parse monitor direction parameter
 fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirection> {
     use crate::types::MonitorDirection;
 
@@ -870,8 +860,8 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
     }
 }
 
-/// 解析键名到扫描码和虚拟键码
-/// 使用静态 HashMap 实现数据驱动的键名映射，便于维护和扩展
+/// Parse key name to scan code and virtual key code
+/// Uses static HashMap for data-driven key name mapping, easy to maintain and extend
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     use std::collections::HashMap;
 
@@ -880,7 +870,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     static KEY_MAP: Lazy<HashMap<&'static str, (u16, u16)>> = Lazy::new(|| {
         let mut map = HashMap::new();
 
-        // 特殊键
+        // Special keys
         map.insert("capslock", (0x3A, 0x14));
         map.insert("caps", (0x3A, 0x14));
         map.insert("backspace", (0x0E, 0x08));
@@ -891,13 +881,13 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         map.insert("space", (0x39, 0x20));
         map.insert("tab", (0x0F, 0x09));
 
-        // 方向键
+        // Arrow keys
         map.insert("left", (0x4B, 0x25));
         map.insert("up", (0x48, 0x26));
         map.insert("right", (0x4D, 0x27));
         map.insert("down", (0x50, 0x28));
 
-        // 编辑键
+        // Editing keys
         map.insert("home", (0x47, 0x24));
         map.insert("end", (0x4F, 0x23));
         map.insert("pageup", (0x49, 0x21));
@@ -909,7 +899,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         map.insert("insert", (0x52, 0x2D));
         map.insert("ins", (0x52, 0x2D));
 
-        // 修饰键
+        // Modifier keys
         map.insert("lshift", (0x2A, 0xA0));
         map.insert("rshift", (0x36, 0xA1));
         map.insert("lctrl", (0x1D, 0xA2));
@@ -923,7 +913,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         map.insert("rwin", (0xE05C, 0x5C));
         map.insert("rmeta", (0xE05C, 0x5C));
 
-        // 字母键 a-z
+        // Letter keys a-z
         let letter_keys = [
             ('a', 0x1E, 0x41),
             ('b', 0x30, 0x42),
@@ -957,7 +947,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
             map.insert(Box::leak(key.into_boxed_str()), (*scan_code, *vk));
         }
 
-        // 数字键 0-9
+        // Number keys 0-9
         let digit_keys = [
             ('0', 0x0B, 0x30),
             ('1', 0x02, 0x31),
@@ -975,7 +965,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
             map.insert(Box::leak(key.into_boxed_str()), (*scan_code, *vk));
         }
 
-        // 功能键 F1-F12
+        // Function keys F1-F12
         let func_keys = [
             ("f1", 0x3B, 0x70),
             ("f2", 0x3C, 0x71),
@@ -1003,9 +993,9 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         .ok_or_else(|| anyhow::anyhow!("Unknown key name: {}", name))
 }
 
-/// 配置文件路径缓存（减少重复的文件系统 I/O）
+/// Config file path cache (reduces repeated file system I/O)
 ///
-/// 性能优化：缓存已解析的配置文件路径，避免每次调用都检查文件存在性
+/// Performance optimization: caches resolved config file paths to avoid checking file existence on every call
 struct ConfigPathCache {
     cache: Mutex<HashMap<u32, Option<std::path::PathBuf>>>,
 }
@@ -1018,17 +1008,17 @@ impl ConfigPathCache {
     }
 
     fn get_or_resolve(&self, instance_id: u32) -> Option<std::path::PathBuf> {
-        // 先检查缓存
+        // Check cache first
         if let Ok(mut cache) = self.cache.lock() {
             if let Some(cached) = cache.get(&instance_id) {
                 debug!("Config path cache hit for instance {}", instance_id);
                 return cached.clone();
             }
 
-            // 缓存未命中，解析路径
+            // Cache miss, resolve path
             let path = Self::resolve_config_path_internal(instance_id);
 
-            // 存入缓存
+            // Store in cache
             cache.insert(instance_id, path.clone());
 
             debug!(
@@ -1037,12 +1027,12 @@ impl ConfigPathCache {
             );
             path
         } else {
-            // 锁失败时回退到直接解析
+            // Fallback to direct resolution when lock fails
             Self::resolve_config_path_internal(instance_id)
         }
     }
 
-    /// 清除指定实例的缓存
+    /// Invalidate cache for specified instance
     fn invalidate(&self, instance_id: u32) {
         if let Ok(mut cache) = self.cache.lock() {
             cache.remove(&instance_id);
@@ -1050,7 +1040,7 @@ impl ConfigPathCache {
         }
     }
 
-    /// 清除所有缓存
+    /// Clear all cache
     fn clear(&self) {
         if let Ok(mut cache) = self.cache.lock() {
             cache.clear();
@@ -1058,7 +1048,7 @@ impl ConfigPathCache {
         }
     }
 
-    /// 内部路径解析逻辑（原始实现）
+    /// Internal path resolution logic (original implementation)
     fn resolve_config_path_internal(instance_id: u32) -> Option<std::path::PathBuf> {
         let home = std::env::var("USERPROFILE").ok()?;
         let home_path = std::path::PathBuf::from(home);
@@ -1069,13 +1059,13 @@ impl ConfigPathCache {
             format!(".wakem-instance{}.toml", instance_id)
         };
 
-        // 优先级1: 检查 %USERPROFILE%\.wakem.toml 或 .wakem-instanceN.toml
+        // Priority 1: Check %USERPROFILE%\.wakem.toml or .wakem-instanceN.toml
         let config_file = home_path.join(&config_filename);
         if config_file.exists() {
             return Some(config_file);
         }
 
-        // 优先级2: 检查 %APPDATA%\wakem\config.toml 或 config-instanceN.toml
+        // Priority 2: Check %APPDATA%\wakem\config.toml or config-instanceN.toml
         let app_data = std::env::var("APPDATA").ok()?;
         let config_dir = std::path::PathBuf::from(app_data).join("wakem");
         let config_file = if instance_id == 0 {
@@ -1087,39 +1077,39 @@ impl ConfigPathCache {
             return Some(config_file);
         }
 
-        // 返回默认路径（即使不存在）
+        // Return default path (even if it doesn't exist)
         Some(home_path.join(config_filename))
     }
 }
 
-/// 全局配置路径缓存实例
+/// Global config path cache instance
 static CONFIG_PATH_CACHE: Lazy<ConfigPathCache> = Lazy::new(ConfigPathCache::new);
 
-/// 解析配置文件路径（带缓存版本）
+/// Resolve config file path (with caching)
 ///
-/// 如果提供了路径，使用提供的路径；否则使用默认路径（带缓存）
-/// 支持实例配置文件（instance_id > 0 时使用 config-instanceN.toml）
+/// If a path is provided, use it; otherwise use default path (with caching)
+/// Supports instance config files (uses config-instanceN.toml when instance_id > 0)
 pub fn resolve_config_file_path(
     path: Option<&std::path::Path>,
     instance_id: u32,
 ) -> Option<std::path::PathBuf> {
-    // 如果提供了显式路径，直接使用（不缓存）
+    // If explicit path provided, use directly (not cached)
     if let Some(p) = path {
         return Some(p.to_path_buf());
     }
 
-    // 使用缓存的路径解析
+    // Use cached path resolution
     CONFIG_PATH_CACHE.get_or_resolve(instance_id)
 }
 
-/// 使配置文件路径缓存失效
+/// Invalidate config file path cache
 ///
-/// 在配置文件被移动、重命名或删除后调用此函数
+/// Call this function after config file is moved, renamed, or deleted
 pub fn invalidate_config_path_cache(instance_id: u32) {
     CONFIG_PATH_CACHE.invalidate(instance_id);
 }
 
-/// 清除所有配置文件路径缓存
+/// Clear all config file path cache
 pub fn clear_config_path_cache() {
     CONFIG_PATH_CACHE.clear();
 }
@@ -1163,10 +1153,10 @@ J = "Down"
 
     #[test]
     fn test_parse_key_mapping_with_modifiers() {
-        // 测试 CapsLock -> Ctrl+Alt+Win 的映射
+        // Test CapsLock -> Ctrl+Alt+Win mapping
         let rule = parse_key_mapping("CapsLock", "Ctrl+Alt+Win").unwrap();
 
-        // 验证触发器是 CapsLock
+        // Verify trigger is CapsLock
         if let crate::types::Trigger::Key {
             scan_code,
             virtual_key,
@@ -1179,12 +1169,12 @@ J = "Down"
             panic!("Expected Key trigger");
         }
 
-        // 验证动作是 Sequence（包含修饰键按下/释放）
+        // Verify action is Sequence (contains modifier key press/release)
         if let crate::types::Action::Sequence(actions) = &rule.action {
-            // 应该有 6 个动作：Ctrl按下、Alt按下、Win按下、Win释放、Alt释放、Ctrl释放
+            // Should have 6 actions: Ctrl press, Alt press, Win press, Win release, Alt release, Ctrl release
             assert_eq!(actions.len(), 6);
 
-            // 验证第一个动作是 Ctrl 按下
+            // Verify first action is Ctrl press
             if let crate::types::Action::Key(crate::types::KeyAction::Press {
                 virtual_key,
                 ..
@@ -1195,7 +1185,7 @@ J = "Down"
                 panic!("Expected Ctrl Press as first action, got {:?}", actions[0]);
             }
 
-            // 验证第二个动作是 Alt 按下
+            // Verify second action is Alt press
             if let crate::types::Action::Key(crate::types::KeyAction::Press {
                 virtual_key,
                 ..
@@ -1206,7 +1196,7 @@ J = "Down"
                 panic!("Expected Alt Press as second action, got {:?}", actions[1]);
             }
 
-            // 验证第三个动作是 Win 按下
+            // Verify third action is Win press
             if let crate::types::Action::Key(crate::types::KeyAction::Press {
                 virtual_key,
                 ..
@@ -1217,7 +1207,7 @@ J = "Down"
                 panic!("Expected Win Press as third action, got {:?}", actions[2]);
             }
 
-            // 验证第四、五、六个动作是释放
+            // Verify fourth, fifth, sixth actions are release
             if let crate::types::Action::Key(crate::types::KeyAction::Release {
                 virtual_key,
                 ..
@@ -1240,21 +1230,21 @@ J = "Down"
 
     #[test]
     fn test_parse_modifier_combo() {
-        // 测试解析修饰键组合
+        // Test parsing modifier key combination
         let modifiers = parse_modifier_combo("Ctrl+Alt+Win").unwrap();
         assert!(modifiers.ctrl);
         assert!(modifiers.alt);
         assert!(modifiers.meta);
         assert!(!modifiers.shift);
 
-        // 测试不同顺序
+        // Test different order
         let modifiers = parse_modifier_combo("Shift+Ctrl").unwrap();
         assert!(modifiers.ctrl);
         assert!(!modifiers.alt);
         assert!(!modifiers.meta);
         assert!(modifiers.shift);
 
-        // 测试大小写不敏感
+        // Test case insensitivity
         let modifiers = parse_modifier_combo("ctrl+ALT+win").unwrap();
         assert!(modifiers.ctrl);
         assert!(modifiers.alt);
@@ -1265,11 +1255,11 @@ J = "Down"
     fn test_parse_window_action_debug() {
         use crate::types::WindowAction;
 
-        // 测试 ShowDebugInfo
+        // Test ShowDebugInfo
         let action = parse_window_action("ShowDebugInfo").unwrap();
         assert!(matches!(action, WindowAction::ShowDebugInfo));
 
-        // 测试 ShowNotification
+        // Test ShowNotification
         let action =
             parse_window_action("ShowNotification(wakem, Hello World!)").unwrap();
         if let WindowAction::ShowNotification { title, message } = action {
@@ -1279,7 +1269,7 @@ J = "Down"
             panic!("Expected ShowNotification action");
         }
 
-        // 测试 ShowNotification 带默认值
+        // Test ShowNotification with default values
         let action = parse_window_action("ShowNotification(Test)").unwrap();
         if let WindowAction::ShowNotification { title, message } = action {
             assert_eq!(title, "Test");
@@ -1353,7 +1343,7 @@ J = "Down"
 
     #[test]
     fn test_parse_window_action_invalid() {
-        // 测试无效的动作
+        // Test invalid actions
         let result = parse_window_action("InvalidAction");
         assert!(result.is_err());
 
@@ -1370,11 +1360,11 @@ J = "Down"
         assert!(matches!(parse_edge("top").unwrap(), Edge::Top));
         assert!(matches!(parse_edge("bottom").unwrap(), Edge::Bottom));
 
-        // 测试大小写不敏感
+        // Test case insensitivity
         assert!(matches!(parse_edge("LEFT").unwrap(), Edge::Left));
         assert!(matches!(parse_edge("Left").unwrap(), Edge::Left));
 
-        // 测试无效值
+        // Test invalid values
         assert!(parse_edge("invalid").is_err());
     }
 
@@ -1397,7 +1387,7 @@ J = "Down"
             Alignment::Center
         ));
 
-        // 测试无效值
+        // Test invalid values
         assert!(parse_alignment("invalid").is_err());
     }
 
@@ -1418,14 +1408,14 @@ J = "Down"
             MonitorDirection::Prev
         ));
 
-        // 测试数字索引
+        // Test numeric index
         if let MonitorDirection::Index(idx) = parse_monitor_direction("2").unwrap() {
             assert_eq!(idx, 2);
         } else {
             panic!("Expected Index direction");
         }
 
-        // 测试无效值
+        // Test invalid values
         assert!(parse_monitor_direction("invalid").is_err());
     }
 
@@ -1447,7 +1437,7 @@ CapsLock = "Backspace"
 "#;
 
         let config = Config::from_str(config_str).unwrap();
-        assert_eq!(config.log_level, "info"); // 默认值
+        assert_eq!(config.log_level, "info"); // default value
         assert!(config.keyboard.remap.contains_key("CapsLock"));
     }
 
@@ -1543,18 +1533,18 @@ test_macro = []
 
     #[test]
     fn test_window_preset_wildcard_match() {
-        // 测试通配符匹配
+        // Test wildcard matching
         assert!(WindowPreset::wildcard_match("chrome.exe", "*.exe"));
         assert!(WindowPreset::wildcard_match("test.txt", "*.txt"));
         assert!(WindowPreset::wildcard_match("abc", "a*c"));
         assert!(WindowPreset::wildcard_match("abc", "a?c"));
         assert!(!WindowPreset::wildcard_match("abc", "a?d"));
-        assert!(WindowPreset::wildcard_match("ABC", "abc")); // 大小写不敏感
+        assert!(WindowPreset::wildcard_match("ABC", "abc")); // case insensitive
     }
 
     #[test]
     fn test_wildcard_match_function() {
-        // 测试公共通配符匹配函数
+        // Test public wildcard matching function
         assert!(wildcard_match("test.exe", "*.exe"));
         assert!(wildcard_match("file.txt", "*.txt"));
         assert!(wildcard_match("document.pdf", "*.pdf"));
@@ -1563,7 +1553,7 @@ test_macro = []
 
     #[test]
     fn test_wildcard_dp_basic_patterns() {
-        // 基本匹配
+        // basic matching
         assert!(wildcard_match_dp("hello", "hello"));
         assert!(!wildcard_match_dp("hello", "world"));
 
@@ -1589,36 +1579,36 @@ test_macro = []
 
     #[test]
     fn test_wildcard_dp_edge_cases() {
-        // 空字符串和空模式
+        // empty string and empty pattern
         assert!(wildcard_match_dp("", ""));
         assert!(!wildcard_match_dp("a", ""));
         assert!(wildcard_match_dp("", "*"));
         assert!(!wildcard_match_dp("", "?")); // ? 需要至少一个字符
 
-        // 连续的 *
+        // consecutive *
         assert!(wildcard_match_dp("test", "**test"));
         assert!(wildcard_match_dp("test", "***"));
         assert!(wildcard_match_dp("", "**"));
 
-        // 开头的多个 *
+        // multiple leading *
         assert!(wildcard_match_dp("test", "****test"));
 
-        // 大小写不敏感（已转换为小写）
+        // case insensitive（已转换为小写）
         assert!(wildcard_match_dp("TEST.EXE", "*.exe"));
         assert!(wildcard_match_dp("File.TXT", "*.txt"));
     }
 
     #[test]
     fn test_wildcard_dp_complex_patterns() {
-        // 多个 *
+        // multiple *
         assert!(wildcard_match_dp("a.b.c.d", "*.d"));
         assert!(wildcard_match_dp("a.b.c.d", "a.*.c.*"));
 
-        // 复杂混合模式
-        assert!(wildcard_match_dp("test_2024-01-15.log", "test_????.log"));
+        // complex mixed patterns
+        assert!(wildcard_match_dp("test_2024.log", "test_????.log"));
         assert!(wildcard_match_dp("image001.png", "image???.png"));
 
-        // 路径风格匹配
+        // path-style matching
         assert!(wildcard_match_dp("/path/to/file.txt", "/path/*/file.txt"));
         assert!(wildcard_match_dp(
             "C:\\Users\\test\\*\\*.txt",
@@ -1628,7 +1618,7 @@ test_macro = []
 
     #[test]
     fn test_wildcard_dp_performance_safety() {
-        // 测试不会因为长输入而崩溃或栈溢出
+        // Test不会因为长输入而崩溃或栈溢出
         let long_text = "a".repeat(1000);
         let long_pattern = "*".repeat(100);
 
@@ -1663,7 +1653,7 @@ test_macro = []
             panic!("Expected Key trigger");
         }
 
-        // 测试带 Win 键
+        // Test带 Win 键
         let trigger = parse_shortcut_trigger("Ctrl+Win+Left").unwrap();
         if let Trigger::Key { modifiers, .. } = trigger {
             assert!(modifiers.ctrl);

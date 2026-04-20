@@ -51,19 +51,19 @@ impl IpcClient {
         Ok(())
     }
 
-    /// 发送消息
+    /// Send message
     pub async fn send(&mut self, message: &Message) -> Result<()> {
         let stream = self.stream.as_mut().ok_or(IpcError::ConnectionClosed)?;
         send_message(stream, message).await
     }
 
-    /// 接收消息
+    /// Receive message
     pub async fn receive(&mut self) -> Result<Message> {
         let stream = self.stream.as_mut().ok_or(IpcError::ConnectionClosed)?;
         read_message(stream).await
     }
 
-    /// 发送消息并等待响应
+    /// Send message并等待响应
     pub async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         self.send(message).await?;
         timeout(Duration::from_secs(5), self.receive()).await?

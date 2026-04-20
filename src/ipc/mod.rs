@@ -13,63 +13,64 @@ pub use client::IpcClient;
 pub use rate_limiter::ConnectionLimiter;
 pub use server::IpcServer;
 
-/// IPC 消息协议
+/// IPC message protocol
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Message {
-    // 客户端 -> 服务端
-    /// 发送配置到服务端
-    SetConfig { config: crate::config::Config },
-    /// 重新加载配置
+    // Client -> Server
+    /// Send configuration to server
+    #[allow(clippy::large_enum_variant)]
+    SetConfig { config: Box<crate::config::Config> },
+    /// Reload configuration
     ReloadConfig,
-    /// 保存当前配置到文件
+    /// Save current configuration to file
     SaveConfig,
-    /// 获取当前状态
+    /// Get current status
     GetStatus,
-    /// 启用/禁用映射
+    /// Enable/disable mapping
     SetActive { active: bool },
-    /// 获取下一个按键信息（用于调试）
+    /// Get next key info (for debugging)
     GetNextKeyInfo,
-    /// 开始录制宏
+    /// Start macro recording
     StartMacroRecording { name: String },
-    /// 停止录制宏
+    /// Stop macro recording
     StopMacroRecording,
-    /// 播放宏
+    /// Play macro
     PlayMacro { name: String },
-    /// 获取宏列表
+    /// Get macro list
     GetMacros,
-    /// 删除宏
+    /// Delete macro
     DeleteMacro { name: String },
-    /// 绑定宏到触发键
+    /// Bind macro to trigger key
     BindMacro { macro_name: String, trigger: String },
-    /// 注册消息窗口句柄（用于发送通知）
+    /// Register message window handle (for sending notifications)
     RegisterMessageWindow { hwnd: usize },
 
-    // 服务端 -> 客户端
-    /// 状态响应
+    // Server -> Client
+    /// Status response
     StatusResponse { active: bool, config_loaded: bool },
-    /// 配置已加载
+    /// Configuration loaded
     ConfigLoaded,
-    /// 配置加载错误
+    /// Configuration load error
     ConfigError { error: String },
-    /// 下一个按键信息（调试）
+    /// Next key info (debug)
     NextKeyInfo { info: String },
-    /// 错误响应
+    /// Error response
     Error { message: String },
-    /// 宏录制结果
+    /// Macro recording result
     MacroRecordingResult { name: String, action_count: usize },
-    /// 宏列表响应
+    /// Macro list response
     MacrosList { macros: Vec<String> },
-    /// 成功响应
+    /// Success response
     Success,
 
-    // 双向
-    /// 心跳
+    // Bidirectional
+    /// Heartbeat
     Ping,
-    /// 心跳响应
+    /// Heartbeat response
     Pong,
 }
 
-/// IPC 错误类型
+/// IPC error type
 #[derive(Debug, thiserror::Error)]
 pub enum IpcError {
     #[error("Connection refused")]
@@ -92,27 +93,27 @@ impl From<tokio::time::error::Elapsed> for IpcError {
 
 pub type Result<T> = std::result::Result<T, IpcError>;
 
-/// 基础端口
+/// Base port
 pub const BASE_PORT: u16 = 57427;
 
-/// 获取实例端口
+/// Get instance port
 pub fn get_instance_port(instance_id: u32) -> u16 {
     BASE_PORT + instance_id as u16
 }
 
-/// 获取实例绑定地址
+/// Get instance bind address
 pub fn get_instance_address(instance_id: u32) -> String {
     format!("127.0.0.1:{}", get_instance_port(instance_id))
 }
 
-/// 从 TCP 流读取消息（公共实现，消除重复）
+/// Read message from TCP stream (common implementation to eliminate duplication)
 pub async fn read_message(stream: &mut TcpStream) -> Result<Message> {
-    // 读取长度（4字节）
+    // Read length (4 bytes)
     let mut len_bytes = [0u8; 4];
     stream.read_exact(&mut len_bytes).await?;
     let len = u32::from_be_bytes(len_bytes) as usize;
 
-    // 限制最大消息大小
+    // Limit maximum message size
     if len > 1024 * 1024 {
         return Err(IpcError::Io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -120,23 +121,23 @@ pub async fn read_message(stream: &mut TcpStream) -> Result<Message> {
         )));
     }
 
-    // 读取数据
+    // Read data
     let mut buffer = vec![0u8; len];
     stream.read_exact(&mut buffer).await?;
 
-    // 反序列化
+    // Deserialize
     let message = serde_json::from_slice(&buffer)?;
     Ok(message)
 }
 
-/// 发送消息到 TCP 流（公共实现，消除重复）
+/// Send message to TCP stream (common implementation to eliminate duplication)
 pub async fn send_message(stream: &mut TcpStream, message: &Message) -> Result<()> {
     let data = serde_json::to_vec(message)?;
     let len = data.len() as u32;
 
-    // 发送长度
+    // Send length
     stream.write_all(&len.to_be_bytes()).await?;
-    // 发送数据
+    // Send data
     stream.write_all(&data).await?;
 
     Ok(())

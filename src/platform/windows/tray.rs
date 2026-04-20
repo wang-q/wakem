@@ -22,7 +22,7 @@ pub const IDM_EXIT: u32 = 103;
 /// 自定义消息
 pub const WM_APP_TRAY_NOTIFY: u32 = WM_APP + 1;
 
-/// 托盘图标
+/// Tray图标
 pub struct TrayIcon {
     data: NOTIFYICONDATAW,
     hwnd: HWND,
@@ -59,7 +59,7 @@ impl TrayIcon {
         }
     }
 
-    /// 从文件加载图标
+    /// Load from file图标
     fn load_icon_from_file(
         path: &str,
     ) -> anyhow::Result<windows::Win32::UI::WindowsAndMessaging::HICON> {
