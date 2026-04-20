@@ -711,7 +711,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     // 启动窗口事件监听（用于自动应用预设）
     let mut window_event_rx = {
-        let (tx, mut rx) =
+        let (tx, rx) =
             tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(100);
 
         std::thread::spawn(move || {

@@ -72,7 +72,68 @@ impl Config {
     /// 从字符串解析配置
     pub fn from_str(content: &str) -> anyhow::Result<Self> {
         let config: Config = toml::from_str(content)?;
+        config.validate()?;
         Ok(config)
+    }
+
+    /// 验证配置的完整性和业务规则
+    pub fn validate(&self) -> anyhow::Result<()> {
+        use anyhow::Context;
+
+        // 1. 验证日志级别
+        match self.log_level.to_lowercase().as_str() {
+            "trace" | "debug" | "info" | "warn" | "warning" | "error" => {}
+            other => {
+                anyhow::bail!(
+                    "Invalid log_level '{}': must be one of trace, debug, info, warn, error",
+                    other
+                );
+            }
+        }
+
+        // 2. 验证网络端口范围（u16 最大值是 65535，只需检查最小值）
+        let port = crate::ipc::get_instance_port(self.network.instance_id);
+        if port < 1024 {
+            anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
+        }
+
+        // 3. 验证实例 ID 范围
+        if self.network.instance_id > 255 {
+            anyhow::bail!(
+                "Invalid instance_id {}: must be in range 0-255",
+                self.network.instance_id
+            );
+        }
+
+        // 4. 验证宏绑定引用的宏是否存在
+        for (trigger, macro_name) in &self.macro_bindings {
+            if !self.macros.contains_key(macro_name) {
+                anyhow::bail!(
+                    "Macro binding '{}' references non-existent macro '{}'",
+                    trigger,
+                    macro_name
+                );
+            }
+        }
+
+        // 5. 验证宏步骤不为空（仅警告）
+        for (macro_name, steps) in &self.macros {
+            if steps.is_empty() {
+                tracing::warn!(
+                    "Macro '{}' has no steps defined, it will do nothing",
+                    macro_name
+                );
+            }
+        }
+
+        // 6. 验证层激活键不为空
+        for (layer_name, layer) in &self.keyboard.layers {
+            if layer.activation_key.is_empty() {
+                anyhow::bail!("Layer '{}' has empty activation_key", layer_name);
+            }
+        }
+
+        Ok(())
     }
 
     /// 保存配置到文件

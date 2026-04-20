@@ -86,12 +86,33 @@ enum Commands {
     },
 }
 
+/// 初始化日志系统（支持从配置文件读取日志级别）
+fn init_logging(cli: &Cli) {
+    let log_level = if let Some(config_path) =
+        config::resolve_config_file_path(None, cli.instance)
+    {
+        // 尝试从配置文件读取日志级别
+        config::Config::from_file(&config_path)
+            .map(|cfg| cfg.log_level)
+            .unwrap_or_else(|_| "info".to_string())
+    } else {
+        "info".to_string()
+    };
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&log_level));
+
+    tracing_subscriber::fmt().with_env_filter(env_filter).init();
+
+    info!("Logging initialized with level: {}", log_level);
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 初始化日志
-    tracing_subscriber::fmt().with_env_filter("info").init();
-
     let cli = Cli::parse();
+
+    // 初始化日志（使用配置文件中的日志级别或默认 info）
+    init_logging(&cli);
 
     match cli.command {
         Some(Commands::Daemon { instance }) => run_daemon(instance).await,

@@ -97,13 +97,16 @@ browser = "chrome.exe"
 /// 测试无效的配置值
 #[test]
 fn test_invalid_config_values() {
-    // 无效的 log_level 应该被接受（字符串类型）
+    // 无效的 log_level 现在被验证拒绝
     let config_str = r#"
 log_level = "invalid_level"
 "#;
     let result = Config::from_str(config_str);
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap().log_level, "invalid_level");
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid log_level"));
 }
 
 /// 测试层配置的各种模式
