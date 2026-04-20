@@ -1,6 +1,8 @@
+use crate::types::{
+    Action, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule, Trigger,
+};
 use std::collections::HashMap;
 use tracing::{debug, trace};
-use crate::types::{Action, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule, Trigger};
 
 /// 键位映射引擎
 pub struct KeyMapper {
@@ -34,7 +36,9 @@ impl KeyMapper {
 
     /// 创建带窗口管理器的映射引擎
     #[cfg(target_os = "windows")]
-    pub fn with_window_manager(window_manager: crate::platform::windows::WindowManager) -> Self {
+    pub fn with_window_manager(
+        window_manager: crate::platform::windows::WindowManager,
+    ) -> Self {
         Self {
             mappings: HashMap::new(),
             rules: Vec::new(),
@@ -46,7 +50,10 @@ impl KeyMapper {
 
     /// 设置窗口管理器
     #[cfg(target_os = "windows")]
-    pub fn set_window_manager(&mut self, window_manager: crate::platform::windows::WindowManager) {
+    pub fn set_window_manager(
+        &mut self,
+        window_manager: crate::platform::windows::WindowManager,
+    ) {
         self.window_manager = Some(window_manager);
     }
 
@@ -93,9 +100,7 @@ impl KeyMapper {
         }
 
         match event {
-            InputEvent::Key(key_event) => {
-                self.process_key_event(key_event)
-            }
+            InputEvent::Key(key_event) => self.process_key_event(key_event),
             InputEvent::Mouse(_) => {
                 // 鼠标事件处理（TODO）
                 None
@@ -107,28 +112,32 @@ impl KeyMapper {
     fn process_key_event(&self, event: &KeyEvent) -> Option<Action> {
         trace!(
             "Processing key event: scan_code={:04X}, vk={:04X}, state={:?}",
-            event.scan_code, event.virtual_key, event.state
+            event.scan_code,
+            event.virtual_key,
+            event.state
         );
 
         // 查找映射
         if let Some(action) = self.mappings.get(&event.scan_code) {
             // 根据按键状态调整动作
             let adjusted_action = match (action, &event.state) {
-                (Action::Key(KeyAction::Click { scan_code, virtual_key }), _) => {
+                (
+                    Action::Key(KeyAction::Click {
+                        scan_code,
+                        virtual_key,
+                    }),
+                    _,
+                ) => {
                     // 如果是点击动作，根据实际按键状态调整
                     match event.state {
-                        KeyState::Pressed => {
-                            Some(Action::Key(KeyAction::Press {
-                                scan_code: *scan_code,
-                                virtual_key: *virtual_key,
-                            }))
-                        }
-                        KeyState::Released => {
-                            Some(Action::Key(KeyAction::Release {
-                                scan_code: *scan_code,
-                                virtual_key: *virtual_key,
-                            }))
-                        }
+                        KeyState::Pressed => Some(Action::Key(KeyAction::Press {
+                            scan_code: *scan_code,
+                            virtual_key: *virtual_key,
+                        })),
+                        KeyState::Released => Some(Action::Key(KeyAction::Release {
+                            scan_code: *scan_code,
+                            virtual_key: *virtual_key,
+                        })),
                     }
                 }
                 _ => Some(action.clone()),
@@ -161,7 +170,11 @@ impl KeyMapper {
                     debug!("WindowManager not available, skipping window action");
                 }
             }
-            Action::Key(_) | Action::Mouse(_) | Action::Launch(_) | Action::Sequence(_) | Action::None => {
+            Action::Key(_)
+            | Action::Mouse(_)
+            | Action::Launch(_)
+            | Action::Sequence(_)
+            | Action::None => {
                 // 这些动作由其他组件处理
             }
         }
@@ -210,45 +223,60 @@ impl KeyMapper {
                 }
                 WindowAction::MoveToMonitor(direction) => {
                     let direction = match direction {
-                        MonitorDirection::Next => crate::platform::windows::MonitorDirection::Next,
-                        MonitorDirection::Prev => crate::platform::windows::MonitorDirection::Prev,
-                        MonitorDirection::Index(idx) => crate::platform::windows::MonitorDirection::Index(*idx),
+                        MonitorDirection::Next => {
+                            crate::platform::windows::MonitorDirection::Next
+                        }
+                        MonitorDirection::Prev => {
+                            crate::platform::windows::MonitorDirection::Prev
+                        }
+                        MonitorDirection::Index(idx) => {
+                            crate::platform::windows::MonitorDirection::Index(*idx)
+                        }
                     };
                     wm.move_to_monitor(hwnd, direction)?;
                 }
                 WindowAction::Move { x, y } => {
                     use crate::platform::windows::WindowFrame;
                     let info = wm.get_window_info(hwnd)?;
-                    let new_frame = WindowFrame::new(*x, *y, info.frame.width, info.frame.height);
+                    let new_frame =
+                        WindowFrame::new(*x, *y, info.frame.width, info.frame.height);
                     wm.set_window_frame(hwnd, &new_frame)?;
                 }
                 WindowAction::Resize { width, height } => {
                     use crate::platform::windows::WindowFrame;
                     let info = wm.get_window_info(hwnd)?;
-                    let new_frame = WindowFrame::new(info.frame.x, info.frame.y, *width, *height);
+                    let new_frame =
+                        WindowFrame::new(info.frame.x, info.frame.y, *width, *height);
                     wm.set_window_frame(hwnd, &new_frame)?;
                 }
                 WindowAction::Minimize => {
-                    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MINIMIZE};
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        ShowWindow, SW_MINIMIZE,
+                    };
                     ShowWindow(hwnd, SW_MINIMIZE).ok();
                 }
                 WindowAction::Maximize => {
-                    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MAXIMIZE};
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        ShowWindow, SW_MAXIMIZE,
+                    };
                     ShowWindow(hwnd, SW_MAXIMIZE).ok();
                 }
                 WindowAction::Restore => {
-                    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_RESTORE};
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        ShowWindow, SW_RESTORE,
+                    };
                     ShowWindow(hwnd, SW_RESTORE).ok();
                 }
                 WindowAction::Close => {
+                    use windows::Win32::Foundation::{LPARAM, WPARAM};
                     use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
-                    use windows::Win32::Foundation::{WPARAM, LPARAM};
                     use windows::Win32::UI::WindowsAndMessaging::WM_CLOSE;
                     PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
                 }
                 WindowAction::ToggleTopmost => {
                     use windows::Win32::UI::WindowsAndMessaging::{
-                        SetWindowPos, HWND_TOPMOST, HWND_NOTOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                        SetWindowPos, HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOMOVE,
+                        SWP_NOSIZE,
                     };
 
                     let info = wm.get_window_info(hwnd)?;
@@ -262,35 +290,48 @@ impl KeyMapper {
                         HWND_TOPMOST
                     };
 
-                    SetWindowPos(hwnd, hwnd_insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE)
-                        .ok();
+                    SetWindowPos(
+                        hwnd,
+                        hwnd_insert_after,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE,
+                    )
+                    .ok();
                 }
                 WindowAction::SetOpacity { opacity } => {
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        SetLayeredWindowAttributes, GetWindowLongW, SetWindowLongW,
-                        GWL_EXSTYLE, WS_EX_LAYERED, LWA_ALPHA,
-                    };
                     use windows::Win32::Foundation::COLORREF;
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        GetWindowLongW, SetLayeredWindowAttributes, SetWindowLongW,
+                        GWL_EXSTYLE, LWA_ALPHA, WS_EX_LAYERED,
+                    };
 
                     // 获取当前扩展样式
                     let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
 
                     // 添加 WS_EX_LAYERED 样式
                     if ex_style & WS_EX_LAYERED.0 as i32 == 0 {
-                        SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
+                        SetWindowLongW(
+                            hwnd,
+                            GWL_EXSTYLE,
+                            ex_style | WS_EX_LAYERED.0 as i32,
+                        );
                     }
 
                     // 设置透明度
-                    SetLayeredWindowAttributes(hwnd, COLORREF(0), *opacity, LWA_ALPHA).ok();
+                    SetLayeredWindowAttributes(hwnd, COLORREF(0), *opacity, LWA_ALPHA)
+                        .ok();
                 }
                 WindowAction::ShowDebugInfo => {
                     // 显示调试信息对话框
                     match wm.get_debug_info() {
                         Ok(info) => {
-                            use windows::Win32::UI::WindowsAndMessaging::{
-                                MessageBoxW, MB_OK, MB_ICONINFORMATION,
-                            };
                             use windows::core::HSTRING;
+                            use windows::Win32::UI::WindowsAndMessaging::{
+                                MessageBoxW, MB_ICONINFORMATION, MB_OK,
+                            };
 
                             let title = HSTRING::from("wakem - Debug Info");
                             let message = HSTRING::from(&info);
@@ -334,7 +375,12 @@ impl KeyMapper {
             }
 
             // 提取简单按键映射
-            if let Trigger::Key { scan_code, virtual_key, .. } = &rule.trigger {
+            if let Trigger::Key {
+                scan_code,
+                virtual_key,
+                ..
+            } = &rule.trigger
+            {
                 if let Some(sc) = scan_code {
                     self.mappings.insert(*sc, rule.action.clone());
                 } else if let Some(vk) = virtual_key {
@@ -348,10 +394,15 @@ impl KeyMapper {
     }
 
     /// 添加简单的键位重映射
-    pub fn add_simple_remap(&mut self, from_scan_code: u16, to_scan_code: u16, to_vk: u16) {
+    pub fn add_simple_remap(
+        &mut self,
+        from_scan_code: u16,
+        to_scan_code: u16,
+        to_vk: u16,
+    ) {
         let trigger = Trigger::key(from_scan_code, 0);
         let action = Action::key(KeyAction::click(to_scan_code, to_vk));
-        
+
         self.add_rule(MappingRule::new(trigger, action));
     }
 }
@@ -369,17 +420,20 @@ mod tests {
     #[test]
     fn test_key_mapper() {
         let mut mapper = KeyMapper::new();
-        
+
         // 添加 CapsLock -> Backspace 映射
         mapper.add_simple_remap(0x3A, 0x0E, 0x08);
-        
+
         // 测试按下 CapsLock
         let event = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         let result = mapper.process_event(&InputEvent::Key(event));
-        
+
         assert!(result.is_some());
         match result.unwrap() {
-            Action::Key(KeyAction::Press { scan_code, virtual_key }) => {
+            Action::Key(KeyAction::Press {
+                scan_code,
+                virtual_key,
+            }) => {
                 assert_eq!(scan_code, 0x0E);
                 assert_eq!(virtual_key, 0x08);
             }
@@ -392,10 +446,10 @@ mod tests {
         let mut mapper = KeyMapper::new();
         mapper.add_simple_remap(0x3A, 0x0E, 0x08);
         mapper.set_enabled(false);
-        
+
         let event = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         let result = mapper.process_event(&InputEvent::Key(event));
-        
+
         assert!(result.is_none());
     }
 }

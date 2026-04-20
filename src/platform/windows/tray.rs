@@ -1,15 +1,16 @@
 use anyhow::Result;
 use tracing::{debug, error};
-use windows::core::{w, PCWSTR, HSTRING};
-use windows::Win32::Foundation::{HWND, POINT, HINSTANCE};
+use windows::core::{w, HSTRING, PCWSTR};
+use windows::Win32::Foundation::{HINSTANCE, HWND, POINT};
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
     NIM_MODIFY, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, LoadImageW, SetForegroundWindow,
-    TrackPopupMenu, HMENU, IDI_APPLICATION, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN,
-    TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP, IMAGE_ICON, LR_LOADFROMFILE, LR_DEFAULTSIZE,
+    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, LoadImageW,
+    SetForegroundWindow, TrackPopupMenu, HMENU, IDI_APPLICATION, IMAGE_ICON,
+    LR_DEFAULTSIZE, LR_LOADFROMFILE, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN,
+    TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP,
 };
 
 /// 菜单项 ID
@@ -59,7 +60,9 @@ impl TrayIcon {
     }
 
     /// 从文件加载图标
-    fn load_icon_from_file(path: &str) -> anyhow::Result<windows::Win32::UI::WindowsAndMessaging::HICON> {
+    fn load_icon_from_file(
+        path: &str,
+    ) -> anyhow::Result<windows::Win32::UI::WindowsAndMessaging::HICON> {
         let path_wide = HSTRING::from(path);
 
         unsafe {
@@ -91,7 +94,10 @@ impl TrayIcon {
                     icon
                 }
                 Err(e) => {
-                    debug!("Failed to load custom icon from '{}': {}, using default", path, e);
+                    debug!(
+                        "Failed to load custom icon from '{}': {}, using default",
+                        path, e
+                    );
                     unsafe { LoadIconW(None, IDI_APPLICATION)? }
                 }
             }
@@ -163,9 +169,9 @@ impl TrayIcon {
     /// 显示右键菜单
     pub fn show_menu(&self) -> Result<u32> {
         unsafe {
-            SetForegroundWindow(self.hwnd)
-                .ok()
-                .map_err(|e| anyhow::anyhow!("Failed to set foreground window: {}", e))?;
+            SetForegroundWindow(self.hwnd).ok().map_err(|e| {
+                anyhow::anyhow!("Failed to set foreground window: {}", e)
+            })?;
 
             let mut cursor = POINT::default();
             if GetCursorPos(&mut cursor).is_err() {
@@ -209,7 +215,9 @@ impl TrayIcon {
             } else {
                 w!("启用 (&E)")
             };
-            if AppendMenuW(hmenu, MF_STRING, IDM_TOGGLE_ACTIVE as usize, active_text).is_err() {
+            if AppendMenuW(hmenu, MF_STRING, IDM_TOGGLE_ACTIVE as usize, active_text)
+                .is_err()
+            {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 
@@ -224,7 +232,9 @@ impl TrayIcon {
                 MF_STRING,
                 IDM_RELOAD as usize,
                 w!("重新加载配置 (&R)"),
-            ).is_err() {
+            )
+            .is_err()
+            {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 
@@ -234,7 +244,9 @@ impl TrayIcon {
                 MF_STRING,
                 IDM_OPEN_CONFIG as usize,
                 w!("打开配置文件夹 (&O)"),
-            ).is_err() {
+            )
+            .is_err()
+            {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 
@@ -244,7 +256,8 @@ impl TrayIcon {
             }
 
             // 退出
-            if AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("退出 (&X)")).is_err() {
+            if AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("退出 (&X)")).is_err()
+            {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 

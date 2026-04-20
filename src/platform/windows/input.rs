@@ -1,21 +1,24 @@
+use crate::types::{
+    InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
+    MouseEventType,
+};
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use tracing::{debug, trace};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::UI::Input::{RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, MSG, RegisterClassW,
-    SetWindowLongPtrW, GetWindowLongPtrW, GWLP_USERDATA,
-    WM_CREATE, WM_DESTROY, WM_INPUT, WM_QUIT,
-    WNDCLASSW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, WS_EX_NOACTIVATE,
-    WS_OVERLAPPEDWINDOW,
+use windows::Win32::UI::Input::{
+    GetRawInputData, RegisterRawInputDevices, RIDEV_INPUTSINK, RIDEV_NOLEGACY,
 };
 use windows::Win32::UI::Input::{
-    RegisterRawInputDevices, GetRawInputData,
-    RIDEV_INPUTSINK, RIDEV_NOLEGACY,
+    RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
-use crate::types::{InputEvent, KeyEvent, KeyState, MouseEvent, MouseEventType, MouseButton, ModifierState};
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, GetWindowLongPtrW,
+    RegisterClassW, SetWindowLongPtrW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
+    GWLP_USERDATA, MSG, WM_CREATE, WM_DESTROY, WM_INPUT, WM_QUIT, WNDCLASSW,
+    WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
+};
 
 thread_local! {
     static CURRENT_SENDER: RefCell<Option<Sender<InputEvent>>> = RefCell::new(None);
@@ -38,10 +41,10 @@ impl RawInputDevice {
         });
 
         let hwnd = Self::create_message_window()?;
-        
+
         // 注册 Raw Input 设备
         Self::register_devices(hwnd)?;
-        
+
         Ok(Self {
             hwnd,
             event_sender,
@@ -54,8 +57,9 @@ impl RawInputDevice {
     fn create_message_window() -> Result<HWND> {
         unsafe {
             let class_name = windows::core::w!("WakemRawInputWindow");
-            let hinstance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?;
-            
+            let hinstance =
+                windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?;
+
             let wnd_class = WNDCLASSW {
                 lpfnWndProc: Some(Self::window_proc),
                 hInstance: hinstance.into(),
@@ -94,21 +98,24 @@ impl RawInputDevice {
     fn register_devices(hwnd: HWND) -> Result<()> {
         let devices = [
             RAWINPUTDEVICE {
-                usUsagePage: 0x01,      // Generic Desktop
-                usUsage: 0x06,          // Keyboard
+                usUsagePage: 0x01, // Generic Desktop
+                usUsage: 0x06,     // Keyboard
                 dwFlags: RIDEV_INPUTSINK | RIDEV_NOLEGACY,
                 hwndTarget: hwnd,
             },
             RAWINPUTDEVICE {
-                usUsagePage: 0x01,      // Generic Desktop
-                usUsage: 0x02,          // Mouse
+                usUsagePage: 0x01, // Generic Desktop
+                usUsage: 0x02,     // Mouse
                 dwFlags: RIDEV_INPUTSINK | RIDEV_NOLEGACY,
                 hwndTarget: hwnd,
             },
         ];
 
         unsafe {
-            RegisterRawInputDevices(&devices, std::mem::size_of::<RAWINPUTDEVICE>() as u32)?;
+            RegisterRawInputDevices(
+                &devices,
+                std::mem::size_of::<RAWINPUTDEVICE>() as u32,
+            )?;
         }
 
         debug!("Raw Input devices registered successfully");
@@ -119,15 +126,15 @@ impl RawInputDevice {
     pub fn run(&mut self) -> Result<()> {
         debug!("Starting Raw Input message loop");
         self.running = true;
-        
+
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
-            
+
             while self.running && GetMessageW(&mut msg, None, 0, 0).into() {
                 DispatchMessageW(&msg);
             }
         }
-        
+
         debug!("Raw Input message loop ended");
         Ok(())
     }
@@ -175,7 +182,8 @@ impl RawInputDevice {
         let mut raw_data: [u8; 1024] = [0; 1024];
         let mut size: u32 = 1024;
 
-        let hrawinput: windows::Win32::UI::Input::HRAWINPUT = std::mem::transmute(lparam.0);
+        let hrawinput: windows::Win32::UI::Input::HRAWINPUT =
+            std::mem::transmute(lparam.0);
         let result = GetRawInputData(
             hrawinput,
             RID_INPUT,
@@ -189,12 +197,12 @@ impl RawInputDevice {
         }
 
         let raw = &*(raw_data.as_ptr() as *const RAWINPUT);
-        
+
         let device_type = raw.header.dwType;
-        
+
         if device_type == RIM_TYPEKEYBOARD.0 {
             let keyboard = &raw.data.keyboard;
-            
+
             // 忽略重复按键和虚拟按键
             if keyboard.Flags & 0x01 != 0 {
                 // 这是虚拟按键，忽略
@@ -215,10 +223,12 @@ impl RawInputDevice {
             };
 
             let event = KeyEvent::new(scan_code, keyboard.VKey, state);
-            
+
             trace!(
                 "Keyboard: scan_code={:04X}, vk={:04X}, state={:?}",
-                scan_code, keyboard.VKey, state
+                scan_code,
+                keyboard.VKey,
+                state
             );
 
             // 发送事件
@@ -230,19 +240,29 @@ impl RawInputDevice {
         } else if device_type == RIM_TYPEMOUSE.0 {
             let mouse = &raw.data.mouse;
             let mouse_inner = mouse.Anonymous.Anonymous;
-            
+
             // 处理鼠标事件
             if mouse_inner.usButtonFlags != 0 {
                 // 按钮事件
-                let button = if mouse_inner.usButtonFlags & 0x0001 != 0 || mouse_inner.usButtonFlags & 0x0002 != 0 {
+                let button = if mouse_inner.usButtonFlags & 0x0001 != 0
+                    || mouse_inner.usButtonFlags & 0x0002 != 0
+                {
                     Some(MouseButton::Left)
-                } else if mouse_inner.usButtonFlags & 0x0004 != 0 || mouse_inner.usButtonFlags & 0x0008 != 0 {
+                } else if mouse_inner.usButtonFlags & 0x0004 != 0
+                    || mouse_inner.usButtonFlags & 0x0008 != 0
+                {
                     Some(MouseButton::Right)
-                } else if mouse_inner.usButtonFlags & 0x0010 != 0 || mouse_inner.usButtonFlags & 0x0020 != 0 {
+                } else if mouse_inner.usButtonFlags & 0x0010 != 0
+                    || mouse_inner.usButtonFlags & 0x0020 != 0
+                {
                     Some(MouseButton::Middle)
-                } else if mouse_inner.usButtonFlags & 0x0040 != 0 || mouse_inner.usButtonFlags & 0x0080 != 0 {
+                } else if mouse_inner.usButtonFlags & 0x0040 != 0
+                    || mouse_inner.usButtonFlags & 0x0080 != 0
+                {
                     Some(MouseButton::X1)
-                } else if mouse_inner.usButtonFlags & 0x0100 != 0 || mouse_inner.usButtonFlags & 0x0200 != 0 {
+                } else if mouse_inner.usButtonFlags & 0x0100 != 0
+                    || mouse_inner.usButtonFlags & 0x0200 != 0
+                {
                     Some(MouseButton::X2)
                 } else {
                     None
@@ -262,10 +282,13 @@ impl RawInputDevice {
                     };
 
                     let event = MouseEvent::new(event_type, mouse.lLastX, mouse.lLastY);
-                    
+
                     trace!(
                         "Mouse button: {:?}, down={}, x={}, y={}",
-                        btn, is_down, mouse.lLastX, mouse.lLastY
+                        btn,
+                        is_down,
+                        mouse.lLastX,
+                        mouse.lLastY
                     );
 
                     // 发送事件
@@ -285,9 +308,9 @@ impl RawInputDevice {
                     mouse.lLastX,
                     mouse.lLastY,
                 );
-                
+
                 trace!("Mouse wheel: delta={}", delta);
-                
+
                 // 发送事件
                 CURRENT_SENDER.with(|s| {
                     if let Some(ref sender) = *s.borrow() {
@@ -300,7 +323,9 @@ impl RawInputDevice {
 
     /// 更新修饰键状态
     fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
-        if let Some((modifier, _)) = ModifierState::from_virtual_key(virtual_key, pressed) {
+        if let Some((modifier, _)) =
+            ModifierState::from_virtual_key(virtual_key, pressed)
+        {
             self.modifier_state.merge(&modifier);
         }
     }

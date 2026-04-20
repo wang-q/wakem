@@ -12,4 +12,6 @@ pub use input::RawInputDevice;
 pub use launcher::Launcher;
 pub use output::OutputDevice;
 pub use tray::TrayIcon;
-pub use window_manager::{WindowManager, WindowFrame, MonitorInfo, MonitorDirection, Edge, Alignment};
+pub use window_manager::{
+    Alignment, Edge, MonitorDirection, MonitorInfo, WindowFrame, WindowManager,
+};

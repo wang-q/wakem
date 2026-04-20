@@ -2,7 +2,7 @@ use anyhow::Result;
 use tracing::debug;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowTextW, GetClassNameW, GetWindowThreadProcessId,
+    GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
 };
 
 /// 窗口上下文信息
@@ -36,7 +36,8 @@ impl WindowContext {
             let mut class_name = [0u16; 256];
             let len = GetClassNameW(hwnd, &mut class_name);
             if len > 0 {
-                context.window_class = String::from_utf16_lossy(&class_name[..len as usize]);
+                context.window_class =
+                    String::from_utf16_lossy(&class_name[..len as usize]);
             }
 
             // 获取窗口标题
@@ -64,25 +65,30 @@ impl WindowContext {
     }
 
     /// 检查是否匹配给定的上下文条件
-    pub fn matches(&self, window_class: Option<&str>, process_name: Option<&str>, window_title: Option<&str>) -> bool {
+    pub fn matches(
+        &self,
+        window_class: Option<&str>,
+        process_name: Option<&str>,
+        window_title: Option<&str>,
+    ) -> bool {
         if let Some(pattern) = window_class {
             if !wildcard_match(&self.window_class, pattern) {
                 return false;
             }
         }
-        
+
         if let Some(pattern) = process_name {
             if !wildcard_match(&self.process_name, pattern) {
                 return false;
             }
         }
-        
+
         if let Some(pattern) = window_title {
             if !wildcard_match(&self.window_title, pattern) {
                 return false;
             }
         }
-        
+
         true
     }
 }
@@ -92,7 +98,7 @@ fn wildcard_match(text: &str, pattern: &str) -> bool {
     if pattern == "*" || pattern.is_empty() {
         return true;
     }
-    
+
     // 简单的包含匹配
     text.to_lowercase().contains(&pattern.to_lowercase())
 }

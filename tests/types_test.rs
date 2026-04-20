@@ -7,9 +7,13 @@ use wakem::types::*;
 #[test]
 fn test_key_trigger_creation() {
     let trigger = Trigger::key(0x3A, 0x14); // CapsLock
-    
+
     match trigger {
-        Trigger::Key { scan_code, virtual_key, modifiers } => {
+        Trigger::Key {
+            scan_code,
+            virtual_key,
+            modifiers,
+        } => {
             assert_eq!(scan_code, Some(0x3A));
             assert_eq!(virtual_key, Some(0x14));
             assert!(modifiers.is_empty());
@@ -24,11 +28,15 @@ fn test_key_trigger_with_modifiers() {
     let mut modifiers = ModifierState::new();
     modifiers.ctrl = true;
     modifiers.shift = true;
-    
+
     let trigger = Trigger::key_with_modifiers(0x1E, 0x41, modifiers);
-    
+
     match trigger {
-        Trigger::Key { scan_code, virtual_key, modifiers } => {
+        Trigger::Key {
+            scan_code,
+            virtual_key,
+            modifiers,
+        } => {
             assert_eq!(scan_code, Some(0x1E));
             assert_eq!(virtual_key, Some(0x41));
             assert!(modifiers.ctrl);
@@ -44,10 +52,10 @@ fn test_key_trigger_with_modifiers() {
 #[test]
 fn test_trigger_matching() {
     let trigger = Trigger::key(0x3A, 0x14);
-    
+
     let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
     assert!(trigger.matches(&event));
-    
+
     // 不匹配的扫描码
     let wrong_event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
     assert!(!trigger.matches(&wrong_event));
@@ -58,9 +66,9 @@ fn test_trigger_matching() {
 fn test_mapping_rule_creation() {
     let trigger = Trigger::key(0x3A, 0x14);
     let action = Action::key(KeyAction::click(0x0E, 0x08));
-    
+
     let rule = MappingRule::new(trigger, action);
-    
+
     assert!(rule.enabled);
     assert!(rule.name.is_none());
     assert!(rule.context.is_none());
@@ -71,10 +79,9 @@ fn test_mapping_rule_creation() {
 fn test_mapping_rule_with_name() {
     let trigger = Trigger::key(0x3A, 0x14);
     let action = Action::key(KeyAction::click(0x0E, 0x08));
-    
-    let rule = MappingRule::new(trigger, action)
-        .with_name("caps_to_backspace");
-    
+
+    let rule = MappingRule::new(trigger, action).with_name("caps_to_backspace");
+
     assert_eq!(rule.name, Some("caps_to_backspace".to_string()));
 }
 
@@ -83,13 +90,11 @@ fn test_mapping_rule_with_name() {
 fn test_mapping_rule_with_context() {
     let trigger = Trigger::key(0x3A, 0x14);
     let action = Action::key(KeyAction::click(0x0E, 0x08));
-    
-    let context = ContextCondition::new()
-        .with_process_name("notepad.exe");
-    
-    let rule = MappingRule::new(trigger, action)
-        .with_context(context);
-    
+
+    let context = ContextCondition::new().with_process_name("notepad.exe");
+
+    let rule = MappingRule::new(trigger, action).with_context(context);
+
     assert!(rule.context.is_some());
 }
 
@@ -98,12 +103,12 @@ fn test_mapping_rule_with_context() {
 fn test_mapping_rule_matching() {
     let trigger = Trigger::key(0x3A, 0x14);
     let action = Action::key(KeyAction::click(0x0E, 0x08));
-    
+
     let rule = MappingRule::new(trigger, action);
-    
+
     let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
     let context = ContextInfo::default();
-    
+
     assert!(rule.matches(&event, &context));
 }
 
@@ -112,22 +117,21 @@ fn test_mapping_rule_matching() {
 fn test_disabled_rule_not_matching() {
     let trigger = Trigger::key(0x3A, 0x14);
     let action = Action::key(KeyAction::click(0x0E, 0x08));
-    
+
     let mut rule = MappingRule::new(trigger, action);
     rule.enabled = false;
-    
+
     let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
     let context = ContextInfo::default();
-    
+
     assert!(!rule.matches(&event, &context));
 }
 
 /// 测试上下文条件匹配
 #[test]
 fn test_context_condition_matching() {
-    let context = ContextCondition::new()
-        .with_process_name("notepad.exe");
-    
+    let context = ContextCondition::new().with_process_name("notepad.exe");
+
     let matching_info = ContextInfo {
         window_class: "Notepad".to_string(),
         process_name: "notepad.exe".to_string(),
@@ -135,7 +139,7 @@ fn test_context_condition_matching() {
         window_title: "Untitled".to_string(),
         window_handle: 0,
     };
-    
+
     let non_matching_info = ContextInfo {
         window_class: "Chrome".to_string(),
         process_name: "chrome.exe".to_string(),
@@ -143,7 +147,7 @@ fn test_context_condition_matching() {
         window_title: "Google".to_string(),
         window_handle: 0,
     };
-    
+
     assert!(context.matches(&matching_info));
     assert!(!context.matches(&non_matching_info));
 }
@@ -163,7 +167,10 @@ fn test_window_action_variants() {
         WindowAction::LoopWidth(Alignment::Right),
         WindowAction::LoopHeight(Alignment::Top),
         WindowAction::LoopHeight(Alignment::Bottom),
-        WindowAction::FixedRatio { ratio: 1.333, scale_index: 0 },
+        WindowAction::FixedRatio {
+            ratio: 1.333,
+            scale_index: 0,
+        },
         WindowAction::NativeRatio { scale_index: 0 },
         WindowAction::MoveToMonitor(MonitorDirection::Next),
         WindowAction::MoveToMonitor(MonitorDirection::Prev),
@@ -175,12 +182,12 @@ fn test_window_action_variants() {
         WindowAction::ToggleTopmost,
         WindowAction::SwitchToNextWindow,
         WindowAction::ShowDebugInfo,
-        WindowAction::ShowNotification { 
-            title: "Test".to_string(), 
-            message: "Hello".to_string() 
+        WindowAction::ShowNotification {
+            title: "Test".to_string(),
+            message: "Hello".to_string(),
         },
     ];
-    
+
     assert_eq!(actions.len(), 24);
 }
 
@@ -188,18 +195,34 @@ fn test_window_action_variants() {
 #[test]
 fn test_mouse_actions() {
     let actions = vec![
-        MouseAction::Move { x: 100, y: 100, relative: true },
-        MouseAction::Move { x: 500, y: 300, relative: false },
-        MouseAction::ButtonClick { button: MouseButton::Left },
-        MouseAction::ButtonClick { button: MouseButton::Right },
-        MouseAction::ButtonDown { button: MouseButton::Left },
-        MouseAction::ButtonUp { button: MouseButton::Left },
+        MouseAction::Move {
+            x: 100,
+            y: 100,
+            relative: true,
+        },
+        MouseAction::Move {
+            x: 500,
+            y: 300,
+            relative: false,
+        },
+        MouseAction::ButtonClick {
+            button: MouseButton::Left,
+        },
+        MouseAction::ButtonClick {
+            button: MouseButton::Right,
+        },
+        MouseAction::ButtonDown {
+            button: MouseButton::Left,
+        },
+        MouseAction::ButtonUp {
+            button: MouseButton::Left,
+        },
         MouseAction::Wheel { delta: 120 },
         MouseAction::Wheel { delta: -120 },
         MouseAction::HWheel { delta: 120 },
         MouseAction::HWheel { delta: -120 },
     ];
-    
+
     for action in actions {
         let wrapped = Action::mouse(action);
         assert!(matches!(wrapped, Action::Mouse(_)));
@@ -211,7 +234,10 @@ fn test_mouse_actions() {
 fn test_key_actions() {
     let click = KeyAction::click(0x1E, 0x41);
     match click {
-        KeyAction::Click { scan_code, virtual_key } => {
+        KeyAction::Click {
+            scan_code,
+            virtual_key,
+        } => {
             assert_eq!(scan_code, 0x1E);
             assert_eq!(virtual_key, 0x41);
         }
@@ -224,14 +250,14 @@ fn test_key_actions() {
 fn test_modifier_state() {
     let empty = ModifierState::new();
     assert!(empty.is_empty());
-    
+
     let mut full = ModifierState::new();
     full.ctrl = true;
     full.shift = true;
     full.alt = true;
     full.meta = true;
     assert!(!full.is_empty());
-    
+
     let mut partial = ModifierState::new();
     partial.ctrl = true;
     assert!(!partial.is_empty());
@@ -242,7 +268,7 @@ fn test_modifier_state() {
 fn test_input_event_creation() {
     let key_event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
     let input_event = InputEvent::Key(key_event);
-    
+
     match input_event {
         InputEvent::Key(e) => {
             assert_eq!(e.scan_code, 0x1E);
@@ -258,10 +284,13 @@ fn test_input_event_creation() {
 fn test_mouse_event() {
     let event = MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Left), 100, 200);
     let input_event = InputEvent::Mouse(event);
-    
+
     match input_event {
         InputEvent::Mouse(e) => {
-            assert!(matches!(e.event_type, MouseEventType::ButtonDown(MouseButton::Left)));
+            assert!(matches!(
+                e.event_type,
+                MouseEventType::ButtonDown(MouseButton::Left)
+            ));
             assert_eq!(e.x, 100);
             assert_eq!(e.y, 200);
         }
@@ -282,10 +311,12 @@ fn test_trigger_variants() {
             button: MouseButton::Right,
             direction: GestureDirection::Down,
         },
-        Trigger::HotString { trigger: ".date".to_string() },
+        Trigger::HotString {
+            trigger: ".date".to_string(),
+        },
         Trigger::Always,
     ];
-    
+
     assert_eq!(triggers.len(), 5);
 }
 
@@ -297,7 +328,7 @@ fn test_action_sequence() {
         Action::key(KeyAction::click(0x30, 0x42)),
         Action::window(WindowAction::Center),
     ]);
-    
+
     assert!(matches!(sequence, Action::Sequence(_)));
 }
 
@@ -305,7 +336,7 @@ fn test_action_sequence() {
 #[test]
 fn test_launch_action() {
     let action = Action::launch("notepad.exe");
-    
+
     assert!(matches!(action, Action::Launch(_)));
 }
 
@@ -317,7 +348,7 @@ fn test_wildcard_matching() {
     let cond = ContextCondition::new()
         .with_window_class("Chrome*")
         .with_process_name("chrome.exe");
-    
+
     let info = ContextInfo {
         window_class: "Chrome_WidgetWin_1".to_string(),
         process_name: "chrome.exe".to_string(),
@@ -325,7 +356,7 @@ fn test_wildcard_matching() {
         window_title: "".to_string(),
         window_handle: 0,
     };
-    
+
     // 简化匹配可能不完美，但至少不会 panic
     let _result = cond.matches(&info);
 }

@@ -62,7 +62,11 @@ impl KeyAction {
     }
 
     /// 创建组合键动作
-    pub fn combo(modifiers: super::ModifierState, scan_code: u16, virtual_key: u16) -> Self {
+    pub fn combo(
+        modifiers: super::ModifierState,
+        scan_code: u16,
+        virtual_key: u16,
+    ) -> Self {
         Self::Combo {
             modifiers,
             key: (scan_code, virtual_key),

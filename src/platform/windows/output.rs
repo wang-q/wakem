@@ -1,13 +1,13 @@
+use crate::types::{KeyAction, MouseAction, MouseButton};
 use anyhow::Result;
 use tracing::trace;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYEVENTF_EXTENDEDKEY,
     KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_HWHEEL,
-    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
-    MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL,
-    MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
+    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
+    MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
 };
-use crate::types::{KeyAction, MouseAction, MouseButton};
 
 /// 输出设备（用于发送模拟输入）
 pub struct OutputDevice;
@@ -21,13 +21,22 @@ impl OutputDevice {
     /// 发送按键动作
     pub fn send_key_action(&self, action: &KeyAction) -> Result<()> {
         match action {
-            KeyAction::Press { scan_code, virtual_key } => {
+            KeyAction::Press {
+                scan_code,
+                virtual_key,
+            } => {
                 self.send_key(*scan_code, *virtual_key, false)?;
             }
-            KeyAction::Release { scan_code, virtual_key } => {
+            KeyAction::Release {
+                scan_code,
+                virtual_key,
+            } => {
                 self.send_key(*scan_code, *virtual_key, true)?;
             }
-            KeyAction::Click { scan_code, virtual_key } => {
+            KeyAction::Click {
+                scan_code,
+                virtual_key,
+            } => {
                 self.send_key(*scan_code, *virtual_key, false)?;
                 self.send_key(*scan_code, *virtual_key, true)?;
             }
@@ -52,7 +61,7 @@ impl OutputDevice {
         unsafe {
             input.Anonymous.ki.wScan = scan_code;
             input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
-            
+
             if release {
                 input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
             }
@@ -67,14 +76,16 @@ impl OutputDevice {
         }
 
         let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
-        
+
         if result == 0 {
             return Err(anyhow::anyhow!("SendInput failed"));
         }
 
         trace!(
             "Sent key: scan_code={:04X}, vk={:04X}, release={}",
-            scan_code, virtual_key, release
+            scan_code,
+            virtual_key,
+            release
         );
 
         Ok(())
@@ -116,7 +127,7 @@ impl OutputDevice {
 
         // 按下目标键
         self.send_key(scan_code, virtual_key, false)?;
-        
+
         // 释放目标键
         self.send_key(scan_code, virtual_key, true)?;
 
@@ -175,7 +186,7 @@ impl OutputDevice {
             input.Anonymous.mi.dx = x;
             input.Anonymous.mi.dy = y;
             input.Anonymous.mi.dwFlags = MOUSEEVENTF_MOVE;
-            
+
             if !relative {
                 // 绝对坐标（需要归一化到 0-65535）
                 input.Anonymous.mi.dwFlags |= MOUSEEVENTF_ABSOLUTE;
@@ -183,7 +194,7 @@ impl OutputDevice {
         }
 
         let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
-        
+
         if result == 0 {
             return Err(anyhow::anyhow!("SendInput failed"));
         }
@@ -203,27 +214,47 @@ impl OutputDevice {
         unsafe {
             input.Anonymous.mi.dwFlags = match button {
                 MouseButton::Left => {
-                    if release { MOUSEEVENTF_LEFTUP } else { MOUSEEVENTF_LEFTDOWN }
+                    if release {
+                        MOUSEEVENTF_LEFTUP
+                    } else {
+                        MOUSEEVENTF_LEFTDOWN
+                    }
                 }
                 MouseButton::Right => {
-                    if release { MOUSEEVENTF_RIGHTUP } else { MOUSEEVENTF_RIGHTDOWN }
+                    if release {
+                        MOUSEEVENTF_RIGHTUP
+                    } else {
+                        MOUSEEVENTF_RIGHTDOWN
+                    }
                 }
                 MouseButton::Middle => {
-                    if release { MOUSEEVENTF_MIDDLEUP } else { MOUSEEVENTF_MIDDLEDOWN }
+                    if release {
+                        MOUSEEVENTF_MIDDLEUP
+                    } else {
+                        MOUSEEVENTF_MIDDLEDOWN
+                    }
                 }
                 MouseButton::X1 => {
                     input.Anonymous.mi.mouseData = 0x0001;
-                    if release { MOUSEEVENTF_XUP } else { MOUSEEVENTF_XDOWN }
+                    if release {
+                        MOUSEEVENTF_XUP
+                    } else {
+                        MOUSEEVENTF_XDOWN
+                    }
                 }
                 MouseButton::X2 => {
                     input.Anonymous.mi.mouseData = 0x0002;
-                    if release { MOUSEEVENTF_XUP } else { MOUSEEVENTF_XDOWN }
+                    if release {
+                        MOUSEEVENTF_XUP
+                    } else {
+                        MOUSEEVENTF_XDOWN
+                    }
                 }
             };
         }
 
         let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
-        
+
         if result == 0 {
             return Err(anyhow::anyhow!("SendInput failed"));
         }
@@ -242,16 +273,24 @@ impl OutputDevice {
 
         unsafe {
             input.Anonymous.mi.mouseData = (delta * 120) as u32; // WHEEL_DELTA = 120
-            input.Anonymous.mi.dwFlags = if horizontal { MOUSEEVENTF_HWHEEL } else { MOUSEEVENTF_WHEEL };
+            input.Anonymous.mi.dwFlags = if horizontal {
+                MOUSEEVENTF_HWHEEL
+            } else {
+                MOUSEEVENTF_WHEEL
+            };
         }
 
         let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
-        
+
         if result == 0 {
             return Err(anyhow::anyhow!("SendInput failed"));
         }
 
-        trace!("Sent mouse wheel: delta={}, horizontal={}", delta, horizontal);
+        trace!(
+            "Sent mouse wheel: delta={}, horizontal={}",
+            delta,
+            horizontal
+        );
 
         Ok(())
     }

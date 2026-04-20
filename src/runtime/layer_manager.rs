@@ -1,6 +1,9 @@
+use crate::types::{
+    Action, InputEvent, KeyAction, KeyEvent, KeyState, Layer, LayerMode, LayerStack,
+    MappingRule, Trigger,
+};
 use std::collections::HashMap;
 use tracing::{debug, trace};
-use crate::types::{Layer, LayerMode, LayerStack, MappingRule, Trigger, Action, KeyAction, InputEvent, KeyEvent, KeyState};
 
 /// 层管理器
 pub struct LayerManager {
@@ -37,9 +40,7 @@ impl LayerManager {
     /// 返回 (是否处理了事件, 可选的动作)
     pub fn process_event(&mut self, event: &InputEvent) -> (bool, Option<Action>) {
         match event {
-            InputEvent::Key(key_event) => {
-                self.process_key_event(key_event)
-            }
+            InputEvent::Key(key_event) => self.process_key_event(key_event),
             _ => (false, None),
         }
     }
@@ -54,7 +55,8 @@ impl LayerManager {
                         match event.state {
                             KeyState::Pressed => {
                                 trace!("Activating layer (Hold): {}", layer.name);
-                                let layer = self.layers.get(&layer.name).cloned().unwrap();
+                                let layer =
+                                    self.layers.get(&layer.name).cloned().unwrap();
                                 self.stack.hold_layer(&layer.name);
                                 self.stack.activate_layer(layer);
                             }
@@ -94,7 +96,8 @@ impl LayerManager {
 
     /// 获取当前激活的层列表
     pub fn get_active_layers(&self) -> Vec<String> {
-        self.stack.get_active_layers()
+        self.stack
+            .get_active_layers()
             .iter()
             .map(|l| l.name.clone())
             .collect()
@@ -125,7 +128,7 @@ impl LayerManager {
         for (from, to) in mappings {
             let from_key = parse_key(from)?;
             let to_key = parse_key(to)?;
-            
+
             layer.add_mapping(
                 Trigger::key(from_key.0, from_key.1),
                 Action::key(KeyAction::click(to_key.0, to_key.1)),
@@ -149,23 +152,24 @@ mod tests {
     #[test]
     fn test_layer_manager_hold() {
         let mut manager = LayerManager::new();
-        
+
         // 创建导航层
         let layer = LayerManager::create_layer_from_config(
             "navigate",
             "CapsLock",
             LayerMode::Hold,
             &[("H".to_string(), "Left".to_string())],
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         manager.register_layer(layer);
-        
+
         // 模拟按下 CapsLock
         let press = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         let (handled, _) = manager.process_event(&InputEvent::Key(press));
         assert!(handled);
         assert!(manager.is_layer_active("navigate"));
-        
+
         // 模拟释放 CapsLock
         let release = KeyEvent::new(0x3A, 0x14, KeyState::Released);
         let (handled, _) = manager.process_event(&InputEvent::Key(release));
@@ -176,21 +180,22 @@ mod tests {
     #[test]
     fn test_layer_mapping() {
         let mut manager = LayerManager::new();
-        
+
         // 创建导航层
         let layer = LayerManager::create_layer_from_config(
             "navigate",
             "CapsLock",
             LayerMode::Hold,
             &[("H".to_string(), "Left".to_string())],
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         manager.register_layer(layer);
-        
+
         // 先激活层
         let caps_press = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         manager.process_event(&InputEvent::Key(caps_press));
-        
+
         // 模拟按下 H，应该映射为 Left
         let h_press = KeyEvent::new(0x23, 0x48, KeyState::Pressed);
         let (handled, action) = manager.process_event(&InputEvent::Key(h_press));

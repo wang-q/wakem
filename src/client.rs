@@ -20,7 +20,7 @@ impl DaemonClient {
     /// 连接到服务端
     pub async fn connect(&mut self) -> Result<()> {
         debug!("Connecting to daemon...");
-        
+
         // 尝试连接，带超时
         match timeout(Duration::from_secs(5), self.ipc.connect()).await {
             Ok(result) => {
@@ -28,9 +28,7 @@ impl DaemonClient {
                 info!("Connected to daemon");
                 Ok(())
             }
-            Err(_) => {
-                Err(anyhow::anyhow!("Connection timeout"))
-            }
+            Err(_) => Err(anyhow::anyhow!("Connection timeout")),
         }
     }
 
@@ -42,11 +40,12 @@ impl DaemonClient {
     /// 获取服务端状态
     pub async fn get_status(&mut self) -> Result<(bool, bool)> {
         let response = self.send_receive(&Message::GetStatus).await?;
-        
+
         match response {
-            Message::StatusResponse { active, config_loaded } => {
-                Ok((active, config_loaded))
-            }
+            Message::StatusResponse {
+                active,
+                config_loaded,
+            } => Ok((active, config_loaded)),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -54,10 +53,12 @@ impl DaemonClient {
     /// 设置启用状态
     pub async fn set_active(&mut self, active: bool) -> Result<()> {
         let response = self.send_receive(&Message::SetActive { active }).await?;
-        
+
         match response {
             Message::StatusResponse { .. } => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("Server error: {}", message)),
+            Message::Error { message } => {
+                Err(anyhow::anyhow!("Server error: {}", message))
+            }
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -65,7 +66,7 @@ impl DaemonClient {
     /// 重新加载配置
     pub async fn reload_config(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::ReloadConfig).await?;
-        
+
         match response {
             Message::ConfigLoaded => {
                 info!("Configuration reloaded");

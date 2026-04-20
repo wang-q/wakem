@@ -46,9 +46,9 @@ impl ModifierState {
         let mut state = Self::new();
         match key {
             0x10 | 0xA0 | 0xA1 => state.shift = pressed, // VK_SHIFT, VK_LSHIFT, VK_RSHIFT
-            0x11 | 0xA2 | 0xA3 => state.ctrl = pressed,  // VK_CONTROL, VK_LCONTROL, VK_RCONTROL
-            0x12 | 0xA4 | 0xA5 => state.alt = pressed,   // VK_MENU, VK_LMENU, VK_RMENU
-            0x5B | 0x5C => state.meta = pressed,         // VK_LWIN, VK_RWIN
+            0x11 | 0xA2 | 0xA3 => state.ctrl = pressed, // VK_CONTROL, VK_LCONTROL, VK_RCONTROL
+            0x12 | 0xA4 | 0xA5 => state.alt = pressed,  // VK_MENU, VK_LMENU, VK_RMENU
+            0x5B | 0x5C => state.meta = pressed,        // VK_LWIN, VK_RWIN
             _ => return None,
         }
         Some((state, pressed))

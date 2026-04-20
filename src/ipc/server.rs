@@ -1,4 +1,4 @@
-use super::{Message, Result, IpcError, DEFAULT_PIPE_NAME};
+use super::{IpcError, Message, Result, DEFAULT_PIPE_NAME};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use tokio::sync::mpsc;
@@ -75,7 +75,9 @@ impl ClientConnection {
             // 读取消息
             let message = match self.read_message().await {
                 Ok(msg) => msg,
-                Err(IpcError::Io(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                Err(IpcError::Io(e))
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof =>
+                {
                     // 客户端断开连接
                     break;
                 }
@@ -83,7 +85,10 @@ impl ClientConnection {
             };
 
             // 发送给主处理循环
-            let _ = self.message_tx.send((message, self.response_tx.clone())).await;
+            let _ = self
+                .message_tx
+                .send((message, self.response_tx.clone()))
+                .await;
 
             // 等待响应
             if let Some(response) = self.response_rx.recv().await {

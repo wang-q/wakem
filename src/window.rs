@@ -4,13 +4,16 @@ use tracing::{debug, error, info};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PostMessageW, MSG,
-    PostQuitMessage, RegisterClassW, SetWindowLongPtrW, GetWindowLongPtrW, TranslateMessage,
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, GWLP_USERDATA, WM_COMMAND, WM_CREATE, WM_DESTROY,
-    WNDCLASSW, WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, GetWindowLongPtrW,
+    PostMessageW, PostQuitMessage, RegisterClassW, SetWindowLongPtrW, TranslateMessage,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, GWLP_USERDATA, MSG, WM_COMMAND, WM_CREATE,
+    WM_DESTROY, WNDCLASSW, WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
 };
 
-use crate::platform::windows::tray::{TrayIcon, WM_APP_TRAY_NOTIFY, IDM_TOGGLE_ACTIVE, IDM_RELOAD, IDM_OPEN_CONFIG, IDM_EXIT};
+use crate::platform::windows::tray::{
+    TrayIcon, IDM_EXIT, IDM_OPEN_CONFIG, IDM_RELOAD, IDM_TOGGLE_ACTIVE,
+    WM_APP_TRAY_NOTIFY,
+};
 
 /// 应用程序命令
 #[derive(Debug, Clone, Copy)]
@@ -139,7 +142,7 @@ impl MessageWindow {
     pub fn stop(&self) {
         let mut running = self.running.lock().unwrap();
         *running = false;
-        
+
         unsafe {
             PostQuitMessage(0);
         }
@@ -206,14 +209,19 @@ impl MessageWindow {
             WM_RBUTTONUP => {
                 // 右键点击，显示菜单
                 debug!("Tray icon right-clicked");
-                
+
                 if let Some(instance) = Self::get_instance(hwnd) {
                     let tray = instance.tray_icon.lock().unwrap();
                     match tray.show_menu() {
                         Ok(cmd_id) => {
                             if cmd_id != 0 {
                                 // 发送 WM_COMMAND 消息来处理菜单选择
-                                let _ = PostMessageW(hwnd, WM_COMMAND, WPARAM(cmd_id as usize), LPARAM(0));
+                                let _ = PostMessageW(
+                                    hwnd,
+                                    WM_COMMAND,
+                                    WPARAM(cmd_id as usize),
+                                    LPARAM(0),
+                                );
                             }
                         }
                         Err(e) => {

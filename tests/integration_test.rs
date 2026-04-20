@@ -24,7 +24,7 @@ fn test_config_path_resolution() {
     // 测试默认路径
     let home = std::env::var("USERPROFILE").unwrap_or_default();
     let config_path = PathBuf::from(&home).join("wakem.toml");
-    
+
     // 路径应该不为空
     assert!(!home.is_empty());
     assert!(config_path.to_string_lossy().contains("wakem.toml"));
@@ -35,7 +35,7 @@ fn test_config_path_resolution() {
 fn test_example_configs_exist() {
     // 从 crate 根目录开始查找（单一 crate 结构）
     let crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    
+
     let examples = vec![
         "examples/minimal.toml",
         "examples/test_config.toml",

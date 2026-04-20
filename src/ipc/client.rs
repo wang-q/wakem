@@ -1,4 +1,4 @@
-use super::{Message, Result, IpcError, DEFAULT_PIPE_NAME};
+use super::{IpcError, Message, Result, DEFAULT_PIPE_NAME};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::windows::named_pipe::ClientOptions;
 use tokio::time::{timeout, Duration};

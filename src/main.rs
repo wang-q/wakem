@@ -51,9 +51,7 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     // 初始化日志
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     let cli = Cli::parse();
 
@@ -80,18 +78,16 @@ async fn run_daemon() -> Result<()> {
 async fn cmd_status() -> Result<()> {
     let mut client = DaemonClient::new();
     match client.connect().await {
-        Ok(_) => {
-            match client.get_status().await {
-                Ok((active, loaded)) => {
-                    println!("wakemd status:");
-                    println!("  Active: {}", if active { "enabled" } else { "disabled" });
-                    println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
-                }
-                Err(e) => {
-                    eprintln!("Failed to get status: {}", e);
-                }
+        Ok(_) => match client.get_status().await {
+            Ok((active, loaded)) => {
+                println!("wakemd status:");
+                println!("  Active: {}", if active { "enabled" } else { "disabled" });
+                println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
             }
-        }
+            Err(e) => {
+                eprintln!("Failed to get status: {}", e);
+            }
+        },
         Err(e) => {
             eprintln!("Failed to connect to daemon: {}", e);
             eprintln!("Please make sure wakemd is running");
@@ -104,16 +100,14 @@ async fn cmd_status() -> Result<()> {
 async fn cmd_reload() -> Result<()> {
     let mut client = DaemonClient::new();
     match client.connect().await {
-        Ok(_) => {
-            match client.reload_config().await {
-                Ok(_) => {
-                    println!("Configuration reloaded successfully");
-                }
-                Err(e) => {
-                    eprintln!("Failed to reload config: {}", e);
-                }
+        Ok(_) => match client.reload_config().await {
+            Ok(_) => {
+                println!("Configuration reloaded successfully");
             }
-        }
+            Err(e) => {
+                eprintln!("Failed to reload config: {}", e);
+            }
+        },
         Err(e) => {
             eprintln!("Failed to connect to daemon: {}", e);
         }
@@ -125,16 +119,14 @@ async fn cmd_reload() -> Result<()> {
 async fn cmd_enable() -> Result<()> {
     let mut client = DaemonClient::new();
     match client.connect().await {
-        Ok(_) => {
-            match client.set_active(true).await {
-                Ok(_) => {
-                    println!("wakem enabled");
-                }
-                Err(e) => {
-                    eprintln!("Failed to enable: {}", e);
-                }
+        Ok(_) => match client.set_active(true).await {
+            Ok(_) => {
+                println!("wakem enabled");
             }
-        }
+            Err(e) => {
+                eprintln!("Failed to enable: {}", e);
+            }
+        },
         Err(e) => {
             eprintln!("Failed to connect to daemon: {}", e);
         }
@@ -146,16 +138,14 @@ async fn cmd_enable() -> Result<()> {
 async fn cmd_disable() -> Result<()> {
     let mut client = DaemonClient::new();
     match client.connect().await {
-        Ok(_) => {
-            match client.set_active(false).await {
-                Ok(_) => {
-                    println!("wakem disabled");
-                }
-                Err(e) => {
-                    eprintln!("Failed to disable: {}", e);
-                }
+        Ok(_) => match client.set_active(false).await {
+            Ok(_) => {
+                println!("wakem disabled");
             }
-        }
+            Err(e) => {
+                eprintln!("Failed to disable: {}", e);
+            }
+        },
         Err(e) => {
             eprintln!("Failed to connect to daemon: {}", e);
         }
@@ -175,17 +165,20 @@ async fn run_tray() -> Result<()> {
     info!("wakem client starting...");
 
     // 加载配置获取图标路径
-    let icon_path = config::resolve_config_file_path(None)
-        .and_then(|path| {
-            Config::from_file(&path)
-                .ok()
-                .and_then(|cfg| cfg.icon_path)
-                .or_else(|| {
-                    // 尝试加载程序目录下的 assets/icon.ico
-                    path.parent()
-                        .map(|p| p.join("assets").join("icon.ico").to_string_lossy().to_string())
+    let icon_path = config::resolve_config_file_path(None).and_then(|path| {
+        Config::from_file(&path)
+            .ok()
+            .and_then(|cfg| cfg.icon_path)
+            .or_else(|| {
+                // 尝试加载程序目录下的 assets/icon.ico
+                path.parent().map(|p| {
+                    p.join("assets")
+                        .join("icon.ico")
+                        .to_string_lossy()
+                        .to_string()
                 })
-        });
+            })
+    });
 
     // 创建命令通道
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(100);
@@ -250,7 +243,10 @@ async fn run_tray() -> Result<()> {
                                 let new_active = !current_active;
                                 match client.set_active(new_active).await {
                                     Ok(_) => {
-                                        info!("Daemon active state changed to: {}", new_active);
+                                        info!(
+                                            "Daemon active state changed to: {}",
+                                            new_active
+                                        );
                                     }
                                     Err(e) => {
                                         error!("Failed to set active state: {}", e);

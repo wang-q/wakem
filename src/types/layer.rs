@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::types::{MappingRule, Trigger, Action, KeyAction};
+use crate::types::{Action, KeyAction, MappingRule, Trigger};
 
 /// 层模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,7 +34,11 @@ pub struct Layer {
 }
 
 impl Layer {
-    pub fn new(name: impl Into<String>, activation_scan: u16, activation_vk: u16) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        activation_scan: u16,
+        activation_vk: u16,
+    ) -> Self {
         Self {
             name: name.into(),
             activation_key: activation_scan,
@@ -125,15 +129,15 @@ impl LayerStack {
     /// 获取所有当前可用的映射规则（按优先级：后激活的层优先）
     pub fn get_all_mappings(&self) -> Vec<MappingRule> {
         let mut result = Vec::new();
-        
+
         // 先添加基础层
         result.extend(self.base_layer.clone());
-        
+
         // 再添加激活的层（后面的层会覆盖前面的）
         for layer in &self.active_layers {
             result.extend(layer.mappings.clone());
         }
-        
+
         result
     }
 
@@ -161,22 +165,22 @@ mod tests {
     #[test]
     fn test_layer_stack() {
         let mut stack = LayerStack::new();
-        
+
         // 创建测试层
         let mut layer1 = Layer::new("navigate", 0x3A, 0x14);
         layer1.add_mapping(
-            Trigger::key(0x23, 0x48), // H
+            Trigger::key(0x23, 0x48),                  // H
             Action::key(KeyAction::click(0x4B, 0x25)), // Left
         );
-        
+
         // 激活层
         stack.activate_layer(layer1.clone());
         assert!(stack.is_layer_active("navigate"));
-        
+
         // 获取映射
         let mappings = stack.get_all_mappings();
         assert_eq!(mappings.len(), 1);
-        
+
         // 停用层
         stack.deactivate_layer("navigate");
         assert!(!stack.is_layer_active("navigate"));
@@ -186,11 +190,11 @@ mod tests {
     fn test_layer_toggle() {
         let mut stack = LayerStack::new();
         let layer = Layer::new("test", 0x3A, 0x14).with_mode(LayerMode::Toggle);
-        
+
         // 切换激活
         stack.toggle_layer(layer.clone());
         assert!(stack.is_layer_active("test"));
-        
+
         // 再次切换，停用
         stack.toggle_layer(layer);
         assert!(!stack.is_layer_active("test"));

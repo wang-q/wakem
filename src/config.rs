@@ -71,21 +71,35 @@ impl Config {
     /// 获取所有映射规则
     pub fn get_all_rules(&self) -> Vec<MappingRule> {
         let mut rules = Vec::new();
-        rules.extend(self.keyboard.remap.iter().filter_map(|(k, v)| {
-            parse_key_mapping(k, v).ok()
-        }));
-        rules.extend(self.keyboard.layers.iter().filter_map(|(name, layer)| {
-            self.parse_layer_mappings(name, layer).ok()
-        }).flatten());
-        rules.extend(self.window.shortcuts.iter().filter_map(|(k, v)| {
-            parse_window_shortcut(k, v).ok()
-        }));
+        rules.extend(
+            self.keyboard
+                .remap
+                .iter()
+                .filter_map(|(k, v)| parse_key_mapping(k, v).ok()),
+        );
+        rules.extend(
+            self.keyboard
+                .layers
+                .iter()
+                .filter_map(|(name, layer)| self.parse_layer_mappings(name, layer).ok())
+                .flatten(),
+        );
+        rules.extend(
+            self.window
+                .shortcuts
+                .iter()
+                .filter_map(|(k, v)| parse_window_shortcut(k, v).ok()),
+        );
         rules
     }
 
     /// 解析层的映射规则
-    fn parse_layer_mappings(&self, layer_name: &str, layer: &LayerConfig) -> anyhow::Result<Vec<MappingRule>> {
-        use crate::types::{Action, KeyAction, Trigger, ModifierState};
+    fn parse_layer_mappings(
+        &self,
+        layer_name: &str,
+        layer: &LayerConfig,
+    ) -> anyhow::Result<Vec<MappingRule>> {
+        use crate::types::{Action, KeyAction, ModifierState, Trigger};
 
         let mut rules = Vec::new();
 
@@ -283,7 +297,9 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
 
 /// 创建修饰键按下和释放的动作序列
 /// 当按下 CapsLock 时，发送 Ctrl+Alt+Win 的按下，释放时发送释放
-fn create_modifier_press_release_action(modifiers: &crate::types::ModifierState) -> crate::types::Action {
+fn create_modifier_press_release_action(
+    modifiers: &crate::types::ModifierState,
+) -> crate::types::Action {
     use crate::types::{Action, KeyAction};
 
     let mut actions = Vec::new();
@@ -358,7 +374,10 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
     }
 
     if key_name.is_empty() {
-        return Err(anyhow::anyhow!("No key specified in shortcut: {}", shortcut));
+        return Err(anyhow::anyhow!(
+            "No key specified in shortcut: {}",
+            shortcut
+        ));
     }
 
     let key = parse_key(key_name)?;
@@ -408,25 +427,17 @@ fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowA
                 Ok(WindowAction::LoopHeight(align))
             }
             "FixedRatio" => {
-                let ratio = param_list
-                    .get(0)
-                    .unwrap_or(&"1.333")
-                    .parse::<f32>()?;
-                let scale_index = param_list
-                    .get(1)
-                    .unwrap_or(&"0")
-                    .parse::<usize>()?;
+                let ratio = param_list.get(0).unwrap_or(&"1.333").parse::<f32>()?;
+                let scale_index = param_list.get(1).unwrap_or(&"0").parse::<usize>()?;
                 Ok(WindowAction::FixedRatio { ratio, scale_index })
             }
             "NativeRatio" => {
-                let scale_index = param_list
-                    .get(0)
-                    .unwrap_or(&"0")
-                    .parse::<usize>()?;
+                let scale_index = param_list.get(0).unwrap_or(&"0").parse::<usize>()?;
                 Ok(WindowAction::NativeRatio { scale_index })
             }
             "MoveToMonitor" => {
-                let direction = parse_monitor_direction(param_list.get(0).unwrap_or(&""))?;
+                let direction =
+                    parse_monitor_direction(param_list.get(0).unwrap_or(&""))?;
                 Ok(WindowAction::MoveToMonitor(direction))
             }
             "Move" => {
@@ -451,7 +462,10 @@ fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowA
             _ => Err(anyhow::anyhow!("Unknown window action: {}", name)),
         }
     } else {
-        Err(anyhow::anyhow!("Invalid window action format: {}", action_str))
+        Err(anyhow::anyhow!(
+            "Invalid window action format: {}",
+            action_str
+        ))
     }
 }
 
@@ -588,7 +602,9 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
 
 /// 解析配置文件路径
 /// 如果提供了路径，使用提供的路径；否则使用默认路径
-pub fn resolve_config_file_path(path: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+pub fn resolve_config_file_path(
+    path: Option<&std::path::Path>,
+) -> Option<std::path::PathBuf> {
     if let Some(p) = path {
         return Some(p.to_path_buf());
     }
@@ -596,13 +612,13 @@ pub fn resolve_config_file_path(path: Option<&std::path::Path>) -> Option<std::p
     // 尝试默认路径
     let home = std::env::var("USERPROFILE").ok()?;
     let home_path = std::path::PathBuf::from(home);
-    
+
     // 优先级1: 检查 %USERPROFILE%\.wakem.toml
     let config_file = home_path.join(".wakem.toml");
     if config_file.exists() {
         return Some(config_file);
     }
-    
+
     // 优先级2: 检查 %APPDATA%\wakem\config.toml
     let app_data = std::env::var("APPDATA").ok()?;
     let config_dir = std::path::PathBuf::from(app_data).join("wakem");
@@ -610,7 +626,7 @@ pub fn resolve_config_file_path(path: Option<&std::path::Path>) -> Option<std::p
     if config_file.exists() {
         return Some(config_file);
     }
-    
+
     // 返回默认路径（即使不存在）
     Some(home_path.join(".wakem.toml"))
 }
@@ -656,49 +672,76 @@ J = "Down"
     fn test_parse_key_mapping_with_modifiers() {
         // 测试 CapsLock -> Ctrl+Alt+Win 的映射
         let rule = parse_key_mapping("CapsLock", "Ctrl+Alt+Win").unwrap();
-        
+
         // 验证触发器是 CapsLock
-        if let crate::types::Trigger::Key { scan_code, virtual_key, .. } = &rule.trigger {
+        if let crate::types::Trigger::Key {
+            scan_code,
+            virtual_key,
+            ..
+        } = &rule.trigger
+        {
             assert_eq!(*scan_code, Some(0x3A));
             assert_eq!(*virtual_key, Some(0x14));
         } else {
             panic!("Expected Key trigger");
         }
-        
+
         // 验证动作是 Sequence（包含修饰键按下/释放）
         if let crate::types::Action::Sequence(actions) = &rule.action {
             // 应该有 6 个动作：Ctrl按下、Alt按下、Win按下、Win释放、Alt释放、Ctrl释放
             assert_eq!(actions.len(), 6);
-            
+
             // 验证第一个动作是 Ctrl 按下
-            if let crate::types::Action::Key(crate::types::KeyAction::Press { virtual_key, .. }) = &actions[0] {
+            if let crate::types::Action::Key(crate::types::KeyAction::Press {
+                virtual_key,
+                ..
+            }) = &actions[0]
+            {
                 assert_eq!(*virtual_key, 0x11); // VK_CONTROL
             } else {
                 panic!("Expected Ctrl Press as first action, got {:?}", actions[0]);
             }
-            
+
             // 验证第二个动作是 Alt 按下
-            if let crate::types::Action::Key(crate::types::KeyAction::Press { virtual_key, .. }) = &actions[1] {
+            if let crate::types::Action::Key(crate::types::KeyAction::Press {
+                virtual_key,
+                ..
+            }) = &actions[1]
+            {
                 assert_eq!(*virtual_key, 0x12); // VK_MENU (Alt)
             } else {
                 panic!("Expected Alt Press as second action, got {:?}", actions[1]);
             }
-            
+
             // 验证第三个动作是 Win 按下
-            if let crate::types::Action::Key(crate::types::KeyAction::Press { virtual_key, .. }) = &actions[2] {
+            if let crate::types::Action::Key(crate::types::KeyAction::Press {
+                virtual_key,
+                ..
+            }) = &actions[2]
+            {
                 assert_eq!(*virtual_key, 0x5B); // VK_LWIN
             } else {
                 panic!("Expected Win Press as third action, got {:?}", actions[2]);
             }
-            
+
             // 验证第四、五、六个动作是释放
-            if let crate::types::Action::Key(crate::types::KeyAction::Release { virtual_key, .. }) = &actions[3] {
+            if let crate::types::Action::Key(crate::types::KeyAction::Release {
+                virtual_key,
+                ..
+            }) = &actions[3]
+            {
                 assert_eq!(*virtual_key, 0x5B); // VK_LWIN release
             } else {
-                panic!("Expected Win Release as fourth action, got {:?}", actions[3]);
+                panic!(
+                    "Expected Win Release as fourth action, got {:?}",
+                    actions[3]
+                );
             }
         } else {
-            panic!("Expected Sequence action for modifier combo, got {:?}", rule.action);
+            panic!(
+                "Expected Sequence action for modifier combo, got {:?}",
+                rule.action
+            );
         }
     }
 
@@ -734,7 +777,8 @@ J = "Down"
         assert!(matches!(action, WindowAction::ShowDebugInfo));
 
         // 测试 ShowNotification
-        let action = parse_window_action("ShowNotification(wakem, Hello World!)").unwrap();
+        let action =
+            parse_window_action("ShowNotification(wakem, Hello World!)").unwrap();
         if let WindowAction::ShowNotification { title, message } = action {
             assert_eq!(title, "wakem");
             assert_eq!(message, "Hello World!");

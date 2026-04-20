@@ -1,8 +1,8 @@
+use crate::types::LaunchAction;
 use anyhow::Result;
 use std::path::Path;
 use std::process::Command;
 use tracing::{debug, info};
-use crate::types::LaunchAction;
 
 /// 程序启动器
 pub struct Launcher;
@@ -29,7 +29,7 @@ impl Launcher {
         // 使用 std::process::Command 启动程序
         let mut cmd = Command::new(&program);
         cmd.args(&action.args);
-        
+
         if let Some(ref dir) = action.working_dir {
             cmd.current_dir(dir);
         }
@@ -37,16 +37,18 @@ impl Launcher {
         // 异步启动，不等待
         match cmd.spawn() {
             Ok(child) => {
-                info!("Program launched successfully: {} (pid: {:?})", action.program, child.id());
+                info!(
+                    "Program launched successfully: {} (pid: {:?})",
+                    action.program,
+                    child.id()
+                );
                 Ok(())
             }
-            Err(e) => {
-                Err(anyhow::anyhow!(
-                    "Failed to launch program {}: {}",
-                    action.program,
-                    e
-                ))
-            }
+            Err(e) => Err(anyhow::anyhow!(
+                "Failed to launch program {}: {}",
+                action.program,
+                e
+            )),
         }
     }
 

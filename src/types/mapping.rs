@@ -121,10 +121,7 @@ impl Trigger {
                 // 注意：这里应该比较修饰键是否匹配，简化处理
                 true
             }
-            (
-                Trigger::MouseButton { button, .. },
-                InputEvent::Mouse(e),
-            ) => {
+            (Trigger::MouseButton { button, .. }, InputEvent::Mouse(e)) => {
                 // 检查鼠标按钮按下
                 e.is_button_down(*button)
             }
@@ -229,7 +226,8 @@ fn wildcard_match(text: &str, pattern: &str) -> bool {
     }
     if pattern.contains('*') || pattern.contains('?') {
         // TODO: 实现完整的通配符匹配
-        text.to_lowercase().contains(&pattern.replace('*', "").to_lowercase())
+        text.to_lowercase()
+            .contains(&pattern.replace('*', "").to_lowercase())
     } else {
         text.to_lowercase() == pattern.to_lowercase()
     }

@@ -1,13 +1,14 @@
+use crate::types::{InputEvent, KeyEvent, KeyState};
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use tracing::{debug, trace};
 use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT, KBDLLHOOKSTRUCT_FLAGS,
-    WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    CallNextHookEx, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT,
+    KBDLLHOOKSTRUCT_FLAGS, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
+    WM_SYSKEYUP,
 };
-use crate::types::{InputEvent, KeyEvent, KeyState};
 
 thread_local! {
     static HOOK_SENDER: RefCell<Option<Sender<(InputEvent, bool)>>> = RefCell::new(None);
@@ -29,15 +30,11 @@ impl KeyboardHook {
 
         unsafe {
             let hinstance = HINSTANCE(
-                windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?.0
+                windows::Win32::System::LibraryLoader::GetModuleHandleW(None)?.0,
             );
 
-            let hook = SetWindowsHookExW(
-                WH_KEYBOARD_LL,
-                Some(Self::hook_proc),
-                hinstance,
-                0,
-            )?;
+            let hook =
+                SetWindowsHookExW(WH_KEYBOARD_LL, Some(Self::hook_proc), hinstance, 0)?;
 
             HOOK_HANDLE.with(|h| {
                 *h.borrow_mut() = Some(hook);
@@ -62,7 +59,7 @@ impl KeyboardHook {
         }
 
         let kb_struct = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
-        
+
         // 忽略注入的事件（避免循环）
         if kb_struct.flags.0 & 0x10 != 0 {
             return CallNextHookEx(None, code, wparam, lparam);
@@ -78,10 +75,12 @@ impl KeyboardHook {
         };
 
         let event = KeyEvent::new(scan_code, vk_code, state);
-        
+
         trace!(
             "Hook: vk={:04X}, scan={:04X}, state={:?}",
-            vk_code, scan_code, state
+            vk_code,
+            scan_code,
+            state
         );
 
         // 发送事件（非阻塞）
@@ -100,7 +99,7 @@ impl KeyboardHook {
     /// 运行消息循环（必须在安装钩子的线程中运行）
     pub fn run_message_loop(&self) -> Result<()> {
         use windows::Win32::UI::WindowsAndMessaging::{
-            GetMessageW, DispatchMessageW, TranslateMessage, MSG,
+            DispatchMessageW, GetMessageW, TranslateMessage, MSG,
         };
 
         debug!("Starting hook message loop");

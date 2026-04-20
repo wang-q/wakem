@@ -1,4 +1,4 @@
-use super::{DeviceType, KeyState, ModifierState, Timestamp, now};
+use super::{now, DeviceType, KeyState, ModifierState, Timestamp};
 use serde::{Deserialize, Serialize};
 
 /// 键盘事件
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct KeyEvent {
     /// 扫描码（硬件相关）
     pub scan_code: u16,
-    /// 虚拟键码（Windows VK_*) 
+    /// 虚拟键码（Windows VK_*)
     pub virtual_key: u16,
     /// 按键状态
     pub state: KeyState,
@@ -50,7 +50,7 @@ impl KeyEvent {
             0x10 | 0xA0 | 0xA1 | // Shift
             0x11 | 0xA2 | 0xA3 | // Ctrl
             0x12 | 0xA4 | 0xA5 | // Alt
-            0x5B | 0x5C          // Win
+            0x5B | 0x5C // Win
         )
     }
 

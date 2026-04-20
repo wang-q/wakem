@@ -3,13 +3,13 @@ use tracing::{debug, error, warn};
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowRect, GetWindowTextW,
-    IsIconic, IsWindow, IsZoomed, SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-    SWP_NOOWNERZORDER, SW_RESTORE,
+    GetForegroundWindow, GetWindowRect, GetWindowTextW, IsIconic, IsWindow, IsZoomed,
+    SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER,
+    SW_RESTORE,
 };
 
 // 从 types 导入 Edge 和 Alignment
-pub use crate::types::{Edge, Alignment};
+pub use crate::types::{Alignment, Edge};
 
 /// 显示器信息
 #[derive(Debug, Clone)]
@@ -203,7 +203,14 @@ impl WindowManager {
                 ShowWindow(hwnd, SW_RESTORE)
                     .ok()
                     .map_err(|e| anyhow::anyhow!("Failed to restore window: {}", e))?;
-                debug!("Window restored from {} state", if is_minimized { "minimized" } else { "maximized" });
+                debug!(
+                    "Window restored from {} state",
+                    if is_minimized {
+                        "minimized"
+                    } else {
+                        "maximized"
+                    }
+                );
             }
             Ok(())
         }
@@ -258,7 +265,8 @@ impl WindowManager {
         let new_x = info.work_area.x + (info.work_area.width - info.frame.width) / 2;
         let new_y = info.work_area.y + (info.work_area.height - info.frame.height) / 2;
 
-        let new_frame = WindowFrame::new(new_x, new_y, info.frame.width, info.frame.height);
+        let new_frame =
+            WindowFrame::new(new_x, new_y, info.frame.width, info.frame.height);
         self.set_window_frame(hwnd, &new_frame)
     }
 
@@ -279,7 +287,8 @@ impl WindowManager {
             ),
         };
 
-        let new_frame = WindowFrame::new(new_x, new_y, info.frame.width, info.frame.height);
+        let new_frame =
+            WindowFrame::new(new_x, new_y, info.frame.width, info.frame.height);
         self.set_window_frame(hwnd, &new_frame)
     }
 
@@ -347,7 +356,8 @@ impl WindowManager {
             _ => info.frame.x,
         };
 
-        let new_frame = WindowFrame::new(new_x, info.frame.y, new_width, info.frame.height);
+        let new_frame =
+            WindowFrame::new(new_x, info.frame.y, new_width, info.frame.height);
         self.set_window_frame(hwnd, &new_frame)
     }
 
@@ -374,12 +384,18 @@ impl WindowManager {
             _ => info.frame.y,
         };
 
-        let new_frame = WindowFrame::new(info.frame.x, new_y, info.frame.width, new_height);
+        let new_frame =
+            WindowFrame::new(info.frame.x, new_y, info.frame.width, new_height);
         self.set_window_frame(hwnd, &new_frame)
     }
 
     /// 设置固定比例窗口（居中）
-    pub fn set_fixed_ratio(&self, hwnd: HWND, ratio: f32, scale_index: usize) -> Result<()> {
+    pub fn set_fixed_ratio(
+        &self,
+        hwnd: HWND,
+        ratio: f32,
+        scale_index: usize,
+    ) -> Result<()> {
         const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
         let scale = SCALES[scale_index % SCALES.len()];
 
@@ -426,7 +442,11 @@ impl WindowManager {
     }
 
     /// 移动窗口到另一个显示器
-    pub fn move_to_monitor(&self, hwnd: HWND, direction: crate::platform::windows::MonitorDirection) -> Result<()> {
+    pub fn move_to_monitor(
+        &self,
+        hwnd: HWND,
+        direction: crate::platform::windows::MonitorDirection,
+    ) -> Result<()> {
         unsafe {
             // 获取所有显示器
             let monitors = self.get_all_monitors();
@@ -436,7 +456,8 @@ impl WindowManager {
             }
 
             // 获取当前窗口所在显示器索引
-            let current_monitor_index = self.get_current_monitor_index(hwnd, &monitors)?;
+            let current_monitor_index =
+                self.get_current_monitor_index(hwnd, &monitors)?;
 
             // 计算目标显示器索引
             let target_index = match direction {
@@ -466,8 +487,10 @@ impl WindowManager {
             let info = self.get_window_info(hwnd)?;
 
             // 计算相对位置比例
-            let rel_x = (info.frame.x - current_monitor.x) as f32 / current_monitor.width as f32;
-            let rel_y = (info.frame.y - current_monitor.y) as f32 / current_monitor.height as f32;
+            let rel_x =
+                (info.frame.x - current_monitor.x) as f32 / current_monitor.width as f32;
+            let rel_y = (info.frame.y - current_monitor.y) as f32
+                / current_monitor.height as f32;
             let rel_width = info.frame.width as f32 / current_monitor.width as f32;
             let rel_height = info.frame.height as f32 / current_monitor.height as f32;
 
@@ -491,8 +514,10 @@ impl WindowManager {
 
     /// 获取所有显示器信息
     unsafe fn get_all_monitors(&self) -> Vec<MonitorInfo> {
-        use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO};
         use windows::Win32::Foundation::RECT;
+        use windows::Win32::Graphics::Gdi::{
+            EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
+        };
 
         struct EnumData {
             monitors: Vec<MonitorInfo>,
@@ -539,7 +564,11 @@ impl WindowManager {
     }
 
     /// 获取窗口当前所在的显示器索引
-    unsafe fn get_current_monitor_index(&self, hwnd: HWND, monitors: &[MonitorInfo]) -> Result<usize> {
+    unsafe fn get_current_monitor_index(
+        &self,
+        hwnd: HWND,
+        monitors: &[MonitorInfo],
+    ) -> Result<usize> {
         let mut rect = RECT::default();
         GetWindowRect(hwnd, &mut rect)?;
 
@@ -606,7 +635,10 @@ impl WindowManager {
     /// 获取窗口的进程 ID
     unsafe fn get_window_process_id(&self, hwnd: HWND) -> Result<u32> {
         let mut pid: u32 = 0;
-        windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+            hwnd,
+            Some(&mut pid),
+        );
 
         if pid == 0 {
             return Err(anyhow::anyhow!("Failed to get process ID"));
@@ -617,8 +649,8 @@ impl WindowManager {
 
     /// 获取指定进程的所有可见窗口
     fn get_process_visible_windows(&self, target_pid: u32) -> Vec<HWND> {
-        use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
         use windows::Win32::Foundation::BOOL;
+        use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
 
         struct EnumData {
             target_pid: u32,
@@ -635,7 +667,10 @@ impl WindowManager {
 
             // 获取窗口进程 ID
             let mut pid: u32 = 0;
-            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                hwnd,
+                Some(&mut pid),
+            );
 
             if pid == data.target_pid {
                 data.windows.push(hwnd);
@@ -650,10 +685,8 @@ impl WindowManager {
                 windows: Vec::new(),
             };
 
-            let _ = EnumWindows(
-                Some(enum_callback),
-                LPARAM(&mut data as *mut _ as isize),
-            );
+            let _ =
+                EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
 
             data.windows
         }
@@ -679,13 +712,18 @@ impl WindowManager {
                 if windows.contains(&hwnd) {
                     zorder_map.insert(hwnd.0, z_index);
                 }
-                hwnd = GetWindow(hwnd, windows::Win32::UI::WindowsAndMessaging::GW_HWNDNEXT);
+                hwnd = GetWindow(
+                    hwnd,
+                    windows::Win32::UI::WindowsAndMessaging::GW_HWNDNEXT,
+                );
                 z_index += 1;
             }
 
             // 按 Z-Order 排序
             let mut sorted = windows;
-            sorted.sort_by_key(|hwnd| zorder_map.get(&hwnd.0).copied().unwrap_or(usize::MAX));
+            sorted.sort_by_key(|hwnd| {
+                zorder_map.get(&hwnd.0).copied().unwrap_or(usize::MAX)
+            });
 
             sorted
         }

@@ -17,7 +17,7 @@ fn test_key_name_parsing() {
         // let (scan, vk) = parse_key(name).unwrap();
         // assert_eq!(scan, expected_scan);
         // assert_eq!(vk, expected_vk);
-        
+
         // 临时断言，确保测试通过
         assert!(!name.is_empty());
     }
