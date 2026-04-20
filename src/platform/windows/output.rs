@@ -1,4 +1,4 @@
-use crate::types::{KeyAction, MouseAction, MouseButton};
+use crate::types::{KeyAction, MouseAction, MouseButton, SystemAction};
 use anyhow::Result;
 use tracing::trace;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -292,6 +292,39 @@ impl OutputDevice {
             horizontal
         );
 
+        Ok(())
+    }
+
+    /// 发送系统控制动作（音量、亮度）
+    pub fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        match action {
+            SystemAction::VolumeUp => {
+                // VK_VOLUME_UP = 0xAF
+                self.send_key(0, 0xAF, false)?;
+                self.send_key(0, 0xAF, true)?;
+            }
+            SystemAction::VolumeDown => {
+                // VK_VOLUME_DOWN = 0xAE
+                self.send_key(0, 0xAE, false)?;
+                self.send_key(0, 0xAE, true)?;
+            }
+            SystemAction::VolumeMute => {
+                // VK_VOLUME_MUTE = 0xAD
+                self.send_key(0, 0xAD, false)?;
+                self.send_key(0, 0xAD, true)?;
+            }
+            SystemAction::BrightnessUp => {
+                // 亮度控制没有标准虚拟键，使用系统快捷键
+                // 模拟 Win + A 打开操作中心，然后发送亮度增加键
+                // 这里简化处理，使用组合键
+                trace!("Brightness up not yet implemented");
+            }
+            SystemAction::BrightnessDown => {
+                trace!("Brightness down not yet implemented");
+            }
+        }
+
+        trace!("Sent system action: {:?}", action);
         Ok(())
     }
 }

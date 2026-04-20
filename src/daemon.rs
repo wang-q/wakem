@@ -5,9 +5,11 @@ use tracing::{debug, error, info};
 
 use crate::config::Config;
 use crate::ipc::{IpcServer, Message};
-use crate::types::{Action, InputEvent};
+use crate::types::{Action, InputEvent, ModifierState};
 
-use crate::platform::windows::{Launcher, OutputDevice, RawInputDevice, WindowManager};
+use crate::platform::windows::{
+    Launcher, OutputDevice, RawInputDevice, WindowManager, WindowPresetManager,
+};
 use crate::runtime::{KeyMapper, LayerManager};
 
 /// 服务端状态
@@ -24,6 +26,8 @@ pub struct ServerState {
     launcher: Arc<Mutex<Launcher>>,
     /// 窗口管理器
     window_manager: Arc<Mutex<WindowManager>>,
+    /// 窗口预设管理器
+    window_preset_manager: Arc<Mutex<WindowPresetManager>>,
     /// 是否启用映射
     active: Arc<RwLock<bool>>,
     /// 配置是否已加载
@@ -33,7 +37,9 @@ pub struct ServerState {
 impl ServerState {
     pub fn new() -> Self {
         let window_manager = WindowManager::new();
-        let mapper = KeyMapper::with_window_manager(window_manager);
+        let mut mapper = KeyMapper::with_window_manager(window_manager);
+        let window_preset_manager = WindowPresetManager::new();
+        mapper.set_window_preset_manager(window_preset_manager);
 
         Self {
             config: Arc::new(RwLock::new(Config::default())),
@@ -42,6 +48,7 @@ impl ServerState {
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
             window_manager: Arc::new(Mutex::new(WindowManager::new())),
+            window_preset_manager: Arc::new(Mutex::new(WindowPresetManager::new())),
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
         }
@@ -60,6 +67,23 @@ impl ServerState {
             let mut mapper = self.mapper.lock().await;
             let rules = config.get_all_rules();
             mapper.load_rules(rules);
+        }
+
+        // 更新上下文感知映射规则
+        {
+            let mut mapper = self.mapper.lock().await;
+            mapper.load_context_rules(&config.keyboard.context_mappings);
+            debug!(
+                "Loaded {} context mappings",
+                config.keyboard.context_mappings.len()
+            );
+        }
+
+        // 更新窗口预设管理器
+        {
+            let mut preset_manager = self.window_preset_manager.lock().await;
+            preset_manager.load_presets(config.window.presets.clone());
+            debug!("Loaded {} window presets", config.window.presets.len());
         }
 
         // 更新层管理器
@@ -159,6 +183,18 @@ impl ServerState {
             return;
         }
 
+        // 处理滚轮增强
+        if let InputEvent::Mouse(mouse_event) = &event {
+            if let crate::types::MouseEventType::Wheel(delta) = mouse_event.event_type {
+                if let Some(action) = self.process_wheel_enhancement(delta).await {
+                    if let Err(e) = self.execute_action(action).await {
+                        error!("Failed to execute wheel action: {}", e);
+                    }
+                    return;
+                }
+            }
+        }
+
         // 先尝试通过层管理器处理
         let (handled, action) = {
             let mut layer_manager = self.layer_manager.lock().await;
@@ -175,10 +211,12 @@ impl ServerState {
             return;
         }
 
-        // 层管理器未处理，使用基础映射引擎
+        // 层管理器未处理，使用基础映射引擎（带上下文感知）
         let action = {
             let mapper = self.mapper.lock().await;
-            mapper.process_event(&event)
+            // 获取当前窗口上下文
+            let context = crate::platform::windows::WindowContext::get_current();
+            mapper.process_event_with_context(&event, context.as_ref())
         };
 
         // 执行动作
@@ -186,6 +224,76 @@ impl ServerState {
             if let Err(e) = self.execute_action(action).await {
                 error!("Failed to execute action: {}", e);
             }
+        }
+    }
+
+    /// 处理滚轮增强
+    async fn process_wheel_enhancement(&self, delta: i32) -> Option<Action> {
+        let config = self.config.read().await;
+        let wheel_config = &config.mouse.wheel;
+
+        // 获取当前修饰键状态
+        let modifiers = get_current_modifier_state();
+
+        // 检查音量控制
+        if let Some(volume_config) = &wheel_config.volume_control {
+            if Self::check_modifier_match(&volume_config.modifier, &modifiers) {
+                if delta > 0 {
+                    return Some(Action::System(crate::types::SystemAction::VolumeUp));
+                } else {
+                    return Some(Action::System(crate::types::SystemAction::VolumeDown));
+                }
+            }
+        }
+
+        // 检查亮度控制
+        if let Some(brightness_config) = &wheel_config.brightness_control {
+            if Self::check_modifier_match(&brightness_config.modifier, &modifiers) {
+                if delta > 0 {
+                    return Some(Action::System(
+                        crate::types::SystemAction::BrightnessUp,
+                    ));
+                } else {
+                    return Some(Action::System(
+                        crate::types::SystemAction::BrightnessDown,
+                    ));
+                }
+            }
+        }
+
+        // 检查水平滚动
+        if let Some(hscroll_config) = &wheel_config.horizontal_scroll {
+            if Self::check_modifier_match(&hscroll_config.modifier, &modifiers) {
+                // 将垂直滚轮转换为水平滚轮
+                return Some(Action::Mouse(crate::types::MouseAction::HWheel {
+                    delta: delta * hscroll_config.step,
+                }));
+            }
+        }
+
+        // 检查滚轮加速
+        if wheel_config.acceleration {
+            // 简单的加速实现：根据滚动方向增加滚动距离
+            let accelerated_delta = delta * wheel_config.acceleration_multiplier as i32;
+            return Some(Action::Mouse(crate::types::MouseAction::Wheel {
+                delta: accelerated_delta,
+            }));
+        }
+
+        None
+    }
+
+    /// 检查修饰键是否匹配
+    fn check_modifier_match(modifier_str: &str, modifiers: &ModifierState) -> bool {
+        match modifier_str.to_lowercase().as_str() {
+            "shift" => modifiers.shift,
+            "ctrl" | "control" => modifiers.ctrl,
+            "alt" => modifiers.alt,
+            "win" | "meta" | "command" => modifiers.meta,
+            "rightalt" => modifiers.alt,     // 简化处理
+            "rightctrl" => modifiers.ctrl,   // 简化处理
+            "rightshift" => modifiers.shift, // 简化处理
+            _ => false,
         }
     }
 
@@ -213,6 +321,10 @@ impl ServerState {
                     Box::pin(self.execute_action(a)).await?;
                 }
             }
+            Action::System(system_action) => {
+                let output = self.output_device.lock().await;
+                output.send_system_action(&system_action)?;
+            }
             Action::None => {}
         }
 
@@ -236,6 +348,55 @@ impl Default for ServerState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 获取当前修饰键状态
+#[cfg(target_os = "windows")]
+fn get_current_modifier_state() -> ModifierState {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_MENU,
+        VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_SHIFT,
+    };
+
+    let mut modifiers = ModifierState::default();
+
+    unsafe {
+        // 检查 Shift 键
+        if GetAsyncKeyState(VK_SHIFT.0 as i32) < 0
+            || GetAsyncKeyState(VK_LSHIFT.0 as i32) < 0
+            || GetAsyncKeyState(VK_RSHIFT.0 as i32) < 0
+        {
+            modifiers.shift = true;
+        }
+
+        // 检查 Ctrl 键
+        if GetAsyncKeyState(VK_CONTROL.0 as i32) < 0
+            || GetAsyncKeyState(VK_LCONTROL.0 as i32) < 0
+            || GetAsyncKeyState(VK_RCONTROL.0 as i32) < 0
+        {
+            modifiers.ctrl = true;
+        }
+
+        // 检查 Alt 键
+        if GetAsyncKeyState(VK_MENU.0 as i32) < 0
+            || GetAsyncKeyState(VK_LMENU.0 as i32) < 0
+            || GetAsyncKeyState(VK_RMENU.0 as i32) < 0
+        {
+            modifiers.alt = true;
+        }
+
+        // 检查 Win 键 (VK_LWIN = 0x5B, VK_RWIN = 0x5C)
+        if GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0 {
+            modifiers.meta = true;
+        }
+    }
+
+    modifiers
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_current_modifier_state() -> ModifierState {
+    ModifierState::default()
 }
 
 /// 运行服务端
@@ -289,6 +450,44 @@ pub async fn run_server() -> Result<()> {
         }
     });
 
+    // 启动窗口事件监听（用于自动应用预设）
+    let (window_event_tx, window_event_rx) =
+        std::sync::mpsc::channel::<crate::platform::windows::WindowEvent>();
+    let window_event_rx = Arc::new(StdMutex::new(window_event_rx));
+
+    std::thread::spawn(move || {
+        let mut hook = crate::platform::windows::WindowEventHook::new(window_event_tx);
+        if let Err(e) = hook.start() {
+            error!("Failed to start window event hook: {}", e);
+        } else {
+            info!("Window event hook started");
+            // 保持线程运行，钩子会在 Drop 时自动清理
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+    });
+
+    // 启动窗口事件处理任务（自动应用预设）
+    let state_clone = state.clone();
+    let window_event_rx_clone = window_event_rx.clone();
+    tokio::spawn(async move {
+        loop {
+            // 在非阻塞模式下检查接收
+            let event = {
+                let rx = window_event_rx_clone.lock().unwrap();
+                rx.try_recv().ok()
+            };
+
+            if let Some(event) = event {
+                state_clone.handle_window_event(event).await;
+            } else {
+                // 没有事件时短暂休眠
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+        }
+    });
+
     // 启动 IPC 连接处理
     let _state_clone = state.clone();
     tokio::spawn(async move {
@@ -328,6 +527,42 @@ pub async fn run_server() -> Result<()> {
 
     info!("Shutting down server...");
     Ok(())
+}
+
+/// 处理窗口事件
+impl ServerState {
+    async fn handle_window_event(&self, event: crate::platform::windows::WindowEvent) {
+        // 检查是否启用了自动应用预设
+        let auto_apply = {
+            let config = self.config.read().await;
+            config.window.auto_apply_preset
+        };
+
+        if !auto_apply {
+            return;
+        }
+
+        match event {
+            crate::platform::windows::WindowEvent::WindowCreated(hwnd)
+            | crate::platform::windows::WindowEvent::WindowActivated(hwnd) => {
+                // 延迟一点应用预设，确保窗口已完全创建
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+                let preset_manager = self.window_preset_manager.lock().await;
+                match preset_manager.apply_preset_for_window(hwnd) {
+                    Ok(true) => {
+                        debug!("Auto-applied preset to window {:?}", hwnd);
+                    }
+                    Ok(false) => {
+                        // 没有匹配的预设，这是正常的
+                    }
+                    Err(e) => {
+                        debug!("Failed to auto-apply preset: {}", e);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// 处理 IPC 消息

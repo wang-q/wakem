@@ -161,6 +161,12 @@ pub enum WindowAction {
     ShowDebugInfo,
     /// 显示通知（Hyper+Shift+W）
     ShowNotification { title: String, message: String },
+    /// 保存当前窗口为预设
+    SavePreset { name: String },
+    /// 加载指定预设到当前窗口
+    LoadPreset { name: String },
+    /// 为当前窗口应用匹配的预设
+    ApplyPreset,
     /// 无操作
     None,
 }
@@ -174,6 +180,21 @@ pub struct LaunchAction {
     pub env_vars: Vec<(String, String)>,
 }
 
+/// 系统控制动作
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum SystemAction {
+    /// 增加音量
+    VolumeUp,
+    /// 降低音量
+    VolumeDown,
+    /// 静音切换
+    VolumeMute,
+    /// 增加亮度
+    BrightnessUp,
+    /// 降低亮度
+    BrightnessDown,
+}
+
 /// 所有可能的动作类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Action {
@@ -181,6 +202,7 @@ pub enum Action {
     Mouse(MouseAction),
     Window(WindowAction),
     Launch(LaunchAction),
+    System(SystemAction),
     /// 执行多个动作
     Sequence(Vec<Action>),
     /// 无操作

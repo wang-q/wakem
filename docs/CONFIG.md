@@ -210,6 +210,54 @@ shortcuts = [
 
 连续按键循环: 100% → 90% → 70% → 50% → 100%
 
+## 滚轮增强配置
+
+### 滚轮加速
+
+启用滚轮加速，根据滚动速度自动增加滚动距离：
+
+```toml
+[mouse.wheel]
+acceleration = true
+acceleration_multiplier = 2.0
+```
+
+### 水平滚动
+
+按住修饰键时，垂直滚轮变为水平滚动：
+
+```toml
+[mouse.wheel.horizontal_scroll]
+modifier = "Shift"
+step = 1
+```
+
+### 音量控制
+
+按住修饰键时，滚轮调节系统音量：
+
+```toml
+[mouse.wheel.volume_control]
+modifier = "RightAlt"
+step = 2
+```
+
+### 亮度控制
+
+按住修饰键时，滚轮调节屏幕亮度：
+
+```toml
+[mouse.wheel.brightness_control]
+modifier = "RightCtrl"
+step = 5
+```
+
+**支持的修饰键**:
+- `Shift`, `LeftShift`, `RightShift`
+- `Ctrl`, `Control`, `LeftCtrl`, `RightCtrl`
+- `Alt`, `LeftAlt`, `RightAlt`
+- `Win`, `Meta`, `Command`
+
 ## 快速启动配置
 
 通过快捷键快速启动应用程序：

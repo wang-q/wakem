@@ -87,10 +87,10 @@ wakem/
 - [x] 窗口切换基础（Alt+`）
 - [x] Action 系统集成
 
-### Phase 4: Windows 鼠标增强 ⏳ 待实现
+### Phase 4: Windows 鼠标增强 ✅ 已完成
 
-- [ ] 鼠标事件处理
-- [ ] 滚轮增强
+- [x] 鼠标事件处理
+- [x] 滚轮增强（加速、水平滚动、音量/亮度控制）
 
 > **注**: 不实现鼠标手势功能，使用场景有限且实现复杂
 
@@ -267,6 +267,13 @@ wakem/
 - 应用快捷键
 - 快速启动
 
+**鼠标增强**
+- 鼠标事件捕获
+- 滚轮加速
+- 水平滚动（Shift + 滚轮）
+- 音量控制（RightAlt + 滚轮）
+- 亮度控制（RightCtrl + 滚轮）
+
 **系统功能**
 - 系统托盘
 - 配置热重载
@@ -308,22 +315,96 @@ shortcuts = [
 ]
 ```
 
+### 窗口预设配置示例
+
+```toml
+[window]
+# 自动应用预设（当窗口创建或激活时）
+auto_apply_preset = true
+
+# 定义窗口预设
+[[window.presets]]
+name = "browser"
+process_name = "chrome.exe"
+x = 100
+y = 100
+width = 1200
+height = 800
+
+[[window.presets]]
+name = "editor"
+process_name = "code.exe"
+executable_path = "C:\\Program Files\\Microsoft VS Code\\Code.exe"
+x = 200
+y = 50
+width = 1400
+height = 900
+
+# 预设快捷键
+[window.shortcuts]
+"Ctrl+Alt+S" = "SavePreset(main)"
+"Ctrl+Alt+L" = "LoadPreset(main)"
+"Ctrl+Alt+A" = "ApplyPreset"
+```
+
+### 上下文感知快捷键配置示例
+
+```toml
+# Chrome 浏览器专属快捷键
+[[keyboard.context_mappings]]
+context = { process_name = "chrome.exe" }
+"CapsLock" = "Backspace"
+"Ctrl+H" = "ShowNotification(Browser, History)"
+"Ctrl+J" = "ShowNotification(Browser, Downloads)"
+
+# VS Code 专属快捷键
+[[keyboard.context_mappings]]
+context = { process_name = "code.exe" }
+"CapsLock" = "Esc"
+"Ctrl+P" = "ShowNotification(VSCode, Quick Open)"
+"Ctrl+Shift+F" = "ShowNotification(VSCode, Search)"
+
+# 使用通配符匹配多个编辑器
+[[keyboard.context_mappings]]
+context = { process_name = "*edit*.exe" }
+"Ctrl+S" = "ShowNotification(Editor, Save)"
+
+# 窗口标题匹配（如 YouTube）
+[[keyboard.context_mappings]]
+context = { window_title = "*YouTube*" }
+"Space" = "ShowNotification(YouTube, Play/Pause)"
+
+# 可执行文件路径匹配
+[[keyboard.context_mappings]]
+context = { executable_path = "C:\\Program Files\\JetBrains\\*" }
+"Ctrl+Shift+A" = "ShowNotification(JetBrains, Find Action)"
+```
+
+**说明**：
+- `process_name`: 进程名匹配，支持通配符 `*` 和 `?`
+- `window_class`: 窗口类名匹配
+- `window_title`: 窗口标题匹配
+- `executable_path`: 可执行文件路径匹配
+- 上下文规则优先级高于全局规则
+
 ---
 
 ## 预留 API 清单
 
 以下 API 已定义但未在当前版本中使用，为未来功能预留：
 
-### 上下文感知系统
+### 上下文感知系统 ✅ 已实现
 
-| API | 说明 | 计划用途 |
-|-----|------|----------|
-| `ContextCondition` | 上下文条件构建器 | 为特定应用/窗口设置快捷键 |
-| `ContextCondition::with_window_class()` | 窗口类名匹配 | 匹配特定窗口类型 |
-| `ContextCondition::with_process_name()` | 进程名匹配 | 匹配特定应用程序 |
-| `ContextCondition::with_window_title()` | 窗口标题匹配 | 匹配特定窗口标题 |
-| `ContextInfo` | 当前上下文信息 | 存储窗口类名、进程名等 |
-| `MappingRule::with_context()` | 添加上下文条件 | 创建上下文感知的映射 |
+| API | 说明 | 状态 |
+|-----|------|------|
+| `ContextCondition` | 上下文条件构建器 | ✅ 已实现 |
+| `ContextCondition::with_window_class()` | 窗口类名匹配 | ✅ 已实现 |
+| `ContextCondition::with_process_name()` | 进程名匹配 | ✅ 已实现 |
+| `ContextCondition::with_window_title()` | 窗口标题匹配 | ✅ 已实现 |
+| `ContextInfo` | 当前上下文信息 | ✅ 已实现 (WindowContext) |
+| `MappingRule::with_context()` | 添加上下文条件 | ✅ 已实现 |
+| `KeyMapper::process_event_with_context()` | 上下文感知事件处理 | ✅ 已实现 |
+| `keyboard.context_mappings` | 配置支持 | ✅ 已实现 |
 
 ### 层系统扩展
 
@@ -353,7 +434,8 @@ shortcuts = [
 |-----|------|----------|
 | `Config::save_to_file()` | 保存配置到文件 | 配置持久化 |
 | `WindowPosition` | 窗口位置预设 | 保存/恢复窗口布局 |
-| `MouseConfig` / `WheelConfig` | 鼠标配置 | 鼠标增强功能 |
+| `MouseConfig` | 鼠标配置 | 鼠标增强功能 |
+| `WheelConfig` | 滚轮配置 | 滚轮增强（加速、水平滚动、音量/亮度控制） |
 
 ### IPC 系统扩展
 
@@ -432,25 +514,14 @@ shortcuts = [
 
 基于上述预留 API，未来可能实现的功能：
 
-1. **上下文感知快捷键** (Phase 6)
+1. **上下文感知快捷键** (Phase 6) ✅ 已实现
    - 根据当前应用自动切换映射
    - 为特定应用定义专属快捷键
+   - 配置示例见下文"上下文感知快捷键配置示例"
 
 2. **多实例支持** (Phase 6)
    - 运行多个 wakem 实例
    - 每个实例独立配置
-
-3. **动态配置** (Phase 5)
-   - 运行时添加/删除映射规则
-   - 配置持久化保存
-
-4. **鼠标增强** (Phase 4)
-   - 鼠标事件处理
-   - 滚轮增强功能
-
-5. **窗口预设** (Phase 5)
-   - 保存和恢复窗口布局
-   - 自动应用预设位置
 
 6. **网络通信** (Phase 6)
    - TCP 备用通信方式

@@ -4,12 +4,23 @@ use crate::types::{
 use std::collections::HashMap;
 use tracing::{debug, trace};
 
+/// 上下文感知映射规则
+#[derive(Debug, Clone)]
+pub struct ContextMappingRule {
+    /// 上下文条件
+    pub context: crate::config::ContextCondition,
+    /// 映射表：扫描码 -> 动作
+    pub mappings: HashMap<u16, Action>,
+}
+
 /// 键位映射引擎
 pub struct KeyMapper {
     /// 基础映射表：扫描码 -> 动作
     mappings: HashMap<u16, Action>,
     /// 完整的映射规则列表
     rules: Vec<MappingRule>,
+    /// 上下文感知映射规则列表
+    context_rules: Vec<ContextMappingRule>,
     /// 是否启用
     enabled: bool,
     /// 窗口管理器（用于执行窗口管理动作）
@@ -18,6 +29,9 @@ pub struct KeyMapper {
     /// 托盘图标（用于显示通知）
     #[cfg(target_os = "windows")]
     tray_icon: Option<crate::platform::windows::TrayIcon>,
+    /// 窗口预设管理器（用于保存/加载窗口预设）
+    #[cfg(target_os = "windows")]
+    window_preset_manager: Option<crate::platform::windows::WindowPresetManager>,
 }
 
 impl KeyMapper {
@@ -26,11 +40,14 @@ impl KeyMapper {
         Self {
             mappings: HashMap::new(),
             rules: Vec::new(),
+            context_rules: Vec::new(),
             enabled: true,
             #[cfg(target_os = "windows")]
             window_manager: None,
             #[cfg(target_os = "windows")]
             tray_icon: None,
+            #[cfg(target_os = "windows")]
+            window_preset_manager: None,
         }
     }
 
@@ -42,9 +59,13 @@ impl KeyMapper {
         Self {
             mappings: HashMap::new(),
             rules: Vec::new(),
+            context_rules: Vec::new(),
             enabled: true,
             window_manager: Some(window_manager),
             tray_icon: None,
+            window_preset_manager: Some(
+                crate::platform::windows::WindowPresetManager::new(),
+            ),
         }
     }
 
@@ -61,6 +82,23 @@ impl KeyMapper {
     #[cfg(target_os = "windows")]
     pub fn set_tray_icon(&mut self, tray_icon: crate::platform::windows::TrayIcon) {
         self.tray_icon = Some(tray_icon);
+    }
+
+    /// 设置窗口预设管理器
+    #[cfg(target_os = "windows")]
+    pub fn set_window_preset_manager(
+        &mut self,
+        manager: crate::platform::windows::WindowPresetManager,
+    ) {
+        self.window_preset_manager = Some(manager);
+    }
+
+    /// 获取窗口预设管理器的可变引用
+    #[cfg(target_os = "windows")]
+    pub fn window_preset_manager_mut(
+        &mut self,
+    ) -> Option<&mut crate::platform::windows::WindowPresetManager> {
+        self.window_preset_manager.as_mut()
     }
 
     /// 从配置加载映射规则
@@ -95,12 +133,23 @@ impl KeyMapper {
 
     /// 处理输入事件，返回要执行的动作
     pub fn process_event(&self, event: &InputEvent) -> Option<Action> {
+        self.process_event_with_context(event, None)
+    }
+
+    /// 处理输入事件（带上下文感知）
+    pub fn process_event_with_context(
+        &self,
+        event: &InputEvent,
+        context: Option<&crate::platform::windows::WindowContext>,
+    ) -> Option<Action> {
         if !self.enabled {
             return None;
         }
 
         match event {
-            InputEvent::Key(key_event) => self.process_key_event(key_event),
+            InputEvent::Key(key_event) => {
+                self.process_key_event_with_context(key_event, context)
+            }
             InputEvent::Mouse(_) => {
                 // 鼠标事件处理（TODO）
                 None
@@ -110,6 +159,15 @@ impl KeyMapper {
 
     /// 处理键盘事件
     fn process_key_event(&self, event: &KeyEvent) -> Option<Action> {
+        self.process_key_event_with_context(event, None)
+    }
+
+    /// 处理键盘事件（带上下文感知）
+    fn process_key_event_with_context(
+        &self,
+        event: &KeyEvent,
+        context: Option<&crate::platform::windows::WindowContext>,
+    ) -> Option<Action> {
         trace!(
             "Processing key event: scan_code={:04X}, vk={:04X}, state={:?}",
             event.scan_code,
@@ -117,40 +175,78 @@ impl KeyMapper {
             event.state
         );
 
-        // 查找映射
-        if let Some(action) = self.mappings.get(&event.scan_code) {
-            // 根据按键状态调整动作
-            let adjusted_action = match (action, &event.state) {
-                (
-                    Action::Key(KeyAction::Click {
-                        scan_code,
-                        virtual_key,
-                    }),
-                    _,
-                ) => {
-                    // 如果是点击动作，根据实际按键状态调整
-                    match event.state {
-                        KeyState::Pressed => Some(Action::Key(KeyAction::Press {
-                            scan_code: *scan_code,
-                            virtual_key: *virtual_key,
-                        })),
-                        KeyState::Released => Some(Action::Key(KeyAction::Release {
-                            scan_code: *scan_code,
-                            virtual_key: *virtual_key,
-                        })),
+        // 1. 首先检查上下文特定规则（优先级高）
+        if let Some(ctx) = context {
+            for rule in &self.context_rules {
+                // 检查上下文是否匹配
+                if rule.context.matches(
+                    &ctx.process_name,
+                    &ctx.window_class,
+                    &ctx.window_title,
+                    Some(&ctx.executable_path),
+                ) {
+                    // 在匹配的上下文中查找映射
+                    if let Some(action) = rule.mappings.get(&event.scan_code) {
+                        let adjusted_action =
+                            self.adjust_action_for_key_state(action, event);
+                        if adjusted_action.is_some() {
+                            trace!(
+                                "Context mapping found: {:04X} -> {:?} (context: {:?})",
+                                event.scan_code,
+                                action,
+                                rule.context
+                            );
+                        }
+                        return adjusted_action;
                     }
                 }
-                _ => Some(action.clone()),
-            };
-
-            if adjusted_action.is_some() {
-                trace!("Mapping found: {:04X} -> {:?}", event.scan_code, action);
             }
+        }
 
+        // 2. 检查基础映射（全局规则）
+        if let Some(action) = self.mappings.get(&event.scan_code) {
+            let adjusted_action = self.adjust_action_for_key_state(action, event);
+            if adjusted_action.is_some() {
+                trace!(
+                    "Base mapping found: {:04X} -> {:?}",
+                    event.scan_code,
+                    action
+                );
+            }
             return adjusted_action;
         }
 
         None
+    }
+
+    /// 根据按键状态调整动作
+    fn adjust_action_for_key_state(
+        &self,
+        action: &Action,
+        event: &KeyEvent,
+    ) -> Option<Action> {
+        match (action, &event.state) {
+            (
+                Action::Key(KeyAction::Click {
+                    scan_code,
+                    virtual_key,
+                }),
+                _,
+            ) => {
+                // 如果是点击动作，根据实际按键状态调整
+                match event.state {
+                    KeyState::Pressed => Some(Action::Key(KeyAction::Press {
+                        scan_code: *scan_code,
+                        virtual_key: *virtual_key,
+                    })),
+                    KeyState::Released => Some(Action::Key(KeyAction::Release {
+                        scan_code: *scan_code,
+                        virtual_key: *virtual_key,
+                    })),
+                }
+            }
+            _ => Some(action.clone()),
+        }
     }
 
     /// 执行动作（包括窗口管理动作）
@@ -162,6 +258,7 @@ impl KeyMapper {
                     Self::execute_window_action_internal(
                         wm,
                         self.tray_icon.as_mut(),
+                        self.window_preset_manager.as_mut(),
                         window_action,
                     )?;
                 } else {
@@ -172,6 +269,7 @@ impl KeyMapper {
             | Action::Mouse(_)
             | Action::Launch(_)
             | Action::Sequence(_)
+            | Action::System(_)
             | Action::None => {
                 // 这些动作由其他组件处理
             }
@@ -185,6 +283,7 @@ impl KeyMapper {
     fn execute_window_action_internal(
         wm: &crate::platform::windows::WindowManager,
         tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
+        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
         use crate::types::{MonitorDirection, WindowAction};
@@ -356,6 +455,65 @@ impl KeyMapper {
                         debug!("Tray icon not available, cannot show notification");
                     }
                 }
+                WindowAction::SavePreset { name } => {
+                    if let Some(pm) = preset_manager {
+                        match pm.get_foreground_window_info() {
+                            Ok((hwnd, _title, process_name, executable_path)) => {
+                                if let Err(e) = pm.save_preset(
+                                    name,
+                                    hwnd,
+                                    process_name,
+                                    executable_path,
+                                    None, // 不使用标题模式，使用进程名匹配
+                                ) {
+                                    debug!("Failed to save preset '{}': {}", name, e);
+                                } else {
+                                    debug!("Saved preset '{}' for current window", name);
+                                    // 显示通知
+                                    if let Some(tray) = tray_icon {
+                                        let _ = tray.show_notification(
+                                            "wakem",
+                                            &format!("已保存预设 '{}'", name),
+                                        );
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                debug!("Failed to get foreground window info: {}", e);
+                            }
+                        }
+                    } else {
+                        debug!("WindowPresetManager not available, cannot save preset");
+                    }
+                }
+                WindowAction::LoadPreset { name } => {
+                    if let Some(pm) = preset_manager {
+                        if let Err(e) = pm.load_preset(name, hwnd) {
+                            debug!("Failed to load preset '{}': {}", name, e);
+                        } else {
+                            debug!("Loaded preset '{}' for current window", name);
+                        }
+                    } else {
+                        debug!("WindowPresetManager not available, cannot load preset");
+                    }
+                }
+                WindowAction::ApplyPreset => {
+                    if let Some(pm) = preset_manager {
+                        match pm.apply_preset_for_window(hwnd) {
+                            Ok(true) => {
+                                debug!("Applied matching preset to current window");
+                            }
+                            Ok(false) => {
+                                debug!("No matching preset found for current window");
+                            }
+                            Err(e) => {
+                                debug!("Failed to apply preset: {}", e);
+                            }
+                        }
+                    } else {
+                        debug!("WindowPresetManager not available, cannot apply preset");
+                    }
+                }
                 WindowAction::None => {}
             }
         }
@@ -389,6 +547,63 @@ impl KeyMapper {
         }
 
         debug!("Rebuilt mappings: {} entries", self.mappings.len());
+    }
+
+    /// 加载上下文感知映射规则
+    pub fn load_context_rules(
+        &mut self,
+        context_mappings: &[crate::config::ContextMapping],
+    ) {
+        self.context_rules.clear();
+
+        for mapping in context_mappings {
+            let mut rule_mappings = HashMap::new();
+
+            // 解析每个映射字符串
+            for (from, to) in &mapping.mappings {
+                if let Ok((scan_code, action)) = Self::parse_context_mapping(from, to) {
+                    rule_mappings.insert(scan_code, action);
+                }
+            }
+
+            if !rule_mappings.is_empty() {
+                self.context_rules.push(ContextMappingRule {
+                    context: mapping.context.clone(),
+                    mappings: rule_mappings,
+                });
+            }
+        }
+
+        debug!("Loaded {} context mapping rules", self.context_rules.len());
+    }
+
+    /// 解析上下文映射字符串
+    fn parse_context_mapping(from: &str, to: &str) -> anyhow::Result<(u16, Action)> {
+        use crate::config::parse_key;
+        use crate::types::KeyAction;
+
+        // 解析源键
+        let from_key = parse_key(from)?;
+
+        // 解析目标动作
+        // 先尝试解析为键位
+        if let Ok(to_key) = parse_key(to) {
+            return Ok((
+                from_key.0,
+                Action::key(KeyAction::click(to_key.0, to_key.1)),
+            ));
+        }
+
+        // 尝试解析为窗口动作
+        if let Ok(window_action) = crate::config::parse_window_action(to) {
+            return Ok((from_key.0, Action::window(window_action)));
+        }
+
+        Err(anyhow::anyhow!(
+            "Failed to parse mapping: {} -> {}",
+            from,
+            to
+        ))
     }
 
     /// 添加简单的键位重映射

@@ -1,7 +1,14 @@
 use tracing::debug;
+use windows::Win32::Foundation::CloseHandle;
+use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
+use windows::Win32::System::Threading::{
+    OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
 };
+
+use crate::config::wildcard_match;
 
 /// 窗口上下文信息
 #[derive(Debug, Clone, Default)]
@@ -16,6 +23,8 @@ pub struct WindowContext {
     pub process_id: u32,
     /// 进程名
     pub process_name: String,
+    /// 可执行文件路径
+    pub executable_path: String,
 }
 
 impl WindowContext {
@@ -50,16 +59,60 @@ impl WindowContext {
             GetWindowThreadProcessId(hwnd, Some(&mut process_id));
             context.process_id = process_id;
 
-            // 获取进程名（简化版，使用进程 ID 作为标识）
-            context.process_name = format!("pid:{}", process_id);
+            // 获取进程名
+            context.process_name = Self::get_process_name_by_pid(process_id)
+                .unwrap_or_else(|| format!("pid:{}", process_id));
+
+            // 获取可执行文件路径
+            context.executable_path =
+                Self::get_executable_path_by_pid(process_id).unwrap_or_default();
 
             debug!(
-                "Current window: class={}, title={}, process={}",
-                context.window_class, context.window_title, context.process_name
+                "Current window: class={}, title={}, process={}, path={}",
+                context.window_class,
+                context.window_title,
+                context.process_name,
+                context.executable_path
             );
 
             Some(context)
         }
+    }
+
+    /// 通过进程 ID 获取进程名
+    unsafe fn get_process_name_by_pid(pid: u32) -> Option<String> {
+        let handle =
+            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
+
+        let mut buffer = [0u16; 260];
+        let len = GetModuleBaseNameW(handle, None, &mut buffer);
+
+        CloseHandle(handle).ok();
+
+        if len == 0 {
+            return None;
+        }
+
+        Some(String::from_utf16_lossy(&buffer[..len as usize]))
+    }
+
+    /// 通过进程 ID 获取可执行文件路径
+    unsafe fn get_executable_path_by_pid(pid: u32) -> Option<String> {
+        use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+
+        let handle =
+            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
+
+        let mut buffer = [0u16; 260];
+        let len = GetModuleFileNameExW(handle, None, &mut buffer);
+
+        CloseHandle(handle).ok();
+
+        if len == 0 {
+            return None;
+        }
+
+        Some(String::from_utf16_lossy(&buffer[..len as usize]))
     }
 
     /// 检查是否匹配给定的上下文条件
@@ -68,6 +121,7 @@ impl WindowContext {
         window_class: Option<&str>,
         process_name: Option<&str>,
         window_title: Option<&str>,
+        executable_path: Option<&str>,
     ) -> bool {
         if let Some(pattern) = window_class {
             if !wildcard_match(&self.window_class, pattern) {
@@ -87,18 +141,14 @@ impl WindowContext {
             }
         }
 
+        if let Some(pattern) = executable_path {
+            if !wildcard_match(&self.executable_path, pattern) {
+                return false;
+            }
+        }
+
         true
     }
-}
-
-/// 简单的通配符匹配（* 匹配任意字符，? 匹配单个字符）
-fn wildcard_match(text: &str, pattern: &str) -> bool {
-    if pattern == "*" || pattern.is_empty() {
-        return true;
-    }
-
-    // 简单的包含匹配
-    text.to_lowercase().contains(&pattern.to_lowercase())
 }
 
 #[cfg(test)]
@@ -106,16 +156,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_wildcard_match() {
-        assert!(wildcard_match("MozillaWindowClass", "Mozilla"));
-        assert!(wildcard_match("firefox.exe", "firefox"));
-        assert!(wildcard_match("test", "*"));
-        assert!(wildcard_match("MozillaWindowClass", "MozillaWindowClass"));
+    fn test_get_current() {
+        // 测试能否获取当前窗口
+        let context = WindowContext::get_current();
+        assert!(context.is_some());
+
+        let ctx = context.unwrap();
+        // 验证基本字段已填充
+        assert!(!ctx.window_class.is_empty() || !ctx.window_title.is_empty());
     }
 
     #[test]
-    fn test_get_current() {
-        // 测试能否获取当前窗口
-        let _ = WindowContext::get_current();
+    fn test_matches() {
+        let context = WindowContext {
+            hwnd: 0,
+            window_class: "MozillaWindowClass".to_string(),
+            window_title: "Firefox".to_string(),
+            process_id: 1234,
+            process_name: "firefox.exe".to_string(),
+            executable_path: "C:\\Program Files\\Firefox\\firefox.exe".to_string(),
+        };
+
+        // 测试进程名匹配
+        assert!(context.matches(None, Some("firefox.exe"), None, None));
+        assert!(context.matches(None, Some("*.exe"), None, None));
+        assert!(!context.matches(None, Some("chrome.exe"), None, None));
+
+        // 测试窗口类名匹配
+        assert!(context.matches(Some("Mozilla*"), None, None, None));
+        assert!(!context.matches(Some("Chrome*"), None, None, None));
+
+        // 测试窗口标题匹配
+        assert!(context.matches(None, None, Some("Fire*"), None));
+
+        // 测试路径匹配
+        assert!(context.matches(None, None, None, Some("*Firefox*")));
     }
 }

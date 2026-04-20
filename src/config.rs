@@ -159,6 +159,9 @@ pub struct KeyboardConfig {
     /// 快捷键层
     #[serde(default)]
     pub layers: HashMap<String, LayerConfig>,
+    /// 上下文感知映射
+    #[serde(default)]
+    pub context_mappings: Vec<ContextMapping>,
 }
 
 /// 层配置
@@ -182,18 +185,96 @@ pub enum LayerMode {
     Toggle,
 }
 
+/// 上下文感知映射
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextMapping {
+    /// 上下文条件
+    pub context: ContextCondition,
+    /// 在此上下文下的映射规则
+    pub mappings: HashMap<String, String>,
+}
+
+/// 上下文条件
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ContextCondition {
+    /// 进程名匹配（支持通配符）
+    #[serde(default)]
+    pub process_name: Option<String>,
+    /// 窗口类名匹配
+    #[serde(default)]
+    pub window_class: Option<String>,
+    /// 窗口标题匹配
+    #[serde(default)]
+    pub window_title: Option<String>,
+    /// 可执行文件路径匹配
+    #[serde(default)]
+    pub executable_path: Option<String>,
+}
+
+impl ContextCondition {
+    /// 检查是否匹配给定的上下文信息
+    pub fn matches(
+        &self,
+        process_name: &str,
+        window_class: &str,
+        window_title: &str,
+        executable_path: Option<&str>,
+    ) -> bool {
+        // 检查进程名匹配
+        if let Some(ref pattern) = self.process_name {
+            if !wildcard_match(process_name, pattern) {
+                return false;
+            }
+        }
+
+        // 检查窗口类名匹配
+        if let Some(ref pattern) = self.window_class {
+            if !wildcard_match(window_class, pattern) {
+                return false;
+            }
+        }
+
+        // 检查窗口标题匹配
+        if let Some(ref pattern) = self.window_title {
+            if !wildcard_match(window_title, pattern) {
+                return false;
+            }
+        }
+
+        // 检查可执行路径匹配
+        if let Some(ref pattern) = self.executable_path {
+            let path = executable_path.unwrap_or("");
+            if !wildcard_match(path, pattern) {
+                return false;
+            }
+        }
+
+        // 至少需要一个匹配条件
+        self.process_name.is_some()
+            || self.window_class.is_some()
+            || self.window_title.is_some()
+            || self.executable_path.is_some()
+    }
+}
+
 /// 窗口配置
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WindowConfig {
     /// 窗口切换设置
     #[serde(default)]
     pub switch: WindowSwitchConfig,
-    /// 窗口位置预设
+    /// 窗口位置预设（已废弃，保留用于向后兼容）
     #[serde(default)]
     pub positions: HashMap<String, WindowPosition>,
     /// 窗口管理快捷键（借鉴 mrw）
     #[serde(default)]
     pub shortcuts: HashMap<String, String>,
+    /// 窗口预设列表
+    #[serde(default)]
+    pub presets: Vec<WindowPreset>,
+    /// 是否自动应用预设
+    #[serde(default = "default_true")]
+    pub auto_apply_preset: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -212,6 +293,178 @@ pub struct WindowPosition {
     pub y: i32,
     pub width: i32,
     pub height: i32,
+}
+
+/// 窗口预设
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowPreset {
+    /// 预设名称
+    pub name: String,
+    /// 匹配的进程名（如 chrome.exe）
+    #[serde(default)]
+    pub process_name: Option<String>,
+    /// 匹配的可执行文件路径
+    #[serde(default)]
+    pub executable_path: Option<String>,
+    /// 窗口标题匹配模式（支持通配符）
+    #[serde(default)]
+    pub title_pattern: Option<String>,
+    /// 窗口位置
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl WindowPreset {
+    /// 检查预设是否匹配指定窗口信息
+    pub fn matches(
+        &self,
+        process_name: &str,
+        executable_path: Option<&str>,
+        title: &str,
+    ) -> bool {
+        // 检查进程名匹配
+        if let Some(ref pattern) = self.process_name {
+            if !Self::wildcard_match(process_name, pattern) {
+                return false;
+            }
+        }
+
+        // 检查可执行路径匹配
+        if let Some(ref pattern) = self.executable_path {
+            let path = executable_path.unwrap_or("");
+            if !Self::wildcard_match(path, pattern) {
+                return false;
+            }
+        }
+
+        // 检查窗口标题匹配
+        if let Some(ref pattern) = self.title_pattern {
+            if !Self::wildcard_match(title, pattern) {
+                return false;
+            }
+        }
+
+        // 至少需要一个匹配条件
+        self.process_name.is_some()
+            || self.executable_path.is_some()
+            || self.title_pattern.is_some()
+    }
+
+    /// 简单的通配符匹配（* 匹配任意字符，? 匹配单个字符）
+    fn wildcard_match(text: &str, pattern: &str) -> bool {
+        let text = text.to_lowercase();
+        let pattern = pattern.to_lowercase();
+
+        Self::wildcard_match_recursive(&text, &pattern)
+    }
+
+    fn wildcard_match_recursive(text: &str, pattern: &str) -> bool {
+        // 如果模式为空，文本也必须为空
+        if pattern.is_empty() {
+            return text.is_empty();
+        }
+
+        let mut pattern_chars = pattern.chars();
+        let first_p = pattern_chars.next().unwrap();
+
+        match first_p {
+            '*' => {
+                // 跳过连续的 *
+                let remaining_pattern: String =
+                    pattern_chars.skip_while(|&c| c == '*').collect();
+
+                // * 匹配空字符串或任意前缀
+                for i in 0..=text.len() {
+                    if Self::wildcard_match_recursive(&text[i..], &remaining_pattern) {
+                        return true;
+                    }
+                }
+                false
+            }
+            '?' => {
+                // ? 匹配任意单个字符
+                if text.is_empty() {
+                    return false;
+                }
+                let remaining_text: String = text.chars().skip(1).collect();
+                let remaining_pattern: String = pattern_chars.collect();
+                Self::wildcard_match_recursive(&remaining_text, &remaining_pattern)
+            }
+            _ => {
+                // 普通字符必须匹配
+                if text.is_empty() {
+                    return false;
+                }
+                let first_t = text.chars().next().unwrap();
+                if first_t.to_lowercase().to_string()
+                    != first_p.to_lowercase().to_string()
+                {
+                    return false;
+                }
+                let remaining_text: String = text.chars().skip(1).collect();
+                let remaining_pattern: String = pattern_chars.collect();
+                Self::wildcard_match_recursive(&remaining_text, &remaining_pattern)
+            }
+        }
+    }
+}
+
+/// 公共通配符匹配函数（支持 * 和 ?）
+pub fn wildcard_match(text: &str, pattern: &str) -> bool {
+    let text = text.to_lowercase();
+    let pattern = pattern.to_lowercase();
+
+    wildcard_match_recursive(&text, &pattern)
+}
+
+fn wildcard_match_recursive(text: &str, pattern: &str) -> bool {
+    // 如果模式为空，文本也必须为空
+    if pattern.is_empty() {
+        return text.is_empty();
+    }
+
+    let mut pattern_chars = pattern.chars();
+    let first_p = pattern_chars.next().unwrap();
+
+    match first_p {
+        '*' => {
+            // 跳过连续的 *
+            let remaining_pattern: String =
+                pattern_chars.skip_while(|&c| c == '*').collect();
+
+            // * 匹配空字符串或任意前缀
+            for i in 0..=text.len() {
+                if wildcard_match_recursive(&text[i..], &remaining_pattern) {
+                    return true;
+                }
+            }
+            false
+        }
+        '?' => {
+            // ? 匹配任意单个字符
+            if text.is_empty() {
+                return false;
+            }
+            let remaining_text: String = text.chars().skip(1).collect();
+            let remaining_pattern: String = pattern_chars.collect();
+            wildcard_match_recursive(&remaining_text, &remaining_pattern)
+        }
+        _ => {
+            // 普通字符必须匹配
+            if text.is_empty() {
+                return false;
+            }
+            let first_t = text.chars().next().unwrap();
+            if first_t.to_lowercase().to_string() != first_p.to_lowercase().to_string() {
+                return false;
+            }
+            let remaining_text: String = text.chars().skip(1).collect();
+            let remaining_pattern: String = pattern_chars.collect();
+            wildcard_match_recursive(&remaining_text, &remaining_pattern)
+        }
+    }
 }
 
 /// 鼠标配置
@@ -233,10 +486,43 @@ pub struct WheelConfig {
     /// 是否反转滚轮方向
     #[serde(default)]
     pub invert: bool,
+    /// 是否启用滚轮加速
+    #[serde(default)]
+    pub acceleration: bool,
+    /// 加速倍数
+    #[serde(default = "default_acceleration_multiplier")]
+    pub acceleration_multiplier: f32,
+    /// 水平滚动配置
+    #[serde(default)]
+    pub horizontal_scroll: Option<WheelModifierConfig>,
+    /// 音量控制配置
+    #[serde(default)]
+    pub volume_control: Option<WheelModifierConfig>,
+    /// 亮度控制配置
+    #[serde(default)]
+    pub brightness_control: Option<WheelModifierConfig>,
 }
 
 fn default_wheel_speed() -> i32 {
     3
+}
+
+fn default_acceleration_multiplier() -> f32 {
+    2.0
+}
+
+/// 滚轮修饰键配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WheelModifierConfig {
+    /// 修饰键（如 "Shift", "RightAlt", "RightCtrl"）
+    pub modifier: String,
+    /// 每次滚动的步进值
+    #[serde(default = "default_wheel_step")]
+    pub step: i32,
+}
+
+fn default_wheel_step() -> i32 {
+    1
 }
 
 /// 解析简单的键位映射配置
@@ -386,7 +672,9 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
 
 /// 解析窗口管理动作
 /// 格式: "Center", "MoveToEdge(Left)", "HalfScreen(Right)", "FixedRatio(1.333, 0)"
-fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowAction> {
+pub fn parse_window_action(
+    action_str: &str,
+) -> anyhow::Result<crate::types::WindowAction> {
     use crate::types::WindowAction;
 
     let action_str = action_str.trim();
@@ -401,6 +689,7 @@ fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowA
         "Close" => return Ok(WindowAction::Close),
         "ToggleTopmost" => return Ok(WindowAction::ToggleTopmost),
         "ShowDebugInfo" => return Ok(WindowAction::ShowDebugInfo),
+        "ApplyPreset" => return Ok(WindowAction::ApplyPreset),
         _ => {}
     }
 
@@ -458,6 +747,14 @@ fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowA
                 let title = param_list.get(0).unwrap_or(&"wakem").to_string();
                 let message = param_list.get(1).unwrap_or(&"").to_string();
                 Ok(WindowAction::ShowNotification { title, message })
+            }
+            "SavePreset" => {
+                let name = param_list.get(0).unwrap_or(&"default").to_string();
+                Ok(WindowAction::SavePreset { name })
+            }
+            "LoadPreset" => {
+                let name = param_list.get(0).unwrap_or(&"default").to_string();
+                Ok(WindowAction::LoadPreset { name })
             }
             _ => Err(anyhow::anyhow!("Unknown window action: {}", name)),
         }
