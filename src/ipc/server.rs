@@ -167,8 +167,8 @@ async fn handle_connection(
                 }
             }
 
-            // 超时检查（5分钟空闲超时）
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(300)) => {
+            // 超时检查（2分钟空闲超时，平衡资源使用和用户体验）
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(120)) => {
                 debug!("Connection timeout for {}", addr);
                 break;
             }

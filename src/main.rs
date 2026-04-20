@@ -8,6 +8,7 @@ use tracing::{error, info};
 mod cli;
 mod client;
 mod config;
+mod constants;
 mod daemon;
 mod ipc;
 mod platform;
@@ -20,6 +21,54 @@ use cli::{Cli, Commands};
 use client::DaemonClient;
 use config::Config;
 use window::{AppCommand, MessageWindow};
+
+/// 简单的 daemon 命令执行器宏（消除样板代码）- 用于无参数方法
+macro_rules! simple_daemon_command {
+    ($name:ident, $method:ident, $success_msg:expr) => {
+        async fn $name(instance_id: u32) -> Result<()> {
+            execute_daemon_command(instance_id, |client| {
+                Box::pin(async move {
+                    client.$method().await?;
+                    println!($success_msg);
+                    Ok(())
+                })
+            })
+            .await
+        }
+    };
+}
+
+// 使用宏生成无参数的命令处理函数
+simple_daemon_command!(
+    cmd_reload,
+    reload_config,
+    "Configuration reloaded successfully"
+);
+simple_daemon_command!(cmd_save, save_config, "Configuration saved successfully");
+
+/// 启用映射
+async fn cmd_enable(instance_id: u32) -> Result<()> {
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.set_active(true).await?;
+            println!("wakem enabled");
+            Ok(())
+        })
+    })
+    .await
+}
+
+/// 禁用映射
+async fn cmd_disable(instance_id: u32) -> Result<()> {
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.set_active(false).await?;
+            println!("wakem disabled");
+            Ok(())
+        })
+    })
+    .await
+}
 
 /// 初始化日志系统（支持从配置文件读取日志级别）
 fn init_logging(cli: &Cli) {
@@ -105,54 +154,6 @@ async fn cmd_status(instance_id: u32) -> Result<()> {
             println!("wakemd instance {}:", instance_id);
             println!("  Active: {}", if active { "yes" } else { "no" });
             println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
-            Ok(())
-        })
-    })
-    .await
-}
-
-/// 重载配置
-async fn cmd_reload(instance_id: u32) -> Result<()> {
-    execute_daemon_command(instance_id, |client| {
-        Box::pin(async move {
-            client.reload_config().await?;
-            println!("Configuration reloaded successfully");
-            Ok(())
-        })
-    })
-    .await
-}
-
-/// 保存配置到文件
-async fn cmd_save(instance_id: u32) -> Result<()> {
-    execute_daemon_command(instance_id, |client| {
-        Box::pin(async move {
-            client.save_config().await?;
-            println!("Configuration saved successfully");
-            Ok(())
-        })
-    })
-    .await
-}
-
-/// 启用映射
-async fn cmd_enable(instance_id: u32) -> Result<()> {
-    execute_daemon_command(instance_id, |client| {
-        Box::pin(async move {
-            client.set_active(true).await?;
-            println!("wakem enabled");
-            Ok(())
-        })
-    })
-    .await
-}
-
-/// 禁用映射
-async fn cmd_disable(instance_id: u32) -> Result<()> {
-    execute_daemon_command(instance_id, |client| {
-        Box::pin(async move {
-            client.set_active(false).await?;
-            println!("wakem disabled");
             Ok(())
         })
     })

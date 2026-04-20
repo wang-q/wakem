@@ -1,7 +1,9 @@
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use tracing::info;
+use std::sync::{Arc, Mutex};
+use tracing::{debug, info};
 
 use crate::platform::windows::Launcher;
 use crate::types::{ContextCondition, MacroStep, MappingRule};
@@ -305,7 +307,7 @@ impl NetworkConfig {
     pub fn ensure_auth_key(&mut self) -> &str {
         if self.auth_key.is_none() {
             let key = Self::generate_random_key();
-            info!("Generated new authentication key for security");
+            debug!("Authentication key generated for security");
             self.auth_key = Some(key);
         }
         self.auth_key.as_deref().unwrap()
@@ -1001,48 +1003,125 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         .ok_or_else(|| anyhow::anyhow!("Unknown key name: {}", name))
 }
 
-/// 解析配置文件路径
-/// 如果提供了路径，使用提供的路径；否则使用默认路径
+/// 配置文件路径缓存（减少重复的文件系统 I/O）
+///
+/// 性能优化：缓存已解析的配置文件路径，避免每次调用都检查文件存在性
+struct ConfigPathCache {
+    cache: Mutex<HashMap<u32, Option<std::path::PathBuf>>>,
+}
+
+impl ConfigPathCache {
+    fn new() -> Self {
+        Self {
+            cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn get_or_resolve(&self, instance_id: u32) -> Option<std::path::PathBuf> {
+        // 先检查缓存
+        if let Ok(mut cache) = self.cache.lock() {
+            if let Some(cached) = cache.get(&instance_id) {
+                debug!("Config path cache hit for instance {}", instance_id);
+                return cached.clone();
+            }
+
+            // 缓存未命中，解析路径
+            let path = Self::resolve_config_path_internal(instance_id);
+
+            // 存入缓存
+            cache.insert(instance_id, path.clone());
+
+            debug!(
+                "Config path cache miss for instance {}, resolved and cached",
+                instance_id
+            );
+            path
+        } else {
+            // 锁失败时回退到直接解析
+            Self::resolve_config_path_internal(instance_id)
+        }
+    }
+
+    /// 清除指定实例的缓存
+    fn invalidate(&self, instance_id: u32) {
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.remove(&instance_id);
+            debug!("Invalidated config path cache for instance {}", instance_id);
+        }
+    }
+
+    /// 清除所有缓存
+    fn clear(&self) {
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.clear();
+            debug!("Cleared all config path cache");
+        }
+    }
+
+    /// 内部路径解析逻辑（原始实现）
+    fn resolve_config_path_internal(instance_id: u32) -> Option<std::path::PathBuf> {
+        let home = std::env::var("USERPROFILE").ok()?;
+        let home_path = std::path::PathBuf::from(home);
+
+        let config_filename = if instance_id == 0 {
+            ".wakem.toml".to_string()
+        } else {
+            format!(".wakem-instance{}.toml", instance_id)
+        };
+
+        // 优先级1: 检查 %USERPROFILE%\.wakem.toml 或 .wakem-instanceN.toml
+        let config_file = home_path.join(&config_filename);
+        if config_file.exists() {
+            return Some(config_file);
+        }
+
+        // 优先级2: 检查 %APPDATA%\wakem\config.toml 或 config-instanceN.toml
+        let app_data = std::env::var("APPDATA").ok()?;
+        let config_dir = std::path::PathBuf::from(app_data).join("wakem");
+        let config_file = if instance_id == 0 {
+            config_dir.join("config.toml")
+        } else {
+            config_dir.join(format!("config-instance{}.toml", instance_id))
+        };
+        if config_file.exists() {
+            return Some(config_file);
+        }
+
+        // 返回默认路径（即使不存在）
+        Some(home_path.join(config_filename))
+    }
+}
+
+/// 全局配置路径缓存实例
+static CONFIG_PATH_CACHE: Lazy<ConfigPathCache> = Lazy::new(ConfigPathCache::new);
+
+/// 解析配置文件路径（带缓存版本）
+///
+/// 如果提供了路径，使用提供的路径；否则使用默认路径（带缓存）
 /// 支持实例配置文件（instance_id > 0 时使用 config-instanceN.toml）
 pub fn resolve_config_file_path(
     path: Option<&std::path::Path>,
     instance_id: u32,
 ) -> Option<std::path::PathBuf> {
+    // 如果提供了显式路径，直接使用（不缓存）
     if let Some(p) = path {
         return Some(p.to_path_buf());
     }
 
-    // 尝试默认路径
-    let home = std::env::var("USERPROFILE").ok()?;
-    let home_path = std::path::PathBuf::from(home);
+    // 使用缓存的路径解析
+    CONFIG_PATH_CACHE.get_or_resolve(instance_id)
+}
 
-    // 根据实例ID确定配置文件名
-    let config_filename = if instance_id == 0 {
-        ".wakem.toml".to_string()
-    } else {
-        format!(".wakem-instance{}.toml", instance_id)
-    };
+/// 使配置文件路径缓存失效
+///
+/// 在配置文件被移动、重命名或删除后调用此函数
+pub fn invalidate_config_path_cache(instance_id: u32) {
+    CONFIG_PATH_CACHE.invalidate(instance_id);
+}
 
-    // 优先级1: 检查 %USERPROFILE%\.wakem.toml 或 .wakem-instanceN.toml
-    let config_file = home_path.join(&config_filename);
-    if config_file.exists() {
-        return Some(config_file);
-    }
-
-    // 优先级2: 检查 %APPDATA%\wakem\config.toml 或 config-instanceN.toml
-    let app_data = std::env::var("APPDATA").ok()?;
-    let config_dir = std::path::PathBuf::from(app_data).join("wakem");
-    let config_file = if instance_id == 0 {
-        config_dir.join("config.toml")
-    } else {
-        config_dir.join(format!("config-instance{}.toml", instance_id))
-    };
-    if config_file.exists() {
-        return Some(config_file);
-    }
-
-    // 返回默认路径（即使不存在）
-    Some(home_path.join(config_filename))
+/// 清除所有配置文件路径缓存
+pub fn clear_config_path_cache() {
+    CONFIG_PATH_CACHE.clear();
 }
 
 #[cfg(test)]

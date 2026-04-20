@@ -68,6 +68,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # 异步 trait
 async-trait = "0.1"
 
+[dev-dependencies]
+# 属性测试
+proptest = "1.4"
+
 [profile.release]
 lto = true
 opt-level = 3

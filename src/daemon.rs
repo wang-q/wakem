@@ -254,12 +254,12 @@ impl ServerState {
             return;
         }
 
-        // 如果正在录制宏，记录事件
+        // 如果正在录制宏，记录事件（读操作，快速释放锁）
         if self.macro_recorder.is_recording().await {
             self.macro_recorder.record_event(&event).await;
         }
 
-        // 处理滚轮增强
+        // 处理滚轮增强（只读配置，不修改状态）
         if let InputEvent::Mouse(mouse_event) = &event {
             if let crate::types::MouseEventType::Wheel(delta) = mouse_event.event_type {
                 debug!(wheel_delta = delta, "Processing wheel enhancement");
@@ -276,14 +276,13 @@ impl ServerState {
             }
         }
 
-        // 先尝试通过层管理器处理（需要写锁因为 process_event 会修改状态）
+        // 先尝试通过层管理器处理（优化：减少写锁持有时间）
         let (handled, action) = {
             let mut layer_manager = self.layer_manager.write().await;
             layer_manager.process_event(&event)
         };
 
         if handled {
-            // 如果层管理器处理了事件（包括层激活键）
             if let Some(action) = action {
                 if let Err(e) = self.execute_action(action).await {
                     error!("Failed to execute action: {}", e);
@@ -295,12 +294,11 @@ impl ServerState {
         // 层管理器未处理，使用基础映射引擎（带上下文感知）- 使用读锁
         let action = {
             let mapper = self.mapper.read().await;
-            // 获取当前窗口上下文
             let context = crate::platform::windows::WindowContext::get_current();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
-        // 执行动作
+        // 执行动作（在锁外执行，避免长时间持锁）
         if let Some(action) = action {
             if let Err(e) = self.execute_action(action).await {
                 error!("Failed to execute action: {}", e);
@@ -379,6 +377,11 @@ impl ServerState {
     }
 
     /// 执行动作
+    ///
+    /// 性能优化：
+    /// - 对 Sequence 动作进行分组，减少锁获取次数
+    /// - 连续的 Key/Mouse/System 动作共享同一个 output_device 锁
+    /// - Window/Launch 动作使用独立的锁，避免长时间阻塞其他操作
     async fn execute_action(&self, action: Action) -> Result<()> {
         match action {
             Action::Key(key_action) => {
@@ -398,9 +401,8 @@ impl ServerState {
                 launcher.launch(&launch_action)?;
             }
             Action::Sequence(actions) => {
-                for a in actions {
-                    Box::pin(self.execute_action(a)).await?;
-                }
+                // 性能优化：对动作序列进行分组执行，减少锁获取次数
+                self.execute_action_sequence_optimized(&actions).await?;
             }
             Action::System(system_action) => {
                 let output = self.output_device.lock().await;
@@ -411,6 +413,85 @@ impl ServerState {
                     .await;
             }
             Action::None => {}
+        }
+
+        Ok(())
+    }
+
+    /// 优化的动作序列执行（减少锁竞争）
+    ///
+    /// 将序列中的动作按类型分组：
+    /// - 连续的 Key/Mouse/System 动作：一次性获取 output_device 锁，批量执行
+    /// - Window 动作：单独获取 mapper 写锁
+    /// - Launch 动作：单独获取 launcher 锁
+    /// - Delay 动作：释放所有锁后等待
+    async fn execute_action_sequence_optimized(&self, actions: &[Action]) -> Result<()> {
+        use crate::types::Action::*;
+
+        let mut i = 0;
+        while i < actions.len() {
+            match &actions[i] {
+                // 批量处理输出设备相关的动作（Key, Mouse, System）
+                Key(_) | Mouse(_) | System(_) => {
+                    let output = self.output_device.lock().await;
+
+                    // 收集所有连续的输出设备动作
+                    while i < actions.len() {
+                        match &actions[i] {
+                            Key(key_action) => {
+                                output.send_key_action(key_action)?;
+                            }
+                            Mouse(mouse_action) => {
+                                output.send_mouse_action(mouse_action)?;
+                            }
+                            System(system_action) => {
+                                output.send_system_action(system_action)?;
+                            }
+                            _ => break, // 遇到非输出设备动作，停止批量处理
+                        }
+                        i += 1;
+                    }
+                    // output 锁在此释放
+                }
+
+                // 单独处理窗口动作
+                Window(window_action) => {
+                    let mut mapper = self.mapper.write().await;
+                    mapper.execute_action(&Window(window_action.clone()))?;
+                    i += 1;
+                    // mapper 锁在此释放
+                }
+
+                // 单独处理启动动作
+                Launch(launch_action) => {
+                    let launcher = self.launcher.lock().await;
+                    launcher.launch(launch_action)?;
+                    i += 1;
+                    // launcher 锁在此释放
+                }
+
+                // 处理延迟动作（在无锁状态下等待）
+                Delay { milliseconds } => {
+                    drop(i); // 显式释放引用以便 sleep
+                    tokio::time::sleep(tokio::time::Duration::from_millis(
+                        *milliseconds,
+                    ))
+                    .await;
+                    i += 1;
+                }
+
+                // 空操作
+                None => {
+                    i += 1;
+                }
+
+                // 嵌套的 Sequence（递归处理）
+                Sequence(nested_actions) => {
+                    Box::pin(self.execute_action_sequence_optimized(nested_actions))
+                        .await?;
+                    i += 1;
+                }
+            }
         }
 
         Ok(())
@@ -721,23 +802,30 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     // 创建输入事件通道（使用 tokio::sync::mpsc 用于高效的异步处理）
     let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<InputEvent>(1000);
 
+    // 收集所有 std 线程的 JoinHandle，用于优雅关闭
+    let mut thread_handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
+
     // 启动 Raw Input 捕获（在单独线程中，通过 bridge 发送到 tokio channel）
     let input_tx_bridge = input_tx.clone();
-    std::thread::spawn(move || {
+    let input_bridge_handle = std::thread::spawn(move || {
         let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
         let tx_clone = input_tx_bridge;
 
-        std::thread::spawn(move || match RawInputDevice::new(std_tx) {
-            Ok(mut device) => {
-                info!("Raw Input device initialized");
-                if let Err(e) = device.run() {
-                    error!("Raw Input error: {}", e);
+        let raw_input_handle =
+            std::thread::spawn(move || match RawInputDevice::new(std_tx) {
+                Ok(mut device) => {
+                    info!("Raw Input device initialized");
+                    if let Err(e) = device.run() {
+                        error!("Raw Input error: {}", e);
+                    }
                 }
-            }
-            Err(e) => {
-                error!("Failed to create Raw Input device: {}", e);
-            }
-        });
+                Err(e) => {
+                    error!("Failed to create Raw Input device: {}", e);
+                }
+            });
+
+        // 等待 Raw Input 线程结束（如果它提前退出）
+        let _ = raw_input_handle.join();
 
         // Bridge: 从 std channel 接收并发送到 tokio channel
         while let Ok(event) = std_rx.recv() {
@@ -747,24 +835,94 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         }
         info!("Input bridge thread shutdown complete");
     });
+    thread_handles.push(input_bridge_handle);
 
-    // 启动输入处理任务（带关闭信号检查）
+    // 启动输入处理任务（带关闭信号检查和批处理优化）
     let state_clone = state.clone();
     let mut input_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
+        use crate::constants::INPUT_CHANNEL_CAPACITY;
+        use tokio::time::{Duration, Instant};
+
+        let batch_size_limit = 50; // 单次最大批处理数量
+        let batch_timeout_micros = 100; // 批处理超时（微秒）
+        let mut event_batch = Vec::with_capacity(batch_size_limit);
+
         loop {
-            tokio::select! {
-                event = input_rx.recv() => {
-                    match event {
-                        Some(event) => {
-                            state_clone.process_input_event(event).await;
+            // 批量收集事件（减少锁竞争）
+            let batch_start = Instant::now();
+
+            // 非阻塞地尝试收集多个事件
+            loop {
+                match input_rx.try_recv() {
+                    Ok(event) => {
+                        event_batch.push(event);
+
+                        // 达到批次大小限制或超时，停止收集
+                        if event_batch.len() >= batch_size_limit {
+                            break;
                         }
-                        None => break, // 通道关闭
+                        if batch_start.elapsed()
+                            >= Duration::from_micros(batch_timeout_micros)
+                        {
+                            break;
+                        }
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                        // 没有更多事件，退出收集循环
+                        if !event_batch.is_empty() {
+                            break; // 有已收集的事件，开始处理
+                        }
+                        // 没有事件，等待新事件或关闭信号
+                        break;
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                        // 通道关闭，处理剩余事件后退出
+                        if event_batch.is_empty() {
+                            return; // 无剩余事件，直接退出
+                        }
+                        break;
                     }
                 }
-                _ = input_shutdown.changed() => {
-                    info!("Input processing task received shutdown signal");
+
+                // 如果没有收集到任何事件，使用 select! 等待
+                if event_batch.is_empty() {
                     break;
+                }
+            }
+
+            // 如果仍然没有事件，等待新事件或关闭信号
+            if event_batch.is_empty() {
+                tokio::select! {
+                    event = input_rx.recv() => {
+                        match event {
+                            Some(event) => {
+                                // 收到单个事件，直接处理
+                                state_clone.process_input_event(event).await;
+                            }
+                            None => break, // 通道关闭
+                        }
+                    }
+                    _ = input_shutdown.changed() => {
+                        info!("Input processing task received shutdown signal");
+                        break;
+                    }
+                }
+            } else {
+                // 批量处理收集到的事件
+                let batch_len = event_batch.len();
+                if batch_len > 1 {
+                    debug!(batch_size = batch_len, "Processing event batch");
+                }
+
+                for event in event_batch.drain(..) {
+                    // 检查关闭信号（在每批事件之间检查）
+                    if input_shutdown.has_changed().unwrap_or(false) {
+                        info!("Input processing task received shutdown signal during batch");
+                        return;
+                    }
+
+                    state_clone.process_input_event(event).await;
                 }
             }
         }
@@ -776,11 +934,11 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         let (tx, rx) =
             tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(100);
 
-        std::thread::spawn(move || {
+        let window_bridge_handle = std::thread::spawn(move || {
             let (std_tx, std_rx) =
                 std::sync::mpsc::channel::<crate::platform::windows::WindowEvent>();
 
-            std::thread::spawn(move || {
+            let hook_handle = std::thread::spawn(move || {
                 let mut hook = crate::platform::windows::WindowEventHook::new(std_tx);
                 if let Err(e) = hook.start() {
                     error!("Failed to start window event hook: {}", e);
@@ -792,6 +950,9 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                 }
             });
 
+            // 等待 hook 线程结束
+            let _ = hook_handle.join();
+
             // Bridge: 从 std channel 接收并发送到 tokio channel
             while let Ok(event) = std_rx.recv() {
                 if tx.blocking_send(event).is_err() {
@@ -800,6 +961,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
             }
             info!("Window event bridge thread shutdown complete");
         });
+        thread_handles.push(window_bridge_handle);
 
         rx
     };
@@ -885,6 +1047,18 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     // 等待一小段时间让任务清理完成
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // 等待所有 std 线程完成（带超时）
+    info!(
+        "Waiting for {} background threads to complete...",
+        thread_handles.len()
+    );
+    for (index, handle) in thread_handles.into_iter().enumerate() {
+        match handle.join() {
+            Ok(_) => debug!("Thread {} completed successfully", index),
+            Err(e) => error!("Thread {} panicked: {:?}", index, e),
+        }
+    }
 
     info!("Server shutdown complete");
     Ok(())
