@@ -4,16 +4,25 @@
 
 wakem 的窗口管理功能借鉴了 [mrw](https://github.com/yourusername/mrw) 项目，提供高效的窗口操作快捷键。
 
+## 快捷键符号
+
+| 符号 | 按键 |
+|:----:|:----:|
+| <kbd>Hyper</kbd> | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd> |
+| <kbd>HyperShift</kbd> | <kbd>Hyper</kbd>+<kbd>Shift</kbd> |
+
 ## 功能列表
 
 ### 1. 窗口居中 (Center)
 
 将当前窗口移动到屏幕中心。
 
+**默认快捷键**: <kbd>Hyper</kbd>+<kbd>C</kbd>
+
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+C" = "Center" },
+    { "Ctrl+Alt+Win+C" = "Center" },
 ]
 ```
 
@@ -21,13 +30,19 @@ shortcuts = [
 
 将窗口移动到屏幕边缘，保持当前大小。
 
+**默认快捷键**:
+- 左边缘: <kbd>Hyper</kbd>+<kbd>Home</kbd>
+- 右边缘: <kbd>Hyper</kbd>+<kbd>End</kbd>
+- 上边缘: <kbd>Hyper</kbd>+<kbd>PageUp</kbd>
+- 下边缘: <kbd>Hyper</kbd>+<kbd>PageDown</kbd>
+
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+Home" = "MoveToEdge(Left)" },
-    { "Ctrl+Alt+End" = "MoveToEdge(Right)" },
-    { "Ctrl+Alt+PageUp" = "MoveToEdge(Top)" },
-    { "Ctrl+Alt+PageDown" = "MoveToEdge(Bottom)" },
+    { "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)" },
+    { "Ctrl+Alt+Win+End" = "MoveToEdge(Right)" },
+    { "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)" },
+    { "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)" },
 ]
 ```
 
@@ -35,13 +50,15 @@ shortcuts = [
 
 将窗口调整为半屏大小。
 
+**默认快捷键**: <kbd>HyperShift</kbd>+<kbd>方向键</kbd>
+
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+Shift+Left" = "HalfScreen(Left)" },
-    { "Ctrl+Alt+Shift+Right" = "HalfScreen(Right)" },
-    { "Ctrl+Alt+Shift+Up" = "HalfScreen(Top)" },
-    { "Ctrl+Alt+Shift+Down" = "HalfScreen(Bottom)" },
+    { "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)" },
+    { "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)" },
+    { "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)" },
+    { "Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)" },
 ]
 ```
 
@@ -51,21 +68,25 @@ shortcuts = [
 
 **宽度循环** (3/4 → 3/5 → 1/2 → 2/5 → 1/4):
 
+**默认快捷键**: <kbd>Hyper</kbd>+<kbd>Left</kbd>/<kbd>Right</kbd>
+
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+Left" = "LoopWidth(Left)" },
-    { "Ctrl+Alt+Right" = "LoopWidth(Right)" },
+    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
 ]
 ```
 
 **高度循环** (3/4 → 1/2 → 1/4):
 
+**默认快捷键**: <kbd>Hyper</kbd>+<kbd>Up</kbd>/<kbd>Down</kbd>
+
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+Up" = "LoopHeight(Top)" },
-    { "Ctrl+Alt+Down" = "LoopHeight(Bottom)" },
+    { "Ctrl+Alt+Win+Up" = "LoopHeight(Top)" },
+    { "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)" },
 ]
 ```
 
@@ -73,11 +94,13 @@ shortcuts = [
 
 保持特定宽高比，循环缩放。
 
+**默认快捷键**: <kbd>Hyper</kbd>+<kbd>M</kbd>
+
 ```toml
 [window]
 shortcuts = [
     # 4:3 比例，从 100% 开始
-    { "Ctrl+Alt+M" = "FixedRatio(1.333, 0)" },
+    { "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)" },
 ]
 ```
 
@@ -91,16 +114,20 @@ shortcuts = [
 
 基于屏幕宽高比计算基础尺寸。
 
+**默认快捷键**: <kbd>HyperShift</kbd>+<kbd>M</kbd>
+
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+Shift+M" = "NativeRatio(0)" },
+    { "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)" },
 ]
 ```
 
 ### 7. 同进程窗口切换 (SwitchToNextWindow)
 
 类似 Alt+Tab，但只在同一进程的窗口间切换。
+
+**默认快捷键**: <kbd>Alt</kbd>+<kbd>`</kbd>
 
 ```toml
 [window]
@@ -113,11 +140,13 @@ shortcuts = [
 
 将窗口移动到另一个显示器。
 
+**默认快捷键**: <kbd>Hyper</kbd>+<kbd>J</kbd>/<kbd>K</kbd>
+
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+J" = "MoveToMonitor(Next)" },
-    { "Ctrl+Alt+K" = "MoveToMonitor(Prev)" },
+    { "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)" },
+    { "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)" },
 ]
 ```
 

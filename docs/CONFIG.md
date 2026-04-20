@@ -15,6 +15,7 @@ wakem 会在以下位置查找配置文件：
 log_level = "info"        # 日志级别: trace, debug, info, warn, error
 tray_icon = true          # 是否显示系统托盘图标
 auto_reload = true        # 是否自动重新加载配置
+icon_path = "assets/icon.ico"  # 自定义托盘图标路径（可选）
 
 [keyboard]
 # 基础键位重映射
@@ -55,6 +56,7 @@ shortcuts = [
 | `log_level` | string | "info" | 日志级别 |
 | `tray_icon` | bool | true | 显示系统托盘图标 |
 | `auto_reload` | bool | true | 自动重新加载配置 |
+| `icon_path` | string | "assets/icon.ico" | 自定义托盘图标路径 |
 
 ### 键盘配置 (`[keyboard]`)
 

@@ -8,6 +8,13 @@ wakem 的键盘功能包括：
 2. **层系统** - 上下文相关的键位映射
 3. **修饰键支持** - Ctrl, Alt, Shift, Win 组合
 
+## 快捷键符号
+
+| 符号 | 按键 |
+|:----:|:----:|
+| <kbd>Hyper</kbd> | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd> |
+| <kbd>HyperShift</kbd> | <kbd>Hyper</kbd>+<kbd>Shift</kbd> |
+
 ## 基础重映射
 
 最简单的功能，将一个按键映射到另一个按键。
