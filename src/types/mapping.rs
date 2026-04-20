@@ -69,11 +69,6 @@ pub enum Trigger {
         button: super::MouseButton,
         modifiers: ModifierState,
     },
-    /// 鼠标手势（简化版）
-    MouseGesture {
-        button: super::MouseButton,
-        direction: GestureDirection,
-    },
     /// 热字符串（文本扩展）
     HotString { trigger: String },
     /// 组合触发（多个按键按顺序）
@@ -82,15 +77,6 @@ pub enum Trigger {
     Timer { interval_ms: u64 },
     /// 总是触发
     Always,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum GestureDirection {
-    Up,
-    Down,
-    Left,
-    Right,
-    Circle,
 }
 
 impl Trigger {

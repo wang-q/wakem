@@ -156,8 +156,6 @@ impl KeyMapper {
     /// 执行动作（包括窗口管理动作）
     #[cfg(target_os = "windows")]
     pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
-        
-
         match action {
             Action::Window(window_action) => {
                 if let Some(ref wm) = self.window_manager {

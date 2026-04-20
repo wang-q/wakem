@@ -307,3 +307,151 @@ shortcuts = [
     { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Debug Mode)" },
 ]
 ```
+
+---
+
+## 预留 API 清单
+
+以下 API 已定义但未在当前版本中使用，为未来功能预留：
+
+### 上下文感知系统
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `ContextCondition` | 上下文条件构建器 | 为特定应用/窗口设置快捷键 |
+| `ContextCondition::with_window_class()` | 窗口类名匹配 | 匹配特定窗口类型 |
+| `ContextCondition::with_process_name()` | 进程名匹配 | 匹配特定应用程序 |
+| `ContextCondition::with_window_title()` | 窗口标题匹配 | 匹配特定窗口标题 |
+| `ContextInfo` | 当前上下文信息 | 存储窗口类名、进程名等 |
+| `MappingRule::with_context()` | 添加上下文条件 | 创建上下文感知的映射 |
+
+### 层系统扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `LayerStack::is_layer_active()` | 检查层是否激活 | 查询层状态 |
+| `LayerStack::get_active_layers()` | 获取所有激活层 | 显示当前激活层 |
+| `LayerStack::clear_active_layers()` | 清除所有激活层 | 重置层状态 |
+| `LayerManager::get_active_layers()` | 获取激活层列表 | 显示层状态 |
+| `LayerManager::is_layer_active()` | 检查层是否激活 | 查询层状态 |
+| `LayerManager::clear_layers()` | 清除所有层 | 重置层状态 |
+
+### 运行时管理
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `KeyMapper::set_window_manager()` | 设置窗口管理器 | 动态切换窗口管理器 |
+| `KeyMapper::set_tray_icon()` | 设置托盘图标 | 动态更新托盘 |
+| `KeyMapper::add_rule()` | 添加单条规则 | 运行时动态添加映射 |
+| `KeyMapper::clear()` | 清除所有规则 | 重置映射 |
+| `KeyMapper::set_enabled()` / `is_enabled()` | 启用/禁用映射 | 全局开关 |
+| `KeyMapper::add_simple_remap()` | 添加简单重映射 | 简化 API |
+
+### 配置系统扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `Config::save_to_file()` | 保存配置到文件 | 配置持久化 |
+| `WindowPosition` | 窗口位置预设 | 保存/恢复窗口布局 |
+| `MouseConfig` / `WheelConfig` | 鼠标配置 | 鼠标增强功能 |
+
+### IPC 系统扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `IpcError::ConnectionRefused` | 连接被拒绝错误 | 错误处理 |
+| `DEFAULT_PORT` | 默认 TCP 端口 | 网络通信备用 |
+| `IpcClient::with_pipe_name()` | 自定义管道名 | 多实例支持 |
+| `IpcClient::close()` | 关闭连接 | 优雅关闭 |
+| `IpcServer::with_pipe_name()` | 自定义管道名 | 多实例支持 |
+| `IpcServer::stop()` | 停止服务器 | 优雅关闭 |
+
+### Windows 平台扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `WindowContext` | 窗口上下文 | 上下文感知基础 |
+| `WindowContext::get_current()` | 获取当前上下文 | 自动检测活动窗口 |
+| `WindowContext::matches()` | 匹配窗口条件 | 上下文过滤 |
+| `KeyboardHook` | 低级键盘钩子 | 备用输入捕获方式 |
+| `RawInputDevice::get_modifier_state()` | 获取修饰键状态 | 查询当前修饰键 |
+| `TrayIcon::set_active()` | 设置激活状态 | 视觉反馈 |
+| `Launcher::create_action()` | 创建启动动作 | 程序化创建 |
+| `Launcher::parse_command()` | 解析命令字符串 | 动态解析 |
+
+### 输入事件扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `KeyEvent::with_modifiers()` | 设置修饰键 | 构建事件 |
+| `KeyEvent::injected()` | 标记为注入事件 | 模拟输入 |
+| `KeyEvent::is_modifier()` | 检查修饰键 | 特殊处理 |
+| `MouseEvent::with_modifiers()` | 设置修饰键 | 构建事件 |
+| `MouseEvent::injected()` | 标记为注入事件 | 模拟输入 |
+| `InputEvent::timestamp()` | 获取时间戳 | 时序分析 |
+| `InputEvent::is_injected()` | 检查是否注入 | 过滤模拟输入 |
+
+> **注**: 鼠标手势功能已移除，使用场景有限且实现复杂
+
+### 动作系统扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `KeyAction::press_from_event()` | 从事件创建 Press | 事件转发 |
+| `KeyAction::release_from_event()` | 从事件创建 Release | 事件转发 |
+| `KeyAction::combo()` | 创建组合键 | 复杂快捷键 |
+| `Action::mouse()` | 创建鼠标动作 | 鼠标控制 |
+| `Action::launch()` | 创建启动动作 | 程序启动 |
+| `Action::sequence()` | 创建动作序列 | 批量执行 |
+
+### 修饰键状态扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `ModifierState::is_empty()` | 检查是否为空 | 验证 |
+| `ModifierState::from_virtual_key()` | 从虚拟键创建 | 事件解析 |
+| `ModifierState::merge()` | 合并修饰键状态 | 组合状态 |
+
+### 消息窗口扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `MessageWindow::new()` | 创建消息窗口 | 多窗口支持 |
+| `MessageWindow::hwnd()` | 获取窗口句柄 | 外部集成 |
+| `MessageWindow::tray_icon()` | 获取托盘图标 | 外部控制 |
+
+### 客户端扩展
+
+| API | 说明 | 计划用途 |
+|-----|------|----------|
+| `DaemonClient::close()` | 关闭客户端 | 优雅关闭 |
+
+---
+
+## 预留功能规划
+
+基于上述预留 API，未来可能实现的功能：
+
+1. **上下文感知快捷键** (Phase 6)
+   - 根据当前应用自动切换映射
+   - 为特定应用定义专属快捷键
+
+2. **多实例支持** (Phase 6)
+   - 运行多个 wakem 实例
+   - 每个实例独立配置
+
+3. **动态配置** (Phase 5)
+   - 运行时添加/删除映射规则
+   - 配置持久化保存
+
+4. **鼠标增强** (Phase 4)
+   - 鼠标事件处理
+   - 滚轮增强功能
+
+5. **窗口预设** (Phase 5)
+   - 保存和恢复窗口布局
+   - 自动应用预设位置
+
+6. **网络通信** (Phase 6)
+   - TCP 备用通信方式
+   - 远程控制支持

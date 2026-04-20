@@ -10,6 +10,4 @@ pub use input::RawInputDevice;
 pub use launcher::Launcher;
 pub use output::OutputDevice;
 pub use tray::TrayIcon;
-pub use window_manager::{
-    MonitorDirection, WindowFrame, WindowManager,
-};
+pub use window_manager::{MonitorDirection, WindowFrame, WindowManager};

@@ -14,9 +14,9 @@ use windows::Win32::UI::Input::{
     RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
-    RegisterClassW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, WM_CREATE, WM_DESTROY, WM_INPUT, WM_QUIT, WNDCLASSW,
-    WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, WM_CREATE, WM_DESTROY, WM_INPUT,
+    WM_QUIT, WNDCLASSW, WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
 };
 
 thread_local! {

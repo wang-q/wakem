@@ -152,11 +152,6 @@ fn test_trigger_variants() {
         modifiers: ModifierState::default(),
     };
 
-    let gesture_trigger = Trigger::MouseGesture {
-        button: MouseButton::Right,
-        direction: GestureDirection::Down,
-    };
-
     let hotstring_trigger = Trigger::HotString {
         trigger: ".date".to_string(),
     };
@@ -165,7 +160,6 @@ fn test_trigger_variants() {
 
     assert!(matches!(key_trigger, Trigger::Key { .. }));
     assert!(matches!(mouse_trigger, Trigger::MouseButton { .. }));
-    assert!(matches!(gesture_trigger, Trigger::MouseGesture { .. }));
     assert!(matches!(hotstring_trigger, Trigger::HotString { .. }));
     assert!(matches!(always_trigger, Trigger::Always));
 }
@@ -180,20 +174,6 @@ fn test_context_info_default() {
     assert_eq!(context.process_path, "");
     assert_eq!(context.window_title, "");
     assert_eq!(context.window_handle, 0);
-}
-
-/// 测试 GestureDirection 枚举
-#[test]
-fn test_gesture_direction() {
-    let directions = vec![
-        GestureDirection::Up,
-        GestureDirection::Down,
-        GestureDirection::Left,
-        GestureDirection::Right,
-        GestureDirection::Circle,
-    ];
-
-    assert_eq!(directions.len(), 5);
 }
 
 /// 测试 MappingRule 禁用状态

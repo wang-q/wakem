@@ -307,17 +307,13 @@ fn test_trigger_variants() {
             button: MouseButton::Left,
             modifiers: ModifierState::new(),
         },
-        Trigger::MouseGesture {
-            button: MouseButton::Right,
-            direction: GestureDirection::Down,
-        },
         Trigger::HotString {
             trigger: ".date".to_string(),
         },
         Trigger::Always,
     ];
 
-    assert_eq!(triggers.len(), 5);
+    assert_eq!(triggers.len(), 4);
 }
 
 /// 测试动作序列
