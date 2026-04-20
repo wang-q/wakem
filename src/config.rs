@@ -427,64 +427,12 @@ impl WindowPreset {
 
     /// 简单的通配符匹配（* 匹配任意字符，? 匹配单个字符）
     fn wildcard_match(text: &str, pattern: &str) -> bool {
-        let text = text.to_lowercase();
-        let pattern = pattern.to_lowercase();
-
-        Self::wildcard_match_recursive(&text, &pattern)
-    }
-
-    fn wildcard_match_recursive(text: &str, pattern: &str) -> bool {
-        // 如果模式为空，文本也必须为空
-        if pattern.is_empty() {
-            return text.is_empty();
-        }
-
-        let mut pattern_chars = pattern.chars();
-        let first_p = pattern_chars.next().unwrap();
-
-        match first_p {
-            '*' => {
-                // 跳过连续的 *
-                let remaining_pattern: String =
-                    pattern_chars.skip_while(|&c| c == '*').collect();
-
-                // * 匹配空字符串或任意前缀
-                for i in 0..=text.len() {
-                    if Self::wildcard_match_recursive(&text[i..], &remaining_pattern) {
-                        return true;
-                    }
-                }
-                false
-            }
-            '?' => {
-                // ? 匹配任意单个字符
-                if text.is_empty() {
-                    return false;
-                }
-                let remaining_text: String = text.chars().skip(1).collect();
-                let remaining_pattern: String = pattern_chars.collect();
-                Self::wildcard_match_recursive(&remaining_text, &remaining_pattern)
-            }
-            _ => {
-                // 普通字符必须匹配
-                if text.is_empty() {
-                    return false;
-                }
-                let first_t = text.chars().next().unwrap();
-                if first_t.to_lowercase().to_string()
-                    != first_p.to_lowercase().to_string()
-                {
-                    return false;
-                }
-                let remaining_text: String = text.chars().skip(1).collect();
-                let remaining_pattern: String = pattern_chars.collect();
-                Self::wildcard_match_recursive(&remaining_text, &remaining_pattern)
-            }
-        }
+        wildcard_match(text, pattern)
     }
 }
 
 /// 公共通配符匹配函数（支持 * 和 ?）
+/// 统一实现，避免代码重复
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
     let text = text.to_lowercase();
     let pattern = pattern.to_lowercase();
@@ -898,90 +846,136 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 }
 
 /// 解析键名到扫描码和虚拟键码
+/// 使用静态 HashMap 实现数据驱动的键名映射，便于维护和扩展
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
-    // 常见键名映射
-    let result = match name.to_lowercase().as_str() {
-        "capslock" | "caps" => (0x3A, 0x14),
-        "backspace" => (0x0E, 0x08),
-        "enter" | "return" => (0x1C, 0x0D),
-        "escape" | "esc" => (0x01, 0x1B),
-        "space" => (0x39, 0x20),
-        "tab" => (0x0F, 0x09),
-        "left" => (0x4B, 0x25),
-        "up" => (0x48, 0x26),
-        "right" => (0x4D, 0x27),
-        "down" => (0x50, 0x28),
-        "home" => (0x47, 0x24),
-        "end" => (0x4F, 0x23),
-        "pageup" => (0x49, 0x21),
-        "pagedown" => (0x51, 0x22),
-        "delete" | "del" => (0x53, 0x2E),
-        "forwarddelete" | "forwarddel" => (0x53, 0x2E), // Mac Forward Delete = Windows Delete
-        "insert" | "ins" => (0x52, 0x2D),
-        "lshift" => (0x2A, 0xA0),
-        "rshift" => (0x36, 0xA1),
-        "lctrl" | "lcontrol" => (0x1D, 0xA2),
-        "rctrl" | "rcontrol" => (0xE01D, 0xA3),
-        "lalt" => (0x38, 0xA4),
-        "ralt" => (0xE038, 0xA5),
-        "lwin" | "lmeta" => (0xE05B, 0x5B),
-        "rwin" | "rmeta" => (0xE05C, 0x5C),
-        // 字母键
-        "a" => (0x1E, 0x41),
-        "b" => (0x30, 0x42),
-        "c" => (0x2E, 0x43),
-        "d" => (0x20, 0x44),
-        "e" => (0x12, 0x45),
-        "f" => (0x21, 0x46),
-        "g" => (0x22, 0x47),
-        "h" => (0x23, 0x48),
-        "i" => (0x17, 0x49),
-        "j" => (0x24, 0x4A),
-        "k" => (0x25, 0x4B),
-        "l" => (0x26, 0x4C),
-        "m" => (0x32, 0x4D),
-        "n" => (0x31, 0x4E),
-        "o" => (0x18, 0x4F),
-        "p" => (0x19, 0x50),
-        "q" => (0x10, 0x51),
-        "r" => (0x13, 0x52),
-        "s" => (0x1F, 0x53),
-        "t" => (0x14, 0x54),
-        "u" => (0x16, 0x55),
-        "v" => (0x2F, 0x56),
-        "w" => (0x11, 0x57),
-        "x" => (0x2D, 0x58),
-        "y" => (0x15, 0x59),
-        "z" => (0x2C, 0x5A),
-        // 数字键
-        "0" => (0x0B, 0x30),
-        "1" => (0x02, 0x31),
-        "2" => (0x03, 0x32),
-        "3" => (0x04, 0x33),
-        "4" => (0x05, 0x34),
-        "5" => (0x06, 0x35),
-        "6" => (0x07, 0x36),
-        "7" => (0x08, 0x37),
-        "8" => (0x09, 0x38),
-        "9" => (0x0A, 0x39),
-        // F1-F12
-        "f1" => (0x3B, 0x70),
-        "f2" => (0x3C, 0x71),
-        "f3" => (0x3D, 0x72),
-        "f4" => (0x3E, 0x73),
-        "f5" => (0x3F, 0x74),
-        "f6" => (0x40, 0x75),
-        "f7" => (0x41, 0x76),
-        "f8" => (0x42, 0x77),
-        "f9" => (0x43, 0x78),
-        "f10" => (0x44, 0x79),
-        "f11" => (0x57, 0x7A),
-        "f12" => (0x58, 0x7B),
-        _ => {
-            return Err(anyhow::anyhow!("Unknown key name: {}", name));
+    use std::collections::HashMap;
+
+    use once_cell::sync::Lazy;
+
+    static KEY_MAP: Lazy<HashMap<&'static str, (u16, u16)>> = Lazy::new(|| {
+        let mut map = HashMap::new();
+
+        // 特殊键
+        map.insert("capslock", (0x3A, 0x14));
+        map.insert("caps", (0x3A, 0x14));
+        map.insert("backspace", (0x0E, 0x08));
+        map.insert("enter", (0x1C, 0x0D));
+        map.insert("return", (0x1C, 0x0D));
+        map.insert("escape", (0x01, 0x1B));
+        map.insert("esc", (0x01, 0x1B));
+        map.insert("space", (0x39, 0x20));
+        map.insert("tab", (0x0F, 0x09));
+
+        // 方向键
+        map.insert("left", (0x4B, 0x25));
+        map.insert("up", (0x48, 0x26));
+        map.insert("right", (0x4D, 0x27));
+        map.insert("down", (0x50, 0x28));
+
+        // 编辑键
+        map.insert("home", (0x47, 0x24));
+        map.insert("end", (0x4F, 0x23));
+        map.insert("pageup", (0x49, 0x21));
+        map.insert("pagedown", (0x51, 0x22));
+        map.insert("delete", (0x53, 0x2E));
+        map.insert("del", (0x53, 0x2E));
+        map.insert("forwarddelete", (0x53, 0x2E));
+        map.insert("forwarddel", (0x53, 0x2E));
+        map.insert("insert", (0x52, 0x2D));
+        map.insert("ins", (0x52, 0x2D));
+
+        // 修饰键
+        map.insert("lshift", (0x2A, 0xA0));
+        map.insert("rshift", (0x36, 0xA1));
+        map.insert("lctrl", (0x1D, 0xA2));
+        map.insert("lcontrol", (0x1D, 0xA2));
+        map.insert("rctrl", (0xE01D, 0xA3));
+        map.insert("rcontrol", (0xE01D, 0xA3));
+        map.insert("lalt", (0x38, 0xA4));
+        map.insert("ralt", (0xE038, 0xA5));
+        map.insert("lwin", (0xE05B, 0x5B));
+        map.insert("lmeta", (0xE05B, 0x5B));
+        map.insert("rwin", (0xE05C, 0x5C));
+        map.insert("rmeta", (0xE05C, 0x5C));
+
+        // 字母键 a-z
+        let letter_keys = [
+            ('a', 0x1E, 0x41),
+            ('b', 0x30, 0x42),
+            ('c', 0x2E, 0x43),
+            ('d', 0x20, 0x44),
+            ('e', 0x12, 0x45),
+            ('f', 0x21, 0x46),
+            ('g', 0x22, 0x47),
+            ('h', 0x23, 0x48),
+            ('i', 0x17, 0x49),
+            ('j', 0x24, 0x4A),
+            ('k', 0x25, 0x4B),
+            ('l', 0x26, 0x4C),
+            ('m', 0x32, 0x4D),
+            ('n', 0x31, 0x4E),
+            ('o', 0x18, 0x4F),
+            ('p', 0x19, 0x50),
+            ('q', 0x10, 0x51),
+            ('r', 0x13, 0x52),
+            ('s', 0x1F, 0x53),
+            ('t', 0x14, 0x54),
+            ('u', 0x16, 0x55),
+            ('v', 0x2F, 0x56),
+            ('w', 0x11, 0x57),
+            ('x', 0x2D, 0x58),
+            ('y', 0x15, 0x59),
+            ('z', 0x2C, 0x5A),
+        ];
+        for (ch, scan_code, vk) in letter_keys.iter() {
+            let key = ch.to_string();
+            map.insert(Box::leak(key.into_boxed_str()), (*scan_code, *vk));
         }
-    };
-    Ok(result)
+
+        // 数字键 0-9
+        let digit_keys = [
+            ('0', 0x0B, 0x30),
+            ('1', 0x02, 0x31),
+            ('2', 0x03, 0x32),
+            ('3', 0x04, 0x33),
+            ('4', 0x05, 0x34),
+            ('5', 0x06, 0x35),
+            ('6', 0x07, 0x36),
+            ('7', 0x08, 0x37),
+            ('8', 0x09, 0x38),
+            ('9', 0x0A, 0x39),
+        ];
+        for (ch, scan_code, vk) in digit_keys.iter() {
+            let key = ch.to_string();
+            map.insert(Box::leak(key.into_boxed_str()), (*scan_code, *vk));
+        }
+
+        // 功能键 F1-F12
+        let func_keys = [
+            ("f1", 0x3B, 0x70),
+            ("f2", 0x3C, 0x71),
+            ("f3", 0x3D, 0x72),
+            ("f4", 0x3E, 0x73),
+            ("f5", 0x3F, 0x74),
+            ("f6", 0x40, 0x75),
+            ("f7", 0x41, 0x76),
+            ("f8", 0x42, 0x77),
+            ("f9", 0x43, 0x78),
+            ("f10", 0x44, 0x79),
+            ("f11", 0x57, 0x7A),
+            ("f12", 0x58, 0x7B),
+        ];
+        for (key, scan_code, vk) in func_keys.iter() {
+            map.insert(*key, (*scan_code, *vk));
+        }
+
+        map
+    });
+
+    KEY_MAP
+        .get(&name.to_lowercase().as_str())
+        .copied()
+        .ok_or_else(|| anyhow::anyhow!("Unknown key name: {}", name))
 }
 
 /// 解析配置文件路径

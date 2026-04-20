@@ -1,20 +1,36 @@
 use super::{auth, read_message, security, send_message, IpcError, Message, Result};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// IPC 服务端（基于 TCP）
 pub struct IpcServer {
     listener: Option<TcpListener>,
     bind_address: String,
-    auth_key: Option<String>,
+    /// 认证密钥（使用 Arc<RwLock> 支持动态更新）
+    auth_key: Option<Arc<RwLock<String>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
 }
 
 impl IpcServer {
-    /// 创建新的服务端
+    /// 创建新的服务端（使用动态密钥）
+    pub fn new_with_dynamic_key(
+        bind_address: impl Into<String>,
+        auth_key: Arc<RwLock<String>>,
+        message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
+    ) -> Self {
+        Self {
+            listener: None,
+            bind_address: bind_address.into(),
+            auth_key: Some(auth_key),
+            message_tx,
+        }
+    }
+
+    /// 创建新的服务端（静态密钥，向后兼容）
     pub fn new(
         bind_address: impl Into<String>,
         auth_key: Option<String>,
@@ -23,7 +39,7 @@ impl IpcServer {
         Self {
             listener: None,
             bind_address: bind_address.into(),
-            auth_key,
+            auth_key: auth_key.map(|k| Arc::new(RwLock::new(k))),
             message_tx,
         }
     }
@@ -51,7 +67,7 @@ impl IpcServer {
                         continue;
                     }
 
-                    // 克隆必要的数据
+                    // 克隆必要的数据（Arc<RwLock> 的 clone 很便宜）
                     let auth_key = self.auth_key.clone();
                     let message_tx = self.message_tx.clone();
 
@@ -77,16 +93,19 @@ impl IpcServer {
 async fn handle_connection(
     mut stream: TcpStream,
     addr: SocketAddr,
-    auth_key: Option<String>,
+    auth_key: Option<Arc<RwLock<String>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
 ) -> Result<()> {
-    // 如果配置了认证密钥，执行挑战-响应认证
-    if let Some(key) = auth_key {
-        if !perform_authentication(&mut stream, &key).await? {
-            warn!("Authentication failed for {}", addr);
-            return Err(IpcError::ConnectionRefused);
+    // 如果配置了认证密钥，执行挑战-响应认证（动态读取最新密钥）
+    if let Some(key_arc) = auth_key {
+        let key = key_arc.read().await;
+        if !key.is_empty() {
+            if !perform_authentication_with_timeout(&mut stream, &key).await? {
+                warn!("Authentication failed for {}", addr);
+                return Err(IpcError::ConnectionRefused);
+            }
+            debug!("Authentication successful for {}", addr);
         }
-        debug!("Authentication successful for {}", addr);
     }
 
     // 创建响应通道
@@ -122,7 +141,7 @@ async fn handle_connection(
                 }
             }
 
-            // 超时检查
+            // 超时检查（5分钟空闲超时）
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(300)) => {
                 debug!("Connection timeout for {}", addr);
                 break;
@@ -134,17 +153,26 @@ async fn handle_connection(
     Ok(())
 }
 
-/// 执行挑战-响应认证
-async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Result<bool> {
+/// 执行挑战-响应认证（带超时控制）
+async fn perform_authentication_with_timeout(
+    stream: &mut TcpStream,
+    auth_key: &str,
+) -> Result<bool> {
+    use tokio::time::{timeout, Duration};
+
     // 生成挑战
     let challenge = auth::generate_challenge();
 
-    // 发送挑战给客户端
-    stream.write_all(&challenge).await?;
+    // 发送挑战给客户端（带5秒超时）
+    timeout(Duration::from_secs(5), stream.write_all(&challenge))
+        .await
+        .map_err(|_| IpcError::Timeout)??;
 
-    // 读取响应
+    // 读取响应（带5秒超时）
     let mut response = [0u8; auth::RESPONSE_SIZE];
-    stream.read_exact(&mut response).await?;
+    timeout(Duration::from_secs(5), stream.read_exact(&mut response))
+        .await
+        .map_err(|_| IpcError::Timeout)??;
 
     // 验证响应
     Ok(auth::verify_response(auth_key, &challenge, &response))
@@ -160,6 +188,16 @@ mod tests {
     async fn test_server_start() {
         let (tx, _rx) = mpsc::channel(100);
         let mut server = IpcServer::new("127.0.0.1:57428", None, tx);
+        server.start().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_server_start_with_dynamic_key() {
+        let (tx, _rx) = mpsc::channel(100);
+        let auth_key = Arc::new(RwLock::new("test-key".to_string()));
+        let mut server =
+            IpcServer::new_with_dynamic_key("127.0.0.1:57429", auth_key, tx);
         server.start().await.unwrap();
     }
 }

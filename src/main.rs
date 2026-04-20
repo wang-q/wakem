@@ -146,6 +146,7 @@ async fn run_daemon(instance_id: u32) -> Result<()> {
 }
 
 /// 通用 daemon 命令执行器（消除样板代码）
+/// 改进: 现在会传播连接错误，操作错误也会返回 Err
 async fn execute_daemon_command<F>(instance_id: u32, operation: F) -> Result<()>
 where
     F: FnOnce(
@@ -155,17 +156,10 @@ where
     >,
 {
     let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => {
-            if let Err(e) = operation(&mut client).await {
-                eprintln!("Command failed: {}", e);
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to connect to daemon: {}", e);
-        }
-    }
-    Ok(())
+    client.connect_to_instance(instance_id).await?;
+
+    // 执行操作并传播错误
+    operation(&mut client).await
 }
 
 /// 获取服务端状态

@@ -37,6 +37,8 @@ pub struct ServerState {
     macro_recorder: Arc<MacroRecorder>,
     /// 消息窗口句柄（用于发送通知）
     message_window_hwnd: Arc<RwLock<Option<HWND>>>,
+    /// 认证密钥（独立存储，支持动态更新）
+    auth_key: Arc<RwLock<String>>,
 }
 
 impl ServerState {
@@ -57,11 +59,18 @@ impl ServerState {
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
+            auth_key: Arc::new(RwLock::new(String::new())),
         }
     }
 
     /// 加载配置
     pub async fn load_config(&self, config: Config) -> Result<()> {
+        // 更新认证密钥（独立于配置存储）
+        {
+            let mut key = self.auth_key.write().await;
+            *key = config.network.auth_key.clone().unwrap_or_default();
+        }
+
         // 更新配置
         {
             let mut cfg = self.config.write().await;
@@ -216,8 +225,12 @@ impl ServerState {
     }
 
     /// 处理输入事件
+    /// 性能说明: 此方法在高频输入场景下会获取多个锁，未来可考虑：
+    /// 1. 合并相关状态到单一结构体减少锁数量
+    /// 2. 使用 RWMutex 区分读写操作
+    /// 3. 对只读操作使用 Arc 替代 Mutex
     pub async fn process_input_event(&self, event: InputEvent) {
-        // 检查是否启用
+        // 快速路径：检查是否启用（最轻量的锁）
         if !*self.active.read().await {
             return;
         }
@@ -529,6 +542,11 @@ impl ServerState {
         info!("Message window handle registered: {:?}", hwnd);
     }
 
+    /// 获取当前认证密钥（用于 IPC 认证）
+    pub async fn get_auth_key(&self) -> String {
+        self.auth_key.read().await.clone()
+    }
+
     /// 显示托盘通知
     pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
         if let Some(hwnd) = *self.message_window_hwnd.read().await {
@@ -654,20 +672,23 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         config.network.instance_id = instance_id;
     }
 
-    // 创建 IPC 服务端（强制启用认证）
+    // 创建 IPC 服务端（使用动态认证密钥）
     let (message_tx, mut message_rx) = mpsc::channel(100);
-    let (bind_address, auth_key) = {
+    let bind_address = {
         let mut config = state.config.write().await;
         let addr = config.network.get_bind_address();
         // 确保存在认证密钥（安全要求）
-        let key = config.network.ensure_auth_key().to_string();
-        (addr, Some(key))
+        config.network.ensure_auth_key();
+        addr
     };
 
-    info!("Server authentication enabled");
+    info!("Server authentication enabled with dynamic key updates");
 
-    let mut ipc_server =
-        IpcServer::new(bind_address.clone(), auth_key, message_tx.clone());
+    let mut ipc_server = IpcServer::new_with_dynamic_key(
+        bind_address.clone(),
+        state.auth_key.clone(),
+        message_tx.clone(),
+    );
     ipc_server.start().await?;
 
     info!("Server listening on {}", bind_address);
