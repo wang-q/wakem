@@ -1,10 +1,16 @@
 use serde::{Deserialize, Serialize};
 
+pub mod auth;
 pub mod client;
+pub mod security;
 pub mod server;
+pub mod tcp_client;
+pub mod tcp_server;
 
 pub use client::IpcClient;
 pub use server::IpcServer;
+pub use tcp_client::TcpIpcClient;
+pub use tcp_server::TcpIpcServer;
 
 /// IPC 消息协议
 #[derive(Debug, Clone, Serialize, Deserialize)]

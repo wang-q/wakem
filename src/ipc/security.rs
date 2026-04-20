@@ -1,0 +1,71 @@
+use std::net::IpAddr;
+
+/// 检查 IP 地址是否为内网地址（RFC 1918）
+pub fn is_private_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            // 10.0.0.0/8
+            o[0] == 10
+                // 172.16.0.0/12
+                || (o[0] == 172 && o[1] >= 16 && o[1] <= 31)
+                // 192.168.0.0/16
+                || (o[0] == 192 && o[1] == 168)
+                // 127.0.0.0/8 (localhost)
+                || o[0] == 127
+                // 169.254.0.0/16 (link-local)
+                || (o[0] == 169 && o[1] == 254)
+        }
+        IpAddr::V6(_) => {
+            // IPv6 暂不处理，默认拒绝
+            false
+        }
+    }
+}
+
+/// 检查 IP 地址是否允许连接
+/// 只允许内网地址
+pub fn is_allowed_ip(ip: IpAddr) -> bool {
+    is_private_ip(ip)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn test_private_ip_10() {
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(10, 255, 255, 255))));
+    }
+
+    #[test]
+    fn test_private_ip_172() {
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1))));
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(172, 31, 255, 255))));
+        assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(172, 15, 0, 1))));
+        assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(172, 32, 0, 1))));
+    }
+
+    #[test]
+    fn test_private_ip_192() {
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1))));
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(192, 168, 255, 255))));
+        assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(192, 167, 0, 1))));
+        assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(192, 169, 0, 1))));
+    }
+
+    #[test]
+    fn test_localhost() {
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
+        assert!(is_private_ip(IpAddr::V4(Ipv4Addr::new(127, 255, 255, 255))));
+    }
+
+    #[test]
+    fn test_public_ip() {
+        assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
+        assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))));
+        assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1))));
+    }
+}

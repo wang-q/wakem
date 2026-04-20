@@ -387,6 +387,38 @@ context = { executable_path = "C:\\Program Files\\JetBrains\\*" }
 - `executable_path`: 可执行文件路径匹配
 - 上下文规则优先级高于全局规则
 
+### 网络通信配置示例
+
+```toml
+# 启用网络通信（用于远程控制）
+[network]
+enabled = true
+bind_address = "0.0.0.0:57427"
+auth_key = "your-secret-key-here"
+```
+
+**安全特性**：
+- 自动拒绝外网连接（只允许 RFC 1918 内网地址）
+- 挑战-响应认证（HMAC-SHA256）
+- 密钥不在网络上传输
+
+**远程控制示例**：
+
+```bash
+# 在被控制的电脑上启动 wakemd（配置好 auth_key）
+wakemd
+
+# 在另一台电脑上查看远程状态
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" status
+
+# 重新加载远程配置
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" reload
+
+# 启用/禁用远程映射
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" enable
+wakem --host 192.168.1.100 --auth-key "your-secret-key-here" disable
+```
+
 ---
 
 ## 预留 API 清单
@@ -405,6 +437,18 @@ context = { executable_path = "C:\\Program Files\\JetBrains\\*" }
 | `MappingRule::with_context()` | 添加上下文条件 | ✅ 已实现 |
 | `KeyMapper::process_event_with_context()` | 上下文感知事件处理 | ✅ 已实现 |
 | `keyboard.context_mappings` | 配置支持 | ✅ 已实现 |
+
+### 网络通信系统 ✅ 已实现
+
+| API | 说明 | 状态 |
+|-----|------|------|
+| `NetworkConfig` | 网络配置 | ✅ 已实现 |
+| `TcpIpcServer` | TCP 服务端 | ✅ 已实现 |
+| `TcpIpcClient` | TCP 客户端 | ✅ 已实现 |
+| `auth::generate_challenge()` | 生成认证挑战 | ✅ 已实现 |
+| `auth::compute_response()` | 计算认证响应 | ✅ 已实现 |
+| `security::is_private_ip()` | 内网 IP 检查 | ✅ 已实现 |
+| `DaemonClient::connect_tcp()` | TCP 连接 | ✅ 已实现 |
 
 ### 层系统扩展
 
@@ -514,15 +558,6 @@ context = { executable_path = "C:\\Program Files\\JetBrains\\*" }
 
 基于上述预留 API，未来可能实现的功能：
 
-1. **上下文感知快捷键** (Phase 6) ✅ 已实现
-   - 根据当前应用自动切换映射
-   - 为特定应用定义专属快捷键
-   - 配置示例见下文"上下文感知快捷键配置示例"
-
 2. **多实例支持** (Phase 6)
    - 运行多个 wakem 实例
    - 每个实例独立配置
-
-6. **网络通信** (Phase 6)
-   - TCP 备用通信方式
-   - 远程控制支持

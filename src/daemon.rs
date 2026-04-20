@@ -4,7 +4,7 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
 
 use crate::config::Config;
-use crate::ipc::{IpcServer, Message};
+use crate::ipc::{IpcServer, Message, TcpIpcServer};
 use crate::types::{Action, InputEvent, ModifierState};
 
 use crate::platform::windows::{
@@ -407,7 +407,7 @@ pub async fn run_server() -> Result<()> {
 
     // 创建 IPC 服务端
     let (message_tx, mut message_rx) = mpsc::channel(100);
-    let mut ipc_server = IpcServer::new(message_tx);
+    let mut ipc_server = IpcServer::new(message_tx.clone());
     ipc_server.start().await?;
 
     info!("IPC server started");
@@ -506,6 +506,33 @@ pub async fn run_server() -> Result<()> {
                 Err(e) => {
                     error!("Failed to accept IPC connection: {}", e);
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+    });
+
+    // 启动 TCP 服务端（如果启用）
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        // 检查是否启用网络通信
+        let (enabled, bind_address, auth_key) = {
+            let config = state_clone.config.read().await;
+            (
+                config.network.enabled,
+                config.network.bind_address.clone(),
+                config.network.auth_key.clone(),
+            )
+        };
+
+        if enabled {
+            let mut tcp_server =
+                TcpIpcServer::new(bind_address, auth_key, message_tx.clone());
+            if let Err(e) = tcp_server.start().await {
+                error!("Failed to start TCP server: {}", e);
+            } else {
+                info!("TCP server started");
+                if let Err(e) = tcp_server.run().await {
+                    error!("TCP server error: {}", e);
                 }
             }
         }

@@ -31,6 +31,9 @@ pub struct Config {
     /// 启动项设置
     #[serde(default)]
     pub launch: HashMap<String, String>,
+    /// 网络通信设置
+    #[serde(default)]
+    pub network: NetworkConfig,
 }
 
 impl Default for Config {
@@ -44,6 +47,7 @@ impl Default for Config {
             window: WindowConfig::default(),
             mouse: MouseConfig::default(),
             launch: HashMap::new(),
+            network: NetworkConfig::default(),
         }
     }
 }
@@ -255,6 +259,34 @@ impl ContextCondition {
             || self.window_title.is_some()
             || self.executable_path.is_some()
     }
+}
+
+/// 网络通信配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkConfig {
+    /// 是否启用网络通信
+    #[serde(default)]
+    pub enabled: bool,
+    /// 绑定地址（默认 0.0.0.0:57427）
+    #[serde(default = "default_bind_address")]
+    pub bind_address: String,
+    /// 预共享密钥
+    #[serde(default)]
+    pub auth_key: Option<String>,
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            bind_address: default_bind_address(),
+            auth_key: None,
+        }
+    }
+}
+
+fn default_bind_address() -> String {
+    "0.0.0.0:57427".to_string()
 }
 
 /// 窗口配置
