@@ -1,89 +1,8 @@
 # wakem 开发文档
 
-本文档包含 wakem 的开发记录、架构说明和开发计划。
+本文档包含 wakem 的开发记录、架构演进、参考项目分析和扩展规划。
 
-## 目录结构
-
-```
-wakem/
-├── Cargo.toml              # 项目配置
-├── src/
-│   ├── main.rs             # 统一入口（CLI 定义，含 --instance 支持）
-│   ├── lib.rs              # 库导出
-│   ├── cli.rs              # 命令行定义（基础版）
-│   ├── client.rs           # 守护进程客户端（DaemonClient）
-│   ├── daemon.rs           # 守护进程逻辑（ServerState）
-│   ├── config.rs           # 配置解析和验证
-│   ├── window.rs           # 消息窗口（MessageWindow）
-│   ├── types/              # 类型定义
-│   │   ├── mod.rs          # 模块导出（ModifierState, Timestamp 等）
-│   │   ├── action.rs       # 动作定义（Key/Mouse/Window/Launch/System/Sequence/Delay）
-│   │   ├── input.rs        # 输入事件定义（KeyEvent, MouseEvent, InputEvent）
-│   │   ├── layer.rs        # 层管理（Layer, LayerStack）
-│   │   ├── macros.rs       # 宏录制和管理（MacroRecorder, MacroManager, MacroStep）
-│   │   └── mapping.rs      # 映射规则（MappingRule, Trigger, ContextCondition）
-│   ├── ipc/                # IPC 通信（统一使用 TCP）
-│   │   ├── mod.rs          # 模块导出和消息协议（Message 枚举）
-│   │   ├── client.rs       # TCP 客户端（IpcClient）
-│   │   ├── server.rs       # TCP 服务端（IpcServer）
-│   │   ├── auth.rs         # 挑战-响应认证（HMAC-SHA256）
-│   │   ├── security.rs     # IP 安全检查（RFC 1918 内网）
-│   │   └── discovery.rs    # 实例发现
-│   ├── platform/           # 平台相关
-│   │   └── windows/        # Windows 实现
-│   │       ├── mod.rs
-│   │       ├── input.rs        # 输入相关（LegacyRawInputDevice 别名）
-│   │       ├── input_device.rs # Raw Input 设备封装
-│   │       ├── output.rs       # 输出相关（LegacyOutputDevice 别名）
-│   │       ├── output_device.rs # SendInput 设备封装
-│   │       ├── window_manager.rs    # 窗口管理操作
-│   │       ├── window_preset.rs     # 窗口预设管理
-│   │       ├── window_event_hook.rs # 窗口事件监听（WinEventHook）
-│   │       ├── context.rs          # 窗口上下文获取（WindowContext）
-│   │       ├── launcher.rs         # 程序启动器
-│   │       ├── tray.rs             # 系统托盘实现
-│   │       ├── tray_api.rs         # 托盘 API 封装
-│   │       └── window_api.rs       # 窗口 API 封装
-│   └── runtime/            # 运行时逻辑
-│       ├── mod.rs
-│       ├── layer_manager.rs  # 层管理器（LayerManager）
-│       ├── mapper.rs         # 映射引擎（KeyMapper，含上下文感知）
-│       └── macro_player.rs   # 宏回放（MacroPlayer）
-├── tests/                  # 集成测试
-│   ├── action_test.rs
-│   ├── benchmark_test.rs
-│   ├── cli_test.rs
-│   ├── client_test.rs
-│   ├── config_comprehensive_test.rs
-│   ├── config_edge_cases_test.rs
-│   ├── config_parser_test.rs
-│   ├── daemon_test.rs
-│   ├── edge_cases_test.rs
-│   ├── input_test.rs
-│   ├── integration_test.rs
-│   ├── ipc_test.rs
-│   ├── layer_manager_test.rs
-│   ├── layer_test.rs
-│   ├── mapping_test.rs
-│   ├── platform_test.rs
-│   ├── runtime_comprehensive_test.rs
-│   ├── runtime_test.rs
-│   ├── security_test.rs
-│   ├── tray_test.rs
-│   ├── types_comprehensive_test.rs
-│   ├── types_test.rs
-│   ├── window_calc_test.rs
-│   └── window_manager_test.rs
-├── examples/               # 示例配置
-│   ├── minimal.toml
-│   ├── test_config.toml
-│   ├── window_manager.toml
-│   └── navigation_layer.toml
-└── docs/
-    ├── confg.md            # 配置指南
-    ├── developer.md        # 开发文档（本文件）
-    └── macros.md           # 宏系统文档
-```
+> 项目概览、架构设计、代码规范等内容请参阅 [AGENTS.md](../AGENTS.md)。
 
 ## 开发计划
 
@@ -149,18 +68,9 @@ wakem/
 
 ### Phase 8: Linux 移植 ⏳ 待实现
 
-## 参考项目
-
-| 项目 | 语言 | 核心特点 | 学习重点 |
-|------|------|----------|----------|
-| [keymapper](https://github.com/houmain/keymapper) | C++ | 跨平台、客户端-服务端架构 | 架构设计、配置语法、输入处理 |
-| [AutoHotkey](https://github.com/AutoHotkey/AutoHotkey) | C++ | 完整脚本语言、强大热键系统 | 热键变体、窗口操作、消息循环 |
-| [window-switcher](https://github.com/sigoden/window-switcher) | Rust | 精致窗口切换、GDI+ 界面 | 窗口切换 UI、图标获取、虚拟桌面 |
-| **mrw** (个人项目) | Lua/AHK | 简洁窗口管理、循环尺寸调整 | 窗口布局算法、多显示器支持 |
-
 ---
 
-## 参考项目详细分析
+## 参考项目分析
 
 ### 1. keymapper 架构分析
 
@@ -466,13 +376,13 @@ wakem bind-macro my-macro F1
 | `Timer { interval_ms }` | 预留 | 定时触发器，用于定时执行任务 |
 | `Always` | 预留 | 总是触发的规则 |
 
-### 2. 鼠钮重映射
+### 2. 鼠标按钮重映射
 
 位置: `src/config.rs` → `MouseConfig.button_remap`
 
 `button_remap` 字段已定义但功能待实现。可用于将鼠标侧键映射为其他功能。
 
-### 3. 配置验证
+### 3. 配置验证规则
 
 位置: `src/config.rs` → `Config::validate()`
 
@@ -484,11 +394,9 @@ wakem bind-macro my-macro F1
 - 层激活键非空检查
 - 空宏步骤警告
 
-### 4. IPC 消息协议
+### 4. IPC 消息协议完整列表
 
 位置: `src/ipc/mod.rs` → `Message` 枚举
-
-完整的消息类型定义：
 
 | 消息方向 | 消息 | 状态 | 说明 |
 |---------|------|------|------|
@@ -534,7 +442,7 @@ wakem bind-macro my-macro F1
 | `with_context()` | 添加上下文条件 |
 | `matches()` | 检查事件是否匹配规则 |
 
-### 7. 上下文匹配 API
+### 7. 通配符匹配实现细节
 
 位置: `src/config.rs` → `wildcard_match()` 和 `WindowPreset::wildcard_match()`
 
@@ -563,5 +471,5 @@ wakem bind-macro my-macro F1
 ### 长期扩展
 
 1. **插件系统** - 支持动态加载扩展模块
-2. **跨平台抽象层** - 为 macOS/Linux 移植做准备
+2. **跨平台抽象层完善** - 为 macOS/Linux 移植做准备
 3. **云同步** - 配置文件云存储同步
