@@ -117,7 +117,7 @@ impl ServerState {
 
         // 获取当前配置文件路径
         let config_path = {
-            let config = self.config.read().await;
+            let _config = self.config.read().await;
             // 尝试从配置中获取路径，或使用默认路径
             resolve_config_file_path(None)
         };

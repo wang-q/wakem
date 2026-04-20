@@ -1,6 +1,4 @@
-use anyhow::Result;
 use tracing::debug;
-use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
 };

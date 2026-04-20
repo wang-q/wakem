@@ -156,7 +156,7 @@ impl KeyMapper {
     /// 执行动作（包括窗口管理动作）
     #[cfg(target_os = "windows")]
     pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
-        use crate::types::WindowAction;
+        
 
         match action {
             Action::Window(window_action) => {

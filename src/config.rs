@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::types::{MappingRule, ModifierState};
+use crate::types::MappingRule;
 
 /// 全局配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,10 +96,10 @@ impl Config {
     /// 解析层的映射规则
     fn parse_layer_mappings(
         &self,
-        layer_name: &str,
+        _layer_name: &str,
         layer: &LayerConfig,
     ) -> anyhow::Result<Vec<MappingRule>> {
-        use crate::types::{Action, KeyAction, ModifierState, Trigger};
+        use crate::types::{Action, KeyAction, Trigger};
 
         let mut rules = Vec::new();
 
@@ -338,7 +338,7 @@ fn create_modifier_press_release_action(
 /// 解析窗口管理快捷键
 /// 格式: "Ctrl+Alt+C" -> "Center"
 fn parse_window_shortcut(from: &str, to: &str) -> anyhow::Result<MappingRule> {
-    use crate::types::{Action, Trigger};
+    use crate::types::Action;
 
     // 解析快捷键（如 "Ctrl+Alt+C"）
     let trigger = parse_shortcut_trigger(from)?;
@@ -387,7 +387,7 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
 /// 解析窗口管理动作
 /// 格式: "Center", "MoveToEdge(Left)", "HalfScreen(Right)", "FixedRatio(1.333, 0)"
 fn parse_window_action(action_str: &str) -> anyhow::Result<crate::types::WindowAction> {
-    use crate::types::{Alignment, Edge, MonitorDirection, WindowAction};
+    use crate::types::WindowAction;
 
     let action_str = action_str.trim();
 

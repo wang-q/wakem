@@ -6,12 +6,10 @@ pub mod output;
 pub mod tray;
 pub mod window_manager;
 
-pub use context::WindowContext;
-pub use hook::KeyboardHook;
 pub use input::RawInputDevice;
 pub use launcher::Launcher;
 pub use output::OutputDevice;
 pub use tray::TrayIcon;
 pub use window_manager::{
-    Alignment, Edge, MonitorDirection, MonitorInfo, WindowFrame, WindowManager,
+    MonitorDirection, WindowFrame, WindowManager,
 };

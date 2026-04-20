@@ -101,7 +101,7 @@ impl Trigger {
                 Trigger::Key {
                     scan_code,
                     virtual_key,
-                    modifiers,
+                    modifiers: _,
                 },
                 InputEvent::Key(e),
             ) => {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use tracing::{debug, error, warn};
+use tracing::debug;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -743,7 +743,7 @@ impl WindowManager {
         }
 
         // 切换到前台
-        BringWindowToTop(hwnd);
+        let _ = BringWindowToTop(hwnd);
 
         SetForegroundWindow(hwnd)
             .ok()

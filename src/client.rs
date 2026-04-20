@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tokio::time::{timeout, Duration};
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 use crate::ipc::{IpcClient, Message};
 

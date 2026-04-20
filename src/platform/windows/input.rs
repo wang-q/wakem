@@ -14,9 +14,8 @@ use windows::Win32::UI::Input::{
     RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, GetWindowLongPtrW,
-    RegisterClassW, SetWindowLongPtrW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
-    GWLP_USERDATA, MSG, WM_CREATE, WM_DESTROY, WM_INPUT, WM_QUIT, WNDCLASSW,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW,
+    RegisterClassW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, WM_CREATE, WM_DESTROY, WM_INPUT, WM_QUIT, WNDCLASSW,
     WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
 };
 
@@ -142,14 +141,14 @@ impl RawInputDevice {
     /// 停止消息循环
     pub fn stop(&mut self) {
         self.running = false;
-        unsafe {
+        let _ = unsafe {
             windows::Win32::UI::WindowsAndMessaging::PostMessageW(
                 self.hwnd,
                 WM_QUIT,
                 WPARAM(0),
                 LPARAM(0),
-            );
-        }
+            )
+        };
     }
 
     /// 窗口过程
