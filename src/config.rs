@@ -1483,6 +1483,88 @@ test_macro = []
     }
 
     #[test]
+    fn test_wildcard_dp_basic_patterns() {
+        // 基本匹配
+        assert!(wildcard_match_dp("hello", "hello"));
+        assert!(!wildcard_match_dp("hello", "world"));
+
+        // * 通配符（匹配任意字符序列）
+        assert!(wildcard_match_dp("test.exe", "*.exe"));
+        assert!(wildcard_match_dp("file.txt", "*.txt"));
+        assert!(wildcard_match_dp("", "*"));
+        assert!(wildcard_match_dp("anything", "*"));
+        assert!(wildcard_match_dp("prefix-suffix", "*suffix"));
+        assert!(wildcard_match_dp("prefix-suffix", "prefix*"));
+
+        // ? 通配符（匹配单个字符）
+        assert!(wildcard_match_dp("cat", "?at"));
+        assert!(wildcard_match_dp("bat", "?at"));
+        assert!(!wildcard_match_dp("at", "?at")); // ? 需要一个字符
+        assert!(wildcard_match_dp("abc", "???"));
+        assert!(!wildcard_match_dp("ab", "???"));
+
+        // 混合使用
+        assert!(wildcard_match_dp("test123.txt", "test*.txt"));
+        assert!(wildcard_match_dp("file_1.txt", "file_?.txt"));
+    }
+
+    #[test]
+    fn test_wildcard_dp_edge_cases() {
+        // 空字符串和空模式
+        assert!(wildcard_match_dp("", ""));
+        assert!(!wildcard_match_dp("a", ""));
+        assert!(wildcard_match_dp("", "*"));
+        assert!(!wildcard_match_dp("", "?")); // ? 需要至少一个字符
+
+        // 连续的 *
+        assert!(wildcard_match_dp("test", "**test"));
+        assert!(wildcard_match_dp("test", "***"));
+        assert!(wildcard_match_dp("", "**"));
+
+        // 开头的多个 *
+        assert!(wildcard_match_dp("test", "****test"));
+
+        // 大小写不敏感（已转换为小写）
+        assert!(wildcard_match_dp("TEST.EXE", "*.exe"));
+        assert!(wildcard_match_dp("File.TXT", "*.txt"));
+    }
+
+    #[test]
+    fn test_wildcard_dp_complex_patterns() {
+        // 多个 *
+        assert!(wildcard_match_dp("a.b.c.d", "*.d"));
+        assert!(wildcard_match_dp("a.b.c.d", "a.*.c.*"));
+
+        // 复杂混合模式
+        assert!(wildcard_match_dp("test_2024-01-15.log", "test_????.log"));
+        assert!(wildcard_match_dp("image001.png", "image???.png"));
+
+        // 路径风格匹配
+        assert!(wildcard_match_dp("/path/to/file.txt", "/path/*/file.txt"));
+        assert!(wildcard_match_dp(
+            "C:\\Users\\test\\*\\*.txt",
+            "C:\\Users\\test\\*\\*.txt"
+        ));
+    }
+
+    #[test]
+    fn test_wildcard_dp_performance_safety() {
+        // 测试不会因为长输入而崩溃或栈溢出
+        let long_text = "a".repeat(1000);
+        let long_pattern = "*".repeat(100);
+
+        // 应该能正常处理，不会栈溢出
+        let result = wildcard_match_dp(&long_text, &long_pattern);
+        assert!(result); // * 匹配任何内容
+
+        // 空模式和长文本
+        assert!(!wildcard_match_dp(&long_text, ""));
+
+        // 长文本和简单模式
+        assert!(wildcard_match_dp(&long_text, "*"));
+    }
+
+    #[test]
     fn test_parse_shortcut_trigger() {
         use crate::types::Trigger;
 

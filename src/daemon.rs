@@ -2,11 +2,11 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
-use windows::Win32::Foundation::HWND;
 
 use crate::config::Config;
 use crate::ipc::{IpcServer, Message};
 use crate::runtime::macro_player::MacroPlayer;
+use crate::shutdown::ShutdownSignal;
 use crate::types::{macros::MacroRecorder, Action, InputEvent, Macro, ModifierState};
 
 use crate::platform::windows::{
@@ -14,6 +14,7 @@ use crate::platform::windows::{
     LegacyRawInputDevice as RawInputDevice, WindowManager, WindowPresetManager,
 };
 use crate::runtime::{KeyMapper, LayerManager};
+use windows::Win32::Foundation::HWND;
 
 /// 服务端状态
 ///
@@ -71,6 +72,12 @@ impl ServerState {
     /// 加载配置
     ///
     /// 性能优化：批量更新减少锁持有时间
+    #[tracing::instrument(skip(self, config), fields(
+        rules_count = config.get_all_rules().len(),
+        layers_count = config.keyboard.layers.len(),
+        presets_count = config.window.presets.len(),
+        context_mappings_count = config.keyboard.context_mappings.len(),
+    ))]
     pub async fn load_config(&self, config: Config) -> Result<()> {
         // 1. 更新认证密钥（独立于配置存储）
         {
@@ -85,8 +92,8 @@ impl ServerState {
             mapper.load_rules(rules);
             mapper.load_context_rules(&config.keyboard.context_mappings);
             debug!(
-                "Loaded {} context mappings",
-                config.keyboard.context_mappings.len()
+                context_mappings_count = config.keyboard.context_mappings.len(),
+                "Loaded context mappings"
             );
         }
 
@@ -94,7 +101,10 @@ impl ServerState {
         {
             let mut preset_manager = self.window_preset_manager.write().await;
             preset_manager.load_presets(config.window.presets.clone());
-            debug!("Loaded {} window presets", config.window.presets.len());
+            debug!(
+                presets_count = config.window.presets.len(),
+                "Loaded window presets"
+            );
         }
 
         // 4. 更新层管理器
@@ -232,6 +242,7 @@ impl ServerState {
     /// - 使用 RwLock.read() 替代 Mutex.lock()（读多写少场景）
     /// - 减少锁持有时间，快速路径优先返回
     /// - 批量读取相关状态
+    #[tracing::instrument(skip(self, event), fields(event_type = %event.event_type_name()))]
     pub async fn process_input_event(&self, event: InputEvent) {
         // 快速路径：检查是否启用（最轻量的锁）
         if !*self.active.read().await {
@@ -251,9 +262,14 @@ impl ServerState {
         // 处理滚轮增强
         if let InputEvent::Mouse(mouse_event) = &event {
             if let crate::types::MouseEventType::Wheel(delta) = mouse_event.event_type {
+                debug!(wheel_delta = delta, "Processing wheel enhancement");
                 if let Some(action) = self.process_wheel_enhancement(delta).await {
                     if let Err(e) = self.execute_action(action).await {
-                        error!("Failed to execute wheel action: {}", e);
+                        error!(
+                            error = %e,
+                            wheel_delta = delta,
+                            "Failed to execute wheel action"
+                        );
                     }
                     return;
                 }
@@ -664,10 +680,16 @@ fn get_current_modifier_state() -> ModifierState {
 }
 
 /// 运行服务端
+///
+/// 改进：集成优雅关闭机制，支持安全退出所有后台任务
 pub async fn run_server(instance_id: u32) -> Result<()> {
     info!("Starting wakemd server (instance {})...", instance_id);
 
     let state = Arc::new(ServerState::new());
+
+    // 创建优雅关闭信号
+    let shutdown = Arc::new(ShutdownSignal::new());
+    let shutdown_for_tasks = shutdown.subscribe();
 
     // 设置实例ID
     {
@@ -720,17 +742,33 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         // Bridge: 从 std channel 接收并发送到 tokio channel
         while let Ok(event) = std_rx.recv() {
             if tx_clone.blocking_send(event).is_err() {
-                break;
+                break; // 通道关闭，退出
             }
         }
+        info!("Input bridge thread shutdown complete");
     });
 
-    // 启动输入处理任务（直接使用 tokio channel，无需轮询）
+    // 启动输入处理任务（带关闭信号检查）
     let state_clone = state.clone();
+    let mut input_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
-        while let Some(event) = input_rx.recv().await {
-            state_clone.process_input_event(event).await;
+        loop {
+            tokio::select! {
+                event = input_rx.recv() => {
+                    match event {
+                        Some(event) => {
+                            state_clone.process_input_event(event).await;
+                        }
+                        None => break, // 通道关闭
+                    }
+                }
+                _ = input_shutdown.changed() => {
+                    info!("Input processing task received shutdown signal");
+                    break;
+                }
+            }
         }
+        info!("Input processing task stopped");
     });
 
     // 启动窗口事件监听（用于自动应用预设）
@@ -760,41 +798,95 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                     break;
                 }
             }
+            info!("Window event bridge thread shutdown complete");
         });
 
         rx
     };
 
-    // 启动窗口事件处理任务（直接使用 tokio channel，无需轮询）
+    // 启动窗口事件处理任务（带关闭信号检查）
     let state_clone = state.clone();
+    let mut window_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
-        while let Some(event) = window_event_rx.recv().await {
-            state_clone.handle_window_event(event).await;
+        loop {
+            tokio::select! {
+                event = window_event_rx.recv() => {
+                    match event {
+                        Some(event) => {
+                            state_clone.handle_window_event(event).await;
+                        }
+                        None => break,
+                    }
+                }
+                _ = window_shutdown.changed() => {
+                    info!("Window event handling task received shutdown signal");
+                    break;
+                }
+            }
         }
+        info!("Window event handling task stopped");
     });
 
-    // 启动 IPC 服务端主循环
+    // 启动 IPC 服务端主循环（带关闭信号检查）
+    let mut ipc_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
-        if let Err(e) = ipc_server.run().await {
-            error!("Server error: {}", e);
+        loop {
+            tokio::select! {
+                result = ipc_server.run() => {
+                    if let Err(e) = result {
+                        error!("IPC server error: {}", e);
+                        // 发生错误后等待一小段时间再重试
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    }
+                }
+                _ = ipc_shutdown.changed() => {
+                    info!("IPC server received shutdown signal");
+                    break;
+                }
+            }
         }
+        info!("IPC server task stopped");
     });
 
-    // 处理 IPC 消息
+    // 处理 IPC 消息（带关闭信号检查）
     let state_clone = state.clone();
+    let mut msg_handler_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
-        while let Some((message, response_tx)) = message_rx.recv().await {
-            let response = handle_message(message, &state_clone).await;
-            let _ = response_tx.send(response).await;
+        loop {
+            tokio::select! {
+                msg = message_rx.recv() => {
+                    match msg {
+                        Some((message, response_tx)) => {
+                            let response: crate::ipc::Message = handle_message(message, &state_clone).await;
+                            if response_tx.send(response).await.is_err() {
+                                error!("Failed to send IPC response");
+                            }
+                        }
+                        None => break,
+                    }
+                }
+                _ = msg_handler_shutdown.changed() => {
+                    info!("Message handler task received shutdown signal");
+                    break;
+                }
+            }
         }
+        info!("Message handler task stopped");
     });
 
-    info!("Server is running");
+    info!("Server is running (press Ctrl+C for graceful shutdown)");
 
-    // 等待退出信号
+    // 等待退出信号（Ctrl+C）
     tokio::signal::ctrl_c().await?;
 
-    info!("Shutting down server...");
+    // 触发优雅关闭
+    info!("Initiating graceful shutdown...");
+    shutdown.shutdown().await;
+
+    // 等待一小段时间让任务清理完成
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    info!("Server shutdown complete");
     Ok(())
 }
 

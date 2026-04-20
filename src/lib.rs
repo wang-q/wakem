@@ -9,6 +9,7 @@ pub mod daemon;
 pub mod ipc;
 pub mod platform;
 pub mod runtime;
+pub mod shutdown;
 pub mod types;
 
 pub use config::Config;

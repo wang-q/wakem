@@ -12,6 +12,7 @@ mod daemon;
 mod ipc;
 mod platform;
 mod runtime;
+mod shutdown;
 mod types;
 mod window;
 

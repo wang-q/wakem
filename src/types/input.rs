@@ -166,4 +166,12 @@ impl InputEvent {
             InputEvent::Mouse(e) => e.is_injected,
         }
     }
+
+    /// 获取事件类型名称（用于日志记录）
+    pub fn event_type_name(&self) -> &'static str {
+        match self {
+            InputEvent::Key(_) => "key",
+            InputEvent::Mouse(_) => "mouse",
+        }
+    }
 }

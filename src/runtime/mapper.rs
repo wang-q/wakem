@@ -9,30 +9,101 @@ use tracing::{debug, trace};
 use crate::platform::windows::window_manager::RealWindowManager;
 
 /// 上下文感知映射规则
+///
+/// 根据当前窗口的属性（进程名、窗口类、标题等）来选择不同的映射表。
+/// 这使得同一个按键在不同应用中可以有不同的行为。
+///
+/// # 示例
+///
+/// ```ignore
+/// // 在 VSCode 中将 CapsLock 映射为 Ctrl，但在其他应用中映射为 Esc
+/// let rule = ContextMappingRule {
+///     context: ContextCondition::new()
+///         .with_process_name("Code.exe"),
+///     mappings: {
+///         let mut map = HashMap::new();
+///         map.insert(0x3A, Action::Key(KeyAction::Press { scan_code: None, virtual_key: 0x11 }));
+///         map
+///     },
+/// };
+/// ```
 #[derive(Debug, Clone)]
 pub struct ContextMappingRule {
-    /// 上下文条件
+    /// 上下文条件（决定何时应用此规则）
     pub context: ContextCondition,
-    /// 映射表：扫描码 -> 动作
+    /// 映射表：扫描码 -> 动作（当条件满足时使用）
     pub mappings: HashMap<u16, Action>,
 }
 
 /// 键位映射引擎
+///
+/// wakem 的核心组件，负责：
+/// - 管理基础键位映射规则
+/// - 支持上下文感知映射（根据当前窗口动态切换）
+/// - 处理输入事件并返回相应的动作
+/// - 执行各种动作类型（键盘、鼠标、窗口、启动程序等）
+///
+/// # 架构说明
+///
+/// 映射引擎采用分层处理策略：
+/// 1. **基础映射** - 始终生效的全局规则
+/// 2. **上下文映射** - 仅在特定条件下生效的规则（优先级更高）
+/// 3. **层管理器** - 由 LayerManager 提供，支持临时覆盖
+///
+/// # 使用示例
+///
+/// ```ignore
+/// use wakem::runtime::KeyMapper;
+///
+/// // 创建映射引擎
+/// let mut mapper = KeyMapper::new();
+///
+/// // 加载配置中的规则
+/// let rules = config.get_all_rules();
+/// mapper.load_rules(rules);
+///
+/// // 处理输入事件
+/// if let Some(action) = mapper.process_event(&input_event) {
+///     mapper.execute_action(&action)?;
+/// }
+/// ```
+///
+/// # 性能特性
+///
+/// - 使用 HashMap 实现快速查找（O(1) 平均复杂度）
+/// - 上下文条件缓存以减少重复计算
+/// - 支持热重载配置而不重启服务
 pub struct KeyMapper {
     /// 基础映射表：扫描码 -> 动作
+    ///
+    /// 存储全局性的键位映射规则，这些规则始终生效。
+    /// 键是扫描码（硬件相关），值是要执行的动作。
     mappings: HashMap<u16, Action>,
+
     /// 完整的映射规则列表
+    ///
+    /// 保留原始规则用于调试和序列化。
     rules: Vec<MappingRule>,
+
     /// 上下文感知映射规则列表
+    ///
+    /// 这些规则仅在满足特定上下文条件时生效，
+    /// 例如：只在 VSCode 中将 CapsLock 映射为 Ctrl。
     context_rules: Vec<ContextMappingRule>,
-    /// 是否启用
+
+    /// 是否启用映射引擎
+    ///
+    /// 当为 false 时，所有输入事件直接透传，不进行任何映射。
     enabled: bool,
+
     /// 窗口管理器（用于执行窗口管理动作）
     #[cfg(target_os = "windows")]
     window_manager: Option<RealWindowManager>,
+
     /// 托盘图标（用于显示通知）
     #[cfg(target_os = "windows")]
     tray_icon: Option<crate::platform::windows::TrayIcon>,
+
     /// 窗口预设管理器（用于保存/加载窗口预设）
     #[cfg(target_os = "windows")]
     window_preset_manager: Option<crate::platform::windows::WindowPresetManager>,

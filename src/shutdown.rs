@@ -1,5 +1,5 @@
 use tokio::sync::watch;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// 优雅关闭信号
 ///
@@ -8,6 +8,7 @@ use tracing::{info, debug};
 /// - 基于 tokio::watch channel 实现
 /// - 支持多个接收者同时监听
 /// - 线程安全的广播机制
+#[derive(Clone)]
 pub struct ShutdownSignal {
     sender: watch::Sender<bool>,
     receiver: watch::Receiver<bool>,
@@ -114,27 +115,27 @@ mod tests {
         let mut shutdown = ShutdownSignal::new();
 
         // 正常完成的操作应该返回 Ok
-        let result = shutdown
-            .run_until_shutdown(async { Ok::<_, ()>(42) })
-            .await;
+        let result = shutdown.run_until_shutdown(async { Ok::<_, ()>(42) }).await;
         assert_eq!(result, Ok(42));
     }
 
     #[tokio::test]
     async fn test_run_until_shutdown_cancellation() {
-        let mut shutdown = ShutdownSignal::new();
-        let shutdown_clone = &shutdown;
+        use std::sync::Arc;
+        let shutdown = Arc::new(ShutdownSignal::new());
+        let shutdown_for_trigger = Arc::clone(&shutdown);
 
         // 在后台触发关闭
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(10)).await;
-            shutdown_clone.shutdown().await;
+            shutdown_for_trigger.shutdown().await;
         });
 
+        let mut shutdown_clone = (*shutdown).clone();
         // 长时间运行的操作应该被取消
         let result = timeout(
             Duration::from_millis(100),
-            shutdown.run_until_shutdown(async {
+            shutdown_clone.run_until_shutdown(async {
                 tokio::time::sleep(Duration::from_secs(60)).await;
                 Ok::<_, ()>(())
             }),
