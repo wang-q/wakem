@@ -1,4 +1,6 @@
-# wakem 配置文档
+# wakem 配置指南
+
+本文档包含 wakem 的完整配置说明。
 
 ## 配置文件位置
 
@@ -8,7 +10,14 @@ wakem 会在以下位置查找配置文件：
 2. `%USERPROFILE%\.config\wakem\config.toml`
 3. 当前工作目录下的 `wakem.toml`
 
-## 配置文件结构
+## 快捷键符号
+
+| 符号 | 按键 |
+|:----:|:----:|
+| <kbd>Hyper</kbd> | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd> |
+| <kbd>HyperShift</kbd> | <kbd>Hyper</kbd>+<kbd>Shift</kbd> |
+
+## 基本配置
 
 ```toml
 # 基本设置
@@ -24,7 +33,7 @@ remap = [
     { from = "RightAlt", to = "Ctrl" },
 ]
 
-# 层配置
+# 导航层 - 按住 CapsLock 时
 [[keyboard.layers]]
 name = "navigation"
 activation_key = "CapsLock"
@@ -39,17 +48,29 @@ mappings = [
 [window]
 # 窗口管理快捷键
 shortcuts = [
-    { "Ctrl+Alt+C" = "Center" },
-    { "Ctrl+Alt+Left" = "LoopWidth(Left)" },
+    # 窗口居中
+    { "Ctrl+Alt+Win+C" = "Center" },
+    
+    # 移动到边缘
+    { "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)" },
+    { "Ctrl+Alt+Win+End" = "MoveToEdge(Right)" },
+    { "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)" },
+    { "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)" },
+    
+    # 半屏显示
+    { "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)" },
+    { "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)" },
+    
+    # 循环调整
+    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
+    
+    # 窗口切换
+    { "Alt+Grave" = "SwitchToNextWindow" },
 ]
-
-[mouse]
-# 鼠标设置（预留）
 ```
 
-## 配置选项说明
-
-### 全局设置
+## 全局设置
 
 | 选项 | 类型 | 默认值 | 说明 |
 |-----|------|-------|------|
@@ -58,9 +79,9 @@ shortcuts = [
 | `auto_reload` | bool | true | 自动重新加载配置 |
 | `icon_path` | string | "assets/icon.ico" | 自定义托盘图标路径 |
 
-### 键盘配置 (`[keyboard]`)
+## 键盘配置
 
-#### 基础重映射 (`remap`)
+### 基础重映射
 
 格式: `{ from = "源按键", to = "目标按键" }`
 
@@ -72,7 +93,12 @@ remap = [
 ]
 ```
 
-#### 层 (`layers`)
+常见用途:
+- **CapsLock 改为 Backspace**: 更符合人体工程学
+- **RightAlt 改为 Ctrl**: 方便单手操作
+- **交换 Esc 和 Grave**: Vim 用户常用
+
+### 层系统
 
 层允许你创建上下文相关的键位映射。
 
@@ -91,33 +117,80 @@ mappings = [                  # 层内的映射
 - `Hold`: 按住激活键时层激活，松开后恢复
 - `Toggle`: 按一次激活，再按一次关闭
 
-### 窗口管理配置 (`[window]`)
+层内可以映射组合键:
+
+```toml
+[[keyboard.layers]]
+name = "window_management"
+activation_key = "CapsLock"
+mode = "Hold"
+mappings = [
+    { from = "Q", to = "Ctrl+W" },      # 关闭标签
+    { from = "T", to = "Ctrl+T" },      # 新建标签
+    { from = "Tab", to = "Ctrl+Tab" },  # 切换标签
+]
+```
+
+## 窗口管理配置
+
+### 窗口管理动作
+
+| 动作 | 参数 | 说明 | 默认快捷键 |
+|-----|------|------|-----------|
+| `Center` | 无 | 窗口居中 | <kbd>Hyper</kbd>+<kbd>C</kbd> |
+| `MoveToEdge` | `Left/Right/Top/Bottom` | 移动到屏幕边缘 | <kbd>Hyper</kbd>+<kbd>Home/End/PgUp/PgDn</kbd> |
+| `HalfScreen` | `Left/Right/Top/Bottom` | 半屏显示 | <kbd>HyperShift</kbd>+<kbd>方向键</kbd> |
+| `LoopWidth` | `Left/Right` | 循环调整宽度 | <kbd>Hyper</kbd>+<kbd>Left/Right</kbd> |
+| `LoopHeight` | `Top/Bottom` | 循环调整高度 | <kbd>Hyper</kbd>+<kbd>Up/Down</kbd> |
+| `FixedRatio` | `ratio, scale_index` | 固定比例窗口 | <kbd>Hyper</kbd>+<kbd>M</kbd> |
+| `NativeRatio` | `scale_index` | 原生比例窗口 | <kbd>HyperShift</kbd>+<kbd>M</kbd> |
+| `SwitchToNextWindow` | 无 | 同进程窗口切换 | <kbd>Alt</kbd>+<kbd>`</kbd> |
+| `MoveToMonitor` | `Next/Prev/Index` | 跨显示器移动 | <kbd>Hyper</kbd>+<kbd>J/K</kbd> |
+| `Minimize` | 无 | 最小化窗口 | - |
+| `Maximize` | 无 | 最大化窗口 | - |
+| `Close` | 无 | 关闭窗口 | - |
+| `ShowDebugInfo` | 无 | 显示窗口调试信息 | <kbd>Hyper</kbd>+<kbd>W</kbd> |
+| `ShowNotification` | `title, message` | 显示通知 | <kbd>HyperShift</kbd>+<kbd>W</kbd> |
+
+### 循环调整尺寸
+
+**宽度循环** (3/4 → 3/5 → 1/2 → 2/5 → 1/4):
 
 ```toml
 [window]
 shortcuts = [
-    { "Ctrl+Alt+C" = "Center" },
-    { "Ctrl+Alt+Home" = "MoveToEdge(Left)" },
-    { "Alt+Grave" = "SwitchToNextWindow" },
+    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
 ]
 ```
 
-支持的窗口管理动作:
+**高度循环** (3/4 → 1/2 → 1/4):
 
-| 动作 | 参数 | 说明 |
-|-----|------|------|
-| `Center` | 无 | 窗口居中 |
-| `MoveToEdge` | `Left/Right/Top/Bottom` | 移动到屏幕边缘 |
-| `HalfScreen` | `Left/Right/Top/Bottom` | 半屏显示 |
-| `LoopWidth` | `Left/Right` | 循环调整宽度 |
-| `LoopHeight` | `Top/Bottom` | 循环调整高度 |
-| `FixedRatio` | `ratio, scale_index` | 固定比例窗口 |
-| `NativeRatio` | `scale_index` | 原生比例窗口 |
-| `SwitchToNextWindow` | 无 | 同进程窗口切换 |
-| `MoveToMonitor` | `Next/Prev/Index` | 跨显示器移动 |
-| `Minimize` | 无 | 最小化窗口 |
-| `Maximize` | 无 | 最大化窗口 |
-| `Close` | 无 | 关闭窗口 |
+```toml
+[window]
+shortcuts = [
+    { "Ctrl+Alt+Win+Up" = "LoopHeight(Top)" },
+    { "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)" },
+]
+```
+
+### 固定比例窗口
+
+保持特定宽高比，循环缩放:
+
+```toml
+[window]
+shortcuts = [
+    # 4:3 比例，从 100% 开始
+    { "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)" },
+]
+```
+
+**参数说明**:
+- `ratio`: 宽高比（1.333 = 4:3）
+- `scale_index`: 初始缩放索引（0 = 100%, 1 = 90%, 2 = 70%, 3 = 50%）
+
+连续按键循环: 100% → 90% → 70% → 50% → 100%
 
 ## 按键名称
 
@@ -141,7 +214,7 @@ shortcuts = [
 - `Up`, `Down`, `Left`, `Right`
 - `Home`, `End`
 - `PageUp`, `PageDown`
-- `Insert`, `Delete`
+- `Insert`, `Delete`, `ForwardDelete`
 
 ### 其他键
 - `Backspace`, `Back`
@@ -161,28 +234,32 @@ shortcuts = [
 "Alt+Tab"          # Alt + Tab
 "Win+E"            # Win + E
 
-# 多修饰键
-"Ctrl+Alt+C"       # Ctrl + Alt + C
-"Ctrl+Shift+Esc"   # Ctrl + Shift + Esc
-"Ctrl+Alt+Shift+S" # Ctrl + Alt + Shift + S
+# 多修饰键（Hyper 键）
+"Ctrl+Alt+Win+C"   # Hyper + C
+"Ctrl+Alt+Win+Shift+W"  # HyperShift + W
 ```
 
-## 示例配置
-
-### 最小配置
+## 完整配置示例
 
 ```toml
+# wakem.toml - 完整配置示例
+
+# 基本设置
+log_level = "info"
+tray_icon = true
+auto_reload = true
+icon_path = "assets/icon.ico"
+
+# 键盘重映射
 [keyboard]
 remap = [
     { from = "CapsLock", to = "Backspace" },
+    { from = "RightAlt", to = "Ctrl" },
 ]
-```
 
-### Vim 风格导航
-
-```toml
+# 导航层
 [[keyboard.layers]]
-name = "vim"
+name = "navigation"
 activation_key = "CapsLock"
 mode = "Hold"
 mappings = [
@@ -190,17 +267,76 @@ mappings = [
     { from = "J", to = "Down" },
     { from = "K", to = "Up" },
     { from = "L", to = "Right" },
+    { from = "W", to = "Ctrl+Right" },
+    { from = "B", to = "Ctrl+Left" },
 ]
-```
 
-### 窗口管理
-
-```toml
+# 窗口管理
 [window]
 shortcuts = [
-    { "Ctrl+Alt+C" = "Center" },
-    { "Ctrl+Alt+Left" = "LoopWidth(Left)" },
-    { "Ctrl+Alt+Right" = "LoopWidth(Right)" },
+    # 窗口居中
+    { "Ctrl+Alt+Win+C" = "Center" },
+    { "Ctrl+Alt+Win+Delete" = "Center" },
+    
+    # 移动到边缘
+    { "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)" },
+    { "Ctrl+Alt+Win+End" = "MoveToEdge(Right)" },
+    { "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)" },
+    { "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)" },
+    
+    # 半屏显示
+    { "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)" },
+    { "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)" },
+    { "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)" },
+    { "Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)" },
+    
+    # 循环调整
+    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
+    { "Ctrl+Alt+Win+Up" = "LoopHeight(Top)" },
+    { "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)" },
+    
+    # 固定比例
+    { "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)" },
+    { "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)" },
+    
+    # 窗口切换
     { "Alt+Grave" = "SwitchToNextWindow" },
+    
+    # 跨显示器
+    { "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)" },
+    { "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)" },
+    
+    # 调试功能
+    { "Ctrl+Alt+Win+W" = "ShowDebugInfo" },
+    { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)" },
 ]
 ```
+
+## 故障排除
+
+### 配置不生效
+
+1. 检查配置文件路径是否正确
+2. 确认 TOML 语法无误（可以使用在线 TOML 验证工具）
+3. 查看日志确认配置是否正确加载
+4. 尝试手动重载配置: `wakem reload`
+
+### 快捷键冲突
+
+1. 检查是否有其他软件占用相同快捷键
+2. 尝试更换快捷键组合
+3. 使用更复杂的组合（如三键组合）
+
+### 层不生效
+
+1. 检查激活键名称是否正确
+2. 确认没有其他软件占用该按键
+3. 查看日志确认层是否正确加载
+
+### 窗口管理不生效
+
+1. 检查窗口是否被其他软件锁定
+2. 确认窗口不是系统保护窗口（如任务管理器）
+3. 查看日志确认命令是否正确发送
+4. 某些窗口可能需要以管理员权限运行 wakem

@@ -237,3 +237,135 @@ wakem/
 2. **稳定性** - 客户端崩溃不影响核心功能
 3. **灵活性** - 支持远程控制和多个客户端
 4. **可测试性** - 各组件可以独立测试
+
+---
+
+## 功能实现状态
+
+### 已实现功能 ✅
+
+**窗口管理**
+- 窗口居中
+- 移动到边缘
+- 半屏显示
+- 循环调整宽度/高度
+- 固定比例窗口
+- 原生比例窗口
+- 跨显示器移动
+- 同进程窗口切换
+- 窗口置顶/透明/最小化/最大化/关闭
+
+**键盘增强**
+- 键位重映射
+- 快捷键层系统
+- 导航层（Vim 风格）
+- 应用快捷键
+- 快速启动
+
+**系统功能**
+- 系统托盘
+- 配置热重载
+- 自定义托盘图标
+- 调试信息/通知
+
+### 待实现功能 ⏳
+
+**鼠标增强**
+- 鼠标事件处理
+- 滚轮增强
+
+**系统完善**
+- 启动项管理
+- 安装和打包
+
+**跨平台移植**
+- macOS 支持
+- Linux 支持
+
+---
+
+## 完整配置示例
+
+```toml
+# wakem.toml - 完整配置示例
+
+# ============================================
+# 基本设置
+# ============================================
+log_level = "info"
+tray_icon = true
+auto_reload = true
+icon_path = "assets/icon.ico"
+
+# ============================================
+# 键盘重映射
+# ============================================
+[keyboard]
+remap = [
+    { from = "CapsLock", to = "Backspace" },
+    { from = "RightAlt", to = "Ctrl" },
+]
+
+# 导航层 - 按住 CapsLock 时
+[[keyboard.layers]]
+name = "navigation"
+activation_key = "CapsLock"
+mode = "Hold"
+mappings = [
+    { from = "H", to = "Left" },
+    { from = "J", to = "Down" },
+    { from = "K", to = "Up" },
+    { from = "L", to = "Right" },
+]
+
+# ============================================
+# 窗口管理
+# ============================================
+[window]
+shortcuts = [
+    # 窗口居中
+    { "Ctrl+Alt+Win+C" = "Center" },
+    { "Ctrl+Alt+Win+Shift+C" = "Center" },
+    
+    # 移动到边缘
+    { "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)" },
+    { "Ctrl+Alt+Win+End" = "MoveToEdge(Right)" },
+    { "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)" },
+    { "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)" },
+    
+    # 半屏显示
+    { "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)" },
+    { "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)" },
+    { "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)" },
+    { "Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)" },
+    
+    # 循环调整
+    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
+    { "Ctrl+Alt+Win+Up" = "LoopHeight(Top)" },
+    { "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)" },
+    
+    # 固定比例
+    { "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)" },
+    { "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)" },
+    
+    # 窗口切换
+    { "Alt+Grave" = "SwitchToNextWindow" },
+    
+    # 跨显示器
+    { "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)" },
+    { "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)" },
+    
+    # 调试功能
+    { "Ctrl+Alt+Win+W" = "ShowDebugInfo" },
+    { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)" },
+]
+
+# ============================================
+# 快速启动
+# ============================================
+[launch]
+terminal = "wt.exe"
+editor = "code.exe"
+browser = "chrome.exe"
+```

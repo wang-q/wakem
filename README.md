@@ -102,21 +102,16 @@ wakem config      # 打开配置文件夹
 
 ### 2. 键盘增强 (Keyboard Enhance)
 
-| 功能 | 描述 | 状态 |
-|------|------|------|
-| 键位重映射 | CapsLock 改 Backspace/Esc、交换 Ctrl/Alt 等 | ✅ |
-| 快捷键层 | 按住特定键（如 CapsLock/右Alt）切换快捷键层 | ✅ |
-| 方向键层 | CapsLock + I/J/K/L 作为方向键 | ✅ |
-| 文本扩展 | 输入缩写自动展开 | ⏳ |
-| 应用快捷键 | 为特定应用定义专属快捷键 | ✅ |
-| 快速启动 | 快捷键启动常用应用 | ✅ |
+- **键位重映射** - CapsLock 改 Backspace/Esc、交换 Ctrl/Alt 等
+- **快捷键层** - 按住特定键（如 CapsLock/右Alt）切换快捷键层
+- **方向键层** - CapsLock + I/J/K/L 作为方向键
+- **应用快捷键** - 为特定应用定义专属快捷键
+- **快速启动** - 快捷键启动常用应用
 
 ### 3. 鼠标增强 (Mouse Enhance)
 
-| 功能 | 描述 | 状态 |
-|------|------|------|
-| 滚轮增强 | 滚轮在标签页/音量/亮度间切换 | ⏳ |
-| 按键重映射 | 鼠标侧键自定义功能 | ⏳ |
+- **滚轮增强** - 滚轮在标签页/音量/亮度间切换
+- **按键重映射** - 鼠标侧键自定义功能
 
 ### 4. 调试功能
 
@@ -135,9 +130,7 @@ wakem config      # 打开配置文件夹
 ```toml
 # wakem.toml - 窗口管理、键盘增强配置
 
-# ============================================
 # 键盘重映射
-# ============================================
 [keyboard]
 remap = [
     { from = "CapsLock", to = "Backspace" },
@@ -155,39 +148,16 @@ mappings = [
     { from = "L", to = "Right" },
 ]
 
-# ============================================
 # 窗口管理
-# ============================================
 [window]
-enabled = true
-
-[[window.mappings]]
-key = "Alt+Enter"
-action = "Maximize"
-
-[[window.mappings]]
-key = "Alt+`"
-action = "SwitchToNextWindow"
-
-[[window.mappings]]
-key = "Ctrl+Alt+C"
-action = "Center"
-
-[[window.mappings]]
-key = "Ctrl+Alt+Left"
-action = "HalfScreen(Left)"
-
-[[window.mappings]]
-key = "Ctrl+Alt+Right"
-action = "HalfScreen(Right)"
-
-# ============================================
-# 快速启动
-# ============================================
-[[keyboard.mappings]]
-key = "Win+C"
-action = "Launch('wt.exe')"
+shortcuts = [
+    { "Ctrl+Alt+Win+C" = "Center" },
+    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
+    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
+]
 ```
+
+更多配置示例请参考 [完整配置参考](docs/CONFIG.md)。
 
 ## 参考项目
 
