@@ -888,7 +888,7 @@ let matches = cond.matches(
 - 核心 API 已启用，用于配置文件解析和运行时匹配
 - 扩展 API 用于程序化构建规则（如通过 UI 配置）
 
-### 11. 系统托盘扩展 API
+### 7. 系统托盘扩展 API
 
 **位置**: `src/platform/windows/tray.rs`
 
@@ -898,7 +898,7 @@ let matches = cond.matches(
 
 **启用建议**: 当需要添加激活状态视觉反馈（如切换图标颜色）时启用。
 
-### 12. 程序启动扩展 API
+### 8. 程序启动扩展 API
 
 **位置**: `src/platform/windows/launcher.rs`
 
@@ -909,19 +909,24 @@ let matches = cond.matches(
 
 **启用建议**: 当需要程序化构建启动动作（如通过 UI 配置快速启动）时启用。
 
-### 13. 消息窗口扩展 API
+### 9. 消息窗口扩展 API
 
 **位置**: `src/window.rs`
 
-| API | 说明 | 启用条件 |
-|-----|------|----------|
-| `MessageWindow::new()` | 创建消息窗口 | 多窗口支持 |
-| `MessageWindow::hwnd()` | 获取窗口句柄 | 外部集成 |
-| `MessageWindow::tray_icon()` | 获取托盘图标 | 外部控制托盘 |
+**说明**: `MessageWindow` 已用于系统托盘功能，以下 API 已启用：
 
-**启用建议**: 当需要多窗口支持或外部系统集成时启用。
+| API | 说明 | 状态 |
+|-----|------|------|
+| `MessageWindow::with_icon_path()` | 创建消息窗口（带自定义图标） | ✅ 已启用（系统托盘） |
+| `MessageWindow::hwnd()` | 获取窗口句柄 | ✅ 已启用（守护进程通知） |
+| `MessageWindow::tray_icon()` | 获取托盘图标 | 预留（动态图标控制） |
+| `MessageWindow::new()` | 创建消息窗口（无图标） | 预留（多窗口支持） |
 
-### 14. 守护进程状态字段
+**使用场景**:
+- `hwnd()` 用于将窗口句柄注册到守护进程，以便发送系统通知
+- 宏录制/回放完成时，守护进程通过托盘图标显示气泡通知
+
+### 10. 守护进程状态字段
 
 **位置**: `src/daemon.rs`
 

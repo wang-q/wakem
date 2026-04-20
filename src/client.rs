@@ -215,6 +215,19 @@ impl DaemonClient {
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
+
+    /// 注册消息窗口句柄
+    pub async fn register_message_window(&mut self, hwnd: usize) -> Result<()> {
+        let response = self
+            .send_receive(&Message::RegisterMessageWindow { hwnd })
+            .await?;
+
+        match response {
+            Message::Success => Ok(()),
+            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
 }
 
 impl Default for DaemonClient {

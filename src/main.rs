@@ -299,6 +299,16 @@ async fn run_tray(instance_id: u32) -> Result<()> {
                     error!("Failed to get status: {}", e);
                 }
             }
+
+            // 注册消息窗口句柄到守护进程
+            let hwnd = window.hwnd();
+            let hwnd_usize = hwnd.0 as usize;
+            if let Err(e) = client.register_message_window(hwnd_usize).await {
+                error!("Failed to register message window: {}", e);
+            } else {
+                info!("Message window registered with daemon");
+            }
+
             true
         }
         Err(e) => {

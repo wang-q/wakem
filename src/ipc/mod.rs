@@ -37,6 +37,8 @@ pub enum Message {
     DeleteMacro { name: String },
     /// 绑定宏到触发键
     BindMacro { macro_name: String, trigger: String },
+    /// 注册消息窗口句柄（用于发送通知）
+    RegisterMessageWindow { hwnd: usize },
 
     // 服务端 -> 客户端
     /// 状态响应

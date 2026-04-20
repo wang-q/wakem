@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
+use windows::Win32::Foundation::HWND;
 
 use crate::config::Config;
 use crate::ipc::{IpcServer, Message};
@@ -36,6 +37,8 @@ pub struct ServerState {
     config_loaded: Arc<RwLock<bool>>,
     /// 宏录制器
     macro_recorder: Arc<MacroRecorder>,
+    /// 消息窗口句柄（用于发送通知）
+    message_window_hwnd: Arc<RwLock<Option<HWND>>>,
 }
 
 impl ServerState {
@@ -56,6 +59,7 @@ impl ServerState {
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
+            message_window_hwnd: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -404,6 +408,19 @@ impl ServerState {
     pub async fn stop_macro_recording(&self) -> Result<Macro> {
         let macro_def = self.macro_recorder.stop_recording().await?;
         self.save_macro(&macro_def).await?;
+
+        // 显示录制完成通知
+        let action_count = macro_def.actions.len();
+        let _ = self
+            .show_notification(
+                "wakem - 宏录制",
+                &format!(
+                    "宏 '{}' 录制完成，包含 {} 个动作",
+                    macro_def.name, action_count
+                ),
+            )
+            .await;
+
         Ok(macro_def)
     }
 
@@ -444,6 +461,11 @@ impl ServerState {
 
         let output_device = self.output_device.lock().await;
         MacroPlayer::play_macro(&output_device, &macro_def).await?;
+
+        // 显示回放完成通知
+        let _ = self
+            .show_notification("wakem - 宏回放", &format!("宏 '{}' 回放完成", name))
+            .await;
 
         Ok(())
     }
@@ -501,6 +523,70 @@ impl ServerState {
     /// 检查是否正在录制宏
     pub async fn is_recording_macro(&self) -> bool {
         self.macro_recorder.is_recording().await
+    }
+
+    /// 设置消息窗口句柄
+    pub async fn set_message_window_hwnd(&self, hwnd: HWND) {
+        let mut h = self.message_window_hwnd.write().await;
+        *h = Some(hwnd);
+        info!("Message window handle registered: {:?}", hwnd);
+    }
+
+    /// 显示托盘通知
+    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
+        if let Some(hwnd) = *self.message_window_hwnd.read().await {
+            // 使用托盘图标显示通知
+            self.show_tray_notification(hwnd, title, message).await?;
+        } else {
+            debug!("Message window not registered, skipping notification");
+        }
+        Ok(())
+    }
+
+    /// 使用托盘图标显示通知（内部方法）
+    async fn show_tray_notification(
+        &self,
+        hwnd: HWND,
+        title: &str,
+        message: &str,
+    ) -> Result<()> {
+        use windows::Win32::UI::Shell::{
+            NIF_INFO, NIM_MODIFY, NOTIFYICONDATAW, NOTIFY_ICON_INFOTIP_FLAGS,
+        };
+
+        let mut nid = NOTIFYICONDATAW {
+            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: hwnd,
+            uID: 1, // 托盘图标 ID
+            uFlags: NIF_INFO,
+            ..Default::default()
+        };
+
+        // 转换标题和消息为宽字符串
+        let title_wide: Vec<u16> =
+            title.encode_utf16().chain(std::iter::once(0)).collect();
+        let message_wide: Vec<u16> =
+            message.encode_utf16().chain(std::iter::once(0)).collect();
+
+        // 复制到结构体（限制长度）
+        let title_len = title_wide.len().min(64);
+        let message_len = message_wide.len().min(256);
+
+        nid.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
+        nid.szInfo[..message_len].copy_from_slice(&message_wide[..message_len]);
+
+        // 设置通知类型（0 = 无图标）
+        nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
+
+        unsafe {
+            let result = windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid);
+            if !result.as_bool() {
+                return Err(anyhow::anyhow!("Failed to show notification"));
+            }
+        }
+
+        info!("Notification shown: {} - {}", title, message);
+        Ok(())
     }
 }
 
@@ -804,6 +890,11 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
                 message: format!("Failed to bind macro: {}", e),
             },
         },
+        Message::RegisterMessageWindow { hwnd } => {
+            let hwnd = windows::Win32::Foundation::HWND(hwnd as isize);
+            state.set_message_window_hwnd(hwnd).await;
+            Message::Success
+        }
         _ => Message::Error {
             message: "Unknown message".to_string(),
         },
