@@ -17,10 +17,11 @@ wakem/
 │   ├── window.rs           # 消息窗口
 │   ├── types/              # 类型定义
 │   │   ├── mod.rs
-│   │   ├── action.rs
-│   │   ├── input.rs
-│   │   ├── layer.rs
-│   │   └── mapping.rs
+│   │   ├── action.rs       # 动作定义（Key/Mouse/Window/Launch/System）
+│   │   ├── input.rs        # 输入事件定义
+│   │   ├── layer.rs        # 层管理
+│   │   ├── macros.rs       # 宏录制和管理
+│   │   └── mapping.rs      # 映射规则
 │   ├── ipc/                # IPC 通信（统一使用 TCP）
 │   │   ├── mod.rs          # 模块导出和消息协议
 │   │   ├── client.rs       # TCP 客户端
@@ -43,7 +44,8 @@ wakem/
 │   └── runtime/            # 运行时逻辑
 │       ├── mod.rs
 │       ├── layer_manager.rs
-│       └── mapper.rs
+│       ├── mapper.rs
+│       └── macro_player.rs # 宏回放
 ├── tests/                  # 集成测试
 │   ├── action_test.rs
 │   ├── benchmark_test.rs
@@ -111,9 +113,18 @@ wakem/
 - [x] 上下文感知快捷键
 - [x] 网络通信（TCP + 多实例支持）
 
-### Phase 6: macOS 移植 ⏳ 待实现
+### Phase 6: 宏系统 ✅ 已完成
 
-### Phase 7: Linux 移植 ⏳ 待实现
+- [x] 宏录制功能（`MacroRecorder`）
+- [x] 宏回放功能（`MacroPlayer`）
+- [x] 与 Action 系统整合（复用 `Action` 枚举）
+- [x] 支持所有动作类型（Key/Mouse/Window/Launch/System/Delay）
+- [x] 延迟优化（自动合并短延迟）
+- [x] 宏配置持久化
+
+### Phase 7: macOS 移植 ⏳ 待实现
+
+### Phase 8: Linux 移植 ⏳ 待实现
 
 ## 参考项目
 
@@ -509,23 +520,23 @@ wakem delete-macro my-macro
 ### 配置格式
 
 ```toml
-# 宏定义
+# 宏定义（使用标准 Action 格式）
 [macros]
 "open-terminal" = [
-    { KeyPress = { scan_code = 91, virtual_key = 91 } },  # Win
-    { KeyRelease = { scan_code = 91, virtual_key = 91 } },
+    [0, { Key = { Press = { scan_code = 91, virtual_key = 91 } } }],      # Win 按下
+    [0, { Key = { Release = { scan_code = 91, virtual_key = 91 } } }],   # Win 释放
 ]
 
 "copy-paste" = [
-    { KeyPress = { scan_code = 29, virtual_key = 17 } },   # Ctrl
-    { KeyPress = { scan_code = 46, virtual_key = 67 } },   # C
-    { KeyRelease = { scan_code = 46, virtual_key = 67 } },
-    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
-    { Delay = { milliseconds = 100 } },
-    { KeyPress = { scan_code = 29, virtual_key = 17 } },   # Ctrl
-    { KeyPress = { scan_code = 47, virtual_key = 86 } },   # V
-    { KeyRelease = { scan_code = 47, virtual_key = 86 } },
-    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
+    [0, { Key = { Press = { scan_code = 29, virtual_key = 17 } } }],     # Ctrl 按下
+    [0, { Key = { Press = { scan_code = 46, virtual_key = 67 } } }],     # C 按下
+    [0, { Key = { Release = { scan_code = 46, virtual_key = 67 } } }],   # C 释放
+    [0, { Key = { Release = { scan_code = 29, virtual_key = 17 } } }],   # Ctrl 释放
+    [100, { Delay = { milliseconds = 100 } }],                           # 延迟 100ms
+    [0, { Key = { Press = { scan_code = 29, virtual_key = 17 } } }],     # Ctrl 按下
+    [0, { Key = { Press = { scan_code = 47, virtual_key = 86 } } }],     # V 按下
+    [0, { Key = { Release = { scan_code = 47, virtual_key = 86 } } }],   # V 释放
+    [0, { Key = { Release = { scan_code = 29, virtual_key = 17 } } }],   # Ctrl 释放
 ]
 
 # 宏触发键绑定
@@ -538,17 +549,52 @@ wakem delete-macro my-macro
 
 | 组件 | 文件 | 说明 |
 |------|------|------|
-| `MacroRecorder` | `src/types/macros.rs` | 录制输入事件 |
-| `MacroPlayer` | `src/runtime/macro_player.rs` | 回放宏动作 |
-| `MacroAction` | `src/types/macros.rs` | 宏动作枚举 |
+| `MacroRecorder` | `src/types/macros.rs` | 录制输入事件，使用 `Action::from_input_event()` |
+| `MacroPlayer` | `src/runtime/macro_player.rs` | 回放宏动作，支持所有 Action 类型 |
+| `Action` | `src/types/action.rs` | 统一的动作枚举（复用现有系统） |
 
 ### 支持的宏动作
 
-- `KeyPress` / `KeyRelease` - 按键按下/释放
-- `MousePress` / `MouseRelease` - 鼠标按钮按下/释放
-- `MouseMove` - 鼠标移动
-- `MouseWheel` - 鼠标滚轮
-- `Delay` - 延迟等待
+宏系统复用 `Action` 枚举，支持所有动作类型：
+
+- **Key** - 按键动作（Press/Release/Click/TypeText/Combo）
+- **Mouse** - 鼠标动作（Move/ButtonDown/ButtonUp/ButtonClick/Wheel/HWheel）
+- **Window** - 窗口管理动作（Center/MoveToEdge/HalfScreen 等）
+- **Launch** - 启动程序
+- **System** - 系统控制（音量/亮度）
+- **Sequence** - 动作序列（嵌套）
+- **Delay** - 延迟等待
+
+### 架构说明
+
+宏系统与 Action 系统深度整合：
+
+```
+┌─────────────────────────────────────────┐
+│           MacroRecorder                 │
+│  - 使用 Action::from_input_event()      │
+│  - 录制为 Vec<(delay_ms, Action)>       │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│              Action                     │
+│  ├─ Key(Press/Release/Click/Combo)     │
+│  ├─ Mouse(ButtonDown/ButtonUp/Wheel)   │
+│  ├─ Window(Center/MoveToEdge/...)       │
+│  ├─ Launch(program)                     │
+│  ├─ System(VolumeUp/BrightnessUp)      │
+│  ├─ Sequence(Vec<Action>)               │
+│  └─ Delay { milliseconds }              │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│           MacroPlayer                   │
+│  - 遍历 (delay_ms, Action)              │
+│  - 执行延迟后调用对应处理器              │
+└─────────────────────────────────────────┘
+```
 
 ---
 
@@ -685,9 +731,9 @@ wakem delete-macro my-macro
 
 ---
 
-## 未使用代码总结
+## 预留 API 清单
 
-以下代码已实现但当前未被主流程使用，使用 `#[allow(dead_code)]` 标记保留。这些代码为未来功能扩展提供了基础。
+以下 API 为未来功能扩展预留，当前未被主流程使用。
 
 ### 1. 层系统扩展 API
 
@@ -719,7 +765,7 @@ wakem delete-macro my-macro
 
 **启用建议**: 当需要添加运行时配置修改功能（如通过托盘菜单动态添加映射）时启用。
 
-### 4. IPC 系统扩展 API
+### 3. IPC 系统扩展 API
 
 **位置**: `src/ipc/client.rs`, `src/ipc/server.rs`, `src/ipc/discovery.rs`
 
@@ -734,7 +780,7 @@ wakem delete-macro my-macro
 
 **启用建议**: 当需要添加连接状态监控、自动重连或实例健康检查功能时启用。
 
-### 5. Windows 平台备用方案
+### 4. Windows 平台备用方案
 
 **位置**: `src/platform/windows/hook.rs`
 
@@ -748,7 +794,7 @@ wakem delete-macro my-macro
 
 **启用建议**: 当 Raw Input 在某些场景下工作不正常时，可切换到低级键盘钩子方案。
 
-### 6. 输入事件构建 API
+### 5. 输入事件构建 API
 
 **位置**: `src/types/input.rs`, `src/types/mod.rs`
 
@@ -768,25 +814,7 @@ wakem delete-macro my-macro
 
 **启用建议**: 当需要构建模拟输入事件、显示修饰键状态或进行时序分析时启用。
 
-### 7. 动作系统构建 API
-
-**位置**: `src/types/action.rs`
-
-| API | 说明 | 状态 |
-|-----|------|------|
-| `KeyAction::press_from_event()` | 从事件创建 Press | ✅ 已启用（宏系统使用） |
-| `KeyAction::release_from_event()` | 从事件创建 Release | ✅ 已启用（宏系统使用） |
-| `KeyAction::combo()` | 创建组合键 | ✅ 已启用 |
-| `Action::mouse()` | 创建鼠标动作 | ✅ 已启用 |
-| `Action::launch()` | 创建启动动作 | ✅ 已启用 |
-| `Action::sequence()` | 创建动作序列 | ✅ 已启用 |
-| `Action::is_none()` | 检查是否为空操作 | ✅ 已启用 |
-| `Action::delay()` | 创建延迟动作 | ✅ 新增（宏回放使用） |
-| `Action::from_input_event()` | 从输入事件创建动作 | ✅ 新增（宏录制使用） |
-
-**说明**: 这些 API 已与宏系统整合，用于宏录制和回放功能。
-
-### 8. 窗口管理扩展 API
+### 6. 窗口管理扩展 API
 
 **位置**: `src/platform/windows/window_manager.rs`
 
@@ -798,7 +826,7 @@ wakem delete-macro my-macro
 
 **启用建议**: 当需要更复杂的窗口状态检测或与 Windows API 深度交互时启用。
 
-### 9. 窗口预设管理 API
+### 7. 窗口预设管理 API
 
 **位置**: `src/platform/windows/window_preset.rs`
 
@@ -811,7 +839,7 @@ wakem delete-macro my-macro
 
 **启用建议**: 当需要添加窗口预设管理 UI（如保存/加载/删除预设）时启用。
 
-### 10. 上下文感知系统 ✅ 已统一
+### 8. 上下文感知系统 ✅ 已统一
 
 **位置**: `src/types/mapping.rs`, `src/config.rs`, `src/runtime/mapper.rs`
 
