@@ -36,8 +36,10 @@ impl WindowContext {
                 return None;
             }
 
-            let mut context = Self::default();
-            context.hwnd = hwnd.0;
+            let mut context = Self {
+                hwnd: hwnd.0,
+                ..Default::default()
+            };
 
             // 获取窗口类名
             let mut class_name = [0u16; 256];

@@ -282,7 +282,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(100);
 
     // 创建消息窗口（带自定义图标）
-    let mut window = MessageWindow::with_icon_path(icon_path)?;
+    let window = MessageWindow::with_icon_path(icon_path)?;
 
     // 设置命令回调
     let cmd_tx_for_callback = cmd_tx.clone();
@@ -441,7 +441,7 @@ async fn open_config_folder() -> Result<()> {
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| {
             std::env::var("USERPROFILE")
-                .map(|p| std::path::PathBuf::from(p))
+                .map(std::path::PathBuf::from)
                 .unwrap_or_default()
         });
 

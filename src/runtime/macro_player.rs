@@ -46,30 +46,30 @@ impl MacroPlayer {
         output: &OutputDevice,
         target: &ModifierState,
     ) -> anyhow::Result<()> {
-        let output_clone = output.clone();
-        let target_clone = target.clone();
+        let output_copy = *output;
+        let target_copy = *target;
 
         tokio::task::spawn_blocking(move || {
-            if target_clone.ctrl {
-                output_clone.send_key_action(&KeyAction::Press {
+            if target_copy.ctrl {
+                output_copy.send_key_action(&KeyAction::Press {
                     scan_code: 0x1D,
                     virtual_key: 0x11,
                 })?;
             }
-            if target_clone.shift {
-                output_clone.send_key_action(&KeyAction::Press {
+            if target_copy.shift {
+                output_copy.send_key_action(&KeyAction::Press {
                     scan_code: 0x2A,
                     virtual_key: 0x10,
                 })?;
             }
-            if target_clone.alt {
-                output_clone.send_key_action(&KeyAction::Press {
+            if target_copy.alt {
+                output_copy.send_key_action(&KeyAction::Press {
                     scan_code: 0x38,
                     virtual_key: 0x12,
                 })?;
             }
-            if target_clone.meta {
-                output_clone.send_key_action(&KeyAction::Press {
+            if target_copy.meta {
+                output_copy.send_key_action(&KeyAction::Press {
                     scan_code: 0x5B,
                     virtual_key: 0x5B,
                 })?;
@@ -82,23 +82,23 @@ impl MacroPlayer {
 
     /// 释放所有修饰键（使用 spawn_blocking 避免阻塞 Tokio 运行时）
     async fn release_all_modifiers(output: &OutputDevice) -> anyhow::Result<()> {
-        let output_clone = output.clone();
+        let output_copy = *output;
 
         tokio::task::spawn_blocking(move || {
             // 释放顺序：与按下相反
-            output_clone.send_key_action(&KeyAction::Release {
+            output_copy.send_key_action(&KeyAction::Release {
                 scan_code: 0x5B,
                 virtual_key: 0x5B,
             })?; // Meta
-            output_clone.send_key_action(&KeyAction::Release {
+            output_copy.send_key_action(&KeyAction::Release {
                 scan_code: 0x38,
                 virtual_key: 0x12,
             })?; // Alt
-            output_clone.send_key_action(&KeyAction::Release {
+            output_copy.send_key_action(&KeyAction::Release {
                 scan_code: 0x2A,
                 virtual_key: 0x10,
             })?; // Shift
-            output_clone.send_key_action(&KeyAction::Release {
+            output_copy.send_key_action(&KeyAction::Release {
                 scan_code: 0x1D,
                 virtual_key: 0x11,
             })?; // Ctrl

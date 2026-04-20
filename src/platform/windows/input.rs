@@ -20,7 +20,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 thread_local! {
-    static CURRENT_SENDER: RefCell<Option<Sender<InputEvent>>> = RefCell::new(None);
+    static CURRENT_SENDER: RefCell<Option<Sender<InputEvent>>> = const { RefCell::new(None) };
 }
 
 /// Raw Input 设备管理器
@@ -211,7 +211,7 @@ impl RawInputDevice {
             }
 
             let scan_code = if keyboard.MakeCode != 0 {
-                keyboard.MakeCode as u16
+                keyboard.MakeCode
             } else {
                 // 从虚拟键码映射
                 keyboard.VKey

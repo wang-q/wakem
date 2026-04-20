@@ -630,9 +630,9 @@ impl OutputDevice for MockOutputDevice {
 /// 将字符转换为虚拟键码（简化版）
 fn char_to_vk(ch: char) -> Option<u16> {
     match ch {
-        'a'..='z' => Some((ch as u16 - 'a' as u16 + 0x41) as u16),
-        'A'..='Z' => Some((ch as u16 - 'A' as u16 + 0x41) as u16),
-        '0'..='9' => Some((ch as u16 - '0' as u16 + 0x30) as u16),
+        'a'..='z' => Some(ch as u16 - 'a' as u16 + 0x41),
+        'A'..='Z' => Some(ch as u16 - 'A' as u16 + 0x41),
+        '0'..='9' => Some(ch as u16 - '0' as u16 + 0x30),
         ' ' => Some(0x20),
         '\n' => Some(0x0D),
         '\t' => Some(0x09),

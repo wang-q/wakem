@@ -3,18 +3,13 @@ use serde::{Deserialize, Serialize};
 use crate::types::{Action, MappingRule, Trigger};
 
 /// 层模式
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum LayerMode {
     /// 按住激活，释放退出
+    #[default]
     Hold,
     /// 切换模式（按一次进入，再按一次退出）
     Toggle,
-}
-
-impl Default for LayerMode {
-    fn default() -> Self {
-        LayerMode::Hold
-    }
 }
 
 /// 层定义

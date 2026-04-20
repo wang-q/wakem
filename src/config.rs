@@ -78,8 +78,6 @@ impl Config {
 
     /// 验证配置的完整性和业务规则
     pub fn validate(&self) -> anyhow::Result<()> {
-        use anyhow::Context;
-
         // 1. 验证日志级别
         match self.log_level.to_lowercase().as_str() {
             "trace" | "debug" | "info" | "warn" | "warning" | "error" => {}

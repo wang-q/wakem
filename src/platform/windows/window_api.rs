@@ -286,7 +286,7 @@ impl WindowApi for RealWindowApi {
     fn close_window(&self, hwnd: HWND) -> Result<()> {
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
-            PostMessageW(hwnd, WM_CLOSE, None, None);
+            let _ = PostMessageW(hwnd, WM_CLOSE, None, None);
             Ok(())
         }
     }
@@ -301,7 +301,7 @@ impl WindowApi for RealWindowApi {
             } else {
                 HWND_NOTOPMOST
             };
-            SetWindowPos(hwnd, pos, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            let _ = SetWindowPos(hwnd, pos, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             Ok(())
         }
     }
@@ -314,9 +314,9 @@ impl WindowApi for RealWindowApi {
             use windows::Win32::UI::WindowsAndMessaging::{LWA_ALPHA, WS_EX_LAYERED};
 
             let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-            SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
+            let _ = SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
 
-            SetLayeredWindowAttributes(hwnd, None, opacity, LWA_ALPHA);
+            let _ = SetLayeredWindowAttributes(hwnd, None, opacity, LWA_ALPHA);
             Ok(())
         }
     }

@@ -2,8 +2,7 @@ use anyhow::Result;
 use tracing::debug;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowRect, IsIconic, SetForegroundWindow, ShowWindow,
-    SW_RESTORE,
+    GetForegroundWindow, GetWindowRect, IsIconic,
 };
 
 // 从 types 导入 Edge 和 Alignment
