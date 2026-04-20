@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::platform::windows::Launcher;
 use crate::types::{Action, ContextCondition, MappingRule};
 
 /// 全局配置
@@ -102,6 +103,12 @@ impl Config {
                 .shortcuts
                 .iter()
                 .filter_map(|(k, v)| parse_window_shortcut(k, v).ok()),
+        );
+        // 添加启动项映射
+        rules.extend(
+            self.launch
+                .iter()
+                .filter_map(|(k, v)| parse_launch_mapping(k, v).ok()),
         );
         rules
     }
@@ -1092,4 +1099,27 @@ J = "Down"
             panic!("Expected ShowNotification action");
         }
     }
+}
+
+/// 解析启动项映射
+/// 支持格式:
+/// - 简单命令: "notepad.exe"
+/// - 带参数命令: "notepad.exe C:\\Users\\test.txt"
+fn parse_launch_mapping(trigger: &str, command: &str) -> anyhow::Result<MappingRule> {
+    use crate::types::{Action, Trigger};
+
+    // 解析触发键
+    let (scan_code, virtual_key) = parse_key(trigger)?;
+    let trigger_obj = Trigger::key(scan_code, virtual_key);
+
+    // 解析启动命令
+    let action = if command.contains(' ') {
+        // 使用 Launcher::parse_command 解析带参数的命令
+        Action::Launch(Launcher::parse_command(command))
+    } else {
+        // 简单命令
+        Action::launch(command)
+    };
+
+    Ok(MappingRule::new(trigger_obj, action))
 }

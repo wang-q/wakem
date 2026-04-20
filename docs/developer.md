@@ -902,12 +902,24 @@ let matches = cond.matches(
 
 **位置**: `src/platform/windows/launcher.rs`
 
-| API | 说明 | 启用条件 |
-|-----|------|----------|
-| `Launcher::create_action()` | 创建启动动作 | 程序化构建启动动作 |
-| `Launcher::parse_command()` | 解析命令字符串 | 支持命令行语法 |
+| API | 说明 | 状态 |
+|-----|------|------|
+| `Launcher::create_action()` | 创建启动动作 | ✅ 已启用（配置解析使用） |
+| `Launcher::parse_command()` | 解析命令字符串 | ✅ 已启用（支持带参数启动） |
 
-**启用建议**: 当需要程序化构建启动动作（如通过 UI 配置快速启动）时启用。
+**使用场景**:
+- `parse_command()` 用于解析带参数的启动命令，如 `"notepad.exe C:\\Users\\test.txt"`
+- `create_action()` 用于程序化创建简单的启动动作
+
+**配置示例**:
+```toml
+[launch]
+# 简单命令（使用 create_action）
+"Ctrl+Alt+T" = "wt.exe"
+# 带参数命令（使用 parse_command）
+"Ctrl+Alt+N" = "notepad.exe C:\\Users\\note.txt"
+"Ctrl+Alt+G" = "git.exe status"
+```
 
 ### 9. 消息窗口扩展 API
 

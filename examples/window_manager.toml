@@ -70,3 +70,15 @@ shortcuts = [
     # Hyper+Shift+W: 显示测试通知（类似 mrw 的 TrayTip）
     { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)" },
 ]
+
+# ========== 快速启动程序 ==========
+# 支持带参数的命令行启动
+[launch]
+# 启动 Windows Terminal
+"Ctrl+Alt+Win+T" = "wt.exe"
+# 启动记事本并打开特定文件
+"Ctrl+Alt+Win+N" = "notepad.exe"
+# 打开文件资源管理器到 D 盘
+"Ctrl+Alt+Win+E" = "explorer.exe D:\\"
+# 启动计算器
+"Ctrl+Alt+Win+Equals" = "calc.exe"

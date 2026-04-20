@@ -84,5 +84,10 @@ shortcuts = [
 
 [launch]
 # 快速启动程序
-# 格式: 快捷键 = "程序路径"
+# 格式 1: 简单命令（保持兼容）
 # "Ctrl+Alt+T" = "wt.exe"  # Windows Terminal
+
+# 格式 2: 带参数的命令（使用 parse_command）
+# "Ctrl+Alt+N" = "notepad.exe C:\\Users\\note.txt"
+# "Ctrl+Alt+G" = "git.exe status"
+# "Ctrl+Alt+E" = "explorer.exe D:\\"  # 打开 D 盘
