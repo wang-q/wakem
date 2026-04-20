@@ -32,11 +32,16 @@ pub struct MessageWindow {
 impl MessageWindow {
     /// 创建新的消息窗口
     pub fn new() -> Result<Self> {
+        Self::with_icon_path(None)
+    }
+
+    /// 创建带自定义图标路径的消息窗口
+    pub fn with_icon_path(icon_path: Option<String>) -> Result<Self> {
         let hwnd = Self::create_window()?;
-        
+
         let window = Self {
             hwnd,
-            tray_icon: Arc::new(Mutex::new(TrayIcon::new())),
+            tray_icon: Arc::new(Mutex::new(TrayIcon::with_icon_path(icon_path))),
             running: Arc::new(Mutex::new(true)),
             command_callback: None,
         };

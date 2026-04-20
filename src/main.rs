@@ -16,6 +16,7 @@ mod types;
 mod window;
 
 use client::DaemonClient;
+use config::Config;
 use window::{AppCommand, MessageWindow};
 
 /// wakem - Window Adjust, Keyboard Enhance, and Mouse
@@ -173,11 +174,24 @@ async fn cmd_config() -> Result<()> {
 async fn run_tray() -> Result<()> {
     info!("wakem client starting...");
 
+    // 加载配置获取图标路径
+    let icon_path = config::resolve_config_file_path(None)
+        .and_then(|path| {
+            Config::from_file(&path)
+                .ok()
+                .and_then(|cfg| cfg.icon_path)
+                .or_else(|| {
+                    // 尝试加载程序目录下的 assets/icon.ico
+                    path.parent()
+                        .map(|p| p.join("assets").join("icon.ico").to_string_lossy().to_string())
+                })
+        });
+
     // 创建命令通道
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(100);
 
-    // 创建消息窗口
-    let mut window = MessageWindow::new()?;
+    // 创建消息窗口（带自定义图标）
+    let mut window = MessageWindow::with_icon_path(icon_path)?;
 
     // 设置命令回调
     let cmd_tx_for_callback = cmd_tx.clone();

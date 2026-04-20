@@ -192,12 +192,18 @@ impl WindowManager {
     }
 
     /// 确保窗口已还原（非最小化/最大化）
+    /// 参考 mrw 的 EnsureWindowIsRestored()
     pub fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         unsafe {
-            if IsIconic(hwnd).as_bool() {
+            // 检查窗口是否最小化或最大化
+            let is_minimized = IsIconic(hwnd).as_bool();
+            let is_maximized = IsZoomed(hwnd).as_bool();
+
+            if is_minimized || is_maximized {
                 ShowWindow(hwnd, SW_RESTORE)
                     .ok()
                     .map_err(|e| anyhow::anyhow!("Failed to restore window: {}", e))?;
+                debug!("Window restored from {} state", if is_minimized { "minimized" } else { "maximized" });
             }
             Ok(())
         }

@@ -16,6 +16,9 @@ pub struct Config {
     /// 是否自动重新加载配置
     #[serde(default = "default_true")]
     pub auto_reload: bool,
+    /// 自定义托盘图标路径
+    #[serde(default)]
+    pub icon_path: Option<String>,
     /// 键盘映射规则
     #[serde(default)]
     pub keyboard: KeyboardConfig,
@@ -36,6 +39,7 @@ impl Default for Config {
             log_level: default_log_level(),
             tray_icon: true,
             auto_reload: true,
+            icon_path: None,
             keyboard: KeyboardConfig::default(),
             window: WindowConfig::default(),
             mouse: MouseConfig::default(),
@@ -514,6 +518,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         "pageup" => (0x49, 0x21),
         "pagedown" => (0x51, 0x22),
         "delete" | "del" => (0x53, 0x2E),
+        "forwarddelete" | "forwarddel" => (0x53, 0x2E), // Mac Forward Delete = Windows Delete
         "insert" | "ins" => (0x52, 0x2D),
         "lshift" => (0x2A, 0xA0),
         "rshift" => (0x36, 0xA1),

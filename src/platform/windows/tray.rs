@@ -1,15 +1,15 @@
 use anyhow::Result;
 use tracing::{debug, error};
-use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{HWND, POINT};
+use windows::core::{w, PCWSTR, HSTRING};
+use windows::Win32::Foundation::{HWND, POINT, HINSTANCE};
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
     NIM_MODIFY, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, SetForegroundWindow,
+    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, LoadImageW, SetForegroundWindow,
     TrackPopupMenu, HMENU, IDI_APPLICATION, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN,
-    TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP,
+    TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP, IMAGE_ICON, LR_LOADFROMFILE, LR_DEFAULTSIZE,
 };
 
 /// 菜单项 ID
@@ -26,11 +26,17 @@ pub struct TrayIcon {
     data: NOTIFYICONDATAW,
     hwnd: HWND,
     active: bool,
+    icon_path: Option<String>,
 }
 
 impl TrayIcon {
     /// 创建新的托盘图标
     pub fn new() -> Self {
+        Self::with_icon_path(None)
+    }
+
+    /// 创建带自定义图标路径的托盘图标
+    pub fn with_icon_path(icon_path: Option<String>) -> Self {
         let mut data = NOTIFYICONDATAW {
             uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
             uCallbackMessage: WM_APP_TRAY_NOTIFY,
@@ -48,6 +54,26 @@ impl TrayIcon {
             data,
             hwnd: HWND(0),
             active: true,
+            icon_path,
+        }
+    }
+
+    /// 从文件加载图标
+    fn load_icon_from_file(path: &str) -> anyhow::Result<windows::Win32::UI::WindowsAndMessaging::HICON> {
+        let path_wide = HSTRING::from(path);
+
+        unsafe {
+            let hicon = LoadImageW(
+                HINSTANCE(0),
+                &path_wide,
+                IMAGE_ICON,
+                0,
+                0,
+                LR_LOADFROMFILE | LR_DEFAULTSIZE,
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to load icon from file: {}", e))?;
+
+            Ok(windows::Win32::UI::WindowsAndMessaging::HICON(hicon.0))
         }
     }
 
@@ -57,10 +83,21 @@ impl TrayIcon {
         self.data.hWnd = hwnd;
         self.data.uID = 1;
 
-        // 加载图标（使用系统默认图标，后续可以替换为自定义图标）
-        unsafe {
-            self.data.hIcon = LoadIconW(None, IDI_APPLICATION)?;
-        }
+        // 尝试加载自定义图标，失败则使用系统默认图标
+        self.data.hIcon = if let Some(ref path) = self.icon_path {
+            match Self::load_icon_from_file(path) {
+                Ok(icon) => {
+                    debug!("Loaded custom icon from: {}", path);
+                    icon
+                }
+                Err(e) => {
+                    debug!("Failed to load custom icon from '{}': {}, using default", path, e);
+                    unsafe { LoadIconW(None, IDI_APPLICATION)? }
+                }
+            }
+        } else {
+            unsafe { LoadIconW(None, IDI_APPLICATION)? }
+        };
 
         unsafe {
             Shell_NotifyIconW(NIM_ADD, &self.data)
