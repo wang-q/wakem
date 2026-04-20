@@ -8,61 +8,81 @@
 wakem/
 ├── Cargo.toml              # 项目配置
 ├── src/
-│   ├── main.rs             # 统一入口（wakem）
+│   ├── main.rs             # 统一入口（CLI 定义，含 --instance 支持）
 │   ├── lib.rs              # 库导出
-│   ├── cli.rs              # 命令行定义
-│   ├── client.rs           # 客户端逻辑
-│   ├── daemon.rs           # 守护进程逻辑
-│   ├── config.rs           # 配置解析
-│   ├── window.rs           # 消息窗口
+│   ├── cli.rs              # 命令行定义（基础版）
+│   ├── client.rs           # 守护进程客户端（DaemonClient）
+│   ├── daemon.rs           # 守护进程逻辑（ServerState）
+│   ├── config.rs           # 配置解析和验证
+│   ├── window.rs           # 消息窗口（MessageWindow）
 │   ├── types/              # 类型定义
-│   │   ├── mod.rs
-│   │   ├── action.rs       # 动作定义（Key/Mouse/Window/Launch/System）
-│   │   ├── input.rs        # 输入事件定义
-│   │   ├── layer.rs        # 层管理
-│   │   ├── macros.rs       # 宏录制和管理
-│   │   └── mapping.rs      # 映射规则
+│   │   ├── mod.rs          # 模块导出（ModifierState, Timestamp 等）
+│   │   ├── action.rs       # 动作定义（Key/Mouse/Window/Launch/System/Sequence/Delay）
+│   │   ├── input.rs        # 输入事件定义（KeyEvent, MouseEvent, InputEvent）
+│   │   ├── layer.rs        # 层管理（Layer, LayerStack）
+│   │   ├── macros.rs       # 宏录制和管理（MacroRecorder, MacroManager, MacroStep）
+│   │   └── mapping.rs      # 映射规则（MappingRule, Trigger, ContextCondition）
 │   ├── ipc/                # IPC 通信（统一使用 TCP）
-│   │   ├── mod.rs          # 模块导出和消息协议
-│   │   ├── client.rs       # TCP 客户端
-│   │   ├── server.rs       # TCP 服务端
-│   │   ├── auth.rs         # 挑战-响应认证
-│   │   ├── security.rs     # IP 安全检查
+│   │   ├── mod.rs          # 模块导出和消息协议（Message 枚举）
+│   │   ├── client.rs       # TCP 客户端（IpcClient）
+│   │   ├── server.rs       # TCP 服务端（IpcServer）
+│   │   ├── auth.rs         # 挑战-响应认证（HMAC-SHA256）
+│   │   ├── security.rs     # IP 安全检查（RFC 1918 内网）
 │   │   └── discovery.rs    # 实例发现
 │   ├── platform/           # 平台相关
 │   │   └── windows/        # Windows 实现
 │   │       ├── mod.rs
-│   │       ├── input.rs
-│   │       ├── hook.rs
-│   │       ├── window_manager.rs
-│   │       ├── window_preset.rs    # 窗口预设管理
-│   │       ├── window_event_hook.rs # 窗口事件监听
-│   │       ├── context.rs
-│   │       ├── launcher.rs
-│   │       ├── output.rs
-│   │       └── tray.rs
+│   │       ├── input.rs        # 输入相关（LegacyRawInputDevice 别名）
+│   │       ├── input_device.rs # Raw Input 设备封装
+│   │       ├── output.rs       # 输出相关（LegacyOutputDevice 别名）
+│   │       ├── output_device.rs # SendInput 设备封装
+│   │       ├── window_manager.rs    # 窗口管理操作
+│   │       ├── window_preset.rs     # 窗口预设管理
+│   │       ├── window_event_hook.rs # 窗口事件监听（WinEventHook）
+│   │       ├── context.rs          # 窗口上下文获取（WindowContext）
+│   │       ├── launcher.rs         # 程序启动器
+│   │       ├── tray.rs             # 系统托盘实现
+│   │       ├── tray_api.rs         # 托盘 API 封装
+│   │       └── window_api.rs       # 窗口 API 封装
 │   └── runtime/            # 运行时逻辑
 │       ├── mod.rs
-│       ├── layer_manager.rs
-│       ├── mapper.rs
-│       └── macro_player.rs # 宏回放
+│       ├── layer_manager.rs  # 层管理器（LayerManager）
+│       ├── mapper.rs         # 映射引擎（KeyMapper，含上下文感知）
+│       └── macro_player.rs   # 宏回放（MacroPlayer）
 ├── tests/                  # 集成测试
 │   ├── action_test.rs
 │   ├── benchmark_test.rs
+│   ├── cli_test.rs
+│   ├── client_test.rs
+│   ├── config_comprehensive_test.rs
+│   ├── config_edge_cases_test.rs
 │   ├── config_parser_test.rs
+│   ├── daemon_test.rs
+│   ├── edge_cases_test.rs
 │   ├── input_test.rs
 │   ├── integration_test.rs
 │   ├── ipc_test.rs
 │   ├── layer_manager_test.rs
 │   ├── layer_test.rs
 │   ├── mapping_test.rs
+│   ├── platform_test.rs
+│   ├── runtime_comprehensive_test.rs
+│   ├── runtime_test.rs
+│   ├── security_test.rs
+│   ├── tray_test.rs
+│   ├── types_comprehensive_test.rs
+│   ├── types_test.rs
 │   ├── window_calc_test.rs
 │   └── window_manager_test.rs
-└── examples/               # 示例配置
-    ├── minimal.toml
-    ├── test_config.toml
-    ├── window_manager.toml
-    └── navigation_layer.toml
+├── examples/               # 示例配置
+│   ├── minimal.toml
+│   ├── test_config.toml
+│   ├── window_manager.toml
+│   └── navigation_layer.toml
+└── docs/
+    ├── confg.md            # 配置指南
+    ├── developer.md        # 开发文档（本文件）
+    └── macros.md           # 宏系统文档
 ```
 
 ## 开发计划
@@ -71,47 +91,47 @@ wakem/
 
 - [x] 项目搭建
 - [x] 核心数据结构（输入事件、动作、映射规则）
-- [x] IPC 通信（Named Pipe → 统一 TCP）
-- [x] 配置系统（TOML 格式）
-- [x] Windows 输入抓取（Raw Input）
+- [x] IPC 通信（TCP 协议 + JSON 序列化）
+- [x] 配置系统（TOML 格式 + HashMap 存储格式）
+- [x] Windows 输入捕获（Raw Input）
 - [x] Windows 输入发送（SendInput）
 - [x] 基础映射引擎
 
 ### Phase 2: Windows 键盘增强 + 系统托盘 ✅ 已完成
 
-- [x] 键位重映射基础
-- [x] 快捷键层系统
+- [x] 键位重映射基础（支持修饰键组合映射如 CapsLock → Ctrl+Alt+Win）
+- [x] 快捷键层系统（Hold/Toggle 模式）
 - [x] 导航层配置
-- [x] 上下文感知
-- [x] 快速启动
+- [x] 上下文感知（进程名/窗口标题/窗口类/可执行路径匹配）
+- [x] 快速启动（支持带参数的命令）
 - [x] 系统托盘客户端
 
 ### Phase 3: Windows 窗口管理 ✅ 已完成
 
 - [x] 窗口信息获取
-- [x] 窗口操作基础
-- [x] 窗口位置预设（借鉴 mrw）
-- [x] 窗口切换基础（Alt+`）
-- [x] Action 系统集成
+- [x] 窗口操作基础（居中/移动/调整大小/最小化/最大化/关闭等）
+- [x] 窗口位置预设（借鉴 mrw，支持通配符匹配）
+- [x] 窗口切换基础（Alt+` 同进程切换）
+- [x] Action 系统集成（完整窗口动作集）
 
 ### Phase 4: Windows 鼠标增强 ✅ 已完成
 
 - [x] 鼠标事件处理
-- [x] 滚轮增强（加速、水平滚动、音量/亮度控制）
+- [x] 滚轮增强（加速、反转、水平滚动、音量/亮度控制）
 
 > **注**: 不实现鼠标手势功能，使用场景有限且实现复杂
 
 ### Phase 5: Windows 完善 ✅ 已完成
 
-- [x] 系统托盘
-- [x] 输入捕获（Raw Input + LLKH）
-- [x] 配置重载
+- [x] 系统托盘（带通知功能）
+- [x] 输入捕获（Raw Input + std/tokio bridge）
+- [x] 配置热重载（通过 `wakem reload` 命令）
 - [x] 启动项管理（install.ps1 支持）
-- [x] 错误处理和日志
+- [x] 错误处理和日志（tracing crate）
 - [x] 安装和打包（install.ps1 脚本）
-- [x] 窗口预设功能
-- [x] 上下文感知快捷键
-- [x] 网络通信（TCP + 多实例支持）
+- [x] 窗口预设功能（自动应用、保存/加载预设）
+- [x] 上下文感知快捷键（应用专属快捷键）
+- [x] 网络通信（TCP + 多实例支持 + 认证）
 
 ### Phase 6: 宏系统 ✅ 已完成
 
@@ -119,10 +139,11 @@ wakem/
 - [x] 宏回放功能（`MacroPlayer`）
 - [x] 与 Action 系统整合（复用 `Action` 枚举）
 - [x] 支持所有动作类型（Key/Mouse/Window/Launch/System/Delay）
-- [x] 延迟优化（自动合并短延迟）
-- [x] 宏配置持久化
+- [x] 延迟优化（自动合并短延迟，阈值 50ms）
+- [x] 宏配置持久化（保存到配置文件）
 - [x] 修饰键状态跟踪（`MacroStep` 结构）
 - [x] 智能过滤单独修饰键事件
+- [x] 宏绑定到快捷键触发
 
 ### Phase 7: macOS 移植 ⏳ 待实现
 
@@ -161,8 +182,8 @@ wakem/
 │                   │                                              │
 │  ┌────────────────┴────────────────┐                            │
 │  │         keymapperd (Server)      │                            │
-│  │  ┌─────────────┐ ┌─────────────┐ │                            │
-│  │  │   Stage     │ │ MultiStage  │ │  <- Runtime Core           │
+│  │  ┌─────────────┐ ┌─────────────┐ │  <- Runtime Core           │
+│  │  │   Stage     │ │ MultiStage  │ │                            │
 │  │  │  (Mapping)  │ │ (Pipeline)  │ │                            │
 │  │  └─────────────┘ └─────────────┘ │                            │
 │  └────────────────┬────────────────┘                            │
@@ -264,6 +285,13 @@ wakem/
 3. **灵活性** - 支持远程控制和多个客户端
 4. **可测试性** - 各组件可以独立测试
 
+### 为什么使用 TCP 而非 Named Pipe?
+
+1. **跨平台兼容** - TCP 在所有平台上行为一致
+2. **多实例支持** - 通过端口区分实例更简单
+3. **远程控制** - 天然支持网络通信
+4. **调试便利** - 可以使用标准网络工具调试
+
 ---
 
 ## 功能实现状态
@@ -271,43 +299,42 @@ wakem/
 ### 已实现功能 ✅
 
 **窗口管理**
-- 窗口居中
-- 移动到边缘
-- 半屏显示
-- 循环调整宽度/高度
-- 固定比例窗口
-- 原生比例窗口
-- 跨显示器移动
-- 同进程窗口切换
-- 窗口置顶/透明/最小化/最大化/关闭
+- 窗口居中 / 移动到边缘 / 半屏显示
+- 循环调整宽度/高度（多种比例）
+- 固定比例窗口 / 原生比例窗口
+- 跨显示器移动 / 同进程窗口切换
+- 窗口置顶/透明度设置 / 最小化/最大化/还原/关闭
+- 窗口绝对坐标移动 / 大小调整
+- 显示调试信息 / 显示通知
+- 保存/加载/应用窗口预设
 
 **键盘增强**
-- 键位重映射
-- 快捷键层系统
-- 导航层（Vim 风格）
-- 应用快捷键
-- 快速启动
+- 键位重映射（包括修饰键组合映射：CapsLock → Hyper）
+- 快捷键层系统（Hold/Toggle 模式）
+- 导航层（Vim 风格 HJKL）
+- 应用快捷键（上下文感知）
+- 快速启动（支持带参数命令）
 
 **鼠标增强**
 - 鼠标事件捕获
-- 滚轮加速
+- 滚轮加速 / 反转 / 速度调节
 - 水平滚动（Shift + 滚轮）
 - 音量控制（RightAlt + 滚轮）
 - 亮度控制（RightCtrl + 滚轮）
 
 **系统功能**
-- 系统托盘
-- 配置热重载
+- 系统托盘（带通知功能）
+- 配置命令行重载 (`wakem reload`)
+- 配置保存到文件 (`wakem save`)
 - 自定义托盘图标
-- 调试信息/通知
-- 多实例支持
+- 多实例支持（`--instance N` 参数）
+- 实例发现和管理 (`wakem instances`)
 
 **高级功能**
-- 窗口预设（保存/恢复窗口布局）
-- 上下文感知快捷键（应用专属快捷键）
-- 网络通信（TCP + 远程控制）
-- 挑战-响应认证
-- 实例发现和管理
+- 窗口预设（保存/恢复/自动应用布局）
+- 上下文感知快捷键（进程名/标题/类/路径匹配）
+- 网络通信（TCP + 远程控制 + 挑战-响应认证）
+- **通配符匹配已完整实现**（支持 `*` 和 `?`，大小写不敏感）
 - **宏录制回放系统** ✅ 已实现
 
 ### 待实现功能 ⏳
@@ -320,22 +347,44 @@ wakem/
 
 ## 配置参考
 
-完整的配置说明请参考 [CONFIG.md](CONFIG.md)。
+完整的配置说明请参考 [confg.md](confg.md)，主要更新：
 
-开发相关配置示例：
+### 配置格式变更
+
+当前版本使用 **HashMap 格式**（点分隔表名）而非数组格式：
 
 ```toml
-# 开发调试配置
-log_level = "debug"
-tray_icon = true
-auto_reload = true
+# 新格式（当前）- HashMap
+[keyboard.remap]
+CapsLock = "Backspace"
 
-[window]
-shortcuts = [
-    { "Ctrl+Alt+Win+W" = "ShowDebugInfo" },
-    { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Debug Mode)" },
-]
+[keyboard.layers.navigation]
+activation_key = "CapsLock"
+mode = "Hold"
+
+[keyboard.layers.navigation.mappings]
+H = "Left"
 ```
+
+### 新增窗口动作
+
+| 动作 | 说明 |
+|-----|------|
+| `Restore` | 还原窗口 |
+| `ToggleTopmost` | 置顶/取消置顶 |
+| `SetOpacity { opacity }` | 设置透明度 (0-255) |
+| `Move { x, y }` | 移动到绝对坐标 |
+| `Resize { width, height }` | 调整大小 |
+| `SavePreset { name }` | 保存当前窗口为预设 |
+| `LoadPreset { name }` | 加载预设 |
+| `ApplyPreset` | 自动应用匹配的预设 |
+
+### 新增 CLI 命令
+
+| 命令 | 说明 |
+|-----|------|
+| `wakem save` | 保存当前配置到文件 |
+| `wakem instances` | 列出运行中的实例 |
 
 ---
 
@@ -362,18 +411,47 @@ wakem bind-macro my-macro F1
 
 | 组件 | 文件 | 说明 |
 |------|------|------|
-| `MacroRecorder` | `src/types/macros.rs` | 录制输入事件 |
-| `MacroPlayer` | `src/runtime/macro_player.rs` | 回放宏动作 |
-| `MacroStep` | `src/types/macros.rs` | 宏步骤结构 |
+| `MacroRecorder` | `src/types/macros.rs` | 录制输入事件，智能过滤修饰键 |
+| `MacroPlayer` | `src/runtime/macro_player.rs` | 回放宏动作，重建修饰键状态 |
+| `MacroStep` | `src/types/macros.rs` | 宏步骤结构（delay_ms, action, modifiers, timestamp） |
 | `Action` | `src/types/action.rs` | 统一的动作枚举 |
 
-> **详细文档**: 完整的宏系统文档请参考 [MACROS.md](MACROS.md)。
+### 架构说明
+
+```
+┌─────────────────────────────────────────┐
+│           MacroRecorder                 │
+│  - 使用 Action::from_input_event()      │
+│  - 使用 is_modifier() 过滤单独修饰键     │
+│  - 使用 merge() 跟踪修饰键状态           │
+│  - 录制为 Vec<MacroStep>                │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│              MacroStep                  │
+│  ├─ delay_ms: u64                       │
+│  ├─ action: Action                      │
+│  ├─ modifiers: ModifierState            │
+│  └─ timestamp: Timestamp                │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│           MacroPlayer                   │
+│  - 遍历 MacroStep                       │
+│  - 重建修饰键状态                        │
+│  - 执行延迟后调用对应处理器              │
+└─────────────────────────────────────────┘
+```
+
+> **详细文档**: 完整的宏系统文档请参考 [macros.md](macros.md)。
 
 ---
 
 ## 预留扩展 API
 
-以下 API 和功能已在代码中定义但尚未完全使用，为未来扩展预留：
+以下 API 和功能已在代码中定义但部分尚未完全使用，为未来扩展预留：
 
 ### 1. 触发器类型 (`Trigger`)
 
@@ -381,170 +459,90 @@ wakem bind-macro my-macro F1
 
 | 触发器类型 | 状态 | 说明 |
 |-----------|------|------|
-| `HotString { trigger: String }` | 预留 | 热字符串（文本扩展），类似 AutoHotkey 的 ::btw::be right back:: |
+| `Key { ... }` | ✅ 已使用 | 键盘按键触发（支持扫描码/虚拟键码/修饰键） |
+| `MouseButton { ... }` | ✅ 已定义 | 鼠标按钮触发（可用于未来鼠标映射） |
+| `HotString { trigger }` | 预留 | 热字符串（文本扩展），类似 AutoHotkey 的 ::btw::be right back:: |
 | `Chord(Vec<Trigger>)` | 预留 | 组合触发（多个按键按顺序），如 `Ctrl,K,C` |
-| `Timer { interval_ms: u64 }` | 预留 | 定时触发器，用于定时执行任务 |
+| `Timer { interval_ms }` | 预留 | 定时触发器，用于定时执行任务 |
 | `Always` | 预留 | 总是触发的规则 |
 
-### 2. 鼠标事件处理
+### 2. 鼠钮重映射
 
-位置: `src/runtime/mapper.rs:104`
+位置: `src/config.rs` → `MouseConfig.button_remap`
 
-```rust
-InputEvent::Mouse(_) => {
-    // 鼠标事件处理（TODO）
-    None
-}
-```
+`button_remap` 字段已定义但功能待实现。可用于将鼠标侧键映射为其他功能。
 
-当前鼠标事件仅用于滚轮增强，完整的鼠标映射（如鼠标按钮重映射）尚未实现。
+### 3. 配置验证
 
-### 3. 通配符匹配
+位置: `src/config.rs` → `Config::validate()`
 
-位置: `src/types/mapping.rs:244-255`
+当前实现的验证规则：
+- 日志级别有效性检查
+- 端口范围检查（1024-65535）
+- 实例 ID 范围检查（0-255）
+- 宏绑定引用的宏存在性检查
+- 层激活键非空检查
+- 空宏步骤警告
 
-```rust
-// TODO: 实现完整的通配符匹配
-fn wildcard_match(text: &str, pattern: &str) -> bool {
-    // 简化实现，实际应该使用更复杂的匹配算法
-}
-```
+### 4. IPC 消息协议
 
-当前通配符匹配仅支持简单的 `*` 匹配，完整的 `*` 和 `?` 通配符支持待实现。
+位置: `src/ipc/mod.rs` → `Message` 枚举
 
-### 4. 配置字段
+完整的消息类型定义：
 
-#### 鼠标配置 (`MouseConfig`)
-位置: `src/config.rs:465-473`
+| 消息方向 | 消息 | 状态 | 说明 |
+|---------|------|------|------|
+| C→S | `SetConfig` | ✅ | 发送配置到服务端 |
+| C→S | `ReloadConfig` | ✅ | 重新加载配置 |
+| C→S | `SaveConfig` | ✅ | 保存配置到文件 |
+| C→S | `GetStatus` | ✅ | 获取当前状态 |
+| C→S | `SetActive` | ✅ | 启用/禁用映射 |
+| C→S | `GetNextKeyInfo` | 预留 | 获取下一个按键信息（用于调试） |
+| C→S | `StartMacroRecording` | ✅ | 开始录制宏 |
+| C→S | `StopMacroRecording` | ✅ | 停止录制宏 |
+| C→S | `PlayMacro` | ✅ | 播放宏 |
+| C→S | `GetMacros` | ✅ | 获取宏列表 |
+| C→S | `DeleteMacro` | ✅ | 删除宏 |
+| C→S | `BindMacro` | ✅ | 绑定宏到触发键 |
+| C→S | `RegisterMessageWindow` | ✅ | 注册消息窗口句柄 |
+| S→C | `StatusResponse` | ✅ | 状态响应 |
+| S→C | `ConfigLoaded` | ✅ | 配置已加载 |
+| S→C | `ConfigError` | ✅ | 配置加载错误 |
+| S→C | `NextKeyInfo` | 预留 | 下一个按键信息 |
+| S→C | `Error` | ✅ | 错误响应 |
+| S→C | `MacroRecordingResult` | ✅ | 宏录制结果 |
+| S→C | `MacrosList` | ✅ | 宏列表响应 |
+| S→C | `Success` | ✅ | 成功响应 |
+| 双向 | `Ping/Pong` | ✅ | 心跳检测 |
 
-```rust
-pub struct MouseConfig {
-    /// 按钮重映射（预留）
-    pub button_remap: HashMap<String, String>,
-    /// 滚轮设置
-    pub wheel: WheelConfig,
-}
-```
-
-`button_remap` 字段已定义但未实现功能。
-
-#### 自动重载配置
-位置: `examples/test_config.toml:10-11`
-
-```toml
-# 自动重新加载配置（预留）
-auto_reload = true
-```
-
-配置项存在但文件监控和自动重载逻辑待完善。
-
-### 5. IPC 消息
-
-位置: `src/ipc/mod.rs`
-
-以下消息类型已定义但部分功能未完全使用：
-
-| 消息 | 状态 | 说明 |
-|------|------|------|
-| `GetNextKeyInfo` | 预留 | 获取下一个按键信息（用于调试），服务端响应已实现但客户端未调用 |
-| `SaveConfig` | 已实现 | 保存配置到文件，可通过 CLI 触发 |
-| `RegisterMessageWindow { hwnd: usize }` | 已实现 | 注册消息窗口句柄，用于托盘通知 |
-
-### 6. 层管理 API
+### 5. 层管理 API
 
 位置: `src/types/layer.rs`, `src/runtime/layer_manager.rs`
 
-以下方法已定义但标记为 `#[allow(dead_code)]`：
+核心 API：
+- `LayerStack`: 管理层激活/停用/Hold/Toggle
+- `LayerManager`: 处理输入事件的层分发
 
-| 方法 | 位置 | 说明 |
-|------|------|------|
-| `is_layer_active()` | `layer.rs:145` | 检查层是否激活 |
-| `get_active_layers()` | `layer.rs:151` | 获取当前激活的层列表 |
-| `clear_active_layers()` | `layer.rs:157` | 清空所有激活的层 |
-| `clear_layers()` | `layer_manager.rs:115` | 停用所有层 |
-
-### 7. 映射规则 API
+### 6. 映射规则 API
 
 位置: `src/types/mapping.rs`
 
-以下方法已定义但标记为 `#[allow(dead_code)]`：
+| 方法 | 说明 |
+|------|------|
+| `MappingRule::new()` | 创建新规则 |
+| `with_name()` | 设置规则名称 |
+| `with_context()` | 添加上下文条件 |
+| `matches()` | 检查事件是否匹配规则 |
 
-| 方法 | 行号 | 说明 |
-|------|------|------|
-| `with_name()` | 31 | 为映射规则设置名称 |
-| `with_context()` | 37 | 为映射规则添加上下文条件 |
+### 7. 上下文匹配 API
 
-### 8. 网络配置 API
+位置: `src/config.rs` → `wildcard_match()` 和 `WindowPreset::wildcard_match()`
 
-位置: `src/config.rs:233-241`
-
-```rust
-impl NetworkConfig {
-    /// 获取实例通信端口
-    #[allow(dead_code)]
-    pub fn get_port(&self) -> u16 {
-        crate::ipc::get_instance_port(self.instance_id)
-    }
-}
-```
-
-`get_port()` 方法已定义但未使用，当前直接使用 `get_bind_address()`。
-
-### 9. 客户端 API
-
-位置: `src/client.rs:50-52`
-
-```rust
-#[allow(dead_code)]
-pub fn is_connected(&self) -> bool {
-    self.client.is_some()
-}
-```
-
-`is_connected()` 方法已定义但未使用。
-
-### 10. 输入设备 API
-
-位置: `src/platform/windows/input.rs`
-
-以下方法已定义但标记为 `#[allow(dead_code)]`：
-
-| 方法 | 行号 | 说明 |
-|------|------|------|
-| `update_modifier_state()` | 327 | 更新修饰键状态 |
-| `get_modifier_state()` | 337 | 获取当前修饰键状态 |
-
-### 11. 上下文信息 API
-
-位置: `src/types/mapping.rs:233-240`
-
-```rust
-#[allow(dead_code)]
-pub struct ContextInfo {
-    pub window_class: String,
-    pub process_name: String,
-    pub process_path: String,
-    pub window_title: String,
-    pub window_handle: isize, // HWND
-}
-```
-
-`ContextInfo` 结构体已定义，但当前使用 `WindowContext` 替代。
-
-### 12. 配置保存 API
-
-位置: `src/config.rs:78-83`
-
-```rust
-#[allow(dead_code)]
-pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
-    let content = toml::to_string_pretty(self)?;
-    std::fs::write(path, content)?;
-    Ok(())
-}
-```
-
-`save_to_file()` 方法已实现，主要通过 `daemon.rs` 中的 `save_config_to_file()` 调用。
+通配符匹配已**完整实现**：
+- `*` 匹配任意字符序列（连续 `*` 会被合并优化）
+- `?` 匹配单个字符
+- 大小写不敏感匹配
+- 递归回溯算法确保正确性
 
 ---
 
@@ -554,16 +552,16 @@ pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
 
 1. **热字符串 (HotString)** - 实现文本扩展功能
 2. **鼠标按钮重映射** - 完成 `MouseConfig.button_remap` 功能
-3. **完整的通配符匹配** - 支持 `*` 和 `?` 的完整通配符匹配
+3. **组合触发 (Chord)** - 实现顺序按键触发
 
 ### 中期扩展
 
-1. **组合触发 (Chord)** - 实现顺序按键触发
-2. **定时触发器** - 实现定时任务功能
-3. **鼠标手势** - 虽然文档说明不实现，但代码结构已支持扩展
+1. **定时触发器** - 实现定时任务功能
+2. **脚本引擎** - 类似 AutoHotkey 的简单脚本语言
+3. **GUI 配置工具** - 图形化配置编辑器
 
 ### 长期扩展
 
-1. **脚本引擎** - 类似 AutoHotkey 的脚本语言支持
-2. **插件系统** - 支持动态加载扩展
-3. **跨平台抽象层** - 为 macOS/Linux 移植做准备
+1. **插件系统** - 支持动态加载扩展模块
+2. **跨平台抽象层** - 为 macOS/Linux 移植做准备
+3. **云同步** - 配置文件云存储同步

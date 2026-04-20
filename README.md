@@ -1,6 +1,6 @@
 # wakem - Window Adjust, Keyboard Enhance, and Mouse
 
-一个跨平台的窗口管理、键盘增强、鼠标增强工具。借鉴 [mrw](https://github.com/yourusername/mrw)、[keymapper](https://github.com/houmain/keymapper) 和 [AutoHotkey](https://www.autohotkey.com/) 的优秀设计。
+一个跨平台的窗口管理、键盘增强、鼠标增强工具。借鉴 [mrw](https://github.com/wang-q/mrw)、[keymapper](https://github.com/houmain/keymapper) 和 [AutoHotkey](https://www.autohotkey.com/) 的优秀设计。
 
 ## 快速开始
 
@@ -8,7 +8,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/wakem.git
+git clone https://github.com/wang-q/wakem.git
 cd wakem
 
 # 构建
@@ -29,10 +29,8 @@ cp examples/minimal.toml %USERPROFILE%\.wakem.toml
 最小配置示例 (`.wakem.toml`):
 
 ```toml
-[keyboard]
-remap = [
-    { from = "CapsLock", to = "Backspace" },
-]
+[keyboard.remap]
+CapsLock = "Backspace"
 ```
 
 ### 3. 启动服务
@@ -41,7 +39,7 @@ remap = [
 # 启动守护进程（需要管理员权限）
 wakem daemon
 
-# 启动客户端（系统托盘）
+# 运行系统托盘客户端（默认命令）
 wakem
 # 或
 wakem tray
@@ -50,18 +48,24 @@ wakem tray
 ### 4. 客户端命令
 
 ```bash
-wakem status      # 查看服务状态
-wakem reload      # 重载配置
-wakem enable      # 启用映射
-wakem disable     # 禁用映射
-wakem config      # 打开配置文件夹
+# 全局选项
+--instance, -i    指定实例ID（默认: 0，用于多实例管理）
+
+# 基础命令
+wakem status          # 查看服务状态
+wakem reload          # 重载配置
+wakem save            # 保存当前配置到文件
+wakem enable          # 启用映射
+wakem disable         # 禁用映射
+wakem config          # 打开配置文件夹
+wakem instances       # 列出运行中的实例
 
 # 宏命令
-wakem record my-macro        # 开始录制宏
-wakem stop-record            # 停止录制
+wakem record my-macro        # 开始录制宏（按 Ctrl+Shift+Esc 停止）
+wakem stop-record            # 停止录制宏
 wakem play my-macro          # 播放宏
 wakem macros                 # 列出所有宏
-wakem bind-macro my-macro F1 # 绑定宏到 F1
+wakem bind-macro my-macro F1 # 绑定宏到快捷键
 wakem delete-macro my-macro  # 删除宏
 ```
 
@@ -108,66 +112,123 @@ wakem delete-macro my-macro  # 删除宏
 
 ### 2. 键盘增强 (Keyboard Enhance)
 
-- **键位重映射** - CapsLock 改 Backspace/Esc、交换 Ctrl/Alt 等
-- **快捷键层** - 按住特定键（如 CapsLock/右Alt）切换快捷键层
-- **方向键层** - CapsLock + I/J/K/L 作为方向键
-- **应用快捷键** - 为特定应用定义专属快捷键
-- **快速启动** - 快捷键启动常用应用
+- **键位重映射** - CapsLock 改 Backspace/Esc、交换 Ctrl/Alt、CapsLock 改为 Hyper 键等
+- **快捷键层系统** - Hold（按住激活）/ Toggle（切换激活）两种模式
+- **方向键层** - CapsLock + H/J/K/L 作为方向键（Vim 风格）
+- **应用快捷键** - 为特定应用程序定义专属快捷键（上下文感知）
+- **快速启动** - 快捷键启动常用程序（支持带参数的命令）
 
 ### 3. 鼠标增强 (Mouse Enhance)
 
-- **滚轮增强** - 滚轮在标签页/音量/亮度间切换
-- **按键重映射** - 鼠标侧键自定义功能
+- **滚轮加速** - 根据滚动速度自动增加滚动距离
+- **水平滚动** - 按住修饰键时垂直滚轮变为水平滚动
+- **音量控制** - 按住修饰键时滚轮调节系统音量
+- **亮度控制** - 按住修饰键时滚轮调节屏幕亮度
+- **滚轮反转** - 可选反转滚轮方向
 
 ### 4. 宏录制回放 (Macro)
 
-- **录制宏** - 录制键盘/鼠标操作序列
-- **播放宏** - 通过快捷键触发录制的宏
-- **宏管理** - 查看、绑定、删除宏
+- **录制宏** - 录制键盘/鼠标操作序列，智能过滤单独修饰键
+- **播放宏** - 通过快捷键或命令行触发录制的宏
+- **宏管理** - 查看、绑定、删除宏，配置文件持久化存储
+- **修饰键状态跟踪** - 录制时自动记录和重建修饰键状态
 
-### 5. 调试功能
+### 5. 多实例支持
+
+- 同时运行多个 wakem 实例，每个实例独立配置和端口
+- 通过 `--instance N` 参数指定实例
+- 自动端口分配：实例0 = 57427，实例1 = 57428，...
+
+### 6. 调试功能
 
 * 显示窗口信息. <kbd>Hyper</kbd>+<kbd>W</kbd>
 * 显示测试通知. <kbd>HyperShift</kbd>+<kbd>W</kbd>
 
 ## 文档
 
-- [配置指南](docs/CONFIG.md) - 完整的键盘和窗口管理配置说明
-- [开发文档](docs/developer.md) - 架构说明和开发计划
+- [配置指南](docs/confg.md) - 完整的键盘、窗口管理、鼠标等配置说明
+- [开发文档](docs/developer.md) - 架构说明、开发计划和 API 参考
+- [宏系统文档](docs/macros.md) - 宏录制回放的详细使用说明
 
 ## 配置文件示例
 
 ```toml
 # wakem.toml - 窗口管理、键盘增强配置
 
-# 键盘重映射
-[keyboard]
-remap = [
-    { from = "CapsLock", to = "Backspace" },
-]
+# 基本设置
+log_level = "info"
+tray_icon = true
+auto_reload = true
+icon_path = "assets/icon.ico"  # 可选
 
-# 导航层 - 按住 CapsLock 时
-[[keyboard.layers]]
-name = "navigation"
+# 键盘重映射（HashMap 格式）
+[keyboard.remap]
+CapsLock = "Backspace"
+RightAlt = "Ctrl"
+
+# 导航层（HashMap 格式）
+[keyboard.layers.navigation]
 activation_key = "CapsLock"
 mode = "Hold"
-mappings = [
-    { from = "H", to = "Left" },
-    { from = "J", to = "Down" },
-    { from = "K", to = "Up" },
-    { from = "L", to = "Right" },
-]
 
-# 窗口管理
-[window]
-shortcuts = [
-    { "Ctrl+Alt+Win+C" = "Center" },
-    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
-    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
-]
+[keyboard.layers.navigation.mappings]
+H = "Left"
+J = "Down"
+K = "Up"
+L = "Right"
+
+# 窗口管理（HashMap 格式）
+[window.shortcuts]
+"Ctrl+Alt+Win+C" = "Center"
+"Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
+"Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
+"Alt+Grave" = "SwitchToNextWindow"
+
+# 快速启动程序
+[launch]
+"Ctrl+Alt+Win+T" = "wt.exe"
+"Ctrl+Alt+Win+N" = "notepad.exe"
 ```
 
-更多配置示例请参考 [完整配置参考](docs/CONFIG.md)。
+更多配置示例请参考 [完整配置参考](docs/confg.md)。
+
+## 项目结构
+
+```
+wakem/
+├── src/
+│   ├── main.rs              # 统一入口（CLI 定义）
+│   ├── client.rs            # 守护进程客户端
+│   ├── daemon.rs            # 守护进程逻辑
+│   ├── config.rs            # 配置解析和验证
+│   ├── types/               # 类型定义
+│   │   ├── action.rs        # 动作定义（Key/Mouse/Window/Launch/System）
+│   │   ├── input.rs         # 输入事件定义
+│   │   ├── layer.rs         # 层管理
+│   │   ├── macros.rs        # 宏录制和管理
+│   │   └── mapping.rs       # 映射规则
+│   ├── ipc/                 # IPC 通信（TCP）
+│   │   ├── client.rs        # TCP 客户端
+│   │   ├── server.rs        # TCP 服务端
+│   │   ├── auth.rs          # 挑战-响应认证
+│   │   ├── security.rs      # IP 安全检查
+│   │   └── discovery.rs     # 实例发现
+│   ├── platform/windows/    # Windows 平台实现
+│   │   ├── input.rs         # Raw Input 输入捕获
+│   │   ├── output.rs        # SendInput 输出发送
+│   │   ├── window_manager.rs # 窗口管理操作
+│   │   ├── window_preset.rs # 窗口预设管理
+│   │   ├── context.rs       # 窗口上下文获取
+│   │   ├── launcher.rs      # 程序启动器
+│   │   └── tray.rs          # 系统托盘
+│   └── runtime/             # 运行时逻辑
+│       ├── mapper.rs        # 映射引擎
+│       ├── layer_manager.rs # 层管理器
+│       └── macro_player.rs  # 宏回放
+├── examples/                # 示例配置
+├── tests/                   # 集成测试
+└── docs/                    # 文档
+```
 
 ## 参考项目
 
