@@ -1,5 +1,6 @@
 use crate::types::{
-    Action, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule, Trigger,
+    Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
+    Trigger,
 };
 use std::collections::HashMap;
 use tracing::{debug, trace};
@@ -8,7 +9,7 @@ use tracing::{debug, trace};
 #[derive(Debug, Clone)]
 pub struct ContextMappingRule {
     /// 上下文条件
-    pub context: crate::config::ContextCondition,
+    pub context: ContextCondition,
     /// 映射表：扫描码 -> 动作
     pub mappings: HashMap<u16, Action>,
 }

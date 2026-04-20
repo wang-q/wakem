@@ -163,6 +163,7 @@ impl LayerStack {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::KeyAction;
 
     #[test]
     fn test_layer_stack() {

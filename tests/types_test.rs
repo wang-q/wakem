@@ -148,8 +148,18 @@ fn test_context_condition_matching() {
         window_handle: 0,
     };
 
-    assert!(context.matches(&matching_info));
-    assert!(!context.matches(&non_matching_info));
+    assert!(context.matches(
+        &matching_info.process_name,
+        &matching_info.window_class,
+        &matching_info.window_title,
+        Some(&matching_info.process_path)
+    ));
+    assert!(!context.matches(
+        &non_matching_info.process_name,
+        &non_matching_info.window_class,
+        &non_matching_info.window_title,
+        Some(&non_matching_info.process_path)
+    ));
 }
 
 /// 测试窗口动作变体
@@ -354,5 +364,10 @@ fn test_wildcard_matching() {
     };
 
     // 简化匹配可能不完美，但至少不会 panic
-    let _result = cond.matches(&info);
+    let _result = cond.matches(
+        &info.process_name,
+        &info.window_class,
+        &info.window_title,
+        Some(&info.process_path),
+    );
 }

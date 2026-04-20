@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::types::MappingRule;
+use crate::types::{ContextCondition, MappingRule};
 
 /// 全局配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,69 +197,6 @@ pub struct ContextMapping {
     pub context: ContextCondition,
     /// 在此上下文下的映射规则
     pub mappings: HashMap<String, String>,
-}
-
-/// 上下文条件
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ContextCondition {
-    /// 进程名匹配（支持通配符）
-    #[serde(default)]
-    pub process_name: Option<String>,
-    /// 窗口类名匹配
-    #[serde(default)]
-    pub window_class: Option<String>,
-    /// 窗口标题匹配
-    #[serde(default)]
-    pub window_title: Option<String>,
-    /// 可执行文件路径匹配
-    #[serde(default)]
-    pub executable_path: Option<String>,
-}
-
-impl ContextCondition {
-    /// 检查是否匹配给定的上下文信息
-    pub fn matches(
-        &self,
-        process_name: &str,
-        window_class: &str,
-        window_title: &str,
-        executable_path: Option<&str>,
-    ) -> bool {
-        // 检查进程名匹配
-        if let Some(ref pattern) = self.process_name {
-            if !wildcard_match(process_name, pattern) {
-                return false;
-            }
-        }
-
-        // 检查窗口类名匹配
-        if let Some(ref pattern) = self.window_class {
-            if !wildcard_match(window_class, pattern) {
-                return false;
-            }
-        }
-
-        // 检查窗口标题匹配
-        if let Some(ref pattern) = self.window_title {
-            if !wildcard_match(window_title, pattern) {
-                return false;
-            }
-        }
-
-        // 检查可执行路径匹配
-        if let Some(ref pattern) = self.executable_path {
-            let path = executable_path.unwrap_or("");
-            if !wildcard_match(path, pattern) {
-                return false;
-            }
-        }
-
-        // 至少需要一个匹配条件
-        self.process_name.is_some()
-            || self.window_class.is_some()
-            || self.window_title.is_some()
-            || self.executable_path.is_some()
-    }
 }
 
 /// 网络通信配置

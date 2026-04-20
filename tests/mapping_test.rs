@@ -65,7 +65,12 @@ fn test_context_condition_empty_matches_all() {
         window_handle: 0,
     };
 
-    assert!(cond.matches(&context));
+    assert!(cond.matches(
+        &context.process_name,
+        &context.window_class,
+        &context.window_title,
+        Some(&context.process_path)
+    ));
 }
 
 /// 测试 ContextCondition 进程名匹配
@@ -89,8 +94,18 @@ fn test_context_condition_process_match() {
         window_handle: 0,
     };
 
-    assert!(cond.matches(&matching_context));
-    assert!(!cond.matches(&non_matching_context));
+    assert!(cond.matches(
+        &matching_context.process_name,
+        &matching_context.window_class,
+        &matching_context.window_title,
+        Some(&matching_context.process_path)
+    ));
+    assert!(!cond.matches(
+        &non_matching_context.process_name,
+        &non_matching_context.window_class,
+        &non_matching_context.window_title,
+        Some(&non_matching_context.process_path)
+    ));
 }
 
 /// 测试 Trigger::key 创建
@@ -216,6 +231,16 @@ fn test_complex_context_condition() {
         window_handle: 0,
     };
 
-    assert!(cond.matches(&full_match));
-    assert!(!cond.matches(&partial_match));
+    assert!(cond.matches(
+        &full_match.process_name,
+        &full_match.window_class,
+        &full_match.window_title,
+        Some(&full_match.process_path)
+    ));
+    assert!(!cond.matches(
+        &partial_match.process_name,
+        &partial_match.window_class,
+        &partial_match.window_title,
+        Some(&partial_match.process_path)
+    ));
 }

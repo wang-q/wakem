@@ -54,7 +54,12 @@ fn benchmark_context_match() {
     let start = std::time::Instant::now();
 
     for _ in 0..iterations {
-        let _ = cond.matches(&context);
+        let _ = cond.matches(
+            &context.process_name,
+            &context.window_class,
+            &context.window_title,
+            Some(&context.process_path),
+        );
     }
 
     let elapsed = start.elapsed();

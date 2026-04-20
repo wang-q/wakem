@@ -40,7 +40,6 @@ impl MappingRule {
     }
 
     /// 检查输入事件是否匹配此规则
-    #[allow(dead_code)]
     pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
         if !self.enabled {
             return false;
@@ -48,7 +47,12 @@ impl MappingRule {
 
         // 检查上下文条件
         if let Some(ref cond) = self.context {
-            if !cond.matches(context) {
+            if !cond.matches(
+                &context.process_name,
+                &context.window_class,
+                &context.window_title,
+                Some(&context.process_path),
+            ) {
                 return false;
             }
         }
@@ -142,62 +146,84 @@ impl Trigger {
 }
 
 /// 上下文条件
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextCondition {
     /// 窗口类名匹配（支持通配符）
+    #[serde(default)]
     pub window_class: Option<String>,
     /// 进程名匹配（支持通配符）
+    #[serde(default)]
     pub process_name: Option<String>,
     /// 窗口标题匹配（支持通配符）
+    #[serde(default)]
     pub window_title: Option<String>,
+    /// 可执行文件路径匹配（支持通配符）
+    #[serde(default)]
+    pub executable_path: Option<String>,
 }
 
 impl ContextCondition {
-    #[allow(dead_code)]
     pub fn new() -> Self {
-        Self {
-            window_class: None,
-            process_name: None,
-            window_title: None,
-        }
+        Self::default()
     }
 
-    #[allow(dead_code)]
     pub fn with_window_class(mut self, class: impl Into<String>) -> Self {
         self.window_class = Some(class.into());
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_process_name(mut self, name: impl Into<String>) -> Self {
         self.process_name = Some(name.into());
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_window_title(mut self, title: impl Into<String>) -> Self {
         self.window_title = Some(title.into());
         self
     }
 
+    pub fn with_executable_path(mut self, path: impl Into<String>) -> Self {
+        self.executable_path = Some(path.into());
+        self
+    }
+
     /// 检查当前上下文是否匹配
-    #[allow(dead_code)]
-    pub fn matches(&self, context: &ContextInfo) -> bool {
-        if let Some(ref pattern) = self.window_class {
-            if !wildcard_match(&context.window_class, pattern) {
-                return false;
-            }
-        }
+    pub fn matches(
+        &self,
+        process_name: &str,
+        window_class: &str,
+        window_title: &str,
+        executable_path: Option<&str>,
+    ) -> bool {
+        // 检查进程名匹配
         if let Some(ref pattern) = self.process_name {
-            if !wildcard_match(&context.process_name, pattern) {
+            if !wildcard_match(process_name, pattern) {
                 return false;
             }
         }
+
+        // 检查窗口类名匹配
+        if let Some(ref pattern) = self.window_class {
+            if !wildcard_match(window_class, pattern) {
+                return false;
+            }
+        }
+
+        // 检查窗口标题匹配
         if let Some(ref pattern) = self.window_title {
-            if !wildcard_match(&context.window_title, pattern) {
+            if !wildcard_match(window_title, pattern) {
                 return false;
             }
         }
+
+        // 检查可执行路径匹配
+        if let Some(ref pattern) = self.executable_path {
+            let path = executable_path.unwrap_or("");
+            if !wildcard_match(path, pattern) {
+                return false;
+            }
+        }
+
         true
     }
 }

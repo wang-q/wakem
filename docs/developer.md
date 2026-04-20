@@ -761,25 +761,54 @@ wakem --instance 1 save
 
 **启用建议**: 当需要添加窗口预设管理 UI（如保存/加载/删除预设）时启用。
 
-### 10. 上下文感知扩展 API
+### 10. 上下文感知系统 ✅ 已统一
 
-**位置**: `src/platform/windows/context.rs`, `src/types/mapping.rs`
+**位置**: `src/types/mapping.rs`, `src/config.rs`, `src/runtime/mapper.rs`
+
+**说明**: `types::ContextCondition` 已成为标准 API，`config.rs` 已改用此版本。
+
+#### 核心 API（已启用）
+
+| API | 说明 | 状态 |
+|-----|------|------|
+| `ContextCondition` | 上下文条件结构体 | ✅ 已启用 |
+| `ContextCondition::new()` | 创建上下文条件 | ✅ 已启用 |
+| `ContextCondition::with_window_class()` | 窗口类名匹配 | ✅ 已启用 |
+| `ContextCondition::with_process_name()` | 进程名匹配 | ✅ 已启用 |
+| `ContextCondition::with_window_title()` | 窗口标题匹配 | ✅ 已启用 |
+| `ContextCondition::with_executable_path()` | 可执行路径匹配 | ✅ 已启用 |
+| `ContextCondition::matches()` | 检查上下文匹配 | ✅ 已启用 |
+| `ContextInfo` | 上下文信息结构体 | ✅ 已启用 |
+
+#### 扩展 API（未使用）
 
 | API | 说明 | 启用条件 |
 |-----|------|----------|
 | `WindowContext::matches()` | 匹配窗口条件 | 自定义上下文匹配逻辑时 |
-| `ContextCondition::new()` | 创建上下文条件 | 程序化构建条件时 |
-| `ContextCondition::with_window_class()` | 窗口类名匹配 | 添加类名匹配时 |
-| `ContextCondition::with_process_name()` | 进程名匹配 | 添加进程匹配时 |
-| `ContextCondition::with_window_title()` | 窗口标题匹配 | 添加标题匹配时 |
-| `ContextCondition::matches()` | 检查上下文匹配 | 自定义匹配逻辑时 |
-| `ContextInfo` | 上下文信息结构体 | 扩展上下文信息时 |
 | `MappingRule::with_name()` | 设置规则名称 | 添加规则命名时 |
 | `MappingRule::with_context()` | 添加上下文条件 | 程序化构建规则时 |
 | `MappingRule::matches()` | 检查规则匹配 | 自定义匹配逻辑时 |
 | `wildcard_match()` | 通配符匹配 | 需要通配符匹配时 |
 
-**启用建议**: 当需要扩展上下文感知功能（如添加更多匹配条件）时启用。
+**使用示例**:
+```rust
+// 创建上下文条件
+let cond = ContextCondition::new()
+    .with_process_name("chrome.exe")
+    .with_window_title("*YouTube*");
+
+// 检查是否匹配
+let matches = cond.matches(
+    "chrome.exe",           // process_name
+    "Chrome_WidgetWin_1",   // window_class
+    "YouTube - Google Chrome", // window_title
+    Some("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe") // executable_path
+);
+```
+
+**启用建议**: 
+- 核心 API 已启用，用于配置文件解析和运行时匹配
+- 扩展 API 用于程序化构建规则（如通过 UI 配置）
 
 ### 11. 系统托盘扩展 API
 
