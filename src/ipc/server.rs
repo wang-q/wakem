@@ -1,4 +1,7 @@
-use super::{auth, read_message, security, send_message, IpcError, Message, Result};
+use super::{
+    auth, read_message, security, send_message, ConnectionLimiter, IpcError, Message,
+    Result,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -7,12 +10,19 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// IPC 服务端（基于 TCP）
+///
+/// 安全特性：
+/// - IP 白名单（仅允许内网连接）
+/// - 挑战-响应认证机制
+/// - 连接速率限制（防止暴力破解）
 pub struct IpcServer {
     listener: Option<TcpListener>,
     bind_address: String,
     /// 认证密钥（使用 Arc<RwLock> 支持动态更新）
     auth_key: Option<Arc<RwLock<String>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
+    /// 连接速率限制器（防止暴力破解）
+    rate_limiter: Arc<RwLock<ConnectionLimiter>>,
 }
 
 impl IpcServer {
@@ -27,6 +37,7 @@ impl IpcServer {
             bind_address: bind_address.into(),
             auth_key: Some(auth_key),
             message_tx,
+            rate_limiter: Arc::new(RwLock::new(ConnectionLimiter::with_defaults())),
         }
     }
 
@@ -41,6 +52,7 @@ impl IpcServer {
             bind_address: bind_address.into(),
             auth_key: auth_key.map(|k| Arc::new(RwLock::new(k))),
             message_tx,
+            rate_limiter: Arc::new(RwLock::new(ConnectionLimiter::with_defaults())),
         }
     }
 
@@ -61,10 +73,24 @@ impl IpcServer {
                 Ok((stream, addr)) => {
                     debug!("New connection from {}", addr);
 
-                    // 检查 IP 是否允许
+                    // 检查 IP 是否允许（安全层1：IP白名单）
                     if !security::is_allowed_ip(addr.ip()) {
                         warn!("Rejected connection from external IP: {}", addr);
                         continue;
+                    }
+
+                    // 检查速率限制（安全层2：防暴力破解）
+                    {
+                        let mut limiter = self.rate_limiter.write().await;
+                        if !limiter.check_rate_limit(addr.ip()) {
+                            warn!("Rate limit exceeded for IP: {}", addr);
+                            // 记录安全告警
+                            error!(
+                                "Security alert: Possible brute force attack from {}",
+                                addr
+                            );
+                            continue;
+                        }
                     }
 
                     // 克隆必要的数据（Arc<RwLock> 的 clone 很便宜）

@@ -16,24 +16,29 @@ use crate::platform::windows::{
 use crate::runtime::{KeyMapper, LayerManager};
 
 /// 服务端状态
+///
+/// 性能优化说明：
+/// - 使用 RwLock 替代 Mutex（适用于读多写少场景）
+/// - 将相关状态分组以减少锁数量
+/// - 配置和规则使用 Arc 共享避免重复克隆
 pub struct ServerState {
-    /// 当前配置
+    /// 当前配置（读多写少）
     config: Arc<RwLock<Config>>,
-    /// 键位映射引擎
-    mapper: Arc<Mutex<KeyMapper>>,
-    /// 层管理器
-    layer_manager: Arc<Mutex<LayerManager>>,
-    /// 输出设备
+    /// 键位映射引擎（读多写少：每次事件都读取，仅在配置变更时写入）
+    mapper: Arc<RwLock<KeyMapper>>,
+    /// 层管理器（读多写少）
+    layer_manager: Arc<RwLock<LayerManager>>,
+    /// 输出设备（写多：每个动作都需要写入）
     output_device: Arc<Mutex<OutputDevice>>,
-    /// 程序启动器
+    /// 程序启动器（写多：启动程序时需要互斥）
     launcher: Arc<Mutex<Launcher>>,
-    /// 窗口预设管理器
-    window_preset_manager: Arc<Mutex<WindowPresetManager>>,
-    /// 是否启用映射
+    /// 窗口预设管理器（读写均衡）
+    window_preset_manager: Arc<RwLock<WindowPresetManager>>,
+    /// 是否启用映射（频繁读取，极少写入）
     active: Arc<RwLock<bool>>,
     /// 配置是否已加载
     config_loaded: Arc<RwLock<bool>>,
-    /// 宏录制器
+    /// 宏录制器（内部已有同步机制）
     macro_recorder: Arc<MacroRecorder>,
     /// 消息窗口句柄（用于发送通知）
     message_window_hwnd: Arc<RwLock<Option<HWND>>>,
@@ -50,11 +55,11 @@ impl ServerState {
 
         Self {
             config: Arc::new(RwLock::new(Config::default())),
-            mapper: Arc::new(Mutex::new(mapper)),
-            layer_manager: Arc::new(Mutex::new(LayerManager::new())),
+            mapper: Arc::new(RwLock::new(mapper)),
+            layer_manager: Arc::new(RwLock::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_preset_manager: Arc::new(Mutex::new(WindowPresetManager::new())),
+            window_preset_manager: Arc::new(RwLock::new(WindowPresetManager::new())),
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
@@ -64,29 +69,20 @@ impl ServerState {
     }
 
     /// 加载配置
+    ///
+    /// 性能优化：批量更新减少锁持有时间
     pub async fn load_config(&self, config: Config) -> Result<()> {
-        // 更新认证密钥（独立于配置存储）
+        // 1. 更新认证密钥（独立于配置存储）
         {
             let mut key = self.auth_key.write().await;
             *key = config.network.auth_key.clone().unwrap_or_default();
         }
 
-        // 更新配置
+        // 2. 更新基础映射规则和上下文规则（合并为一次写锁）
         {
-            let mut cfg = self.config.write().await;
-            *cfg = config.clone();
-        }
-
-        // 更新基础映射规则
-        {
-            let mut mapper = self.mapper.lock().await;
+            let mut mapper = self.mapper.write().await;
             let rules = config.get_all_rules();
             mapper.load_rules(rules);
-        }
-
-        // 更新上下文感知映射规则
-        {
-            let mut mapper = self.mapper.lock().await;
             mapper.load_context_rules(&config.keyboard.context_mappings);
             debug!(
                 "Loaded {} context mappings",
@@ -94,16 +90,16 @@ impl ServerState {
             );
         }
 
-        // 更新窗口预设管理器
+        // 3. 更新窗口预设管理器
         {
-            let mut preset_manager = self.window_preset_manager.lock().await;
+            let mut preset_manager = self.window_preset_manager.write().await;
             preset_manager.load_presets(config.window.presets.clone());
             debug!("Loaded {} window presets", config.window.presets.len());
         }
 
-        // 更新层管理器
+        // 4. 更新层管理器
         {
-            let mut layer_manager = self.layer_manager.lock().await;
+            let mut layer_manager = self.layer_manager.write().await;
 
             // 加载基础映射
             let base_rules = config.get_all_rules();
@@ -138,7 +134,13 @@ impl ServerState {
             }
         }
 
-        // 标记配置已加载
+        // 5. 最后更新配置（确保所有组件已准备好）
+        {
+            let mut cfg = self.config.write().await;
+            *cfg = config;
+        }
+
+        // 6. 标记配置已加载
         {
             let mut loaded = self.config_loaded.write().await;
             *loaded = true;
@@ -225,10 +227,11 @@ impl ServerState {
     }
 
     /// 处理输入事件
-    /// 性能说明: 此方法在高频输入场景下会获取多个锁，未来可考虑：
-    /// 1. 合并相关状态到单一结构体减少锁数量
-    /// 2. 使用 RWMutex 区分读写操作
-    /// 3. 对只读操作使用 Arc 替代 Mutex
+    ///
+    /// 性能优化：
+    /// - 使用 RwLock.read() 替代 Mutex.lock()（读多写少场景）
+    /// - 减少锁持有时间，快速路径优先返回
+    /// - 批量读取相关状态
     pub async fn process_input_event(&self, event: InputEvent) {
         // 快速路径：检查是否启用（最轻量的锁）
         if !*self.active.read().await {
@@ -257,9 +260,9 @@ impl ServerState {
             }
         }
 
-        // 先尝试通过层管理器处理
+        // 先尝试通过层管理器处理（需要写锁因为 process_event 会修改状态）
         let (handled, action) = {
-            let mut layer_manager = self.layer_manager.lock().await;
+            let mut layer_manager = self.layer_manager.write().await;
             layer_manager.process_event(&event)
         };
 
@@ -273,9 +276,9 @@ impl ServerState {
             return;
         }
 
-        // 层管理器未处理，使用基础映射引擎（带上下文感知）
+        // 层管理器未处理，使用基础映射引擎（带上下文感知）- 使用读锁
         let action = {
-            let mapper = self.mapper.lock().await;
+            let mapper = self.mapper.read().await;
             // 获取当前窗口上下文
             let context = crate::platform::windows::WindowContext::get_current();
             mapper.process_event_with_context(&event, context.as_ref())
@@ -371,7 +374,7 @@ impl ServerState {
                 output.send_mouse_action(&mouse_action)?;
             }
             Action::Window(window_action) => {
-                let mut mapper = self.mapper.lock().await;
+                let mut mapper = self.mapper.write().await;
                 mapper.execute_action(&Action::Window(window_action))?;
             }
             Action::Launch(launch_action) => {
@@ -814,7 +817,7 @@ impl ServerState {
                 // 延迟一点应用预设，确保窗口已完全创建
                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-                let preset_manager = self.window_preset_manager.lock().await;
+                let preset_manager = self.window_preset_manager.read().await;
                 match preset_manager.apply_preset_for_window(hwnd) {
                     Ok(true) => {
                         debug!("Auto-applied preset to window {:?}", hwnd);

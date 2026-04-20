@@ -433,59 +433,82 @@ impl WindowPreset {
 
 /// 公共通配符匹配函数（支持 * 和 ?）
 /// 统一实现，避免代码重复
+///
+/// 性能优化：
+/// - 使用动态规划（DP）替代递归实现
+/// - 时间复杂度: O(m*n)，空间复杂度: O(m*n)
+/// - 防止栈溢出和指数级时间复杂度
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
     let text = text.to_lowercase();
     let pattern = pattern.to_lowercase();
 
-    wildcard_match_recursive(&text, &pattern)
+    wildcard_match_dp(&text, &pattern)
 }
 
-fn wildcard_match_recursive(text: &str, pattern: &str) -> bool {
-    // 如果模式为空，文本也必须为空
-    if pattern.is_empty() {
-        return text.is_empty();
+/// 使用动态规划的通配符匹配实现
+///
+/// 算法说明：
+/// - dp[i][j] 表示 text[0..i] 是否匹配 pattern[0..j]
+/// - 状态转移：
+///   - 如果 pattern[j-1] == '*'，可以匹配 0 个或多个字符
+///   - 如果 pattern[j-1] == '?' 或字符相等，则匹配当前字符
+fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
+    let text_chars: Vec<char> = text.chars().collect();
+    let pattern_chars: Vec<char> = pattern.chars().collect();
+
+    let m = text_chars.len();
+    let n = pattern_chars.len();
+
+    // 边界情况处理
+    if n == 0 {
+        return m == 0;
     }
 
-    let mut pattern_chars = pattern.chars();
-    let first_p = pattern_chars.next().unwrap();
+    // 防止过大的输入导致内存问题
+    const MAX_SIZE: usize = 1024;
+    if m > MAX_SIZE || n > MAX_SIZE {
+        return false;
+    }
 
-    match first_p {
-        '*' => {
-            // 跳过连续的 *
-            let remaining_pattern: String =
-                pattern_chars.skip_while(|&c| c == '*').collect();
+    // 创建 DP 表 (m+1) x (n+1)
+    let mut dp = vec![vec![false; n + 1]; m + 1];
 
-            // * 匹配空字符串或任意前缀
-            for i in 0..=text.len() {
-                if wildcard_match_recursive(&text[i..], &remaining_pattern) {
-                    return true;
+    // 空字符串匹配空模式
+    dp[0][0] = true;
+
+    // 处理模式开头的 '*'（可以匹配空字符串）
+    for j in 1..=n {
+        if pattern_chars[j - 1] == '*' {
+            dp[0][j] = dp[0][j - 1];
+        } else {
+            break; // 遇到非 '*' 字符就停止
+        }
+    }
+
+    // 填充 DP 表
+    for i in 1..=m {
+        for j in 1..=n {
+            match pattern_chars[j - 1] {
+                '*' => {
+                    // '*' 可以匹配：
+                    // 1. 0 个字符（dp[i][j-1]）
+                    // 2. 1 个或多个字符（dp[i-1][j]）
+                    dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
+                }
+                '?' => {
+                    // '?' 匹配任意单个字符
+                    dp[i][j] = dp[i - 1][j - 1];
+                }
+                _ => {
+                    // 普通字符必须精确匹配（已转换为小写）
+                    dp[i][j] =
+                        dp[i - 1][j - 1] && (text_chars[i - 1] == pattern_chars[j - 1]);
                 }
             }
-            false
-        }
-        '?' => {
-            // ? 匹配任意单个字符
-            if text.is_empty() {
-                return false;
-            }
-            let remaining_text: String = text.chars().skip(1).collect();
-            let remaining_pattern: String = pattern_chars.collect();
-            wildcard_match_recursive(&remaining_text, &remaining_pattern)
-        }
-        _ => {
-            // 普通字符必须匹配
-            if text.is_empty() {
-                return false;
-            }
-            let first_t = text.chars().next().unwrap();
-            if first_t.to_lowercase().to_string() != first_p.to_lowercase().to_string() {
-                return false;
-            }
-            let remaining_text: String = text.chars().skip(1).collect();
-            let remaining_pattern: String = pattern_chars.collect();
-            wildcard_match_recursive(&remaining_text, &remaining_pattern)
         }
     }
+
+    dp[m][n]
 }
 
 /// 鼠标配置

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -15,76 +15,10 @@ mod runtime;
 mod types;
 mod window;
 
+use cli::{Cli, Commands};
 use client::DaemonClient;
 use config::Config;
 use window::{AppCommand, MessageWindow};
-
-/// wakem - Window Adjust, Keyboard Enhance, and Mouse
-#[derive(Parser)]
-#[command(name = "wakem")]
-#[command(about = "wakem - Window/Keyboard/Mouse Enhancer")]
-#[command(version)]
-struct Cli {
-    /// 实例ID（用于多实例）
-    #[arg(short, long, default_value = "0")]
-    instance: u32,
-
-    /// 子命令
-    #[command(subcommand)]
-    command: Option<Commands>,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// 启动守护进程
-    Daemon {
-        /// 实例ID
-        #[arg(short, long, default_value = "0")]
-        instance: u32,
-    },
-    /// 获取服务端状态
-    Status,
-    /// 重载配置
-    Reload,
-    /// 保存当前配置到文件
-    Save,
-    /// 启用映射
-    Enable,
-    /// 禁用映射
-    Disable,
-    /// 打开配置文件夹
-    Config,
-    /// 列出运行中的实例
-    Instances,
-    /// 运行系统托盘（默认）
-    Tray,
-    /// 录制宏
-    Record {
-        /// 宏名称
-        name: String,
-    },
-    /// 停止录制宏
-    StopRecord,
-    /// 播放宏
-    Play {
-        /// 宏名称
-        name: String,
-    },
-    /// 列出所有宏
-    Macros,
-    /// 绑定宏到触发键
-    BindMacro {
-        /// 宏名称
-        macro_name: String,
-        /// 触发键
-        trigger: String,
-    },
-    /// 删除宏
-    DeleteMacro {
-        /// 宏名称
-        name: String,
-    },
-}
 
 /// 初始化日志系统（支持从配置文件读取日志级别）
 fn init_logging(cli: &Cli) {
@@ -447,68 +381,60 @@ async fn open_config_folder() -> Result<()> {
 
 /// 录制宏
 async fn cmd_record(instance_id: u32, name: &str) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.start_macro_recording(name).await {
-            Ok(_) => {
-                println!("Recording macro '{}'...", name);
-                println!("Press Ctrl+Shift+Esc to stop recording");
-            }
-            Err(e) => eprintln!("Failed to start recording: {}", e),
-        },
-        Err(e) => eprintln!("Failed to connect: {}", e),
-    }
-    Ok(())
+    let name_owned = name.to_string();
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.start_macro_recording(&name_owned).await?;
+            println!("Recording macro '{}'...", name_owned);
+            println!("Press Ctrl+Shift+Esc to stop recording");
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 停止录制宏
 async fn cmd_stop_record(instance_id: u32) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.stop_macro_recording().await {
-            Ok((name, count)) => {
-                println!("Macro '{}' saved with {} actions", name, count);
-            }
-            Err(e) => eprintln!("Failed to stop recording: {}", e),
-        },
-        Err(e) => eprintln!("Failed to connect: {}", e),
-    }
-    Ok(())
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            let (name, count) = client.stop_macro_recording().await?;
+            println!("Macro '{}' saved with {} actions", name, count);
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 播放宏
 async fn cmd_play(instance_id: u32, name: &str) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.play_macro(name).await {
-            Ok(_) => println!("Playing macro '{}'", name),
-            Err(e) => eprintln!("Failed to play macro: {}", e),
-        },
-        Err(e) => eprintln!("Failed to connect: {}", e),
-    }
-    Ok(())
+    let name_owned = name.to_string();
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.play_macro(&name_owned).await?;
+            println!("Playing macro '{}'", name_owned);
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 列出所有宏
 async fn cmd_macros(instance_id: u32) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.get_macros().await {
-            Ok(macros) => {
-                if macros.is_empty() {
-                    println!("No macros recorded");
-                } else {
-                    println!("Available macros:");
-                    for name in macros {
-                        println!("  - {}", name);
-                    }
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            let macros = client.get_macros().await?;
+            if macros.is_empty() {
+                println!("No macros recorded");
+            } else {
+                println!("Available macros:");
+                for name in macros {
+                    println!("  - {}", name);
                 }
             }
-            Err(e) => eprintln!("Failed to get macros: {}", e),
-        },
-        Err(e) => eprintln!("Failed to connect: {}", e),
-    }
-    Ok(())
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 绑定宏到触发键
@@ -517,26 +443,27 @@ async fn cmd_bind_macro(
     macro_name: &str,
     trigger: &str,
 ) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.bind_macro(macro_name, trigger).await {
-            Ok(_) => println!("Macro '{}' bound to '{}'", macro_name, trigger),
-            Err(e) => eprintln!("Failed to bind macro: {}", e),
-        },
-        Err(e) => eprintln!("Failed to connect: {}", e),
-    }
-    Ok(())
+    let macro_name_owned = macro_name.to_string();
+    let trigger_owned = trigger.to_string();
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.bind_macro(&macro_name_owned, &trigger_owned).await?;
+            println!("Macro '{}' bound to '{}'", macro_name_owned, trigger_owned);
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// 删除宏
 async fn cmd_delete_macro(instance_id: u32, name: &str) -> Result<()> {
-    let mut client = DaemonClient::new();
-    match client.connect_to_instance(instance_id).await {
-        Ok(_) => match client.delete_macro(name).await {
-            Ok(_) => println!("Macro '{}' deleted", name),
-            Err(e) => eprintln!("Failed to delete macro: {}", e),
-        },
-        Err(e) => eprintln!("Failed to connect: {}", e),
-    }
-    Ok(())
+    let name_owned = name.to_string();
+    execute_daemon_command(instance_id, |client| {
+        Box::pin(async move {
+            client.delete_macro(&name_owned).await?;
+            println!("Macro '{}' deleted", name_owned);
+            Ok(())
+        })
+    })
+    .await
 }

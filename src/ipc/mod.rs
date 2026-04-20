@@ -5,10 +5,12 @@ use tokio::net::TcpStream;
 pub mod auth;
 pub mod client;
 pub mod discovery;
+pub mod rate_limiter;
 pub mod security;
 pub mod server;
 
 pub use client::IpcClient;
+pub use rate_limiter::ConnectionLimiter;
 pub use server::IpcServer;
 
 /// IPC 消息协议
