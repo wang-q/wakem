@@ -16,34 +16,34 @@ use crate::platform::windows::{
 use crate::runtime::{KeyMapper, LayerManager};
 use windows::Win32::Foundation::HWND;
 
-/// 服务端状态
+/// Server state
 ///
-/// 性能优化说明：
-/// - 使用 RwLock 替代 Mutex（适用于读多写少场景）
-/// - 将相关状态分组以减少锁数量
-/// - 配置和规则使用 Arc 共享避免重复克隆
+/// Performance optimization notes:
+/// - Use RwLock instead of Mutex (for read-heavy scenarios)
+/// - Group related states to reduce lock count
+/// - Use Arc to share config and rules to avoid repeated cloning
 pub struct ServerState {
-    /// 当前配置（读多写少）
+    /// Current configuration (read-heavy, write-rare)
     config: Arc<RwLock<Config>>,
-    /// 键位映射引擎（读多写少：每次事件都读取，仅在配置变更时写入）
+    /// Key mapping engine (read-heavy: read on every event, write only on config change)
     mapper: Arc<RwLock<KeyMapper>>,
-    /// 层管理器（读多写少）
+    /// Layer manager (read-heavy)
     layer_manager: Arc<RwLock<LayerManager>>,
-    /// 输出设备（写多：每个动作都需要写入）
+    /// Output device (write-heavy: every action needs to write)
     output_device: Arc<Mutex<OutputDevice>>,
-    /// 程序启动器（写多：启动程序时需要互斥）
+    /// Program launcher (write-heavy: needs mutex when launching programs)
     launcher: Arc<Mutex<Launcher>>,
-    /// 窗口预设管理器（读写均衡）
+    /// Window preset manager (balanced read/write)
     window_preset_manager: Arc<RwLock<WindowPresetManager>>,
-    /// 是否启用映射（频繁读取，极少写入）
+    /// Whether mapping is enabled (frequently read, rarely written)
     active: Arc<RwLock<bool>>,
-    /// 配置是否已加载
+    /// Whether config has been loaded
     config_loaded: Arc<RwLock<bool>>,
-    /// 宏录制器（内部已有同步机制）
+    /// Macro recorder (has internal synchronization)
     macro_recorder: Arc<MacroRecorder>,
-    /// 消息窗口句柄（用于发送通知）
+    /// Message window handle (for sending notifications)
     message_window_hwnd: Arc<RwLock<Option<HWND>>>,
-    /// 认证密钥（独立存储，支持动态更新）
+    /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
 }
 
@@ -69,9 +69,9 @@ impl ServerState {
         }
     }
 
-    /// 加载配置
+    /// Load configuration
     ///
-    /// 性能优化：批量更新减少锁持有时间
+    /// Performance optimization: batch updates to reduce lock hold time
     #[tracing::instrument(skip(self, config), fields(
         rules_count = config.get_all_rules().len(),
         layers_count = config.keyboard.layers.len(),
@@ -79,13 +79,13 @@ impl ServerState {
         context_mappings_count = config.keyboard.context_mappings.len(),
     ))]
     pub async fn load_config(&self, config: Config) -> Result<()> {
-        // 1. 更新认证密钥（独立于配置存储）
+        // 1. Update auth key (stored separately from config)
         {
             let mut key = self.auth_key.write().await;
             *key = config.network.auth_key.clone().unwrap_or_default();
         }
 
-        // 2. 更新基础映射规则和上下文规则（合并为一次写锁）
+        // 2. Update base mapping rules and context rules (merged into one write lock)
         {
             let mut mapper = self.mapper.write().await;
             let rules = config.get_all_rules();
@@ -97,7 +97,7 @@ impl ServerState {
             );
         }
 
-        // 3. 更新窗口预设管理器
+        // 3. Update window preset manager
         {
             let mut preset_manager = self.window_preset_manager.write().await;
             preset_manager.load_presets(config.window.presets.clone());
@@ -107,15 +107,15 @@ impl ServerState {
             );
         }
 
-        // 4. 更新层管理器
+        // 4. Update layer manager
         {
             let mut layer_manager = self.layer_manager.write().await;
 
-            // 加载基础映射
+            // Load base mappings
             let base_rules = config.get_all_rules();
             layer_manager.set_base_mappings(base_rules);
 
-            // 加载层配置
+            // Load layer configs
             for (name, layer_config) in &config.keyboard.layers {
                 let mode = match layer_config.mode {
                     crate::config::LayerMode::Hold => crate::types::LayerMode::Hold,
@@ -144,13 +144,13 @@ impl ServerState {
             }
         }
 
-        // 5. 最后更新配置（确保所有组件已准备好）
+        // 5. Finally update config (ensure all components are ready)
         {
             let mut cfg = self.config.write().await;
             *cfg = config;
         }
 
-        // 6. 标记配置已加载
+        // 6. Mark config as loaded
         {
             let mut loaded = self.config_loaded.write().await;
             *loaded = true;
@@ -160,13 +160,13 @@ impl ServerState {
         Ok(())
     }
 
-    /// 从文件重新加载配置
+    /// Reload configuration from file
     pub async fn reload_config_from_file(&self) -> Result<()> {
         use crate::config::resolve_config_file_path;
 
         info!("Reloading configuration from file...");
 
-        // 获取当前实例ID和配置文件路径
+        // Get current instance ID and config file path
         let (_instance_id, config_path) = {
             let config = self.config.read().await;
             let id = config.network.instance_id;
@@ -183,7 +183,7 @@ impl ServerState {
 
         info!("Loading config from: {:?}", config_path);
 
-        // 尝试加载新配置
+        // Try to load new config
         let new_config = match Config::from_file(&config_path) {
             Ok(config) => config,
             Err(e) => {
@@ -192,20 +192,20 @@ impl ServerState {
             }
         };
 
-        // 应用新配置
+        // Apply new config
         self.load_config(new_config).await?;
 
         info!("Configuration reloaded successfully");
         Ok(())
     }
 
-    /// 保存当前配置到文件
+    /// Save current configuration to file
     pub async fn save_config_to_file(&self) -> Result<()> {
         use crate::config::resolve_config_file_path;
 
         info!("Saving configuration to file...");
 
-        // 获取当前实例ID和配置文件路径
+        // Get current instance ID and config file path
         let (_instance_id, config_path) = {
             let config = self.config.read().await;
             let id = config.network.instance_id;
@@ -222,7 +222,7 @@ impl ServerState {
 
         info!("Saving config to: {:?}", config_path);
 
-        // 获取当前配置并保存
+        // Get current config and save
         let config = self.config.read().await;
         match config.save_to_file(&config_path) {
             Ok(_) => {
@@ -236,30 +236,30 @@ impl ServerState {
         }
     }
 
-    /// 处理输入事件
+    /// Process input event
     ///
-    /// 性能优化：
-    /// - 使用 RwLock.read() 替代 Mutex.lock()（读多写少场景）
-    /// - 减少锁持有时间，快速路径优先返回
-    /// - 批量读取相关状态
+    /// Performance optimizations:
+    /// - Use RwLock.read() instead of Mutex.lock() (for read-heavy scenarios)
+    /// - Reduce lock hold time, fast path returns early
+    /// - Batch read related states
     #[tracing::instrument(skip(self, event), fields(event_type = %event.event_type_name()))]
     pub async fn process_input_event(&self, event: InputEvent) {
-        // 快速路径：检查是否启用（最轻量的锁）
+        // Fast path: check if enabled (lightest lock)
         if !*self.active.read().await {
             return;
         }
 
-        // 如果是注入的事件，忽略（避免循环）
+        // If injected event, ignore (to avoid loops)
         if event.is_injected() {
             return;
         }
 
-        // 如果正在录制宏，记录事件（读操作，快速释放锁）
+        // If recording macro, record event (read operation, quick release lock)
         if self.macro_recorder.is_recording().await {
             self.macro_recorder.record_event(&event).await;
         }
 
-        // 处理滚轮增强（只读配置，不修改状态）
+        // Process wheel enhancement (read-only config, no state modification)
         if let InputEvent::Mouse(mouse_event) = &event {
             if let crate::types::MouseEventType::Wheel(delta) = mouse_event.event_type {
                 debug!(wheel_delta = delta, "Processing wheel enhancement");
@@ -276,7 +276,7 @@ impl ServerState {
             }
         }
 
-        // 先尝试通过层管理器处理（优化：减少写锁持有时间）
+        // First try to process through layer manager (optimization: reduce write lock hold time)
         let (handled, action) = {
             let mut layer_manager = self.layer_manager.write().await;
             layer_manager.process_event(&event)
@@ -291,14 +291,14 @@ impl ServerState {
             return;
         }
 
-        // 层管理器未处理，使用基础映射引擎（带上下文感知）- 使用读锁
+        // Layer manager didn't handle, use base mapping engine (with context awareness) - use read lock
         let action = {
             let mapper = self.mapper.read().await;
             let context = crate::platform::windows::WindowContext::get_current();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
-        // 执行动作（在锁外执行，避免长时间持锁）
+        // Execute action (outside lock to avoid long lock hold)
         if let Some(action) = action {
             if let Err(e) = self.execute_action(action).await {
                 error!("Failed to execute action: {}", e);
@@ -306,15 +306,15 @@ impl ServerState {
         }
     }
 
-    /// 处理滚轮增强
+    /// Process wheel enhancement
     async fn process_wheel_enhancement(&self, delta: i32) -> Option<Action> {
         let config = self.config.read().await;
         let wheel_config = &config.mouse.wheel;
 
-        // 获取当前修饰键状态
+        // Get current modifier state
         let modifiers = get_current_modifier_state();
 
-        // 检查音量控制
+        // Check volume control
         if let Some(volume_config) = &wheel_config.volume_control {
             if Self::check_modifier_match(&volume_config.modifier, &modifiers) {
                 if delta > 0 {
@@ -325,7 +325,7 @@ impl ServerState {
             }
         }
 
-        // 检查亮度控制
+        // Check brightness control
         if let Some(brightness_config) = &wheel_config.brightness_control {
             if Self::check_modifier_match(&brightness_config.modifier, &modifiers) {
                 if delta > 0 {
@@ -340,19 +340,19 @@ impl ServerState {
             }
         }
 
-        // 检查水平滚动
+        // Check horizontal scroll
         if let Some(hscroll_config) = &wheel_config.horizontal_scroll {
             if Self::check_modifier_match(&hscroll_config.modifier, &modifiers) {
-                // 将垂直滚轮转换为水平滚轮
+                // Convert vertical wheel to horizontal wheel
                 return Some(Action::Mouse(crate::types::MouseAction::HWheel {
                     delta: delta * hscroll_config.step,
                 }));
             }
         }
 
-        // 检查滚轮加速
+        // Check wheel acceleration
         if wheel_config.acceleration {
-            // 简单的加速实现：根据滚动方向增加滚动距离
+            // Simple acceleration implementation: increase scroll distance based on direction
             let accelerated_delta = delta * wheel_config.acceleration_multiplier as i32;
             return Some(Action::Mouse(crate::types::MouseAction::Wheel {
                 delta: accelerated_delta,
@@ -362,26 +362,26 @@ impl ServerState {
         None
     }
 
-    /// 检查修饰键是否匹配
+    /// Check if modifier key matches
     fn check_modifier_match(modifier_str: &str, modifiers: &ModifierState) -> bool {
         match modifier_str.to_lowercase().as_str() {
             "shift" => modifiers.shift,
             "ctrl" | "control" => modifiers.ctrl,
             "alt" => modifiers.alt,
             "win" | "meta" | "command" => modifiers.meta,
-            "rightalt" => modifiers.alt,     // 简化处理
-            "rightctrl" => modifiers.ctrl,   // 简化处理
-            "rightshift" => modifiers.shift, // 简化处理
+            "rightalt" => modifiers.alt, // Simplified handling
+            "rightctrl" => modifiers.ctrl, // Simplified handling
+            "rightshift" => modifiers.shift, // Simplified handling
             _ => false,
         }
     }
 
-    /// 执行动作
+    /// Execute action
     ///
-    /// 性能优化：
-    /// - 对 Sequence 动作进行分组，减少锁获取次数
-    /// - 连续的 Key/Mouse/System 动作共享同一个 output_device 锁
-    /// - Window/Launch 动作使用独立的锁，避免长时间阻塞其他操作
+    /// Performance optimizations:
+    /// - Group Sequence actions to reduce lock acquisition count
+    /// - Consecutive Key/Mouse/System actions share the same output_device lock
+    /// - Window/Launch actions use separate locks to avoid blocking other operations for too long
     async fn execute_action(&self, action: Action) -> Result<()> {
         match action {
             Action::Key(key_action) => {
@@ -401,7 +401,7 @@ impl ServerState {
                 launcher.launch(&launch_action)?;
             }
             Action::Sequence(actions) => {
-                // 性能优化：对动作序列进行分组执行，减少锁获取次数
+                // Performance optimization: group action sequence execution to reduce lock acquisition
                 self.execute_action_sequence_optimized(&actions).await?;
             }
             Action::System(system_action) => {
@@ -418,24 +418,24 @@ impl ServerState {
         Ok(())
     }
 
-    /// 优化的动作序列执行（减少锁竞争）
+    /// Optimized action sequence execution (reduces lock contention)
     ///
-    /// 将序列中的动作按类型分组：
-    /// - 连续的 Key/Mouse/System 动作：一次性获取 output_device 锁，批量执行
-    /// - Window 动作：单独获取 mapper 写锁
-    /// - Launch 动作：单独获取 launcher 锁
-    /// - Delay 动作：释放所有锁后等待
+    /// Group actions in sequence by type:
+    /// - Consecutive Key/Mouse/System actions: acquire output_device lock once and execute in batch
+    /// - Window actions: acquire mapper write lock separately
+    /// - Launch actions: acquire launcher lock separately
+    /// - Delay actions: wait after releasing all locks
     async fn execute_action_sequence_optimized(&self, actions: &[Action]) -> Result<()> {
         use crate::types::Action::*;
 
         let mut i = 0;
         while i < actions.len() {
             match &actions[i] {
-                // 批量处理输出设备相关的动作（Key, Mouse, System）
+                // Batch process output device related actions (Key, Mouse, System)
                 Key(_) | Mouse(_) | System(_) => {
                     let output = self.output_device.lock().await;
 
-                    // 收集所有连续的输出设备动作
+                    // Collect all consecutive output device actions
                     while i < actions.len() {
                         match &actions[i] {
                             Key(key_action) => {
@@ -447,32 +447,32 @@ impl ServerState {
                             System(system_action) => {
                                 output.send_system_action(system_action)?;
                             }
-                            _ => break, // 遇到非输出设备动作，停止批量处理
+                            _ => break, // Encountered non-output device action, stop batch processing
                         }
                         i += 1;
                     }
-                    // output 锁在此释放
+                    // output lock released here
                 }
 
-                // 单独处理窗口动作
+                // Handle window actions separately
                 Window(window_action) => {
                     let mut mapper = self.mapper.write().await;
                     mapper.execute_action(&Window(window_action.clone()))?;
                     i += 1;
-                    // mapper 锁在此释放
+                    // mapper lock released here
                 }
 
-                // 单独处理启动动作
+                // Handle launch actions separately
                 Launch(launch_action) => {
                     let launcher = self.launcher.lock().await;
                     launcher.launch(launch_action)?;
                     i += 1;
-                    // launcher 锁在此释放
+                    // launcher lock released here
                 }
 
-                // 处理延迟动作（在无锁状态下等待）
+                // Handle delay actions (wait without locks)
                 Delay { milliseconds } => {
-                    drop(i); // 显式释放引用以便 sleep
+                    drop(i); // Explicitly drop reference for sleep
                     tokio::time::sleep(tokio::time::Duration::from_millis(
                         *milliseconds,
                     ))
@@ -480,12 +480,12 @@ impl ServerState {
                     i += 1;
                 }
 
-                // 空操作
+                // No-op
                 None => {
                     i += 1;
                 }
 
-                // 嵌套的 Sequence（递归处理）
+                // Nested Sequence (process recursively)
                 Sequence(nested_actions) => {
                     Box::pin(self.execute_action_sequence_optimized(nested_actions))
                         .await?;
@@ -497,35 +497,35 @@ impl ServerState {
         Ok(())
     }
 
-    /// 设置启用状态
+    /// Set active state
     pub async fn set_active(&self, active: bool) {
         let mut a = self.active.write().await;
         *a = active;
         info!("Server active state: {}", active);
     }
 
-    /// 获取状态
+    /// Get status
     pub async fn get_status(&self) -> (bool, bool) {
         (*self.active.read().await, *self.config_loaded.read().await)
     }
 
-    /// 开始录制宏
+    /// Start macro recording
     pub async fn start_macro_recording(&self, name: &str) -> Result<()> {
         self.macro_recorder.start_recording(name).await
     }
 
-    /// 停止录制宏
+    /// Stop macro recording
     pub async fn stop_macro_recording(&self) -> Result<Macro> {
         let macro_def = self.macro_recorder.stop_recording().await?;
         self.save_macro(&macro_def).await?;
 
-        // 显示录制完成通知
+        // Show recording complete notification
         let step_count = macro_def.steps.len();
         let _ = self
             .show_notification(
-                "wakem - 宏录制",
+                "wakem - Macro Recording",
                 &format!(
-                    "宏 '{}' 录制完成，包含 {} 个步骤",
+                    "Macro '{}' recording completed with {} steps",
                     macro_def.name, step_count
                 ),
             )
@@ -534,14 +534,14 @@ impl ServerState {
         Ok(macro_def)
     }
 
-    /// 保存宏到配置
+    /// Save macro to config
     async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
         let mut config = self.config.write().await;
         config
             .macros
             .insert(macro_def.name.clone(), macro_def.steps.clone());
 
-        // 保存到文件
+        // Save to file
         let config_path =
             crate::config::resolve_config_file_path(None, config.network.instance_id)
                 .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
@@ -551,7 +551,7 @@ impl ServerState {
         Ok(())
     }
 
-    /// 执行宏
+    /// Play macro
     pub async fn play_macro(&self, name: &str) -> Result<()> {
         let config = self.config.read().await;
         let steps = config
@@ -567,36 +567,39 @@ impl ServerState {
             description: None,
         };
 
-        drop(config); // 释放读锁
+        drop(config); // Release read lock
 
         let output_device = self.output_device.lock().await;
         MacroPlayer::play_macro(&output_device, &macro_def).await?;
 
-        // 显示回放完成通知
+        // Show playback complete notification
         let _ = self
-            .show_notification("wakem - 宏回放", &format!("宏 '{}' 回放完成", name))
+            .show_notification(
+                "wakem - Macro Playback",
+                &format!("Macro '{}' playback completed", name),
+            )
             .await;
 
         Ok(())
     }
 
-    /// 获取宏列表
+    /// Get macro list
     pub async fn get_macros(&self) -> Vec<String> {
         let config = self.config.read().await;
         config.macros.keys().cloned().collect()
     }
 
-    /// 删除宏
+    /// Delete macro
     pub async fn delete_macro(&self, name: &str) -> Result<()> {
         let mut config = self.config.write().await;
         if config.macros.remove(name).is_none() {
             return Err(anyhow::anyhow!("Macro '{}' not found", name));
         }
 
-        // 同时删除绑定
+        // Also remove bindings
         config.macro_bindings.retain(|_, v| v != name);
 
-        // 保存到文件
+        // Save to file
         let config_path =
             crate::config::resolve_config_file_path(None, config.network.instance_id)
                 .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
@@ -606,21 +609,21 @@ impl ServerState {
         Ok(())
     }
 
-    /// 绑定宏到触发键
+    /// Bind macro to trigger key
     pub async fn bind_macro(&self, macro_name: &str, trigger: &str) -> Result<()> {
         let mut config = self.config.write().await;
 
-        // 检查宏是否存在
+        // Check if macro exists
         if !config.macros.contains_key(macro_name) {
             return Err(anyhow::anyhow!("Macro '{}' not found", macro_name));
         }
 
-        // 添加绑定
+        // Add binding
         config
             .macro_bindings
             .insert(trigger.to_string(), macro_name.to_string());
 
-        // 保存到文件
+        // Save to file
         let config_path =
             crate::config::resolve_config_file_path(None, config.network.instance_id)
                 .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
@@ -630,27 +633,27 @@ impl ServerState {
         Ok(())
     }
 
-    /// 检查是否正在录制宏
+    /// Check if recording macro
     pub async fn is_recording_macro(&self) -> bool {
         self.macro_recorder.is_recording().await
     }
 
-    /// 设置消息窗口句柄
+    /// Set message window handle
     pub async fn set_message_window_hwnd(&self, hwnd: HWND) {
         let mut h = self.message_window_hwnd.write().await;
         *h = Some(hwnd);
         info!("Message window handle registered: {:?}", hwnd);
     }
 
-    /// 获取当前认证密钥（用于 IPC 认证）
+    /// Get current auth key (for IPC authentication)
     pub async fn get_auth_key(&self) -> String {
         self.auth_key.read().await.clone()
     }
 
-    /// 显示托盘通知
+    /// Show tray notification
     pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
         if let Some(hwnd) = *self.message_window_hwnd.read().await {
-            // 使用托盘图标显示通知
+            // Show notification using tray icon
             self.show_tray_notification(hwnd, title, message).await?;
         } else {
             debug!("Message window not registered, skipping notification");
@@ -658,7 +661,7 @@ impl ServerState {
         Ok(())
     }
 
-    /// 使用托盘图标显示通知（内部方法）
+    /// Show notification using tray icon (internal method)
     async fn show_tray_notification(
         &self,
         hwnd: HWND,
@@ -672,25 +675,25 @@ impl ServerState {
         let mut nid = NOTIFYICONDATAW {
             cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
             hWnd: hwnd,
-            uID: 1, // 托盘图标 ID
+            uID: 1, // Tray icon ID
             uFlags: NIF_INFO,
             ..Default::default()
         };
 
-        // 转换标题和消息为宽字符串
+        // Convert title and message to wide strings
         let title_wide: Vec<u16> =
             title.encode_utf16().chain(std::iter::once(0)).collect();
         let message_wide: Vec<u16> =
             message.encode_utf16().chain(std::iter::once(0)).collect();
 
-        // 复制到结构体（限制长度）
+        // Copy to struct (limit length)
         let title_len = title_wide.len().min(64);
         let message_len = message_wide.len().min(256);
 
         nid.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
         nid.szInfo[..message_len].copy_from_slice(&message_wide[..message_len]);
 
-        // 设置通知类型（0 = 无图标）
+        // Set notification type (0 = no icon)
         nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
 
         unsafe {
@@ -711,7 +714,7 @@ impl Default for ServerState {
     }
 }
 
-/// 获取当前修饰键状态
+/// Get current modifier key state
 #[cfg(target_os = "windows")]
 fn get_current_modifier_state() -> ModifierState {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -722,7 +725,7 @@ fn get_current_modifier_state() -> ModifierState {
     let mut modifiers = ModifierState::default();
 
     unsafe {
-        // 检查 Shift 键
+        // Check Shift key
         if GetAsyncKeyState(VK_SHIFT.0 as i32) < 0
             || GetAsyncKeyState(VK_LSHIFT.0 as i32) < 0
             || GetAsyncKeyState(VK_RSHIFT.0 as i32) < 0
@@ -730,7 +733,7 @@ fn get_current_modifier_state() -> ModifierState {
             modifiers.shift = true;
         }
 
-        // 检查 Ctrl 键
+        // Check Ctrl key
         if GetAsyncKeyState(VK_CONTROL.0 as i32) < 0
             || GetAsyncKeyState(VK_LCONTROL.0 as i32) < 0
             || GetAsyncKeyState(VK_RCONTROL.0 as i32) < 0
@@ -738,7 +741,7 @@ fn get_current_modifier_state() -> ModifierState {
             modifiers.ctrl = true;
         }
 
-        // 检查 Alt 键
+        // Check Alt key
         if GetAsyncKeyState(VK_MENU.0 as i32) < 0
             || GetAsyncKeyState(VK_LMENU.0 as i32) < 0
             || GetAsyncKeyState(VK_RMENU.0 as i32) < 0
@@ -746,7 +749,7 @@ fn get_current_modifier_state() -> ModifierState {
             modifiers.alt = true;
         }
 
-        // 检查 Win 键 (VK_LWIN = 0x5B, VK_RWIN = 0x5C)
+        // Check Win key (VK_LWIN = 0x5B, VK_RWIN = 0x5C)
         if GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0 {
             modifiers.meta = true;
         }
@@ -760,30 +763,30 @@ fn get_current_modifier_state() -> ModifierState {
     ModifierState::default()
 }
 
-/// 运行服务端
+/// Run server
 ///
-/// 改进：集成优雅关闭机制，支持安全退出所有后台任务
+/// Improvement: integrated graceful shutdown mechanism, supports safe exit of all background tasks
 pub async fn run_server(instance_id: u32) -> Result<()> {
     info!("Starting wakemd server (instance {})...", instance_id);
 
     let state = Arc::new(ServerState::new());
 
-    // 创建优雅关闭信号
+    // Create graceful shutdown signal
     let shutdown = Arc::new(ShutdownSignal::new());
     let shutdown_for_tasks = shutdown.subscribe();
 
-    // 设置实例ID
+    // Set instance ID
     {
         let mut config = state.config.write().await;
         config.network.instance_id = instance_id;
     }
 
-    // 创建 IPC 服务端（使用动态认证密钥）
+    // Create IPC server (with dynamic auth key)
     let (message_tx, mut message_rx) = mpsc::channel(100);
     let bind_address = {
         let mut config = state.config.write().await;
         let addr = config.network.get_bind_address();
-        // 确保存在认证密钥（安全要求）
+        // Ensure auth key exists (security requirement)
         config.network.ensure_auth_key();
         addr
     };
@@ -799,13 +802,13 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     info!("Server listening on {}", bind_address);
 
-    // 创建输入事件通道（使用 tokio::sync::mpsc 用于高效的异步处理）
+    // Create input event channel (using tokio::sync::mpsc for efficient async processing)
     let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<InputEvent>(1000);
 
-    // 收集所有 std 线程的 JoinHandle，用于优雅关闭
+    // Collect all std thread JoinHandles for graceful shutdown
     let mut thread_handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
 
-    // 启动 Raw Input 捕获（在单独线程中，通过 bridge 发送到 tokio channel）
+    // Start Raw Input capture (in separate thread, send to tokio channel via bridge)
     let input_tx_bridge = input_tx.clone();
     let input_bridge_handle = std::thread::spawn(move || {
         let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
@@ -824,41 +827,41 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                 }
             });
 
-        // 等待 Raw Input 线程结束（如果它提前退出）
+        // Wait for Raw Input thread to finish (if it exits early)
         let _ = raw_input_handle.join();
 
-        // Bridge: 从 std channel 接收并发送到 tokio channel
+        // Bridge: receive from std channel and send to tokio channel
         while let Ok(event) = std_rx.recv() {
             if tx_clone.blocking_send(event).is_err() {
-                break; // 通道关闭，退出
+                break; // Channel closed, exit
             }
         }
         info!("Input bridge thread shutdown complete");
     });
     thread_handles.push(input_bridge_handle);
 
-    // 启动输入处理任务（带关闭信号检查和批处理优化）
+    // Start input processing task (with shutdown signal check and batch processing optimization)
     let state_clone = state.clone();
     let mut input_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
         use crate::constants::INPUT_CHANNEL_CAPACITY;
         use tokio::time::{Duration, Instant};
 
-        let batch_size_limit = 50; // 单次最大批处理数量
-        let batch_timeout_micros = 100; // 批处理超时（微秒）
+        let batch_size_limit = 50; // Max batch size per processing
+        let batch_timeout_micros = 100; // Batch timeout (microseconds)
         let mut event_batch = Vec::with_capacity(batch_size_limit);
 
         loop {
-            // 批量收集事件（减少锁竞争）
+            // Batch collect events (reduce lock contention)
             let batch_start = Instant::now();
 
-            // 非阻塞地尝试收集多个事件
+            // Try to collect multiple events non-blocking
             loop {
                 match input_rx.try_recv() {
                     Ok(event) => {
                         event_batch.push(event);
 
-                        // 达到批次大小限制或超时，停止收集
+                        // Stop collecting when batch limit or timeout reached
                         if event_batch.len() >= batch_size_limit {
                             break;
                         }
@@ -869,38 +872,38 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                         }
                     }
                     Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
-                        // 没有更多事件，退出收集循环
+                        // No more events, exit collection loop
                         if !event_batch.is_empty() {
-                            break; // 有已收集的事件，开始处理
+                            break; // Have collected events, start processing
                         }
-                        // 没有事件，等待新事件或关闭信号
+                        // No events, wait for new events or shutdown signal
                         break;
                     }
                     Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                        // 通道关闭，处理剩余事件后退出
+                        // Channel closed, process remaining events then exit
                         if event_batch.is_empty() {
-                            return; // 无剩余事件，直接退出
+                            return; // No remaining events, exit directly
                         }
                         break;
                     }
                 }
 
-                // 如果没有收集到任何事件，使用 select! 等待
+                // If no events collected, use select! to wait
                 if event_batch.is_empty() {
                     break;
                 }
             }
 
-            // 如果仍然没有事件，等待新事件或关闭信号
+            // If still no events, wait for new events or shutdown signal
             if event_batch.is_empty() {
                 tokio::select! {
                     event = input_rx.recv() => {
                         match event {
                             Some(event) => {
-                                // 收到单个事件，直接处理
+                                // Received single event, process directly
                                 state_clone.process_input_event(event).await;
                             }
-                            None => break, // 通道关闭
+                            None => break, // Channel closed
                         }
                     }
                     _ = input_shutdown.changed() => {
@@ -909,14 +912,14 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                     }
                 }
             } else {
-                // 批量处理收集到的事件
+                // Batch process collected events
                 let batch_len = event_batch.len();
                 if batch_len > 1 {
                     debug!(batch_size = batch_len, "Processing event batch");
                 }
 
                 for event in event_batch.drain(..) {
-                    // 检查关闭信号（在每批事件之间检查）
+                    // Check shutdown signal (check between batches)
                     if input_shutdown.has_changed().unwrap_or(false) {
                         info!("Input processing task received shutdown signal during batch");
                         return;
@@ -929,7 +932,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         info!("Input processing task stopped");
     });
 
-    // 启动窗口事件监听（用于自动应用预设）
+    // Start window event listener (for auto-applying presets)
     let mut window_event_rx = {
         let (tx, rx) =
             tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(100);
@@ -950,10 +953,10 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                 }
             });
 
-            // 等待 hook 线程结束
+            // Wait for hook thread to finish
             let _ = hook_handle.join();
 
-            // Bridge: 从 std channel 接收并发送到 tokio channel
+            // Bridge: receive from std channel and send to tokio channel
             while let Ok(event) = std_rx.recv() {
                 if tx.blocking_send(event).is_err() {
                     break;
@@ -966,7 +969,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         rx
     };
 
-    // 启动窗口事件处理任务（带关闭信号检查）
+    // Start window event handling task (with shutdown signal check)
     let state_clone = state.clone();
     let mut window_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
@@ -989,7 +992,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         info!("Window event handling task stopped");
     });
 
-    // 启动 IPC 服务端主循环（带关闭信号检查）
+    // Start IPC server main loop (with shutdown signal check)
     let mut ipc_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
         loop {
@@ -997,7 +1000,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                 result = ipc_server.run() => {
                     if let Err(e) = result {
                         error!("IPC server error: {}", e);
-                        // 发生错误后等待一小段时间再重试
+                        // Wait a short time before retrying after error
                         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     }
                 }
@@ -1010,7 +1013,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         info!("IPC server task stopped");
     });
 
-    // 处理 IPC 消息（带关闭信号检查）
+    // Handle IPC messages (with shutdown signal check)
     let state_clone = state.clone();
     let mut msg_handler_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
@@ -1038,17 +1041,17 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     info!("Server is running (press Ctrl+C for graceful shutdown)");
 
-    // 等待退出信号（Ctrl+C）
+    // Wait for exit signal (Ctrl+C)
     tokio::signal::ctrl_c().await?;
 
-    // 触发优雅关闭
+    // Trigger graceful shutdown
     info!("Initiating graceful shutdown...");
     shutdown.shutdown().await;
 
-    // 等待一小段时间让任务清理完成
+    // Wait a short time for tasks to clean up
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    // 等待所有 std 线程完成（带超时）
+    // Wait for all std threads to complete (with timeout)
     info!(
         "Waiting for {} background threads to complete...",
         thread_handles.len()
@@ -1064,10 +1067,10 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     Ok(())
 }
 
-/// 处理窗口事件
+/// Handle window events
 impl ServerState {
     async fn handle_window_event(&self, event: crate::platform::windows::WindowEvent) {
-        // 检查是否启用了自动应用预设
+        // Check if auto-apply preset is enabled
         let auto_apply = {
             let config = self.config.read().await;
             config.window.auto_apply_preset
@@ -1080,7 +1083,7 @@ impl ServerState {
         match event {
             crate::platform::windows::WindowEvent::WindowCreated(hwnd)
             | crate::platform::windows::WindowEvent::WindowActivated(hwnd) => {
-                // 延迟一点应用预设，确保窗口已完全创建
+                // Delay applying preset to ensure window is fully created
                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
                 let preset_manager = self.window_preset_manager.read().await;
@@ -1089,7 +1092,7 @@ impl ServerState {
                         debug!("Auto-applied preset to window {:?}", hwnd);
                     }
                     Ok(false) => {
-                        // 没有匹配的预设，这是正常的
+                        // No matching preset, this is normal
                     }
                     Err(e) => {
                         debug!("Failed to auto-apply preset: {}", e);
@@ -1100,7 +1103,7 @@ impl ServerState {
     }
 }
 
-/// 处理 IPC 消息
+/// Handle IPC messages
 async fn handle_message(message: Message, state: &ServerState) -> Message {
     match message {
         Message::SetConfig { config } => match state.load_config(config).await {
@@ -1136,7 +1139,7 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
             }
         }
         Message::Ping => Message::Pong,
-        // 宏相关消息
+        // Macro-related messages
         Message::StartMacroRecording { name } => {
             match state.start_macro_recording(&name).await {
                 Ok(_) => Message::Success,

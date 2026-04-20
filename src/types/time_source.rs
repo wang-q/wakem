@@ -1,14 +1,14 @@
-//! 时间源抽象，用于测试时控制时间
+//! Time source abstraction for controlling time during tests
 
-/// 时间源 trait
+/// Time source trait
 pub trait TimeSource {
-    /// 获取当前时间戳（毫秒）
+    /// Get current timestamp (milliseconds)
     fn now_ms(&self) -> u64;
-    /// 获取当前时间戳（微秒）
+    /// Get current timestamp (microseconds)
     fn now_us(&self) -> u64;
 }
 
-/// 系统时间源（真实时间）
+/// System time source (real time)
 pub struct SystemTimeSource;
 
 impl SystemTimeSource {
@@ -39,7 +39,7 @@ impl TimeSource for SystemTimeSource {
     }
 }
 
-/// Mock 时间源用于测试
+/// Mock time source for testing
 #[cfg(test)]
 pub struct MockTimeSource {
     current_time_ms: std::cell::RefCell<u64>,

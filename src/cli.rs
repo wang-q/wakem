@@ -1,6 +1,6 @@
-//! 命令行参数解析
+//! Command line argument parsing
 //!
-//! 统一的 CLI 定义，作为整个项目的命令行接口唯一来源。
+//! Unified CLI definition, serving as the single source of command line interface for the entire project.
 
 use clap::{Parser, Subcommand};
 
@@ -10,42 +10,42 @@ use clap::{Parser, Subcommand};
 #[command(about = "wakem - Window/Keyboard/Mouse Enhancer")]
 #[command(version)]
 pub struct Cli {
-    /// 实例ID（用于多实例）
+    /// Instance ID (for multi-instance support)
     #[arg(short, long, default_value = "0")]
     pub instance: u32,
 
-    /// 子命令
+    /// Subcommand
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// 启动守护进程
+    /// Start daemon
     Daemon {
-        /// 实例ID
+        /// Instance ID
         #[arg(short, long, default_value = "0")]
         instance: u32,
     },
-    /// 获取服务端状态
+    /// Get server status
     Status,
-    /// 重载配置
+    /// Reload configuration
     Reload,
-    /// 保存当前配置到文件
+    /// Save current configuration to file
     Save,
-    /// 启用映射
+    /// Enable mapping
     Enable,
-    /// 禁用映射
+    /// Disable mapping
     Disable,
-    /// 打开配置文件夹
+    /// Open config folder
     Config,
-    /// 列出运行中的实例
+    /// List running instances
     Instances,
-    /// 运行系统托盘（默认）
+    /// Run system tray (default)
     Tray,
-    /// 录制宏
+    /// Record macro
     Record {
-        /// 宏名称
+        /// Macro name
         name: String,
     },
     /// 停止录制宏

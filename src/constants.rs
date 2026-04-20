@@ -1,51 +1,51 @@
-/// wakem 全局常量定义
+/// wakem global constants definition
 ///
-/// 集中管理所有配置常量，避免魔法数字，提高代码可维护性
+/// Centralized management of all configuration constants to avoid magic numbers and improve code maintainability
 
-// ==================== IPC 相关常量 ====================
+// ==================== IPC Related Constants ====================
 
-/// IPC 基础端口
+/// IPC base port
 pub const IPC_BASE_PORT: u16 = 57427;
 
-/// IPC 最大消息大小 (1MB)
+/// IPC max message size (1MB)
 pub const IPC_MAX_MESSAGE_SIZE: usize = 1024 * 1024;
 
-/// IPC 连接超时时间（秒）
+/// IPC connection timeout (seconds)
 pub const IPC_CONNECTION_TIMEOUT_SECS: u64 = 5;
 
-/// IPC 空闲超时时间（秒）- 2分钟，平衡资源使用和用户体验
+/// IPC idle timeout (seconds) - 2 minutes, balancing resource usage and user experience
 pub const IPC_IDLE_TIMEOUT_SECS: u64 = 120;
 
-/// IPC 通道容量
+/// IPC channel capacity
 pub const IPC_CHANNEL_CAPACITY: usize = 100;
 
-// ==================== 输入处理相关常量 ====================
+// ==================== Input Processing Related Constants ====================
 
-/// 输入事件通道容量
+/// Input event channel capacity
 pub const INPUT_CHANNEL_CAPACITY: usize = 1000;
 
-/// 窗口事件通道容量
+/// Window event channel capacity
 pub const WINDOW_EVENT_CHANNEL_CAPACITY: usize = 100;
 
-// ==================== 窗口管理相关常量 ====================
+// ==================== Window Management Related Constants ====================
 
-/// 窗口预设应用延迟（毫秒）- 等待窗口完全创建
+/// Window preset apply delay (milliseconds) - wait for window to be fully created
 pub const WINDOW_PRESET_APPLY_DELAY_MS: u64 = 500;
 
-/// 关闭时等待任务完成的延迟（毫秒）
+/// Delay to wait for tasks to complete during shutdown (milliseconds)
 pub const SHUTDOWN_WAIT_DELAY_MS: u64 = 500;
 
-// ==================== 通配符匹配相关常量 ====================
+// ==================== Wildcard Matching Related Constants ====================
 
-/// 通配符匹配最大输入长度（防止内存问题）
+/// Wildcard matching max input size (prevent memory issues)
 pub const WILDCARD_MAX_INPUT_SIZE: usize = 1024;
 
-// ==================== 认证相关常量 ====================
+// ==================== Authentication Related Constants ====================
 
-/// 挑战长度（字节）
+/// Challenge length (bytes)
 pub const AUTH_CHALLENGE_SIZE: usize = 32;
 
-/// 响应长度（字节，HMAC-SHA256 输出）
+/// Response length (bytes, HMAC-SHA256 output)
 pub const AUTH_RESPONSE_SIZE: usize = 32;
 
 /// 认证操作超时时间（秒）

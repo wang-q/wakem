@@ -1,6 +1,6 @@
 //! wakem - Window Adjust, Keyboard Enhance, and Mouse
 //!
-//! 一个跨平台的窗口管理、键盘增强、鼠标增强工具。
+//! A cross-platform window management, keyboard enhancement, and mouse enhancement tool.
 
 pub mod cli;
 pub mod client;

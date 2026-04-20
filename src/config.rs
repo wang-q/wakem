@@ -8,40 +8,40 @@ use tracing::{debug, info};
 use crate::platform::windows::Launcher;
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
-/// 全局配置
+/// Global configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// 日志级别
+    /// Log level
     #[serde(default = "default_log_level")]
     pub log_level: String,
-    /// 是否显示系统托盘图标
+    /// Whether to show system tray icon
     #[serde(default = "default_true")]
     pub tray_icon: bool,
-    /// 是否自动重新加载配置
+    /// Whether to auto-reload configuration
     #[serde(default = "default_true")]
     pub auto_reload: bool,
-    /// 自定义托盘图标路径
+    /// Custom tray icon path
     #[serde(default)]
     pub icon_path: Option<String>,
-    /// 键盘映射规则
+    /// Keyboard mapping rules
     #[serde(default)]
     pub keyboard: KeyboardConfig,
-    /// 窗口设置
+    /// Window settings
     #[serde(default)]
     pub window: WindowConfig,
-    /// 鼠标设置
+    /// Mouse settings
     #[serde(default)]
     pub mouse: MouseConfig,
-    /// 启动项设置
+    /// Launch settings
     #[serde(default)]
     pub launch: HashMap<String, String>,
-    /// 网络通信设置
+    /// Network communication settings
     #[serde(default)]
     pub network: NetworkConfig,
-    /// 宏定义: macro_name -> [MacroStep, ...]
+    /// Macro definitions: macro_name -> [MacroStep, ...]
     #[serde(default)]
     pub macros: HashMap<String, Vec<MacroStep>>,
-    /// 宏触发键映射: trigger -> macro_name
+    /// Macro trigger key mappings: trigger -> macro_name
     #[serde(default)]
     pub macro_bindings: HashMap<String, String>,
 }
@@ -65,13 +65,13 @@ impl Default for Config {
 }
 
 impl Config {
-    /// 从文件加载配置
+    /// Load configuration from file
     pub fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         Self::from_str(&content)
     }
 
-    /// 从字符串解析配置
+    /// Parse configuration from string
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(content: &str) -> anyhow::Result<Self> {
         let config: Config = toml::from_str(content)?;
@@ -79,9 +79,9 @@ impl Config {
         Ok(config)
     }
 
-    /// 验证配置的完整性和业务规则
+    /// Validate configuration integrity and business rules
     pub fn validate(&self) -> anyhow::Result<()> {
-        // 1. 验证日志级别
+        // 1. Validate log level
         match self.log_level.to_lowercase().as_str() {
             "trace" | "debug" | "info" | "warn" | "warning" | "error" => {}
             other => {

@@ -1,4 +1,4 @@
-//! 宏录制和回放支持
+//! Macro recording and playback support
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -8,21 +8,21 @@ use tracing::{debug, info};
 
 use crate::types::{Action, InputEvent, KeyState, ModifierState, Timestamp};
 
-/// 宏步骤（包含完整上下文）
+/// Macro step (includes full context)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MacroStep {
-    /// 延迟（毫秒）
+    /// Delay (milliseconds)
     pub delay_ms: u64,
-    /// 动作
+    /// Action
     pub action: Action,
-    /// 录制时的修饰键状态
+    /// Modifier state during recording
     pub modifiers: ModifierState,
-    /// 事件时间戳
+    /// Event timestamp
     pub timestamp: Timestamp,
 }
 
 impl MacroStep {
-    /// 创建新的宏步骤
+    /// Create new macro step
     pub fn new(
         delay_ms: u64,
         action: Action,
@@ -38,11 +38,11 @@ impl MacroStep {
     }
 }
 
-/// 宏定义
+/// Macro definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Macro {
     pub name: String,
-    /// 步骤列表
+    /// Step list
     pub steps: Vec<MacroStep>,
     pub created_at: Option<String>,
     pub description: Option<String>,

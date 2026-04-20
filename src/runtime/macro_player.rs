@@ -1,4 +1,4 @@
-//! 宏播放器
+//! Macro player
 
 use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
@@ -9,7 +9,7 @@ use crate::types::{Action, KeyAction, Macro, ModifierState};
 pub struct MacroPlayer;
 
 impl MacroPlayer {
-    /// 播放宏
+    /// Play macro
     pub async fn play_macro(
         output_device: &OutputDevice,
         macro_def: &Macro,
@@ -21,27 +21,27 @@ impl MacroPlayer {
         );
 
         for step in &macro_def.steps {
-            // 执行延迟
+            // Execute delay
             if step.delay_ms > 0 {
                 debug!("Macro Delay: {}ms", step.delay_ms);
                 sleep(Duration::from_millis(step.delay_ms)).await;
             }
 
-            // 确保修饰键状态正确
+            // Ensure modifier state is correct
             Self::ensure_modifiers(output_device, &step.modifiers).await?;
 
-            // 执行动作
+            // Execute action
             Self::execute_action(output_device, &step.action)?;
         }
 
-        // 最后释放所有修饰键
+        // Finally release all modifiers
         Self::release_all_modifiers(output_device).await?;
 
         info!("Macro '{}' completed", macro_def.name);
         Ok(())
     }
 
-    /// 确保修饰键状态与录制时一致（使用 spawn_blocking 避免阻塞 Tokio 运行时）
+    /// Ensure modifier state matches recording (uses spawn_blocking to avoid blocking Tokio runtime)
     async fn ensure_modifiers(
         output: &OutputDevice,
         target: &ModifierState,

@@ -22,7 +22,7 @@ use client::DaemonClient;
 use config::Config;
 use window::{AppCommand, MessageWindow};
 
-/// 简单的 daemon 命令执行器宏（消除样板代码）- 用于无参数方法
+/// Simple daemon command executor macro to reduce boilerplate for parameterless methods
 macro_rules! simple_daemon_command {
     ($name:ident, $method:ident, $success_msg:expr) => {
         async fn $name(instance_id: u32) -> Result<()> {
@@ -38,7 +38,7 @@ macro_rules! simple_daemon_command {
     };
 }
 
-// 使用宏生成无参数的命令处理函数
+// Use macro to generate parameterless command handlers
 simple_daemon_command!(
     cmd_reload,
     reload_config,
@@ -46,7 +46,7 @@ simple_daemon_command!(
 );
 simple_daemon_command!(cmd_save, save_config, "Configuration saved successfully");
 
-/// 启用映射
+/// Enable mapping
 async fn cmd_enable(instance_id: u32) -> Result<()> {
     execute_daemon_command(instance_id, |client| {
         Box::pin(async move {
@@ -58,7 +58,7 @@ async fn cmd_enable(instance_id: u32) -> Result<()> {
     .await
 }
 
-/// 禁用映射
+/// Disable mapping
 async fn cmd_disable(instance_id: u32) -> Result<()> {
     execute_daemon_command(instance_id, |client| {
         Box::pin(async move {
@@ -70,12 +70,12 @@ async fn cmd_disable(instance_id: u32) -> Result<()> {
     .await
 }
 
-/// 初始化日志系统（支持从配置文件读取日志级别）
+/// Initialize logging system with support for reading log level from config file
 fn init_logging(cli: &Cli) {
     let log_level = if let Some(config_path) =
         config::resolve_config_file_path(None, cli.instance)
     {
-        // 尝试从配置文件读取日志级别
+        // Try to read log level from config file
         config::Config::from_file(&config_path)
             .map(|cfg| cfg.log_level)
             .unwrap_or_else(|_| "info".to_string())
@@ -95,7 +95,7 @@ fn init_logging(cli: &Cli) {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // 初始化日志（使用配置文件中的日志级别或默认 info）
+    // Initialize logging (using log level from config or default info)
     init_logging(&cli);
 
     match cli.command {
@@ -122,15 +122,15 @@ async fn main() -> Result<()> {
     }
 }
 
-/// 启动守护进程
+/// Start the daemon
 async fn run_daemon(instance_id: u32) -> Result<()> {
     info!("Starting wakemd (instance {})...", instance_id);
 
     daemon::run_server(instance_id).await
 }
 
-/// 通用 daemon 命令执行器（消除样板代码）
-/// 改进: 现在会传播连接错误，操作错误也会返回 Err
+/// Generic daemon command executor to reduce boilerplate
+/// Improvement: now propagates connection errors, operation errors also return Err
 async fn execute_daemon_command<F>(instance_id: u32, operation: F) -> Result<()>
 where
     F: FnOnce(
@@ -142,11 +142,11 @@ where
     let mut client = DaemonClient::new();
     client.connect_to_instance(instance_id).await?;
 
-    // 执行操作并传播错误
+    // Execute operation and propagate errors
     operation(&mut client).await
 }
 
-/// 获取服务端状态
+/// Get server status
 async fn cmd_status(instance_id: u32) -> Result<()> {
     execute_daemon_command(instance_id, |client| {
         Box::pin(async move {
@@ -160,14 +160,14 @@ async fn cmd_status(instance_id: u32) -> Result<()> {
     .await
 }
 
-/// 打开配置文件夹
+/// Open config folder
 async fn cmd_config() -> Result<()> {
     open_config_folder().await?;
     println!("Config folder opened");
     Ok(())
 }
 
-/// 列出运行中的实例
+/// List running instances
 async fn cmd_instances() -> Result<()> {
     let instances = ipc::discovery::discover_instances().await;
 
@@ -187,18 +187,18 @@ async fn cmd_instances() -> Result<()> {
     Ok(())
 }
 
-/// 运行系统托盘
+/// Run system tray
 async fn run_tray(instance_id: u32) -> Result<()> {
     info!("wakem client starting (instance {})...", instance_id);
 
-    // 加载配置获取图标路径
+    // Load config to get icon path
     let icon_path =
         config::resolve_config_file_path(None, instance_id).and_then(|path| {
             Config::from_file(&path)
                 .ok()
                 .and_then(|cfg| cfg.icon_path)
                 .or_else(|| {
-                    // 尝试加载程序目录下的 assets/icon.ico
+                    // Try to load assets/icon.ico from program directory
                     path.parent().map(|p| {
                         p.join("assets")
                             .join("icon.ico")
@@ -208,28 +208,28 @@ async fn run_tray(instance_id: u32) -> Result<()> {
                 })
         });
 
-    // 创建命令通道
+    // Create command channel
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(100);
 
-    // 创建消息窗口（带自定义图标）
+    // Create message window with custom icon
     let window = MessageWindow::with_icon_path(icon_path)?;
 
-    // 设置命令回调
+    // Set command callback
     let cmd_tx_for_callback = cmd_tx.clone();
     window.set_command_callback(move |cmd| {
         let _ = cmd_tx_for_callback.try_send(cmd);
     });
 
-    // 初始化托盘
+    // Initialize tray
     window.init_tray()?;
 
-    // 连接到服务端
+    // Connect to server
     let mut client = DaemonClient::new();
     let connected = match client.connect_to_instance(instance_id).await {
         Ok(_) => {
             info!("Connected to wakemd instance {}", instance_id);
 
-            // 获取初始状态
+            // Get initial status
             match client.get_status().await {
                 Ok((active, loaded)) => {
                     info!("Daemon status: active={}, config_loaded={}", active, loaded);
@@ -239,7 +239,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
                 }
             }
 
-            // 注册消息窗口句柄到守护进程
+            // Register message window handle to daemon
             let hwnd = window.hwnd();
             let hwnd_usize = hwnd.0 as usize;
             if let Err(e) = client.register_message_window(hwnd_usize).await {
@@ -260,11 +260,11 @@ async fn run_tray(instance_id: u32) -> Result<()> {
         }
     };
 
-    // 使用 Arc<AtomicBool> 来共享退出状态
+    // Use Arc<AtomicBool> to share exit state
     let should_exit = Arc::new(AtomicBool::new(false));
     let should_exit_clone = should_exit.clone();
 
-    // 启动命令处理任务
+    // Start command handler task
     let cmd_tx_clone = cmd_tx.clone();
     let mut client_option = if connected { Some(client) } else { None };
 
@@ -278,7 +278,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
                 AppCommand::ToggleActive => {
                     info!("Toggle active command received");
                     if let Some(ref mut client) = client_option {
-                        // 先获取当前状态
+                        // Get current status first
                         match client.get_status().await {
                             Ok((current_active, _)) => {
                                 let new_active = !current_active;
@@ -333,7 +333,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
         }
     });
 
-    // 运行消息循环（在单独线程中，因为 GetMessageW 是阻塞的）
+    // Run message loop in a separate thread because GetMessageW is blocking
     let window_handle = Arc::new(std::sync::Mutex::new(window));
     let window_clone = window_handle.clone();
 
@@ -344,29 +344,29 @@ async fn run_tray(instance_id: u32) -> Result<()> {
         }
     });
 
-    // 等待命令处理任务完成（即收到退出命令）
+    // Wait for command handler to complete (i.e., receive exit command)
     let _ = command_handler.await;
 
     info!("Shutdown signal received");
 
-    // 停止消息循环
+    // Stop message loop
     {
         let window = window_handle.lock().unwrap();
         window.stop();
     }
 
-    // 等待消息线程结束
+    // Wait for message thread to finish
     let _ = msg_thread.join();
 
     info!("wakem client shutdown complete");
     Ok(())
 }
 
-/// 打开配置文件夹
+/// Open config folder
 async fn open_config_folder() -> Result<()> {
     use std::process::Command;
 
-    // 获取配置文件夹路径
+    // Get config folder path
     let config_path = config::resolve_config_file_path(None, 0)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| {
@@ -375,13 +375,13 @@ async fn open_config_folder() -> Result<()> {
                 .unwrap_or_default()
         });
 
-    // 使用 explorer 打开文件夹
+    // Open folder using explorer
     Command::new("explorer").arg(config_path).spawn()?;
 
     Ok(())
 }
 
-/// 录制宏
+/// Record macro
 async fn cmd_record(instance_id: u32, name: &str) -> Result<()> {
     let name_owned = name.to_string();
     execute_daemon_command(instance_id, |client| {
@@ -395,7 +395,7 @@ async fn cmd_record(instance_id: u32, name: &str) -> Result<()> {
     .await
 }
 
-/// 停止录制宏
+/// Stop recording macro
 async fn cmd_stop_record(instance_id: u32) -> Result<()> {
     execute_daemon_command(instance_id, |client| {
         Box::pin(async move {
@@ -407,7 +407,7 @@ async fn cmd_stop_record(instance_id: u32) -> Result<()> {
     .await
 }
 
-/// 播放宏
+/// Play macro
 async fn cmd_play(instance_id: u32, name: &str) -> Result<()> {
     let name_owned = name.to_string();
     execute_daemon_command(instance_id, |client| {
@@ -420,7 +420,7 @@ async fn cmd_play(instance_id: u32, name: &str) -> Result<()> {
     .await
 }
 
-/// 列出所有宏
+/// List all macros
 async fn cmd_macros(instance_id: u32) -> Result<()> {
     execute_daemon_command(instance_id, |client| {
         Box::pin(async move {
@@ -439,7 +439,7 @@ async fn cmd_macros(instance_id: u32) -> Result<()> {
     .await
 }
 
-/// 绑定宏到触发键
+/// Bind macro to trigger key
 async fn cmd_bind_macro(
     instance_id: u32,
     macro_name: &str,
@@ -457,7 +457,7 @@ async fn cmd_bind_macro(
     .await
 }
 
-/// 删除宏
+/// Delete macro
 async fn cmd_delete_macro(instance_id: u32, name: &str) -> Result<()> {
     let name_owned = name.to_string();
     execute_daemon_command(instance_id, |client| {
