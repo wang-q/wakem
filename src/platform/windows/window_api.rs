@@ -1,5 +1,7 @@
 use anyhow::Result;
+#[allow(unused_imports)]
 use std::cell::RefCell;
+#[allow(unused_imports)]
 use std::collections::HashMap;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
@@ -13,6 +15,7 @@ use super::WindowFrame;
 
 /// 显示器信息
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MonitorInfo {
     pub x: i32,
     pub y: i32,
@@ -22,6 +25,7 @@ pub struct MonitorInfo {
 
 /// 显示器工作区信息
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct MonitorWorkArea {
     pub x: i32,
     pub y: i32,
@@ -31,6 +35,7 @@ pub struct MonitorWorkArea {
 
 /// 窗口操作日志
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum WindowOperation {
     GetForegroundWindow,
     GetWindowRect {
@@ -98,6 +103,7 @@ impl Default for WindowState {
 }
 
 /// Windows API 抽象接口
+#[allow(dead_code)]
 pub trait WindowApi {
     /// 获取前台窗口句柄
     fn get_foreground_window(&self) -> Option<HWND>;
@@ -140,9 +146,11 @@ pub trait WindowApi {
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
 }
 
-/// 真实的 Windows API 实现
+/// 真实 Windows API 实现
+#[allow(dead_code)]
 pub struct RealWindowApi;
 
+#[allow(dead_code)]
 impl RealWindowApi {
     pub fn new() -> Self {
         Self

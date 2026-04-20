@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 
 /// 托盘图标操作 trait - 用于抽象 Windows API 调用，便于测试
 #[async_trait]
+#[allow(dead_code)]
 pub trait TrayApi: Send + Sync {
     /// 注册托盘图标
     async fn register(&self, hwnd: isize) -> Result<()>;
@@ -35,6 +36,7 @@ pub trait TrayApi: Send + Sync {
 }
 
 /// 真实的托盘图标 API 实现
+#[allow(dead_code)]
 pub struct RealTrayApi {
     inner: Arc<Mutex<TrayIconInner>>,
 }
@@ -233,10 +235,12 @@ impl TrayApi for MockTrayApi {
 }
 
 /// 托盘图标管理器
+#[allow(dead_code)]
 pub struct TrayManager<T: TrayApi> {
     pub api: T,
 }
 
+#[allow(dead_code)]
 impl<T: TrayApi> TrayManager<T> {
     pub fn new(api: T) -> Self {
         Self { api }
@@ -285,6 +289,7 @@ impl<T: TrayApi> TrayManager<T> {
 
 /// 菜单操作
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum MenuAction {
     None,
     ToggleActive,
@@ -294,4 +299,5 @@ pub enum MenuAction {
 }
 
 /// 向后兼容的类型别名
+#[allow(dead_code)]
 pub type TrayIcon = super::tray::TrayIcon;

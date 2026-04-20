@@ -8,11 +8,13 @@ use crate::platform::windows::window_manager::RealWindowManager;
 use crate::platform::windows::WindowFrame;
 
 /// 窗口预设管理器
+#[allow(dead_code)]
 pub struct WindowPresetManager {
     presets: Vec<WindowPreset>,
     window_manager: RealWindowManager,
 }
 
+#[allow(dead_code)]
 impl WindowPresetManager {
     /// 创建新的预设管理器
     pub fn new() -> Self {

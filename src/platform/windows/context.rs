@@ -12,6 +12,7 @@ use crate::config::wildcard_match;
 
 /// 窗口上下文信息
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct WindowContext {
     /// 窗口句柄
     pub hwnd: isize,
@@ -27,6 +28,7 @@ pub struct WindowContext {
     pub executable_path: String,
 }
 
+#[allow(dead_code)]
 impl WindowContext {
     /// 获取当前前台窗口的上下文
     pub fn get_current() -> Option<Self> {

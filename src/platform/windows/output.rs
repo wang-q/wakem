@@ -1,5 +1,6 @@
 use crate::types::{KeyAction, MouseAction, MouseButton, SystemAction};
 use anyhow::Result;
+#[allow(unused_imports)]
 use tracing::trace;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYEVENTF_EXTENDEDKEY,

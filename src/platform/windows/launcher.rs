@@ -5,8 +5,10 @@ use std::process::Command;
 use tracing::{debug, info};
 
 /// 程序启动器
+#[allow(dead_code)]
 pub struct Launcher;
 
+#[allow(dead_code)]
 impl Launcher {
     pub fn new() -> Self {
         Self

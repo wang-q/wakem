@@ -70,6 +70,7 @@ impl Config {
     }
 
     /// 从字符串解析配置
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(content: &str) -> anyhow::Result<Self> {
         let config: Config = toml::from_str(content)?;
         config.validate()?;

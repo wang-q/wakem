@@ -3,12 +3,15 @@ use crate::types::{
     MouseEventType,
 };
 use anyhow::Result;
+#[allow(unused_imports)]
 use std::cell::RefCell;
+#[allow(unused_imports)]
 use std::collections::VecDeque;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use tracing::{debug, trace};
 
 /// 输入设备抽象接口
+#[allow(dead_code)]
 pub trait InputDevice {
     /// 注册设备
     fn register(&mut self) -> Result<()>;
@@ -24,6 +27,7 @@ pub trait InputDevice {
 
 /// 输入设备配置
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct InputDeviceConfig {
     pub capture_keyboard: bool,
     pub capture_mouse: bool,
@@ -41,6 +45,7 @@ impl Default for InputDeviceConfig {
 }
 
 /// 真实 Raw Input 设备实现
+#[allow(dead_code)]
 pub struct RawInputDevice {
     config: InputDeviceConfig,
     event_receiver: Receiver<InputEvent>,
@@ -293,8 +298,10 @@ impl Default for MockInputDevice {
 }
 
 /// 输入设备工厂
+#[allow(dead_code)]
 pub struct InputDeviceFactory;
 
+#[allow(dead_code)]
 impl InputDeviceFactory {
     /// 创建默认的输入设备
     pub fn create_default() -> Result<RawInputDevice> {

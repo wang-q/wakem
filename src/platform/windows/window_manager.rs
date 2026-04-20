@@ -11,6 +11,7 @@ pub use crate::types::{Alignment, Edge};
 
 /// 显示器方向（用于跨显示器移动）
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum MonitorDirection {
     Next,
     Prev,
@@ -19,6 +20,7 @@ pub enum MonitorDirection {
 
 /// 窗口框架信息
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct WindowFrame {
     pub x: i32,
     pub y: i32,
@@ -57,6 +59,7 @@ pub struct WindowInfo {
     pub work_area: MonitorWorkArea,
 }
 
+#[allow(dead_code)]
 /// 窗口管理器（泛型版本）
 pub struct WindowManager<A: WindowApi> {
     api: A,
@@ -80,6 +83,7 @@ impl Default for WindowManager<RealWindowApi> {
     }
 }
 
+#[allow(dead_code)]
 impl<A: WindowApi> WindowManager<A> {
     /// 使用指定的 API 实现创建窗口管理器
     pub fn with_api(api: A) -> Self {

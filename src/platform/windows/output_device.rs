@@ -1,10 +1,13 @@
 use crate::types::{KeyAction, MouseAction, MouseButton, SystemAction};
 use anyhow::Result;
+#[allow(unused_imports)]
 use std::cell::RefCell;
+#[allow(unused_imports)]
 use tracing::trace;
 
 /// 输出事件类型
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum OutputEvent {
     /// 按键事件
     Key {
@@ -21,6 +24,7 @@ pub enum OutputEvent {
 }
 
 /// 输出设备抽象接口
+#[allow(dead_code)]
 pub trait OutputDevice {
     /// 发送按键动作
     fn send_key_action(&self, action: &KeyAction) -> Result<()>;
@@ -39,8 +43,10 @@ pub trait OutputDevice {
 }
 
 /// 真实 SendInput 实现
+#[allow(dead_code)]
 pub struct SendInputDevice;
 
+#[allow(dead_code)]
 impl SendInputDevice {
     /// 创建新的 SendInput 设备
     pub fn new() -> Self {

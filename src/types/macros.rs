@@ -61,6 +61,8 @@ impl Macro {
 }
 
 /// 宏录制器
+#[allow(dead_code)]
+#[derive(Default)]
 pub struct MacroRecorder {
     recording: RwLock<Option<MacroRecording>>,
 }
@@ -220,10 +222,13 @@ fn simplify_delays(steps: Vec<(Duration, MacroStep)>) -> Vec<MacroStep> {
 }
 
 /// 宏管理器（用于加载和管理已保存的宏）
+#[allow(dead_code)]
+#[derive(Default)]
 pub struct MacroManager {
     macros: HashMap<String, Macro>,
 }
 
+#[allow(dead_code)]
 impl MacroManager {
     pub fn new() -> Self {
         Self {
