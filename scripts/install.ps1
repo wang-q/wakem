@@ -18,7 +18,7 @@ $AppDisplayName = "wakem - Window/Keyboard/Mouse Enhancer"
 # XDG 风格的目录（Windows 适配）
 $InstallDir = "$env:LOCALAPPDATA\Programs\$AppName"     # 程序安装目录
 $ConfigDir = "$env:APPDATA\$AppName"                    # 配置目录
-$ConfigFile = "$ConfigDir\wakem.toml"                   # 主配置文件
+$ConfigFile = "$ConfigDir\config.toml"                  # 主配置文件
 $DataDir = "$env:LOCALAPPDATA\$AppName"                 # 数据目录（日志等）
 
 # 启动项目录
@@ -102,7 +102,7 @@ function Install-Wakem {
         Write-Host "Creating default configuration file..."
         @"
 # wakem 配置文件
-# 位置: %APPDATA%\wakem\wakem.toml
+# 位置: %APPDATA%\wakem\config.toml
 
 [keyboard]
 # 键位重映射

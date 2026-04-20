@@ -597,21 +597,22 @@ pub fn resolve_config_file_path(path: Option<&std::path::Path>) -> Option<std::p
     let home = std::env::var("USERPROFILE").ok()?;
     let home_path = std::path::PathBuf::from(home);
     
-    // 优先检查 wakem.toml
-    let config_file = home_path.join("wakem.toml");
+    // 优先级1: 检查 %USERPROFILE%\.wakem.toml
+    let config_file = home_path.join(".wakem.toml");
     if config_file.exists() {
         return Some(config_file);
     }
     
-    // 检查 .config/wakem/config.toml
-    let config_dir = home_path.join(".config").join("wakem");
+    // 优先级2: 检查 %APPDATA%\wakem\config.toml
+    let app_data = std::env::var("APPDATA").ok()?;
+    let config_dir = std::path::PathBuf::from(app_data).join("wakem");
     let config_file = config_dir.join("config.toml");
     if config_file.exists() {
         return Some(config_file);
     }
     
     // 返回默认路径（即使不存在）
-    Some(home_path.join("wakem.toml"))
+    Some(home_path.join(".wakem.toml"))
 }
 
 #[cfg(test)]
