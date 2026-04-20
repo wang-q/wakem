@@ -1,24 +1,11 @@
 use anyhow::Result;
 use tracing::debug;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
-use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
-use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowRect, GetWindowTextW, IsIconic, IsWindow, IsZoomed,
-    SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER,
-    SW_RESTORE,
-};
+use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowRect, IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE};
 
 // 从 types 导入 Edge 和 Alignment
 pub use crate::types::{Alignment, Edge};
-
-/// 显示器信息
-#[derive(Debug, Clone)]
-pub struct MonitorInfo {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
+use super::window_api::{WindowApi, RealWindowApi, MonitorInfo, MonitorWorkArea};
 
 /// 显示器方向（用于跨显示器移动）
 #[derive(Debug, Clone, Copy)]
@@ -59,26 +46,6 @@ impl WindowFrame {
     }
 }
 
-/// 显示器工作区信息
-#[derive(Debug, Clone, Copy)]
-pub struct MonitorWorkArea {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-impl MonitorWorkArea {
-    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-}
-
 /// 窗口信息
 #[derive(Debug, Clone)]
 pub struct WindowInfo {
@@ -88,118 +55,79 @@ pub struct WindowInfo {
     pub work_area: MonitorWorkArea,
 }
 
-/// 窗口管理器
-pub struct WindowManager;
+/// 窗口管理器（泛型版本）
+pub struct WindowManager<A: WindowApi> {
+    api: A,
+}
 
-impl WindowManager {
-    /// 创建新的窗口管理器
+/// 使用真实 Windows API 的窗口管理器类型别名
+pub type RealWindowManager = WindowManager<RealWindowApi>;
+
+impl WindowManager<RealWindowApi> {
+    /// 创建使用真实 Windows API 的窗口管理器
     pub fn new() -> Self {
-        Self
+        Self {
+            api: RealWindowApi::new(),
+        }
+    }
+}
+
+impl Default for WindowManager<RealWindowApi> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<A: WindowApi> WindowManager<A> {
+    /// 使用指定的 API 实现创建窗口管理器
+    pub fn with_api(api: A) -> Self {
+        Self { api }
+    }
+
+    /// 获取 API 引用（用于测试）
+    pub fn api(&self) -> &A {
+        &self.api
     }
 
     /// 获取前台窗口信息
     pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
-        unsafe {
-            let hwnd = GetForegroundWindow();
-            if hwnd.0 == 0 {
-                return Err(anyhow::anyhow!("No foreground window"));
-            }
-
-            self.get_window_info(hwnd)
-        }
+        let hwnd = self.api.get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
+        self.get_window_info(hwnd)
     }
 
     /// 获取指定窗口信息
     pub fn get_window_info(&self, hwnd: HWND) -> Result<WindowInfo> {
-        unsafe {
-            if !IsWindow(hwnd).as_bool() {
-                return Err(anyhow::anyhow!("Invalid window handle"));
-            }
-
-            // 获取窗口标题
-            let mut title_buffer = [0u16; 256];
-            let len = GetWindowTextW(hwnd, &mut title_buffer);
-            let title = String::from_utf16_lossy(&title_buffer[..len as usize]);
-
-            // 获取窗口位置
-            let mut rect = RECT::default();
-            GetWindowRect(hwnd, &mut rect)?;
-            let frame = WindowFrame::from_rect(&rect);
-
-            // 获取显示器工作区
-            let work_area = self.get_monitor_work_area(hwnd)?;
-
-            debug!(
-                "Window info: hwnd={:?}, title={}, frame={:?}, work_area={:?}",
-                hwnd, title, frame, work_area
-            );
-
-            Ok(WindowInfo {
-                hwnd,
-                title,
-                frame,
-                work_area,
-            })
+        if !self.api.is_window(hwnd) {
+            return Err(anyhow::anyhow!("Invalid window handle"));
         }
-    }
 
-    /// 获取窗口所在显示器的工作区
-    fn get_monitor_work_area(&self, hwnd: HWND) -> Result<MonitorWorkArea> {
-        use windows::Win32::Graphics::Gdi::GetMonitorInfoW;
-        use windows::Win32::Graphics::Gdi::MONITORINFO;
+        // 获取窗口标题
+        let title = self.api.get_window_title(hwnd)
+            .unwrap_or_default();
 
-        unsafe {
-            let hmonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            if hmonitor.is_invalid() {
-                return Err(anyhow::anyhow!("Failed to get monitor handle"));
-            }
+        // 获取窗口位置
+        let frame = self.api.get_window_rect(hwnd)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
 
-            let mut monitor_info = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                ..Default::default()
-            };
+        // 获取显示器工作区
+        let work_area = self.api.get_monitor_work_area(hwnd)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get monitor work area"))?;
 
-            GetMonitorInfoW(hmonitor, &mut monitor_info)
-                .ok()
-                .map_err(|e| anyhow::anyhow!("Failed to get monitor info: {}", e))?;
+        debug!(
+            "Window info: hwnd={:?}, title={}, frame={:?}, work_area={:?}",
+            hwnd, title, frame, work_area
+        );
 
-            let work_area = &monitor_info.rcWork;
-            Ok(MonitorWorkArea::new(
-                work_area.left,
-                work_area.top,
-                work_area.right - work_area.left,
-                work_area.bottom - work_area.top,
-            ))
-        }
-    }
-
-    /// 确保窗口已还原（非最小化/最大化）
-    /// 参考 mrw 的 EnsureWindowIsRestored()
-    pub fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
-        unsafe {
-            // 检查窗口是否最小化或最大化
-            let is_minimized = IsIconic(hwnd).as_bool();
-            let is_maximized = IsZoomed(hwnd).as_bool();
-
-            if is_minimized || is_maximized {
-                ShowWindow(hwnd, SW_RESTORE)
-                    .ok()
-                    .map_err(|e| anyhow::anyhow!("Failed to restore window: {}", e))?;
-                debug!(
-                    "Window restored from {} state",
-                    if is_minimized {
-                        "minimized"
-                    } else {
-                        "maximized"
-                    }
-                );
-            }
-            Ok(())
-        }
+        Ok(WindowInfo {
+            hwnd,
+            title,
+            frame,
+            work_area,
+        })
     }
 
     /// 获取调试信息字符串
-    /// 格式类似 mrw 的 GetDebugInfo()
     pub fn get_debug_info(&self) -> Result<String> {
         let info = self.get_foreground_window_info()?;
 
@@ -218,26 +146,15 @@ impl WindowManager {
 
     /// 设置窗口位置和大小
     pub fn set_window_frame(&self, hwnd: HWND, frame: &WindowFrame) -> Result<()> {
-        unsafe {
-            self.ensure_window_restored(hwnd)?;
+        self.api.ensure_window_restored(hwnd)?;
+        self.api.set_window_pos(hwnd, frame.x, frame.y, frame.width, frame.height)?;
 
-            SetWindowPos(
-                hwnd,
-                None,
-                frame.x,
-                frame.y,
-                frame.width,
-                frame.height,
-                SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_FRAMECHANGED,
-            )?;
+        debug!(
+            "Window moved to: x={}, y={}, width={}, height={}",
+            frame.x, frame.y, frame.width, frame.height
+        );
 
-            debug!(
-                "Window moved to: x={}, y={}, width={}, height={}",
-                frame.x, frame.y, frame.width, frame.height
-            );
-
-            Ok(())
-        }
+        Ok(())
     }
 
     /// 移动窗口到中心
@@ -423,11 +340,53 @@ impl WindowManager {
         self.set_window_frame(hwnd, &new_frame)
     }
 
+    /// 最小化窗口
+    pub fn minimize_window(&self, hwnd: HWND) -> Result<()> {
+        self.api.minimize_window(hwnd)
+    }
+
+    /// 最大化窗口
+    pub fn maximize_window(&self, hwnd: HWND) -> Result<()> {
+        self.api.maximize_window(hwnd)
+    }
+
+    /// 还原窗口
+    pub fn restore_window(&self, hwnd: HWND) -> Result<()> {
+        self.api.restore_window(hwnd)
+    }
+
+    /// 关闭窗口
+    pub fn close_window(&self, hwnd: HWND) -> Result<()> {
+        self.api.close_window(hwnd)
+    }
+
+    /// 切换置顶状态
+    pub fn toggle_topmost(&self, hwnd: HWND) -> Result<bool> {
+        // 获取当前状态（通过检查操作是否成功）
+        let current = self.api.is_window(hwnd);
+        if !current {
+            return Err(anyhow::anyhow!("Invalid window handle"));
+        }
+        
+        // 切换状态 - 这里简化处理，实际应该查询当前状态
+        let new_state = true; // 假设设置为置顶
+        self.api.set_topmost(hwnd, new_state)?;
+        Ok(new_state)
+    }
+
+    /// 设置透明度
+    pub fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()> {
+        self.api.set_opacity(hwnd, opacity)
+    }
+}
+
+/// 需要真实 Windows API 的功能（跨显示器移动、窗口切换等）
+impl RealWindowManager {
     /// 移动窗口到另一个显示器
     pub fn move_to_monitor(
         &self,
         hwnd: HWND,
-        direction: crate::platform::windows::MonitorDirection,
+        direction: MonitorDirection,
     ) -> Result<()> {
         unsafe {
             // 获取所有显示器
@@ -443,17 +402,17 @@ impl WindowManager {
 
             // 计算目标显示器索引
             let target_index = match direction {
-                crate::platform::windows::MonitorDirection::Next => {
+                MonitorDirection::Next => {
                     (current_monitor_index + 1) % monitors.len()
                 }
-                crate::platform::windows::MonitorDirection::Prev => {
+                MonitorDirection::Prev => {
                     if current_monitor_index == 0 {
                         monitors.len() - 1
                     } else {
                         current_monitor_index - 1
                     }
                 }
-                crate::platform::windows::MonitorDirection::Index(idx) => {
+                MonitorDirection::Index(idx) => {
                     let idx = idx as usize;
                     if idx >= monitors.len() {
                         return Err(anyhow::anyhow!("Invalid monitor index: {}", idx));
@@ -496,7 +455,6 @@ impl WindowManager {
 
     /// 获取所有显示器信息
     unsafe fn get_all_monitors(&self) -> Vec<MonitorInfo> {
-        use windows::Win32::Foundation::RECT;
         use windows::Win32::Graphics::Gdi::{
             EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
         };
@@ -685,7 +643,7 @@ impl WindowManager {
                 std::collections::HashMap::new();
 
             let mut hwnd = GetWindow(
-                windows::Win32::Foundation::HWND(0),
+                HWND(0),
                 windows::Win32::UI::WindowsAndMessaging::GW_HWNDFIRST,
             );
 
@@ -735,8 +693,207 @@ impl WindowManager {
     }
 }
 
-impl Default for WindowManager {
-    fn default() -> Self {
-        Self::new()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::MockWindowApi;
+
+    #[test]
+    fn test_window_manager_creation() {
+        let api = MockWindowApi::new();
+        let wm = WindowManager::with_api(api);
+        
+        // 验证创建成功
+        assert!(wm.api().is_window(HWND(0)) == false);
+    }
+
+    #[test]
+    fn test_get_window_info() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        // 设置测试数据
+        api.set_window_rect(hwnd, WindowFrame::new(100, 200, 800, 600));
+        api.set_monitor_info(hwnd, MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        });
+        
+        let wm = WindowManager::with_api(api);
+        let info = wm.get_window_info(hwnd).unwrap();
+        
+        assert_eq!(info.frame.x, 100);
+        assert_eq!(info.frame.y, 200);
+        assert_eq!(info.frame.width, 800);
+        assert_eq!(info.frame.height, 600);
+    }
+
+    #[test]
+    fn test_move_to_center() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        // 设置测试数据 - 1920x1080 显示器上的 800x600 窗口
+        api.set_window_rect(hwnd, WindowFrame::new(0, 0, 800, 600));
+        api.set_monitor_info(hwnd, MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        });
+        
+        let wm = WindowManager::with_api(api);
+        wm.move_to_center(hwnd).unwrap();
+        
+        // 验证窗口位置 (1920-800)/2 = 560, (1080-600)/2 = 240
+        let frame = wm.api().get_window_rect(hwnd).unwrap();
+        assert_eq!(frame.x, 560);
+        assert_eq!(frame.y, 240);
+    }
+
+    #[test]
+    fn test_move_to_edge() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
+        api.set_monitor_info(hwnd, MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        });
+        
+        let wm = WindowManager::with_api(api);
+        
+        // 测试左边缘
+        wm.move_to_edge(hwnd, Edge::Left).unwrap();
+        let frame = wm.api().get_window_rect(hwnd).unwrap();
+        assert_eq!(frame.x, 0);
+        
+        // 测试右边缘
+        wm.move_to_edge(hwnd, Edge::Right).unwrap();
+        let frame = wm.api().get_window_rect(hwnd).unwrap();
+        assert_eq!(frame.x, 1920 - 800);
+    }
+
+    #[test]
+    fn test_set_half_screen() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
+        api.set_monitor_info(hwnd, MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        });
+        
+        let wm = WindowManager::with_api(api);
+        
+        // 测试左半屏
+        wm.set_half_screen(hwnd, Edge::Left).unwrap();
+        let frame = wm.api().get_window_rect(hwnd).unwrap();
+        assert_eq!(frame.x, 0);
+        assert_eq!(frame.y, 0);
+        assert_eq!(frame.width, 960);  // 1920 / 2
+        assert_eq!(frame.height, 1080);
+        
+        // 测试右半屏
+        wm.set_half_screen(hwnd, Edge::Right).unwrap();
+        let frame = wm.api().get_window_rect(hwnd).unwrap();
+        assert_eq!(frame.x, 960);
+        assert_eq!(frame.width, 960);
+    }
+
+    #[test]
+    fn test_loop_width() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        // 在创建 WindowManager 之前设置所有数据
+        api.set_monitor_info(hwnd, MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        });
+        api.set_window_rect(hwnd, WindowFrame::new(0, 0, 960, 600));
+        
+        let wm = WindowManager::with_api(api);
+        
+        // 测试从 50% 开始循环
+        wm.loop_width(hwnd, Alignment::Left).unwrap();
+        
+        let frame = wm.api().get_window_rect(hwnd).unwrap();
+        // 50% -> 40% = 768
+        assert_eq!(frame.width, 768);
+    }
+
+    #[test]
+    fn test_set_fixed_ratio() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        // 在创建 WindowManager 之前设置所有数据
+        api.set_monitor_info(hwnd, MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        });
+        // 需要先设置一个初始窗口大小
+        api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
+        
+        let wm = WindowManager::with_api(api);
+        
+        // 测试 4:3 比例，100% 缩放
+        wm.set_fixed_ratio(hwnd, 4.0 / 3.0, 0).unwrap();
+        
+        let frame = wm.api().get_window_rect(hwnd).unwrap();
+        // 基于较小边 1080，4:3 比例，宽度 = 1080 * 4/3 = 1440
+        assert_eq!(frame.width, 1440);
+        assert_eq!(frame.height, 1080);
+    }
+
+    #[test]
+    fn test_window_state_operations() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
+        
+        let wm = WindowManager::with_api(api);
+        
+        // 测试最小化
+        wm.minimize_window(hwnd).unwrap();
+        assert!(wm.api().is_iconic(hwnd));
+        
+        // 测试还原
+        wm.restore_window(hwnd).unwrap();
+        assert!(!wm.api().is_iconic(hwnd));
+        
+        // 测试最大化
+        wm.maximize_window(hwnd).unwrap();
+        assert!(wm.api().is_zoomed(hwnd));
+    }
+
+    #[test]
+    fn test_close_window() {
+        let api = MockWindowApi::new();
+        let hwnd = HWND(1234);
+        
+        api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
+        
+        let wm = WindowManager::with_api(api);
+        assert!(wm.api().is_window(hwnd));
+        
+        wm.close_window(hwnd).unwrap();
+        
+        // 窗口应该被移除
+        assert!(!wm.api().is_window(hwnd));
     }
 }

@@ -4,12 +4,13 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
 use crate::config::WindowPreset;
-use crate::platform::windows::{WindowFrame, WindowManager};
+use crate::platform::windows::WindowFrame;
+use crate::platform::windows::window_manager::RealWindowManager;
 
 /// 窗口预设管理器
 pub struct WindowPresetManager {
     presets: Vec<WindowPreset>,
-    window_manager: WindowManager,
+    window_manager: RealWindowManager,
 }
 
 impl WindowPresetManager {
@@ -17,7 +18,7 @@ impl WindowPresetManager {
     pub fn new() -> Self {
         Self {
             presets: Vec::new(),
-            window_manager: WindowManager::new(),
+            window_manager: RealWindowManager::new(),
         }
     }
 

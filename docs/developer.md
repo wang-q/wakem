@@ -368,3 +368,202 @@ wakem bind-macro my-macro F1
 | `Action` | `src/types/action.rs` | 统一的动作枚举 |
 
 > **详细文档**: 完整的宏系统文档请参考 [MACROS.md](MACROS.md)。
+
+---
+
+## 预留扩展 API
+
+以下 API 和功能已在代码中定义但尚未完全使用，为未来扩展预留：
+
+### 1. 触发器类型 (`Trigger`)
+
+位置: `src/types/mapping.rs`
+
+| 触发器类型 | 状态 | 说明 |
+|-----------|------|------|
+| `HotString { trigger: String }` | 预留 | 热字符串（文本扩展），类似 AutoHotkey 的 ::btw::be right back:: |
+| `Chord(Vec<Trigger>)` | 预留 | 组合触发（多个按键按顺序），如 `Ctrl,K,C` |
+| `Timer { interval_ms: u64 }` | 预留 | 定时触发器，用于定时执行任务 |
+| `Always` | 预留 | 总是触发的规则 |
+
+### 2. 鼠标事件处理
+
+位置: `src/runtime/mapper.rs:104`
+
+```rust
+InputEvent::Mouse(_) => {
+    // 鼠标事件处理（TODO）
+    None
+}
+```
+
+当前鼠标事件仅用于滚轮增强，完整的鼠标映射（如鼠标按钮重映射）尚未实现。
+
+### 3. 通配符匹配
+
+位置: `src/types/mapping.rs:244-255`
+
+```rust
+// TODO: 实现完整的通配符匹配
+fn wildcard_match(text: &str, pattern: &str) -> bool {
+    // 简化实现，实际应该使用更复杂的匹配算法
+}
+```
+
+当前通配符匹配仅支持简单的 `*` 匹配，完整的 `*` 和 `?` 通配符支持待实现。
+
+### 4. 配置字段
+
+#### 鼠标配置 (`MouseConfig`)
+位置: `src/config.rs:465-473`
+
+```rust
+pub struct MouseConfig {
+    /// 按钮重映射（预留）
+    pub button_remap: HashMap<String, String>,
+    /// 滚轮设置
+    pub wheel: WheelConfig,
+}
+```
+
+`button_remap` 字段已定义但未实现功能。
+
+#### 自动重载配置
+位置: `examples/test_config.toml:10-11`
+
+```toml
+# 自动重新加载配置（预留）
+auto_reload = true
+```
+
+配置项存在但文件监控和自动重载逻辑待完善。
+
+### 5. IPC 消息
+
+位置: `src/ipc/mod.rs`
+
+以下消息类型已定义但部分功能未完全使用：
+
+| 消息 | 状态 | 说明 |
+|------|------|------|
+| `GetNextKeyInfo` | 预留 | 获取下一个按键信息（用于调试），服务端响应已实现但客户端未调用 |
+| `SaveConfig` | 已实现 | 保存配置到文件，可通过 CLI 触发 |
+| `RegisterMessageWindow { hwnd: usize }` | 已实现 | 注册消息窗口句柄，用于托盘通知 |
+
+### 6. 层管理 API
+
+位置: `src/types/layer.rs`, `src/runtime/layer_manager.rs`
+
+以下方法已定义但标记为 `#[allow(dead_code)]`：
+
+| 方法 | 位置 | 说明 |
+|------|------|------|
+| `is_layer_active()` | `layer.rs:145` | 检查层是否激活 |
+| `get_active_layers()` | `layer.rs:151` | 获取当前激活的层列表 |
+| `clear_active_layers()` | `layer.rs:157` | 清空所有激活的层 |
+| `clear_layers()` | `layer_manager.rs:115` | 停用所有层 |
+
+### 7. 映射规则 API
+
+位置: `src/types/mapping.rs`
+
+以下方法已定义但标记为 `#[allow(dead_code)]`：
+
+| 方法 | 行号 | 说明 |
+|------|------|------|
+| `with_name()` | 31 | 为映射规则设置名称 |
+| `with_context()` | 37 | 为映射规则添加上下文条件 |
+
+### 8. 网络配置 API
+
+位置: `src/config.rs:233-241`
+
+```rust
+impl NetworkConfig {
+    /// 获取实例通信端口
+    #[allow(dead_code)]
+    pub fn get_port(&self) -> u16 {
+        crate::ipc::get_instance_port(self.instance_id)
+    }
+}
+```
+
+`get_port()` 方法已定义但未使用，当前直接使用 `get_bind_address()`。
+
+### 9. 客户端 API
+
+位置: `src/client.rs:50-52`
+
+```rust
+#[allow(dead_code)]
+pub fn is_connected(&self) -> bool {
+    self.client.is_some()
+}
+```
+
+`is_connected()` 方法已定义但未使用。
+
+### 10. 输入设备 API
+
+位置: `src/platform/windows/input.rs`
+
+以下方法已定义但标记为 `#[allow(dead_code)]`：
+
+| 方法 | 行号 | 说明 |
+|------|------|------|
+| `update_modifier_state()` | 327 | 更新修饰键状态 |
+| `get_modifier_state()` | 337 | 获取当前修饰键状态 |
+
+### 11. 上下文信息 API
+
+位置: `src/types/mapping.rs:233-240`
+
+```rust
+#[allow(dead_code)]
+pub struct ContextInfo {
+    pub window_class: String,
+    pub process_name: String,
+    pub process_path: String,
+    pub window_title: String,
+    pub window_handle: isize, // HWND
+}
+```
+
+`ContextInfo` 结构体已定义，但当前使用 `WindowContext` 替代。
+
+### 12. 配置保存 API
+
+位置: `src/config.rs:78-83`
+
+```rust
+#[allow(dead_code)]
+pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    let content = toml::to_string_pretty(self)?;
+    std::fs::write(path, content)?;
+    Ok(())
+}
+```
+
+`save_to_file()` 方法已实现，主要通过 `daemon.rs` 中的 `save_config_to_file()` 调用。
+
+---
+
+## 扩展建议
+
+### 短期可实现的扩展
+
+1. **热字符串 (HotString)** - 实现文本扩展功能
+2. **鼠标按钮重映射** - 完成 `MouseConfig.button_remap` 功能
+3. **完整的通配符匹配** - 支持 `*` 和 `?` 的完整通配符匹配
+
+### 中期扩展
+
+1. **组合触发 (Chord)** - 实现顺序按键触发
+2. **定时触发器** - 实现定时任务功能
+3. **鼠标手势** - 虽然文档说明不实现，但代码结构已支持扩展
+
+### 长期扩展
+
+1. **脚本引擎** - 类似 AutoHotkey 的脚本语言支持
+2. **插件系统** - 支持动态加载扩展
+3. **跨平台抽象层** - 为 macOS/Linux 移植做准备

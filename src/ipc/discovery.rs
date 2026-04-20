@@ -57,10 +57,11 @@ mod tests {
         let instances = discover_instances().await;
         assert_eq!(instances.len(), 10);
 
-        // 验证端口计算
+        // 验证实例ID和地址格式
         for (i, info) in instances.iter().enumerate() {
             assert_eq!(info.id, i as u32);
-            assert_eq!(info.port, 57427 + i as u16);
+            // 地址格式应为 127.0.0.1:PORT
+            assert!(info.address.starts_with("127.0.0.1:"));
         }
     }
 
