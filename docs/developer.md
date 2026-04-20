@@ -295,6 +295,7 @@ wakem/
 - 网络通信（TCP + 远程控制）
 - 挑战-响应认证
 - 实例发现和管理
+- **宏录制回放系统** ✅ 已实现
 
 ### 待实现功能 ⏳
 
@@ -477,6 +478,80 @@ wakem --instance 1
 
 ---
 
+## 宏系统
+
+宏系统允许用户录制和回放键盘/鼠标操作序列。
+
+### 使用方式
+
+```bash
+# 录制宏
+wakem record my-macro
+# 执行操作...
+# 按 Ctrl+Shift+Esc 停止录制
+
+# 停止录制
+wakem stop-record
+
+# 播放宏
+wakem play my-macro
+
+# 列出所有宏
+wakem macros
+
+# 绑定宏到触发键
+wakem bind-macro my-macro F1
+
+# 删除宏
+wakem delete-macro my-macro
+```
+
+### 配置格式
+
+```toml
+# 宏定义
+[macros]
+"open-terminal" = [
+    { KeyPress = { scan_code = 91, virtual_key = 91 } },  # Win
+    { KeyRelease = { scan_code = 91, virtual_key = 91 } },
+]
+
+"copy-paste" = [
+    { KeyPress = { scan_code = 29, virtual_key = 17 } },   # Ctrl
+    { KeyPress = { scan_code = 46, virtual_key = 67 } },   # C
+    { KeyRelease = { scan_code = 46, virtual_key = 67 } },
+    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
+    { Delay = { milliseconds = 100 } },
+    { KeyPress = { scan_code = 29, virtual_key = 17 } },   # Ctrl
+    { KeyPress = { scan_code = 47, virtual_key = 86 } },   # V
+    { KeyRelease = { scan_code = 47, virtual_key = 86 } },
+    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
+]
+
+# 宏触发键绑定
+[macro_bindings]
+"F1" = "open-terminal"
+"Ctrl+Shift+V" = "copy-paste"
+```
+
+### 核心组件
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| `MacroRecorder` | `src/types/macros.rs` | 录制输入事件 |
+| `MacroPlayer` | `src/runtime/macro_player.rs` | 回放宏动作 |
+| `MacroAction` | `src/types/macros.rs` | 宏动作枚举 |
+
+### 支持的宏动作
+
+- `KeyPress` / `KeyRelease` - 按键按下/释放
+- `MousePress` / `MouseRelease` - 鼠标按钮按下/释放
+- `MouseMove` - 鼠标移动
+- `MouseWheel` - 鼠标滚轮
+- `Delay` - 延迟等待
+
+---
+
 ## 预留 API 清单
 
 以下 API 已定义但未在当前版本中使用，为未来功能预留：
@@ -643,33 +718,6 @@ wakem --instance 1
 | `KeyMapper::add_simple_remap()` | 简化 API 添加重映射 | 添加简化配置接口 |
 
 **启用建议**: 当需要添加运行时配置修改功能（如通过托盘菜单动态添加映射）时启用。
-
-### 3. 配置持久化 API ✅ 已启用
-
-**位置**: `src/config.rs`, `src/daemon.rs`, `src/client.rs`, `src/main.rs`
-
-| API | 说明 | 状态 |
-|-----|------|------|
-| `Config::save_to_file()` | 保存配置到文件 | ✅ 已启用 |
-| `ServerState::save_config_to_file()` | 守护进程保存配置 | ✅ 已启用 |
-| `DaemonClient::save_config()` | 客户端保存配置 | ✅ 已启用 |
-| `cmd_save()` | 命令行保存命令 | ✅ 已启用 |
-| `Message::SaveConfig` | IPC 保存消息 | ✅ 已启用 |
-| `NetworkConfig::get_port()` | 获取实例端口 | 需要直接访问端口时 |
-
-**使用方式**:
-```bash
-# 保存当前配置到文件
-wakem save
-
-# 保存指定实例的配置
-wakem --instance 1 save
-```
-
-**典型应用场景**:
-- 保存当前窗口状态到配置文件
-- 保存动态添加的映射规则
-- 保存修改后的层配置
 
 ### 4. IPC 系统扩展 API
 

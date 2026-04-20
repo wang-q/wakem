@@ -5,7 +5,8 @@ use tracing::{debug, error, info};
 
 use crate::config::Config;
 use crate::ipc::{IpcServer, Message};
-use crate::types::{Action, InputEvent, ModifierState};
+use crate::runtime::macro_player::MacroPlayer;
+use crate::types::{macros::MacroRecorder, Action, InputEvent, Macro, ModifierState};
 
 use crate::platform::windows::{
     Launcher, OutputDevice, RawInputDevice, WindowManager, WindowPresetManager,
@@ -33,6 +34,8 @@ pub struct ServerState {
     active: Arc<RwLock<bool>>,
     /// 配置是否已加载
     config_loaded: Arc<RwLock<bool>>,
+    /// 宏录制器
+    macro_recorder: Arc<MacroRecorder>,
 }
 
 impl ServerState {
@@ -52,6 +55,7 @@ impl ServerState {
             window_preset_manager: Arc::new(Mutex::new(WindowPresetManager::new())),
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
+            macro_recorder: Arc::new(MacroRecorder::new()),
         }
     }
 
@@ -222,6 +226,11 @@ impl ServerState {
             return;
         }
 
+        // 如果正在录制宏，记录事件
+        if self.macro_recorder.is_recording().await {
+            self.macro_recorder.record_event(&event).await;
+        }
+
         // 处理滚轮增强
         if let InputEvent::Mouse(mouse_event) = &event {
             if let crate::types::MouseEventType::Wheel(delta) = mouse_event.event_type {
@@ -380,6 +389,114 @@ impl ServerState {
     /// 获取状态
     pub async fn get_status(&self) -> (bool, bool) {
         (*self.active.read().await, *self.config_loaded.read().await)
+    }
+
+    /// 开始录制宏
+    pub async fn start_macro_recording(&self, name: &str) -> Result<()> {
+        self.macro_recorder.start_recording(name).await
+    }
+
+    /// 停止录制宏
+    pub async fn stop_macro_recording(&self) -> Result<Macro> {
+        let macro_def = self.macro_recorder.stop_recording().await?;
+        self.save_macro(&macro_def).await?;
+        Ok(macro_def)
+    }
+
+    /// 保存宏到配置
+    async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
+        let mut config = self.config.write().await;
+        config
+            .macros
+            .insert(macro_def.name.clone(), macro_def.actions.clone());
+
+        // 保存到文件
+        let config_path =
+            crate::config::resolve_config_file_path(None, config.network.instance_id)
+                .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
+        config.save_to_file(&config_path)?;
+
+        info!("Macro '{}' saved to config", macro_def.name);
+        Ok(())
+    }
+
+    /// 执行宏
+    pub async fn play_macro(&self, name: &str) -> Result<()> {
+        let config = self.config.read().await;
+        let actions = config
+            .macros
+            .get(name)
+            .ok_or_else(|| anyhow::anyhow!("Macro '{}' not found", name))?
+            .clone();
+
+        let macro_def = Macro {
+            name: name.to_string(),
+            actions,
+            created_at: None,
+            description: None,
+        };
+
+        drop(config); // 释放读锁
+
+        let output_device = self.output_device.lock().await;
+        MacroPlayer::play_macro(&output_device, &macro_def).await?;
+
+        Ok(())
+    }
+
+    /// 获取宏列表
+    pub async fn get_macros(&self) -> Vec<String> {
+        let config = self.config.read().await;
+        config.macros.keys().cloned().collect()
+    }
+
+    /// 删除宏
+    pub async fn delete_macro(&self, name: &str) -> Result<()> {
+        let mut config = self.config.write().await;
+        if config.macros.remove(name).is_none() {
+            return Err(anyhow::anyhow!("Macro '{}' not found", name));
+        }
+
+        // 同时删除绑定
+        config.macro_bindings.retain(|_, v| v != name);
+
+        // 保存到文件
+        let config_path =
+            crate::config::resolve_config_file_path(None, config.network.instance_id)
+                .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
+        config.save_to_file(&config_path)?;
+
+        info!("Macro '{}' deleted", name);
+        Ok(())
+    }
+
+    /// 绑定宏到触发键
+    pub async fn bind_macro(&self, macro_name: &str, trigger: &str) -> Result<()> {
+        let mut config = self.config.write().await;
+
+        // 检查宏是否存在
+        if !config.macros.contains_key(macro_name) {
+            return Err(anyhow::anyhow!("Macro '{}' not found", macro_name));
+        }
+
+        // 添加绑定
+        config
+            .macro_bindings
+            .insert(trigger.to_string(), macro_name.to_string());
+
+        // 保存到文件
+        let config_path =
+            crate::config::resolve_config_file_path(None, config.network.instance_id)
+                .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
+        config.save_to_file(&config_path)?;
+
+        info!("Macro '{}' bound to '{}'", macro_name, trigger);
+        Ok(())
+    }
+
+    /// 检查是否正在录制宏
+    pub async fn is_recording_macro(&self) -> bool {
+        self.macro_recorder.is_recording().await
     }
 }
 
@@ -640,6 +757,49 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
             }
         }
         Message::Ping => Message::Pong,
+        // 宏相关消息
+        Message::StartMacroRecording { name } => {
+            match state.start_macro_recording(&name).await {
+                Ok(_) => Message::Success,
+                Err(e) => Message::Error {
+                    message: format!("Failed to start recording: {}", e),
+                },
+            }
+        }
+        Message::StopMacroRecording => match state.stop_macro_recording().await {
+            Ok(macro_def) => Message::MacroRecordingResult {
+                name: macro_def.name,
+                action_count: macro_def.actions.len(),
+            },
+            Err(e) => Message::Error {
+                message: format!("Failed to stop recording: {}", e),
+            },
+        },
+        Message::PlayMacro { name } => match state.play_macro(&name).await {
+            Ok(_) => Message::Success,
+            Err(e) => Message::Error {
+                message: format!("Failed to play macro: {}", e),
+            },
+        },
+        Message::GetMacros => {
+            let macros = state.get_macros().await;
+            Message::MacrosList { macros }
+        }
+        Message::DeleteMacro { name } => match state.delete_macro(&name).await {
+            Ok(_) => Message::Success,
+            Err(e) => Message::Error {
+                message: format!("Failed to delete macro: {}", e),
+            },
+        },
+        Message::BindMacro {
+            macro_name,
+            trigger,
+        } => match state.bind_macro(&macro_name, &trigger).await {
+            Ok(_) => Message::Success,
+            Err(e) => Message::Error {
+                message: format!("Failed to bind macro: {}", e),
+            },
+        },
         _ => Message::Error {
             message: "Unknown message".to_string(),
         },

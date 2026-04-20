@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::types::{ContextCondition, MappingRule};
+use crate::types::{ContextCondition, MacroAction, MappingRule};
 
 /// 全局配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,6 +34,12 @@ pub struct Config {
     /// 网络通信设置
     #[serde(default)]
     pub network: NetworkConfig,
+    /// 宏定义
+    #[serde(default)]
+    pub macros: HashMap<String, Vec<MacroAction>>,
+    /// 宏触发键映射: trigger -> macro_name
+    #[serde(default)]
+    pub macro_bindings: HashMap<String, String>,
 }
 
 impl Default for Config {
@@ -48,6 +54,8 @@ impl Default for Config {
             mouse: MouseConfig::default(),
             launch: HashMap::new(),
             network: NetworkConfig::default(),
+            macros: HashMap::new(),
+            macro_bindings: HashMap::new(),
         }
     }
 }

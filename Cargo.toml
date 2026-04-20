@@ -61,6 +61,9 @@ hmac = "0.12"
 sha2 = "0.10"
 rand = "0.8"
 
+# 时间处理
+chrono = { version = "0.4", features = ["serde"] }
+
 [profile.release]
 lto = true
 opt-level = 3

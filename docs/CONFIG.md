@@ -278,6 +278,98 @@ file_manager = "explorer.exe"  # 文件管理器
 
 > **注意**: 快速启动功能需要配合键盘层的映射使用，将快捷键映射到相应的启动动作。
 
+## 宏配置
+
+### 录制和使用宏
+
+宏允许你录制一系列键盘和鼠标操作，然后通过快捷键触发。
+
+**命令行操作**:
+
+```bash
+# 录制宏
+wakem record my-macro
+# 执行要录制的操作...
+# 按 Ctrl+Shift+Esc 停止录制
+
+# 播放宏
+wakem play my-macro
+
+# 绑定宏到快捷键
+wakem bind-macro my-macro F1
+
+# 列出所有宏
+wakem macros
+
+# 删除宏
+wakem delete-macro my-macro
+```
+
+### 配置文件定义宏
+
+你也可以直接在配置文件中定义宏：
+
+```toml
+# 宏定义
+[macros]
+# 打开终端（Win+R, 输入 wt, 回车）
+"open-terminal" = [
+    { KeyPress = { scan_code = 91, virtual_key = 91 } },      # Win
+    { KeyRelease = { scan_code = 91, virtual_key = 91 } },
+    { Delay = { milliseconds = 100 } },
+    { KeyPress = { scan_code = 19, virtual_key = 82 } },      # R
+    { KeyRelease = { scan_code = 19, virtual_key = 82 } },
+    { Delay = { milliseconds = 100 } },
+    { KeyPress = { scan_code = 20, virtual_key = 84 } },      # T
+    { KeyRelease = { scan_code = 20, virtual_key = 84 } },
+    { KeyPress = { scan_code = 28, virtual_key = 13 } },      # Enter
+    { KeyRelease = { scan_code = 28, virtual_key = 13 } },
+]
+
+# 复制粘贴
+"copy-paste" = [
+    { KeyPress = { scan_code = 29, virtual_key = 17 } },      # Ctrl
+    { KeyPress = { scan_code = 46, virtual_key = 67 } },      # C
+    { KeyRelease = { scan_code = 46, virtual_key = 67 } },
+    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
+    { Delay = { milliseconds = 100 } },
+    { KeyPress = { scan_code = 29, virtual_key = 17 } },      # Ctrl
+    { KeyPress = { scan_code = 47, virtual_key = 86 } },      # V
+    { KeyRelease = { scan_code = 47, virtual_key = 86 } },
+    { KeyRelease = { scan_code = 29, virtual_key = 17 } },
+]
+
+# 宏触发键绑定
+[macro_bindings]
+"F1" = "open-terminal"
+"Ctrl+Shift+V" = "copy-paste"
+```
+
+### 宏动作类型
+
+| 动作 | 参数 | 说明 |
+|-----|------|------|
+| `KeyPress` | `scan_code`, `virtual_key` | 按键按下 |
+| `KeyRelease` | `scan_code`, `virtual_key` | 按键释放 |
+| `MousePress` | `button`, `x`, `y` | 鼠标按下 |
+| `MouseRelease` | `button`, `x`, `y` | 鼠标释放 |
+| `MouseMove` | `x`, `y` | 鼠标移动 |
+| `MouseWheel` | `delta`, `horizontal` | 鼠标滚轮 |
+| `Delay` | `milliseconds` | 延迟等待 |
+
+### 获取按键扫描码
+
+如果你需要获取特定按键的扫描码，可以使用 `wakem daemon` 启动守护进程后查看日志，或使用在线工具查询。
+
+常见按键扫描码参考：
+- `Ctrl`: scan_code=29, virtual_key=17
+- `Shift`: scan_code=42, virtual_key=16
+- `Alt`: scan_code=56, virtual_key=18
+- `Win`: scan_code=91, virtual_key=91
+- `A-Z`: scan_code=30-45, virtual_key=65-90
+- `Enter`: scan_code=28, virtual_key=13
+- `Space`: scan_code=57, virtual_key=32
+
 ## 按键名称
 
 ### 字母键

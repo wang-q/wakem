@@ -58,6 +58,32 @@ enum Commands {
     Instances,
     /// 运行系统托盘（默认）
     Tray,
+    /// 录制宏
+    Record {
+        /// 宏名称
+        name: String,
+    },
+    /// 停止录制宏
+    StopRecord,
+    /// 播放宏
+    Play {
+        /// 宏名称
+        name: String,
+    },
+    /// 列出所有宏
+    Macros,
+    /// 绑定宏到触发键
+    BindMacro {
+        /// 宏名称
+        macro_name: String,
+        /// 触发键
+        trigger: String,
+    },
+    /// 删除宏
+    DeleteMacro {
+        /// 宏名称
+        name: String,
+    },
 }
 
 #[tokio::main]
@@ -76,16 +102,26 @@ async fn main() -> Result<()> {
         Some(Commands::Disable) => cmd_disable(cli.instance).await,
         Some(Commands::Config) => cmd_config().await,
         Some(Commands::Instances) => cmd_instances().await,
+        Some(Commands::Record { name }) => cmd_record(cli.instance, &name).await,
+        Some(Commands::StopRecord) => cmd_stop_record(cli.instance).await,
+        Some(Commands::Play { name }) => cmd_play(cli.instance, &name).await,
+        Some(Commands::Macros) => cmd_macros(cli.instance).await,
+        Some(Commands::BindMacro {
+            macro_name,
+            trigger,
+        }) => cmd_bind_macro(cli.instance, &macro_name, &trigger).await,
+        Some(Commands::DeleteMacro { name }) => {
+            cmd_delete_macro(cli.instance, &name).await
+        }
         Some(Commands::Tray) | None => run_tray(cli.instance).await,
     }
 }
 
-/// 运行守护进程
+/// 启动守护进程
 async fn run_daemon(instance_id: u32) -> Result<()> {
-    info!("wakemd starting (instance {})...", instance_id);
-    daemon::run_server(instance_id).await?;
-    info!("wakemd shutting down...");
-    Ok(())
+    info!("Starting wakemd (instance {})...", instance_id);
+
+    daemon::run_server(instance_id).await
 }
 
 /// 获取服务端状态
@@ -94,8 +130,8 @@ async fn cmd_status(instance_id: u32) -> Result<()> {
     match client.connect_to_instance(instance_id).await {
         Ok(_) => match client.get_status().await {
             Ok((active, loaded)) => {
-                println!("wakemd instance {} status:", instance_id);
-                println!("  Active: {}", if active { "enabled" } else { "disabled" });
+                println!("wakemd instance {}:", instance_id);
+                println!("  Active: {}", if active { "yes" } else { "no" });
                 println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
             }
             Err(e) => {
@@ -104,10 +140,6 @@ async fn cmd_status(instance_id: u32) -> Result<()> {
         },
         Err(e) => {
             eprintln!("Failed to connect to daemon: {}", e);
-            eprintln!(
-                "Please make sure wakemd --instance {} is running",
-                instance_id
-            );
         }
     }
     Ok(())
@@ -397,5 +429,101 @@ async fn open_config_folder() -> Result<()> {
     // 使用 explorer 打开文件夹
     Command::new("explorer").arg(config_path).spawn()?;
 
+    Ok(())
+}
+
+/// 录制宏
+async fn cmd_record(instance_id: u32, name: &str) -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect_to_instance(instance_id).await {
+        Ok(_) => match client.start_macro_recording(name).await {
+            Ok(_) => {
+                println!("Recording macro '{}'...", name);
+                println!("Press Ctrl+Shift+Esc to stop recording");
+            }
+            Err(e) => eprintln!("Failed to start recording: {}", e),
+        },
+        Err(e) => eprintln!("Failed to connect: {}", e),
+    }
+    Ok(())
+}
+
+/// 停止录制宏
+async fn cmd_stop_record(instance_id: u32) -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect_to_instance(instance_id).await {
+        Ok(_) => match client.stop_macro_recording().await {
+            Ok((name, count)) => {
+                println!("Macro '{}' saved with {} actions", name, count);
+            }
+            Err(e) => eprintln!("Failed to stop recording: {}", e),
+        },
+        Err(e) => eprintln!("Failed to connect: {}", e),
+    }
+    Ok(())
+}
+
+/// 播放宏
+async fn cmd_play(instance_id: u32, name: &str) -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect_to_instance(instance_id).await {
+        Ok(_) => match client.play_macro(name).await {
+            Ok(_) => println!("Playing macro '{}'", name),
+            Err(e) => eprintln!("Failed to play macro: {}", e),
+        },
+        Err(e) => eprintln!("Failed to connect: {}", e),
+    }
+    Ok(())
+}
+
+/// 列出所有宏
+async fn cmd_macros(instance_id: u32) -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect_to_instance(instance_id).await {
+        Ok(_) => match client.get_macros().await {
+            Ok(macros) => {
+                if macros.is_empty() {
+                    println!("No macros recorded");
+                } else {
+                    println!("Available macros:");
+                    for name in macros {
+                        println!("  - {}", name);
+                    }
+                }
+            }
+            Err(e) => eprintln!("Failed to get macros: {}", e),
+        },
+        Err(e) => eprintln!("Failed to connect: {}", e),
+    }
+    Ok(())
+}
+
+/// 绑定宏到触发键
+async fn cmd_bind_macro(
+    instance_id: u32,
+    macro_name: &str,
+    trigger: &str,
+) -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect_to_instance(instance_id).await {
+        Ok(_) => match client.bind_macro(macro_name, trigger).await {
+            Ok(_) => println!("Macro '{}' bound to '{}'", macro_name, trigger),
+            Err(e) => eprintln!("Failed to bind macro: {}", e),
+        },
+        Err(e) => eprintln!("Failed to connect: {}", e),
+    }
+    Ok(())
+}
+
+/// 删除宏
+async fn cmd_delete_macro(instance_id: u32, name: &str) -> Result<()> {
+    let mut client = DaemonClient::new();
+    match client.connect_to_instance(instance_id).await {
+        Ok(_) => match client.delete_macro(name).await {
+            Ok(_) => println!("Macro '{}' deleted", name),
+            Err(e) => eprintln!("Failed to delete macro: {}", e),
+        },
+        Err(e) => eprintln!("Failed to connect: {}", e),
+    }
     Ok(())
 }

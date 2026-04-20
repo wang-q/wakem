@@ -25,6 +25,18 @@ pub enum Message {
     SetActive { active: bool },
     /// 获取下一个按键信息（用于调试）
     GetNextKeyInfo,
+    /// 开始录制宏
+    StartMacroRecording { name: String },
+    /// 停止录制宏
+    StopMacroRecording,
+    /// 播放宏
+    PlayMacro { name: String },
+    /// 获取宏列表
+    GetMacros,
+    /// 删除宏
+    DeleteMacro { name: String },
+    /// 绑定宏到触发键
+    BindMacro { macro_name: String, trigger: String },
 
     // 服务端 -> 客户端
     /// 状态响应
@@ -37,6 +49,12 @@ pub enum Message {
     NextKeyInfo { info: String },
     /// 错误响应
     Error { message: String },
+    /// 宏录制结果
+    MacroRecordingResult { name: String, action_count: usize },
+    /// 宏列表响应
+    MacrosList { macros: Vec<String> },
+    /// 成功响应
+    Success,
 
     // 双向
     /// 心跳

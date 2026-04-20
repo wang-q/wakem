@@ -131,6 +131,90 @@ impl DaemonClient {
         }
         Ok(())
     }
+
+    /// 开始录制宏
+    pub async fn start_macro_recording(&mut self, name: &str) -> Result<()> {
+        let response = self
+            .send_receive(&Message::StartMacroRecording {
+                name: name.to_string(),
+            })
+            .await?;
+
+        match response {
+            Message::Success => Ok(()),
+            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
+
+    /// 停止录制宏
+    pub async fn stop_macro_recording(&mut self) -> Result<(String, usize)> {
+        let response = self.send_receive(&Message::StopMacroRecording).await?;
+
+        match response {
+            Message::MacroRecordingResult { name, action_count } => {
+                Ok((name, action_count))
+            }
+            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
+
+    /// 播放宏
+    pub async fn play_macro(&mut self, name: &str) -> Result<()> {
+        let response = self
+            .send_receive(&Message::PlayMacro {
+                name: name.to_string(),
+            })
+            .await?;
+
+        match response {
+            Message::Success => Ok(()),
+            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
+
+    /// 获取宏列表
+    pub async fn get_macros(&mut self) -> Result<Vec<String>> {
+        let response = self.send_receive(&Message::GetMacros).await?;
+
+        match response {
+            Message::MacrosList { macros } => Ok(macros),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
+
+    /// 删除宏
+    pub async fn delete_macro(&mut self, name: &str) -> Result<()> {
+        let response = self
+            .send_receive(&Message::DeleteMacro {
+                name: name.to_string(),
+            })
+            .await?;
+
+        match response {
+            Message::Success => Ok(()),
+            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
+
+    /// 绑定宏到触发键
+    pub async fn bind_macro(&mut self, macro_name: &str, trigger: &str) -> Result<()> {
+        let response = self
+            .send_receive(&Message::BindMacro {
+                macro_name: macro_name.to_string(),
+                trigger: trigger.to_string(),
+            })
+            .await?;
+
+        match response {
+            Message::Success => Ok(()),
+            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
 }
 
 impl Default for DaemonClient {

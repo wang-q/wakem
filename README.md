@@ -55,6 +55,14 @@ wakem reload      # 重载配置
 wakem enable      # 启用映射
 wakem disable     # 禁用映射
 wakem config      # 打开配置文件夹
+
+# 宏命令
+wakem record my-macro        # 开始录制宏
+wakem stop-record            # 停止录制
+wakem play my-macro          # 播放宏
+wakem macros                 # 列出所有宏
+wakem bind-macro my-macro F1 # 绑定宏到 F1
+wakem delete-macro my-macro  # 删除宏
 ```
 
 ## 功能特性
@@ -111,7 +119,13 @@ wakem config      # 打开配置文件夹
 - **滚轮增强** - 滚轮在标签页/音量/亮度间切换
 - **按键重映射** - 鼠标侧键自定义功能
 
-### 4. 调试功能
+### 4. 宏录制回放 (Macro)
+
+- **录制宏** - 录制键盘/鼠标操作序列
+- **播放宏** - 通过快捷键触发录制的宏
+- **宏管理** - 查看、绑定、删除宏
+
+### 5. 调试功能
 
 * 显示窗口信息. <kbd>Hyper</kbd>+<kbd>W</kbd>
 * 显示测试通知. <kbd>HyperShift</kbd>+<kbd>W</kbd>
