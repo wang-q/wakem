@@ -22,6 +22,7 @@ pub enum KeyAction {
 
 impl KeyAction {
     /// 从 KeyEvent 创建对应的 Press 动作
+    #[allow(dead_code)]
     pub fn press_from_event(event: &super::KeyEvent) -> Self {
         Self::Press {
             scan_code: event.scan_code,
@@ -30,6 +31,7 @@ impl KeyAction {
     }
 
     /// 从 KeyEvent 创建对应的 Release 动作
+    #[allow(dead_code)]
     pub fn release_from_event(event: &super::KeyEvent) -> Self {
         Self::Release {
             scan_code: event.scan_code,
@@ -62,6 +64,7 @@ impl KeyAction {
     }
 
     /// 创建组合键动作
+    #[allow(dead_code)]
     pub fn combo(
         modifiers: super::ModifierState,
         scan_code: u16,
@@ -216,6 +219,7 @@ impl Action {
     }
 
     /// 创建鼠标动作
+    #[allow(dead_code)]
     pub fn mouse(action: MouseAction) -> Self {
         Self::Mouse(action)
     }
@@ -226,6 +230,7 @@ impl Action {
     }
 
     /// 创建启动程序动作
+    #[allow(dead_code)]
     pub fn launch(program: impl Into<String>) -> Self {
         Self::Launch(LaunchAction {
             program: program.into(),
@@ -236,11 +241,13 @@ impl Action {
     }
 
     /// 创建动作序列
+    #[allow(dead_code)]
     pub fn sequence(actions: Vec<Action>) -> Self {
         Self::Sequence(actions)
     }
 
     /// 检查是否是空操作
+    #[allow(dead_code)]
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }

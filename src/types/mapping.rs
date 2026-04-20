@@ -27,17 +27,20 @@ impl MappingRule {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_context(mut self, context: ContextCondition) -> Self {
         self.context = Some(context);
         self
     }
 
     /// 检查输入事件是否匹配此规则
+    #[allow(dead_code)]
     pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
         if !self.enabled {
             return false;
@@ -150,6 +153,7 @@ pub struct ContextCondition {
 }
 
 impl ContextCondition {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             window_class: None,
@@ -158,22 +162,26 @@ impl ContextCondition {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_window_class(mut self, class: impl Into<String>) -> Self {
         self.window_class = Some(class.into());
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_process_name(mut self, name: impl Into<String>) -> Self {
         self.process_name = Some(name.into());
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_window_title(mut self, title: impl Into<String>) -> Self {
         self.window_title = Some(title.into());
         self
     }
 
     /// 检查当前上下文是否匹配
+    #[allow(dead_code)]
     pub fn matches(&self, context: &ContextInfo) -> bool {
         if let Some(ref pattern) = self.window_class {
             if !wildcard_match(&context.window_class, pattern) {
@@ -196,6 +204,7 @@ impl ContextCondition {
 
 /// 上下文信息（当前活动窗口等）
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct ContextInfo {
     pub window_class: String,
     pub process_name: String,
@@ -205,6 +214,7 @@ pub struct ContextInfo {
 }
 
 /// 简单的通配符匹配（* 匹配任意字符，? 匹配单个字符）
+#[allow(dead_code)]
 fn wildcard_match(text: &str, pattern: &str) -> bool {
     // 简化实现，实际应该使用更复杂的匹配算法
     if pattern == "*" || pattern.is_empty() {

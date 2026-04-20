@@ -67,7 +67,7 @@ impl WindowEventHook {
     pub fn stop(&mut self) {
         if let Some(hook) = self.hook.take() {
             unsafe {
-                UnhookWinEvent(hook).ok();
+                let _ = UnhookWinEvent(hook);
             }
             debug!("Window event hook stopped");
         }

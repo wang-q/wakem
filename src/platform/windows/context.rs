@@ -116,6 +116,7 @@ impl WindowContext {
     }
 
     /// 检查是否匹配给定的上下文条件
+    #[allow(dead_code)]
     pub fn matches(
         &self,
         window_class: Option<&str>,

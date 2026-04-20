@@ -47,6 +47,7 @@ impl DaemonClient {
     }
 
     /// 检查是否已连接
+    #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         self.client.is_some()
     }
@@ -107,9 +108,10 @@ impl DaemonClient {
     }
 
     /// 关闭连接
+    #[allow(dead_code)]
     pub async fn close(self) -> Result<()> {
         if let Some(client) = self.client {
-            client.close().await?;
+            let _ = client.close().await;
         }
         Ok(())
     }

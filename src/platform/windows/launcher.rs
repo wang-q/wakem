@@ -53,6 +53,7 @@ impl Launcher {
     }
 
     /// 从字符串创建简单的启动动作
+    #[allow(dead_code)]
     pub fn create_action(program: impl Into<String>) -> LaunchAction {
         LaunchAction {
             program: program.into(),
@@ -63,6 +64,7 @@ impl Launcher {
     }
 
     /// 从命令行字符串解析（如 "notepad.exe file.txt"）
+    #[allow(dead_code)]
     pub fn parse_command(command: &str) -> LaunchAction {
         let parts: Vec<&str> = command.split_whitespace().collect();
         if parts.is_empty() {

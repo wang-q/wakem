@@ -28,11 +28,13 @@ impl WindowPresetManager {
     }
 
     /// 获取所有预设
+    #[allow(dead_code)]
     pub fn get_presets(&self) -> &[WindowPreset] {
         &self.presets
     }
 
     /// 获取所有预设（可变）
+    #[allow(dead_code)]
     pub fn get_presets_mut(&mut self) -> &mut Vec<WindowPreset> {
         &mut self.presets
     }
@@ -140,6 +142,7 @@ impl WindowPresetManager {
     }
 
     /// 查找当前窗口匹配的预设
+    #[allow(dead_code)]
     pub fn find_matching_preset(&self, hwnd: HWND) -> Result<Option<&WindowPreset>> {
         let info = self.window_manager.get_window_info(hwnd)?;
 
@@ -157,6 +160,7 @@ impl WindowPresetManager {
     }
 
     /// 删除指定预设
+    #[allow(dead_code)]
     pub fn remove_preset(&mut self, name: &str) -> bool {
         let initial_len = self.presets.len();
         self.presets.retain(|p| p.name != name);

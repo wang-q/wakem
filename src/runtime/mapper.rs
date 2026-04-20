@@ -71,6 +71,7 @@ impl KeyMapper {
 
     /// 设置窗口管理器
     #[cfg(target_os = "windows")]
+    #[allow(dead_code)]
     pub fn set_window_manager(
         &mut self,
         window_manager: crate::platform::windows::WindowManager,
@@ -80,12 +81,14 @@ impl KeyMapper {
 
     /// 设置托盘图标
     #[cfg(target_os = "windows")]
+    #[allow(dead_code)]
     pub fn set_tray_icon(&mut self, tray_icon: crate::platform::windows::TrayIcon) {
         self.tray_icon = Some(tray_icon);
     }
 
     /// 设置窗口预设管理器
     #[cfg(target_os = "windows")]
+    #[allow(dead_code)]
     pub fn set_window_preset_manager(
         &mut self,
         manager: crate::platform::windows::WindowPresetManager,
@@ -95,6 +98,7 @@ impl KeyMapper {
 
     /// 获取窗口预设管理器的可变引用
     #[cfg(target_os = "windows")]
+    #[allow(dead_code)]
     pub fn window_preset_manager_mut(
         &mut self,
     ) -> Option<&mut crate::platform::windows::WindowPresetManager> {
@@ -109,29 +113,34 @@ impl KeyMapper {
     }
 
     /// 添加单条映射规则
+    #[allow(dead_code)]
     pub fn add_rule(&mut self, rule: MappingRule) {
         self.rules.push(rule);
         self.rebuild_mappings();
     }
 
     /// 清除所有映射
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.rules.clear();
         self.mappings.clear();
     }
 
     /// 启用/禁用映射
+    #[allow(dead_code)]
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
         debug!("KeyMapper enabled: {}", enabled);
     }
 
     /// 检查是否启用
+    #[allow(dead_code)]
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
 
     /// 处理输入事件，返回要执行的动作
+    #[allow(dead_code)]
     pub fn process_event(&self, event: &InputEvent) -> Option<Action> {
         self.process_event_with_context(event, None)
     }
@@ -158,6 +167,7 @@ impl KeyMapper {
     }
 
     /// 处理键盘事件
+    #[allow(dead_code)]
     fn process_key_event(&self, event: &KeyEvent) -> Option<Action> {
         self.process_key_event_with_context(event, None)
     }
@@ -350,19 +360,19 @@ impl KeyMapper {
                     use windows::Win32::UI::WindowsAndMessaging::{
                         ShowWindow, SW_MINIMIZE,
                     };
-                    ShowWindow(hwnd, SW_MINIMIZE).ok();
+                    let _ = ShowWindow(hwnd, SW_MINIMIZE);
                 }
                 WindowAction::Maximize => {
                     use windows::Win32::UI::WindowsAndMessaging::{
                         ShowWindow, SW_MAXIMIZE,
                     };
-                    ShowWindow(hwnd, SW_MAXIMIZE).ok();
+                    let _ = ShowWindow(hwnd, SW_MAXIMIZE);
                 }
                 WindowAction::Restore => {
                     use windows::Win32::UI::WindowsAndMessaging::{
                         ShowWindow, SW_RESTORE,
                     };
-                    ShowWindow(hwnd, SW_RESTORE).ok();
+                    let _ = ShowWindow(hwnd, SW_RESTORE);
                 }
                 WindowAction::Close => {
                     use windows::Win32::Foundation::{LPARAM, WPARAM};
@@ -607,6 +617,7 @@ impl KeyMapper {
     }
 
     /// 添加简单的键位重映射
+    #[allow(dead_code)]
     pub fn add_simple_remap(
         &mut self,
         from_scan_code: u16,

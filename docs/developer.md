@@ -21,18 +21,23 @@ wakem/
 │   │   ├── input.rs
 │   │   ├── layer.rs
 │   │   └── mapping.rs
-│   ├── ipc/                # IPC 通信
-│   │   ├── mod.rs
-│   │   ├── client.rs
-│   │   └── server.rs
+│   ├── ipc/                # IPC 通信（统一使用 TCP）
+│   │   ├── mod.rs          # 模块导出和消息协议
+│   │   ├── client.rs       # TCP 客户端
+│   │   ├── server.rs       # TCP 服务端
+│   │   ├── auth.rs         # 挑战-响应认证
+│   │   ├── security.rs     # IP 安全检查
+│   │   └── discovery.rs    # 实例发现
 │   ├── platform/           # 平台相关
 │   │   └── windows/        # Windows 实现
 │   │       ├── mod.rs
 │   │       ├── input.rs
 │   │       ├── hook.rs
 │   │       ├── window_manager.rs
-│   │       ├── launcher.rs
+│   │       ├── window_preset.rs    # 窗口预设管理
+│   │       ├── window_event_hook.rs # 窗口事件监听
 │   │       ├── context.rs
+│   │       ├── launcher.rs
 │   │       ├── output.rs
 │   │       └── tray.rs
 │   └── runtime/            # 运行时逻辑
@@ -64,7 +69,7 @@ wakem/
 
 - [x] 项目搭建
 - [x] 核心数据结构（输入事件、动作、映射规则）
-- [x] IPC 通信（Named Pipe）
+- [x] IPC 通信（Named Pipe → 统一 TCP）
 - [x] 配置系统（TOML 格式）
 - [x] Windows 输入抓取（Raw Input）
 - [x] Windows 输入发送（SendInput）
@@ -94,7 +99,7 @@ wakem/
 
 > **注**: 不实现鼠标手势功能，使用场景有限且实现复杂
 
-### Phase 5: Windows 完善 ⏳ 进行中
+### Phase 5: Windows 完善 ✅ 已完成
 
 - [x] 系统托盘
 - [x] 输入捕获（Raw Input + LLKH）
@@ -102,6 +107,9 @@ wakem/
 - [x] 启动项管理（install.ps1 支持）
 - [x] 错误处理和日志
 - [x] 安装和打包（install.ps1 脚本）
+- [x] 窗口预设功能
+- [x] 上下文感知快捷键
+- [x] 网络通信（TCP + 多实例支持）
 
 ### Phase 6: macOS 移植 ⏳ 待实现
 
@@ -279,16 +287,20 @@ wakem/
 - 配置热重载
 - 自定义托盘图标
 - 调试信息/通知
+- 多实例支持
+
+**高级功能**
+- 窗口预设（保存/恢复窗口布局）
+- 上下文感知快捷键（应用专属快捷键）
+- 网络通信（TCP + 远程控制）
+- 挑战-响应认证
+- 实例发现和管理
 
 ### 待实现功能 ⏳
 
-**鼠标增强**
-- 鼠标事件处理
-- 滚轮增强
-
-**系统完善**
-- 启动项管理
-- 安装和打包
+**跨平台移植**
+- macOS 支持
+- Linux 支持
 
 **跨平台移植**
 - macOS 支持

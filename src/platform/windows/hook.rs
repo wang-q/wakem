@@ -15,12 +15,14 @@ thread_local! {
 }
 
 /// 低级键盘钩子管理器
+#[allow(dead_code)]
 pub struct KeyboardHook {
     hook_handle: Option<HHOOK>,
 }
 
 impl KeyboardHook {
     /// 创建并安装键盘钩子
+    #[allow(dead_code)]
     pub fn new(event_sender: Sender<(InputEvent, bool)>) -> Result<Self> {
         // 设置线程本地存储的发送器
         HOOK_SENDER.with(|s| {
@@ -48,6 +50,7 @@ impl KeyboardHook {
     }
 
     /// 钩子过程
+    #[allow(dead_code)]
     unsafe extern "system" fn hook_proc(
         code: i32,
         wparam: WPARAM,
@@ -96,6 +99,7 @@ impl KeyboardHook {
     }
 
     /// 运行消息循环（必须在安装钩子的线程中运行）
+    #[allow(dead_code)]
     pub fn run_message_loop(&self) -> Result<()> {
         use windows::Win32::UI::WindowsAndMessaging::{
             DispatchMessageW, GetMessageW, TranslateMessage, MSG,
@@ -117,6 +121,7 @@ impl KeyboardHook {
     }
 
     /// 停止钩子
+    #[allow(dead_code)]
     pub fn uninstall(&mut self) {
         if let Some(hook) = self.hook_handle.take() {
             unsafe {
@@ -142,6 +147,7 @@ impl Drop for KeyboardHook {
 }
 
 /// 检查钩子是否已安装
+#[allow(dead_code)]
 pub fn is_hook_installed() -> bool {
     HOOK_HANDLE.with(|h| h.borrow().is_some())
 }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::config::Config;
 use crate::ipc::{IpcServer, Message};
@@ -25,6 +25,7 @@ pub struct ServerState {
     /// 程序启动器
     launcher: Arc<Mutex<Launcher>>,
     /// 窗口管理器
+    #[allow(dead_code)]
     window_manager: Arc<Mutex<WindowManager>>,
     /// 窗口预设管理器
     window_preset_manager: Arc<Mutex<WindowPresetManager>>,
@@ -140,7 +141,7 @@ impl ServerState {
         info!("Reloading configuration from file...");
 
         // 获取当前实例ID和配置文件路径
-        let (instance_id, config_path) = {
+        let (_instance_id, config_path) = {
             let config = self.config.read().await;
             let id = config.network.instance_id;
             let path = resolve_config_file_path(None, id);

@@ -161,6 +161,7 @@ impl TrayIcon {
     }
 
     /// 更新激活状态（可以切换图标）
+    #[allow(dead_code)]
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
         // TODO: 切换图标表示状态

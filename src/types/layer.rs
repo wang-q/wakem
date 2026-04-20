@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::types::{Action, KeyAction, MappingRule, Trigger};
+use crate::types::{Action, MappingRule, Trigger};
 
 /// 层模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,16 +141,19 @@ impl LayerStack {
     }
 
     /// 检查层是否激活
+    #[allow(dead_code)]
     pub fn is_layer_active(&self, name: &str) -> bool {
         self.active_layers.iter().any(|l| l.name == name)
     }
 
     /// 获取当前激活的层列表
+    #[allow(dead_code)]
     pub fn get_active_layers(&self) -> &[Layer] {
         &self.active_layers
     }
 
     /// 清空所有激活的层
+    #[allow(dead_code)]
     pub fn clear_active_layers(&mut self) {
         self.active_layers.clear();
         self.hold_layers.clear();

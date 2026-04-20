@@ -26,7 +26,9 @@ thread_local! {
 /// Raw Input 设备管理器
 pub struct RawInputDevice {
     hwnd: HWND,
+    #[allow(dead_code)]
     event_sender: Sender<InputEvent>,
+    #[allow(dead_code)]
     modifier_state: ModifierState,
     running: bool,
 }
@@ -321,6 +323,7 @@ impl RawInputDevice {
     }
 
     /// 更新修饰键状态
+    #[allow(dead_code)]
     fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
         if let Some((modifier, _)) =
             ModifierState::from_virtual_key(virtual_key, pressed)
@@ -330,6 +333,7 @@ impl RawInputDevice {
     }
 
     /// 获取当前修饰键状态
+    #[allow(dead_code)]
     pub fn get_modifier_state(&self) -> &ModifierState {
         &self.modifier_state
     }

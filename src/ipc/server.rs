@@ -73,6 +73,7 @@ impl IpcServer {
     }
 
     /// 停止服务端
+    #[allow(dead_code)]
     pub fn stop(&mut self) {
         self.listener = None;
         info!("Server stopped");

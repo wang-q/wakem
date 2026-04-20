@@ -7,7 +7,6 @@ pub mod security;
 pub mod server;
 
 pub use client::IpcClient;
-pub use discovery::{discover_instances, InstanceInfo};
 pub use server::IpcServer;
 
 /// IPC 消息协议

@@ -95,6 +95,7 @@ impl LayerManager {
     }
 
     /// 获取当前激活的层列表
+    #[allow(dead_code)]
     pub fn get_active_layers(&self) -> Vec<String> {
         self.stack
             .get_active_layers()
@@ -104,11 +105,13 @@ impl LayerManager {
     }
 
     /// 检查层是否激活
+    #[allow(dead_code)]
     pub fn is_layer_active(&self, name: &str) -> bool {
         self.stack.is_layer_active(name)
     }
 
     /// 停用所有层
+    #[allow(dead_code)]
     pub fn clear_layers(&mut self) {
         self.stack.clear_active_layers();
     }

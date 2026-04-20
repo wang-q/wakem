@@ -211,47 +211,45 @@ impl OutputDevice {
             ..Default::default()
         };
 
-        unsafe {
-            input.Anonymous.mi.dwFlags = match button {
-                MouseButton::Left => {
-                    if release {
-                        MOUSEEVENTF_LEFTUP
-                    } else {
-                        MOUSEEVENTF_LEFTDOWN
-                    }
+        input.Anonymous.mi.dwFlags = match button {
+            MouseButton::Left => {
+                if release {
+                    MOUSEEVENTF_LEFTUP
+                } else {
+                    MOUSEEVENTF_LEFTDOWN
                 }
-                MouseButton::Right => {
-                    if release {
-                        MOUSEEVENTF_RIGHTUP
-                    } else {
-                        MOUSEEVENTF_RIGHTDOWN
-                    }
+            }
+            MouseButton::Right => {
+                if release {
+                    MOUSEEVENTF_RIGHTUP
+                } else {
+                    MOUSEEVENTF_RIGHTDOWN
                 }
-                MouseButton::Middle => {
-                    if release {
-                        MOUSEEVENTF_MIDDLEUP
-                    } else {
-                        MOUSEEVENTF_MIDDLEDOWN
-                    }
+            }
+            MouseButton::Middle => {
+                if release {
+                    MOUSEEVENTF_MIDDLEUP
+                } else {
+                    MOUSEEVENTF_MIDDLEDOWN
                 }
-                MouseButton::X1 => {
-                    input.Anonymous.mi.mouseData = 0x0001;
-                    if release {
-                        MOUSEEVENTF_XUP
-                    } else {
-                        MOUSEEVENTF_XDOWN
-                    }
+            }
+            MouseButton::X1 => {
+                input.Anonymous.mi.mouseData = 0x0001;
+                if release {
+                    MOUSEEVENTF_XUP
+                } else {
+                    MOUSEEVENTF_XDOWN
                 }
-                MouseButton::X2 => {
-                    input.Anonymous.mi.mouseData = 0x0002;
-                    if release {
-                        MOUSEEVENTF_XUP
-                    } else {
-                        MOUSEEVENTF_XDOWN
-                    }
+            }
+            MouseButton::X2 => {
+                input.Anonymous.mi.mouseData = 0x0002;
+                if release {
+                    MOUSEEVENTF_XUP
+                } else {
+                    MOUSEEVENTF_XDOWN
                 }
-            };
-        }
+            }
+        };
 
         let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
 
@@ -271,14 +269,12 @@ impl OutputDevice {
             ..Default::default()
         };
 
-        unsafe {
-            input.Anonymous.mi.mouseData = (delta * 120) as u32; // WHEEL_DELTA = 120
-            input.Anonymous.mi.dwFlags = if horizontal {
-                MOUSEEVENTF_HWHEEL
-            } else {
-                MOUSEEVENTF_WHEEL
-            };
-        }
+        input.Anonymous.mi.mouseData = (delta * 120) as u32; // WHEEL_DELTA = 120
+        input.Anonymous.mi.dwFlags = if horizontal {
+            MOUSEEVENTF_HWHEEL
+        } else {
+            MOUSEEVENTF_WHEEL
+        };
 
         let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
 

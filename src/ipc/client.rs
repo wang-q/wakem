@@ -52,6 +52,7 @@ impl IpcClient {
     }
 
     /// 检查是否已连接
+    #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         self.stream.is_some()
     }
@@ -75,6 +76,7 @@ impl IpcClient {
     }
 
     /// 关闭连接
+    #[allow(dead_code)]
     pub async fn close(mut self) -> Result<()> {
         if let Some(mut stream) = self.stream.take() {
             stream.shutdown().await?;

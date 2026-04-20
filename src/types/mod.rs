@@ -38,10 +38,12 @@ impl ModifierState {
         Self::default()
     }
 
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }
 
+    #[allow(dead_code)]
     pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)> {
         let mut state = Self::new();
         match key {
@@ -54,6 +56,7 @@ impl ModifierState {
         Some((state, pressed))
     }
 
+    #[allow(dead_code)]
     pub fn merge(&mut self, other: &ModifierState) {
         self.shift |= other.shift;
         self.ctrl |= other.ctrl;

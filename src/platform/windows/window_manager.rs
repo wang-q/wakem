@@ -59,6 +59,7 @@ impl WindowFrame {
     }
 
     /// 转换为 RECT
+    #[allow(dead_code)]
     pub fn to_rect(&self) -> RECT {
         RECT {
             left: self.x,
@@ -96,7 +97,9 @@ pub struct WindowInfo {
     pub title: String,
     pub frame: WindowFrame,
     pub work_area: MonitorWorkArea,
+    #[allow(dead_code)]
     pub is_minimized: bool,
+    #[allow(dead_code)]
     pub is_maximized: bool,
 }
 

@@ -2,7 +2,7 @@ use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 use tracing::debug;
 
-use super::{get_instance_address, get_instance_port, Message};
+use super::{get_instance_address, get_instance_port};
 
 /// 实例信息
 #[derive(Debug, Clone)]
@@ -10,6 +10,7 @@ pub struct InstanceInfo {
     /// 实例ID
     pub id: u32,
     /// 端口号
+    #[allow(dead_code)]
     pub port: u16,
     /// 绑定地址
     pub address: String,
@@ -52,12 +53,14 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
 }
 
 /// 获取第一个活跃的实例
+#[allow(dead_code)]
 pub async fn find_first_active_instance() -> Option<InstanceInfo> {
     let instances = discover_instances().await;
     instances.into_iter().find(|i| i.active)
 }
 
 /// 检查指定实例是否活跃
+#[allow(dead_code)]
 pub async fn is_instance_active(instance_id: u32) -> bool {
     let address = get_instance_address(instance_id);
     matches!(
