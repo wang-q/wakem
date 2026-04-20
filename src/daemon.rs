@@ -1,10 +1,10 @@
 use anyhow::Result;
 use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::config::Config;
-use crate::ipc::{IpcServer, Message, TcpIpcServer};
+use crate::ipc::{IpcServer, Message};
 use crate::types::{Action, InputEvent, ModifierState};
 
 use crate::platform::windows::{
@@ -139,11 +139,12 @@ impl ServerState {
 
         info!("Reloading configuration from file...");
 
-        // 获取当前配置文件路径
-        let config_path = {
-            let _config = self.config.read().await;
-            // 尝试从配置中获取路径，或使用默认路径
-            resolve_config_file_path(None)
+        // 获取当前实例ID和配置文件路径
+        let (instance_id, config_path) = {
+            let config = self.config.read().await;
+            let id = config.network.instance_id;
+            let path = resolve_config_file_path(None, id);
+            (id, path)
         };
 
         let config_path = match config_path {
@@ -400,17 +401,33 @@ fn get_current_modifier_state() -> ModifierState {
 }
 
 /// 运行服务端
-pub async fn run_server() -> Result<()> {
-    info!("Starting wakemd server...");
+pub async fn run_server(instance_id: u32) -> Result<()> {
+    info!("Starting wakemd server (instance {})...", instance_id);
 
     let state = Arc::new(ServerState::new());
 
+    // 设置实例ID
+    {
+        let mut config = state.config.write().await;
+        config.network.instance_id = instance_id;
+    }
+
     // 创建 IPC 服务端
     let (message_tx, mut message_rx) = mpsc::channel(100);
-    let mut ipc_server = IpcServer::new(message_tx.clone());
+    let bind_address = {
+        let config = state.config.read().await;
+        config.network.get_bind_address()
+    };
+    let auth_key = {
+        let config = state.config.read().await;
+        config.network.auth_key.clone()
+    };
+
+    let mut ipc_server =
+        IpcServer::new(bind_address.clone(), auth_key, message_tx.clone());
     ipc_server.start().await?;
 
-    info!("IPC server started");
+    info!("Server listening on {}", bind_address);
 
     // 创建输入事件通道（使用 std::sync::mpsc 用于 Raw Input 线程）
     let (input_tx, input_rx) = std::sync::mpsc::channel::<InputEvent>();
@@ -488,53 +505,10 @@ pub async fn run_server() -> Result<()> {
         }
     });
 
-    // 启动 IPC 连接处理
-    let _state_clone = state.clone();
+    // 启动 IPC 服务端主循环
     tokio::spawn(async move {
-        loop {
-            match ipc_server.accept().await {
-                Ok(mut connection) => {
-                    debug!("New IPC connection accepted");
-
-                    // 处理连接
-                    tokio::spawn(async move {
-                        if let Err(e) = connection.handle().await {
-                            error!("IPC connection error: {}", e);
-                        }
-                    });
-                }
-                Err(e) => {
-                    error!("Failed to accept IPC connection: {}", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                }
-            }
-        }
-    });
-
-    // 启动 TCP 服务端（如果启用）
-    let state_clone = state.clone();
-    tokio::spawn(async move {
-        // 检查是否启用网络通信
-        let (enabled, bind_address, auth_key) = {
-            let config = state_clone.config.read().await;
-            (
-                config.network.enabled,
-                config.network.bind_address.clone(),
-                config.network.auth_key.clone(),
-            )
-        };
-
-        if enabled {
-            let mut tcp_server =
-                TcpIpcServer::new(bind_address, auth_key, message_tx.clone());
-            if let Err(e) = tcp_server.start().await {
-                error!("Failed to start TCP server: {}", e);
-            } else {
-                info!("TCP server started");
-                if let Err(e) = tcp_server.run().await {
-                    error!("TCP server error: {}", e);
-                }
-            }
+        if let Err(e) = ipc_server.run().await {
+            error!("Server error: {}", e);
         }
     });
 

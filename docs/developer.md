@@ -419,6 +419,50 @@ wakem --host 192.168.1.100 --auth-key "your-secret-key-here" enable
 wakem --host 192.168.1.100 --auth-key "your-secret-key-here" disable
 ```
 
+### 多实例配置示例
+
+```toml
+# 实例0配置（默认）: ~/.wakem.toml
+[network]
+enabled = true
+instance_id = 0
+auth_key = "instance0-secret"
+```
+
+```toml
+# 实例1配置: ~/.wakem-instance1.toml
+[network]
+enabled = true
+instance_id = 1
+auth_key = "instance1-secret"
+```
+
+**端口分配**：
+- 实例0: 127.0.0.1:57427
+- 实例1: 127.0.0.1:57428
+- 实例2: 127.0.0.1:57429
+- ...
+
+**使用示例**：
+
+```bash
+# 启动实例0（默认）
+wakemd
+
+# 启动实例1
+wakemd --instance 1
+
+# 查看运行中的实例
+wakem instances
+
+# 连接到实例1
+wakem --instance 1 status
+wakem --instance 1 reload
+
+# 启动实例1的托盘
+wakem --instance 1
+```
+
 ---
 
 ## 预留 API 清单
@@ -551,13 +595,3 @@ wakem --host 192.168.1.100 --auth-key "your-secret-key-here" disable
 | API | 说明 | 计划用途 |
 |-----|------|----------|
 | `DaemonClient::close()` | 关闭客户端 | 优雅关闭 |
-
----
-
-## 预留功能规划
-
-基于上述预留 API，未来可能实现的功能：
-
-2. **多实例支持** (Phase 6)
-   - 运行多个 wakem 实例
-   - 每个实例独立配置

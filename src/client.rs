@@ -2,92 +2,53 @@ use anyhow::Result;
 use tokio::time::{timeout, Duration};
 use tracing::{debug, info};
 
-use crate::ipc::{IpcClient, Message, TcpIpcClient};
-
-/// 连接类型
-enum ConnectionType {
-    /// 本地 Named Pipe
-    Pipe(IpcClient),
-    /// TCP 网络连接
-    Tcp(TcpIpcClient),
-}
+use crate::ipc::{get_instance_address, IpcClient, Message};
 
 /// 守护进程客户端
 pub struct DaemonClient {
-    connection: Option<ConnectionType>,
+    client: Option<IpcClient>,
 }
 
 impl DaemonClient {
     /// 创建新的客户端（不连接）
     pub fn new() -> Self {
-        Self { connection: None }
+        Self { client: None }
     }
 
-    /// 连接到本地服务端（Named Pipe）
-    pub async fn connect(&mut self) -> Result<()> {
-        debug!("Connecting to daemon via Named Pipe...");
-
-        let mut ipc = IpcClient::new();
-        match timeout(Duration::from_secs(5), ipc.connect()).await {
-            Ok(result) => {
-                result?;
-                self.connection = Some(ConnectionType::Pipe(ipc));
-                info!("Connected to daemon via Named Pipe");
-                Ok(())
-            }
-            Err(_) => Err(anyhow::anyhow!("Connection timeout")),
-        }
+    /// 连接到指定实例
+    pub async fn connect_to_instance(&mut self, instance_id: u32) -> Result<()> {
+        let address = get_instance_address(instance_id);
+        self.connect(&address, None).await
     }
 
-    /// 连接到 TCP 服务端
-    pub async fn connect_tcp(
+    /// 连接到指定地址
+    pub async fn connect(
         &mut self,
         address: impl Into<String>,
         auth_key: Option<String>,
     ) -> Result<()> {
         let address = address.into();
-        debug!("Connecting to daemon via TCP at {}...", address);
+        debug!("Connecting to daemon at {}...", address);
 
-        let mut tcp_client = TcpIpcClient::new(address);
+        let mut client = IpcClient::new(address);
         if let Some(key) = auth_key {
-            tcp_client = tcp_client.with_auth_key(key);
+            client = client.with_auth_key(key);
         }
 
-        match timeout(Duration::from_secs(5), tcp_client.connect()).await {
+        match timeout(Duration::from_secs(5), client.connect()).await {
             Ok(result) => {
-                result?;
-                self.connection = Some(ConnectionType::Tcp(tcp_client));
-                info!("Connected to daemon via TCP");
+                result.map_err(|e| anyhow::anyhow!("Connection failed: {}", e))?;
+                self.client = Some(client);
+                info!("Connected to daemon");
                 Ok(())
             }
             Err(_) => Err(anyhow::anyhow!("Connection timeout")),
         }
     }
 
-    /// 自动连接（先尝试 Pipe，再尝试 TCP）
-    pub async fn connect_auto(
-        &mut self,
-        tcp_address: Option<String>,
-        auth_key: Option<String>,
-    ) -> Result<()> {
-        // 1. 先尝试本地 Named Pipe
-        if let Ok(()) = self.connect().await {
-            return Ok(());
-        }
-
-        // 2. 如果提供了 TCP 地址，尝试 TCP
-        if let Some(addr) = tcp_address {
-            return self.connect_tcp(addr, auth_key).await;
-        }
-
-        Err(anyhow::anyhow!(
-            "No connection available. Is wakemd running?"
-        ))
-    }
-
     /// 检查是否已连接
     pub fn is_connected(&self) -> bool {
-        self.connection.is_some()
+        self.client.is_some()
     }
 
     /// 获取服务端状态
@@ -134,40 +95,21 @@ impl DaemonClient {
 
     /// 发送消息并等待响应
     async fn send_receive(&mut self, message: &Message) -> Result<Message> {
-        if !self.is_connected() {
-            return Err(anyhow::anyhow!("Not connected to daemon"));
-        }
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("Not connected to daemon"))?;
 
-        match self.connection.as_mut().unwrap() {
-            ConnectionType::Pipe(ipc) => {
-                match timeout(Duration::from_secs(5), ipc.send_receive(message)).await {
-                    Ok(result) => {
-                        result.map_err(|e| anyhow::anyhow!("IPC error: {}", e))
-                    }
-                    Err(_) => Err(anyhow::anyhow!("Request timeout")),
-                }
-            }
-            ConnectionType::Tcp(tcp) => {
-                match timeout(Duration::from_secs(5), tcp.send_receive(message)).await {
-                    Ok(result) => {
-                        result.map_err(|e| anyhow::anyhow!("TCP error: {}", e))
-                    }
-                    Err(_) => Err(anyhow::anyhow!("Request timeout")),
-                }
-            }
+        match timeout(Duration::from_secs(5), client.send_receive(message)).await {
+            Ok(result) => result.map_err(|e| anyhow::anyhow!("IPC error: {}", e)),
+            Err(_) => Err(anyhow::anyhow!("Request timeout")),
         }
     }
 
     /// 关闭连接
     pub async fn close(self) -> Result<()> {
-        match self.connection {
-            Some(ConnectionType::Pipe(ipc)) => {
-                ipc.close().await?;
-            }
-            Some(ConnectionType::Tcp(tcp)) => {
-                tcp.close().await?;
-            }
-            None => {}
+        if let Some(client) = self.client {
+            client.close().await?;
         }
         Ok(())
     }

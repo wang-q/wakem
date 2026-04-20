@@ -2,15 +2,13 @@ use serde::{Deserialize, Serialize};
 
 pub mod auth;
 pub mod client;
+pub mod discovery;
 pub mod security;
 pub mod server;
-pub mod tcp_client;
-pub mod tcp_server;
 
 pub use client::IpcClient;
+pub use discovery::{discover_instances, InstanceInfo};
 pub use server::IpcServer;
-pub use tcp_client::TcpIpcClient;
-pub use tcp_server::TcpIpcServer;
 
 /// IPC 消息协议
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +67,15 @@ impl From<tokio::time::error::Elapsed> for IpcError {
 
 pub type Result<T> = std::result::Result<T, IpcError>;
 
-/// 默认 IPC 管道/套接字名称
-pub const DEFAULT_PIPE_NAME: &str = r"\\.\pipe\wakem";
-pub const DEFAULT_PORT: u16 = 57427;
+/// 基础端口
+pub const BASE_PORT: u16 = 57427;
+
+/// 获取实例端口
+pub fn get_instance_port(instance_id: u32) -> u16 {
+    BASE_PORT + instance_id as u16
+}
+
+/// 获取实例绑定地址
+pub fn get_instance_address(instance_id: u32) -> String {
+    format!("127.0.0.1:{}", get_instance_port(instance_id))
+}

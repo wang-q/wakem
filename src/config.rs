@@ -267,26 +267,34 @@ pub struct NetworkConfig {
     /// 是否启用网络通信
     #[serde(default)]
     pub enabled: bool,
-    /// 绑定地址（默认 0.0.0.0:57427）
-    #[serde(default = "default_bind_address")]
-    pub bind_address: String,
+    /// 实例ID（决定端口号：57427 + instance_id）
+    #[serde(default)]
+    pub instance_id: u32,
     /// 预共享密钥
     #[serde(default)]
     pub auth_key: Option<String>,
+}
+
+impl NetworkConfig {
+    /// 获取实例通信端口
+    pub fn get_port(&self) -> u16 {
+        crate::ipc::get_instance_port(self.instance_id)
+    }
+
+    /// 获取绑定地址
+    pub fn get_bind_address(&self) -> String {
+        crate::ipc::get_instance_address(self.instance_id)
+    }
 }
 
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            bind_address: default_bind_address(),
+            instance_id: 0,
             auth_key: None,
         }
     }
-}
-
-fn default_bind_address() -> String {
-    "0.0.0.0:57427".to_string()
 }
 
 /// 窗口配置
@@ -931,8 +939,10 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
 
 /// 解析配置文件路径
 /// 如果提供了路径，使用提供的路径；否则使用默认路径
+/// 支持实例配置文件（instance_id > 0 时使用 config-instanceN.toml）
 pub fn resolve_config_file_path(
     path: Option<&std::path::Path>,
+    instance_id: u32,
 ) -> Option<std::path::PathBuf> {
     if let Some(p) = path {
         return Some(p.to_path_buf());
@@ -942,22 +952,33 @@ pub fn resolve_config_file_path(
     let home = std::env::var("USERPROFILE").ok()?;
     let home_path = std::path::PathBuf::from(home);
 
-    // 优先级1: 检查 %USERPROFILE%\.wakem.toml
-    let config_file = home_path.join(".wakem.toml");
+    // 根据实例ID确定配置文件名
+    let config_filename = if instance_id == 0 {
+        ".wakem.toml".to_string()
+    } else {
+        format!(".wakem-instance{}.toml", instance_id)
+    };
+
+    // 优先级1: 检查 %USERPROFILE%\.wakem.toml 或 .wakem-instanceN.toml
+    let config_file = home_path.join(&config_filename);
     if config_file.exists() {
         return Some(config_file);
     }
 
-    // 优先级2: 检查 %APPDATA%\wakem\config.toml
+    // 优先级2: 检查 %APPDATA%\wakem\config.toml 或 config-instanceN.toml
     let app_data = std::env::var("APPDATA").ok()?;
     let config_dir = std::path::PathBuf::from(app_data).join("wakem");
-    let config_file = config_dir.join("config.toml");
+    let config_file = if instance_id == 0 {
+        config_dir.join("config.toml")
+    } else {
+        config_dir.join(format!("config-instance{}.toml", instance_id))
+    };
     if config_file.exists() {
         return Some(config_file);
     }
 
     // 返回默认路径（即使不存在）
-    Some(home_path.join(".wakem.toml"))
+    Some(home_path.join(config_filename))
 }
 
 #[cfg(test)]

@@ -25,6 +25,10 @@ use window::{AppCommand, MessageWindow};
 #[command(about = "wakem - Window/Keyboard/Mouse Enhancer")]
 #[command(version)]
 struct Cli {
+    /// 实例ID（用于多实例）
+    #[arg(short, long, default_value = "0")]
+    instance: u32,
+
     /// 子命令
     #[command(subcommand)]
     command: Option<Commands>,
@@ -33,7 +37,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// 启动守护进程
-    Daemon,
+    Daemon {
+        /// 实例ID
+        #[arg(short, long, default_value = "0")]
+        instance: u32,
+    },
     /// 获取服务端状态
     Status,
     /// 重载配置
@@ -44,6 +52,8 @@ enum Commands {
     Disable,
     /// 打开配置文件夹
     Config,
+    /// 列出运行中的实例
+    Instances,
     /// 运行系统托盘（默认）
     Tray,
 }
@@ -56,31 +66,32 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Daemon) => run_daemon().await,
-        Some(Commands::Status) => cmd_status().await,
-        Some(Commands::Reload) => cmd_reload().await,
-        Some(Commands::Enable) => cmd_enable().await,
-        Some(Commands::Disable) => cmd_disable().await,
+        Some(Commands::Daemon { instance }) => run_daemon(instance).await,
+        Some(Commands::Status) => cmd_status(cli.instance).await,
+        Some(Commands::Reload) => cmd_reload(cli.instance).await,
+        Some(Commands::Enable) => cmd_enable(cli.instance).await,
+        Some(Commands::Disable) => cmd_disable(cli.instance).await,
         Some(Commands::Config) => cmd_config().await,
-        Some(Commands::Tray) | None => run_tray().await,
+        Some(Commands::Instances) => cmd_instances().await,
+        Some(Commands::Tray) | None => run_tray(cli.instance).await,
     }
 }
 
 /// 运行守护进程
-async fn run_daemon() -> Result<()> {
-    info!("wakemd starting...");
-    daemon::run_server().await?;
+async fn run_daemon(instance_id: u32) -> Result<()> {
+    info!("wakemd starting (instance {})...", instance_id);
+    daemon::run_server(instance_id).await?;
     info!("wakemd shutting down...");
     Ok(())
 }
 
 /// 获取服务端状态
-async fn cmd_status() -> Result<()> {
+async fn cmd_status(instance_id: u32) -> Result<()> {
     let mut client = DaemonClient::new();
-    match client.connect().await {
+    match client.connect_to_instance(instance_id).await {
         Ok(_) => match client.get_status().await {
             Ok((active, loaded)) => {
-                println!("wakemd status:");
+                println!("wakemd instance {} status:", instance_id);
                 println!("  Active: {}", if active { "enabled" } else { "disabled" });
                 println!("  Config loaded: {}", if loaded { "yes" } else { "no" });
             }
@@ -90,16 +101,19 @@ async fn cmd_status() -> Result<()> {
         },
         Err(e) => {
             eprintln!("Failed to connect to daemon: {}", e);
-            eprintln!("Please make sure wakemd is running");
+            eprintln!(
+                "Please make sure wakemd --instance {} is running",
+                instance_id
+            );
         }
     }
     Ok(())
 }
 
 /// 重载配置
-async fn cmd_reload() -> Result<()> {
+async fn cmd_reload(instance_id: u32) -> Result<()> {
     let mut client = DaemonClient::new();
-    match client.connect().await {
+    match client.connect_to_instance(instance_id).await {
         Ok(_) => match client.reload_config().await {
             Ok(_) => {
                 println!("Configuration reloaded successfully");
@@ -116,9 +130,9 @@ async fn cmd_reload() -> Result<()> {
 }
 
 /// 启用映射
-async fn cmd_enable() -> Result<()> {
+async fn cmd_enable(instance_id: u32) -> Result<()> {
     let mut client = DaemonClient::new();
-    match client.connect().await {
+    match client.connect_to_instance(instance_id).await {
         Ok(_) => match client.set_active(true).await {
             Ok(_) => {
                 println!("wakem enabled");
@@ -135,9 +149,9 @@ async fn cmd_enable() -> Result<()> {
 }
 
 /// 禁用映射
-async fn cmd_disable() -> Result<()> {
+async fn cmd_disable(instance_id: u32) -> Result<()> {
     let mut client = DaemonClient::new();
-    match client.connect().await {
+    match client.connect_to_instance(instance_id).await {
         Ok(_) => match client.set_active(false).await {
             Ok(_) => {
                 println!("wakem disabled");
@@ -160,25 +174,46 @@ async fn cmd_config() -> Result<()> {
     Ok(())
 }
 
+/// 列出运行中的实例
+async fn cmd_instances() -> Result<()> {
+    let instances = ipc::discovery::discover_instances().await;
+
+    println!("Running instances:");
+    let mut found = false;
+    for info in instances {
+        if info.active {
+            found = true;
+            println!("  Instance {}: {} (active)", info.id, info.address);
+        }
+    }
+
+    if !found {
+        println!("  No running instances found");
+    }
+
+    Ok(())
+}
+
 /// 运行系统托盘
-async fn run_tray() -> Result<()> {
-    info!("wakem client starting...");
+async fn run_tray(instance_id: u32) -> Result<()> {
+    info!("wakem client starting (instance {})...", instance_id);
 
     // 加载配置获取图标路径
-    let icon_path = config::resolve_config_file_path(None).and_then(|path| {
-        Config::from_file(&path)
-            .ok()
-            .and_then(|cfg| cfg.icon_path)
-            .or_else(|| {
-                // 尝试加载程序目录下的 assets/icon.ico
-                path.parent().map(|p| {
-                    p.join("assets")
-                        .join("icon.ico")
-                        .to_string_lossy()
-                        .to_string()
+    let icon_path =
+        config::resolve_config_file_path(None, instance_id).and_then(|path| {
+            Config::from_file(&path)
+                .ok()
+                .and_then(|cfg| cfg.icon_path)
+                .or_else(|| {
+                    // 尝试加载程序目录下的 assets/icon.ico
+                    path.parent().map(|p| {
+                        p.join("assets")
+                            .join("icon.ico")
+                            .to_string_lossy()
+                            .to_string()
+                    })
                 })
-            })
-    });
+        });
 
     // 创建命令通道
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(100);
@@ -197,9 +232,9 @@ async fn run_tray() -> Result<()> {
 
     // 连接到服务端
     let mut client = DaemonClient::new();
-    let connected = match client.connect().await {
+    let connected = match client.connect_to_instance(instance_id).await {
         Ok(_) => {
-            info!("Connected to wakemd");
+            info!("Connected to wakemd instance {}", instance_id);
 
             // 获取初始状态
             match client.get_status().await {
@@ -214,7 +249,10 @@ async fn run_tray() -> Result<()> {
         }
         Err(e) => {
             error!("Failed to connect to daemon: {}", e);
-            error!("Please make sure wakemd is running");
+            error!(
+                "Please make sure wakemd --instance {} is running",
+                instance_id
+            );
             false
         }
     };
@@ -326,7 +364,7 @@ async fn open_config_folder() -> Result<()> {
     use std::process::Command;
 
     // 获取配置文件夹路径
-    let config_path = config::resolve_config_file_path(None)
+    let config_path = config::resolve_config_file_path(None, 0)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| {
             std::env::var("USERPROFILE")
