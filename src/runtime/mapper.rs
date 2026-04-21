@@ -270,6 +270,38 @@ impl KeyMapper {
                     })),
                 }
             }
+            // Handle Hyper key sequence: split into press (on key down) and release (on key up) parts
+            (Action::Sequence(actions), _) if actions.len() > 1 => {
+                // Check if this is a Hyper key sequence (contains None marker)
+                let noop_position = actions.iter().position(|a| matches!(a, Action::None));
+
+                if let Some(pos) = noop_position {
+                    match event.state {
+                        KeyState::Pressed => {
+                            // Return only the press actions (before the marker)
+                            let press_actions: Vec<_> =
+                                actions.iter().take(pos).cloned().collect();
+                            if press_actions.is_empty() {
+                                None
+                            } else {
+                                Some(Action::Sequence(press_actions))
+                            }
+                        }
+                        KeyState::Released => {
+                            // Return only the release actions (after the marker)
+                            let release_actions: Vec<_> =
+                                actions.iter().skip(pos + 1).cloned().collect();
+                            if release_actions.is_empty() {
+                                None
+                            } else {
+                                Some(Action::Sequence(release_actions))
+                            }
+                        }
+                    }
+                } else {
+                    Some(action.clone())
+                }
+            }
             _ => Some(action.clone()),
         }
     }

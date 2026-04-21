@@ -641,13 +641,16 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
     }
 
     // Check if target is a shortcut with modifier keys (e.g., "Ctrl+Alt+Win")
+    // This is used for Hyper key mapping (e.g., CapsLock = "Ctrl+Alt+Win")
     if to.contains('+') && !to.contains("->") {
         // Parse modifier key combination (e.g., "Ctrl+Alt+Win")
         let modifiers = parse_modifier_combo(to)?;
-        let trigger = Trigger::key(from_key.0, from_key.1);
-        // Create action sequence for pressing/releasing modifier keys
-        let action = create_modifier_press_release_action(&modifiers);
-        return Ok(MappingRule::new(trigger, action));
+        // Create a special Hyper key action that holds modifiers while key is held
+        let action = create_hyper_key_action(&modifiers);
+        return Ok(MappingRule::new(
+            Trigger::key(from_key.0, from_key.1),
+            action,
+        ));
     }
 
     let to_key = parse_key(to)?;
@@ -681,44 +684,40 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
     Ok(modifiers)
 }
 
-/// Create action sequence for pressing and releasing modifier keys
-/// When CapsLock is pressed, send Ctrl+Alt+Win press, send release on release
-fn create_modifier_press_release_action(
-    modifiers: &crate::types::ModifierState,
-) -> crate::types::Action {
+/// Create Hyper key action
+/// When the Hyper key (e.g., CapsLock) is held, it simulates holding the modifier keys
+/// This allows using CapsLock+C to trigger Ctrl+Alt+Win+C shortcuts
+fn create_hyper_key_action(modifiers: &crate::types::ModifierState) -> crate::types::Action {
     use crate::types::{Action, KeyAction};
 
-    let mut actions = Vec::new();
+    let mut press_actions = Vec::new();
+    let mut release_actions = Vec::new();
 
     // Press modifier keys (in specific order: Ctrl -> Alt -> Win -> Shift)
     if modifiers.ctrl {
-        actions.push(Action::key(KeyAction::press(0x1D, 0x11))); // Ctrl
+        press_actions.push(Action::key(KeyAction::press(0x1D, 0x11))); // Ctrl
+        release_actions.insert(0, Action::key(KeyAction::release(0x1D, 0x11))); // Ctrl (reverse)
     }
     if modifiers.alt {
-        actions.push(Action::key(KeyAction::press(0x38, 0x12))); // Alt
+        press_actions.push(Action::key(KeyAction::press(0x38, 0x12))); // Alt
+        release_actions.insert(0, Action::key(KeyAction::release(0x38, 0x12))); // Alt (reverse)
     }
     if modifiers.meta {
-        actions.push(Action::key(KeyAction::press(0x5B, 0x5B))); // Win (Left)
+        press_actions.push(Action::key(KeyAction::press(0x5B, 0x5B))); // Win (Left)
+        release_actions.insert(0, Action::key(KeyAction::release(0x5B, 0x5B))); // Win (reverse)
     }
     if modifiers.shift {
-        actions.push(Action::key(KeyAction::press(0x2A, 0x10))); // Shift
+        press_actions.push(Action::key(KeyAction::press(0x2A, 0x10))); // Shift
+        release_actions.insert(0, Action::key(KeyAction::release(0x2A, 0x10))); // Shift (reverse)
     }
 
-    // Release modifier keys immediately (reverse order)
-    if modifiers.shift {
-        actions.push(Action::key(KeyAction::release(0x2A, 0x10))); // Shift
-    }
-    if modifiers.meta {
-        actions.push(Action::key(KeyAction::release(0x5B, 0x5B))); // Win
-    }
-    if modifiers.alt {
-        actions.push(Action::key(KeyAction::release(0x38, 0x12))); // Alt
-    }
-    if modifiers.ctrl {
-        actions.push(Action::key(KeyAction::release(0x1D, 0x11))); // Ctrl
-    }
+    // Combine press and release into a sequence that will be split by the mapper
+    // The mapper will execute press_actions on key down and release_actions on key up
+    let mut all_actions = press_actions;
+    all_actions.push(Action::None); // Marker to split press and release actions
+    all_actions.extend(release_actions);
 
-    Action::Sequence(actions)
+    Action::Sequence(all_actions)
 }
 
 /// Parse window management shortcut
