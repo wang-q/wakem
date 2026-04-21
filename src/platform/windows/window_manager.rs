@@ -1,9 +1,10 @@
 use anyhow::Result;
 use tracing::debug;
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
+use windows::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowRect, IsIconic,
 };
+use windows_core::BOOL;
 
 // Import Edge and Alignment from types
 use super::window_api::{MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi};
@@ -573,7 +574,7 @@ impl RealWindowManager {
     pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         unsafe {
             let current_hwnd = GetForegroundWindow();
-            if current_hwnd.0 == 0 {
+            if current_hwnd.0.is_null() {
                 return Err(anyhow::anyhow!("No foreground window"));
             }
 
@@ -629,7 +630,6 @@ impl RealWindowManager {
 
     /// Get all visible windows of specified process
     fn get_process_visible_windows(&self, target_pid: u32) -> Vec<HWND> {
-        use windows::Win32::Foundation::BOOL;
         use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
 
         struct EnumData {
@@ -683,26 +683,27 @@ impl RealWindowManager {
                 std::collections::HashMap::new();
 
             let mut hwnd = GetWindow(
-                HWND(0),
+                HWND(std::ptr::null_mut()),
                 windows::Win32::UI::WindowsAndMessaging::GW_HWNDFIRST,
             );
 
             let mut z_index: usize = 0;
-            while hwnd.0 != 0 {
-                if windows.contains(&hwnd) {
-                    zorder_map.insert(hwnd.0, z_index);
+            while let Ok(h) = hwnd {
+                if windows.contains(&h) {
+                    zorder_map.insert(h.0 as isize, z_index);
                 }
-                hwnd = GetWindow(
-                    hwnd,
-                    windows::Win32::UI::WindowsAndMessaging::GW_HWNDNEXT,
-                );
+                hwnd =
+                    GetWindow(h, windows::Win32::UI::WindowsAndMessaging::GW_HWNDNEXT);
                 z_index += 1;
             }
 
             // Sort by Z-Order
             let mut sorted = windows;
             sorted.sort_by_key(|hwnd| {
-                zorder_map.get(&hwnd.0).copied().unwrap_or(usize::MAX)
+                zorder_map
+                    .get(&(hwnd.0 as isize))
+                    .copied()
+                    .unwrap_or(usize::MAX)
             });
 
             sorted

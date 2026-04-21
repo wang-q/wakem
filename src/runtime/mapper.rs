@@ -110,6 +110,13 @@ pub struct KeyMapper {
     window_preset_manager: Option<crate::platform::windows::WindowPresetManager>,
 }
 
+// SAFETY: KeyMapper is Send + Sync because:
+// - All contained HWND/HICON handles are only used from the main thread
+// - Window handles are thread-safe to store (just pointers)
+// - Actual API calls are always done from the same thread
+unsafe impl Send for KeyMapper {}
+unsafe impl Sync for KeyMapper {}
+
 impl KeyMapper {
     /// Create a new mapping engine
     pub fn new() -> Self {
@@ -350,7 +357,7 @@ impl KeyMapper {
 
         unsafe {
             let hwnd = GetForegroundWindow();
-            if hwnd.0 == 0 {
+            if hwnd.0.is_null() {
                 return Err(anyhow::anyhow!("No foreground window"));
             }
 
@@ -427,7 +434,7 @@ impl KeyMapper {
                     use windows::Win32::Foundation::{LPARAM, WPARAM};
                     use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
                     use windows::Win32::UI::WindowsAndMessaging::WM_CLOSE;
-                    PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+                    PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
                 }
                 WindowAction::ToggleTopmost => {
                     use windows::Win32::UI::WindowsAndMessaging::{
@@ -447,7 +454,7 @@ impl KeyMapper {
 
                     SetWindowPos(
                         hwnd,
-                        hwnd_insert_after,
+                        Some(hwnd_insert_after),
                         0,
                         0,
                         0,

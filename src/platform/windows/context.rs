@@ -34,12 +34,12 @@ impl WindowContext {
     pub fn get_current() -> Option<Self> {
         unsafe {
             let hwnd = GetForegroundWindow();
-            if hwnd.0 == 0 {
+            if hwnd.0.is_null() {
                 return None;
             }
 
             let mut context = Self {
-                hwnd: hwnd.0,
+                hwnd: hwnd.0 as isize,
                 ..Default::default()
             };
 
@@ -108,7 +108,7 @@ impl WindowContext {
             OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
 
         let mut buffer = [0u16; 260];
-        let len = GetModuleFileNameExW(handle, None, &mut buffer);
+        let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
 
         CloseHandle(handle).ok();
 

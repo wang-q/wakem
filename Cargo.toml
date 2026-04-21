@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Windows API
-windows = { version = "0.52", features = [
+windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_UI_Input",
     "Win32_UI_Input_KeyboardAndMouse",
@@ -30,6 +30,7 @@ windows = { version = "0.52", features = [
     "Win32_System_Diagnostics",
     "Win32_System_Diagnostics_Debug",
 ] }
+windows-core = "0.61"
 
 # 序列化
 serde = { version = "1.0", features = ["derive"] }

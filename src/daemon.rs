@@ -48,7 +48,8 @@ pub struct ServerState {
     /// Macro recorder (has internal synchronization)
     macro_recorder: Arc<MacroRecorder>,
     /// Message window handle (for sending notifications)
-    message_window_hwnd: Arc<RwLock<Option<HWND>>>,
+    /// Stored as isize for Send/Sync safety (HWND is *mut c_void which is not Send)
+    message_window_hwnd: Arc<RwLock<Option<isize>>>,
     /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
     /// Virtual modifier state for Hyper key support
@@ -289,7 +290,7 @@ impl ServerState {
 
         // Check if this is CapsLock (Hyper key) and update virtual modifiers directly
         // This must happen before merge_virtual_modifiers
-        let is_hyper_key = self.check_and_update_hyper_key(&event).await;
+        let _is_hyper_key = self.check_and_update_hyper_key(&event).await;
 
         // Merge virtual modifiers into the event for Hyper key support
         let event = self.merge_virtual_modifiers(event).await;
@@ -707,10 +708,14 @@ impl ServerState {
     }
 
     /// Set message window handle
-    pub async fn set_message_window_hwnd(&self, hwnd: HWND) {
+    /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
+    pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
         let mut h = self.message_window_hwnd.write().await;
-        *h = Some(hwnd);
-        info!("Message window handle registered: {:?}", hwnd);
+        *h = Some(hwnd_value);
+        info!(
+            "Message window handle registered: {:?}",
+            HWND(hwnd_value as *mut std::ffi::c_void)
+        );
     }
 
     /// Get current auth key (for IPC authentication)
@@ -721,9 +726,10 @@ impl ServerState {
 
     /// Show tray notification
     pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        if let Some(hwnd) = *self.message_window_hwnd.read().await {
-            // Show notification using tray icon
-            self.show_tray_notification(hwnd, title, message).await?;
+        if let Some(hwnd_isize) = *self.message_window_hwnd.read().await {
+            // Show notification using tray icon (pass isize directly)
+            self.show_tray_notification(hwnd_isize, title, message)
+                .await?;
         } else {
             debug!("Message window not registered, skipping notification");
         }
@@ -731,15 +737,19 @@ impl ServerState {
     }
 
     /// Show notification using tray icon (internal method)
+    /// Takes isize instead of HWND to avoid Send issues
     async fn show_tray_notification(
         &self,
-        hwnd: HWND,
+        hwnd_value: isize,
         title: &str,
         message: &str,
     ) -> Result<()> {
         use windows::Win32::UI::Shell::{
             NIF_INFO, NIM_MODIFY, NOTIFYICONDATAW, NOTIFY_ICON_INFOTIP_FLAGS,
         };
+
+        // Create HWND from isize for API calls
+        let hwnd = HWND(hwnd_value as *mut std::ffi::c_void);
 
         let mut nid = NOTIFYICONDATAW {
             cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
@@ -1235,14 +1245,19 @@ impl ServerState {
         }
 
         match event {
-            crate::platform::windows::WindowEvent::WindowActivated(hwnd) => {
+            crate::platform::windows::WindowEvent::WindowActivated(hwnd_isize) => {
                 // Delay applying preset to ensure window is fully created
                 tokio::time::sleep(tokio::time::Duration::from_millis(
                     WINDOW_PRESET_APPLY_DELAY_MS,
                 ))
                 .await;
 
+                // Get preset manager first, then create HWND and apply preset
+                // This avoids holding HWND across await points (HWND is not Send)
                 let preset_manager = self.window_preset_manager.read().await;
+                let hwnd = windows::Win32::Foundation::HWND(
+                    hwnd_isize as *mut std::ffi::c_void,
+                );
                 match preset_manager.apply_preset_for_window(hwnd) {
                     Ok(true) => {
                         debug!("Auto-applied preset to window {:?}", hwnd);
@@ -1339,8 +1354,8 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
             },
         },
         Message::RegisterMessageWindow { hwnd } => {
-            let hwnd = windows::Win32::Foundation::HWND(hwnd as isize);
-            state.set_message_window_hwnd(hwnd).await;
+            // Pass isize directly to avoid Send issues with HWND
+            state.set_message_window_hwnd(hwnd as isize).await;
             Message::Success
         }
         _ => Message::Error {

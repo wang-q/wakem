@@ -1,6 +1,5 @@
 use crate::types::{
-    InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
-    MouseEventType,
+    InputEvent, KeyState, ModifierState,
 };
 use anyhow::Result;
 #[allow(unused_imports)]

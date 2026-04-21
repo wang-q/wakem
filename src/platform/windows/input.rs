@@ -6,7 +6,7 @@ use crate::types::{
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
-use tracing::{debug, info, trace};
+use tracing::{debug, trace};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU,
@@ -87,13 +87,10 @@ impl RawInputDevice {
                 CW_USEDEFAULT,
                 None,
                 None,
-                hinstance,
+                Some(windows::Win32::Foundation::HINSTANCE(hinstance.0)),
                 None,
-            );
-
-            if hwnd.0 == 0 {
-                return Err(anyhow::anyhow!("Failed to create window"));
-            }
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to create window: {}", e))?;
 
             debug!("Raw Input message window created: {:?}", hwnd);
             Ok(hwnd)
@@ -176,7 +173,7 @@ impl RawInputDevice {
         self.running = false;
         let _ = unsafe {
             windows::Win32::UI::WindowsAndMessaging::PostMessageW(
-                self.hwnd,
+                Some(self.hwnd),
                 WM_QUIT,
                 WPARAM(0),
                 LPARAM(0),

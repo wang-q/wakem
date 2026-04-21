@@ -1,19 +1,22 @@
 use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info};
+use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, GetWindowLongPtrW,
-    PostMessageW, PostQuitMessage, RegisterClassW, SetWindowLongPtrW, TranslateMessage,
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, GWLP_USERDATA, MSG, WM_COMMAND, WM_CREATE,
-    WM_DESTROY, WNDCLASSW, WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
+    PostQuitMessage, RegisterClassW, SetWindowLongPtrW, ShowWindow, TranslateMessage,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, GWLP_USERDATA, MSG, SW_HIDE, WM_COMMAND,
+    WM_CREATE, WM_DESTROY, WM_LBUTTONUP, WM_RBUTTONUP, WNDCLASSW, WS_EX_NOACTIVATE,
+    WS_OVERLAPPEDWINDOW,
 };
 
 use crate::platform::windows::tray::{
-    TrayIcon, IDM_EXIT, IDM_OPEN_CONFIG, IDM_RELOAD, IDM_TOGGLE_ACTIVE,
-    WM_APP_TRAY_NOTIFY,
+    TrayIcon, IDM_EXIT, IDM_OPEN_CONFIG, IDM_RELOAD, IDM_TOGGLE_ACTIVE, WM_TRAY_NOTIFY,
 };
+
+// Re-export for backward compatibility
 
 /// Application commands
 #[derive(Debug, Clone, Copy)]
@@ -34,13 +37,13 @@ pub struct MessageWindow {
 }
 
 impl MessageWindow {
-    /// Create message window with custom icon path
-    pub fn with_icon_path(icon_path: Option<String>) -> Result<Arc<Self>> {
+    /// Create message window
+    pub fn new() -> Result<Arc<Self>> {
         let hwnd = Self::create_window()?;
 
         let window = Arc::new(Self {
             hwnd,
-            tray_icon: Arc::new(Mutex::new(TrayIcon::with_icon_path(icon_path))),
+            tray_icon: Arc::new(Mutex::new(TrayIcon::new())),
             running: Arc::new(Mutex::new(true)),
             command_callback: Arc::new(Mutex::new(None)),
         });
@@ -68,11 +71,19 @@ impl MessageWindow {
                 ..Default::default()
             };
 
-            RegisterClassW(&wnd_class);
+            let atom = RegisterClassW(&wnd_class);
+            if atom == 0 {
+                let err = windows::Win32::Foundation::GetLastError();
+                return Err(anyhow::anyhow!(
+                    "Failed to register window class: {:?}",
+                    err
+                ));
+            }
+            debug!("Window class registered: {}", atom);
 
             let hwnd = CreateWindowExW(
                 WS_EX_NOACTIVATE,
-                class_name,
+                PCWSTR(atom as _),
                 windows::core::w!("wakem"),
                 WS_OVERLAPPEDWINDOW,
                 CW_USEDEFAULT,
@@ -81,15 +92,15 @@ impl MessageWindow {
                 CW_USEDEFAULT,
                 None,
                 None,
-                hinstance,
+                Some(hinstance.into()),
                 None,
-            );
+            )?;
 
-            if hwnd.0 == 0 {
-                return Err(anyhow::anyhow!("Failed to create window"));
-            }
+            info!("Message window created: {:?}", hwnd);
 
-            debug!("Message window created: {:?}", hwnd);
+            // Hide the window - it's only used for message handling
+            let _ = ShowWindow(hwnd, SW_HIDE);
+
             Ok(hwnd)
         }
     }
@@ -98,7 +109,7 @@ impl MessageWindow {
     pub fn init_tray(&self) -> Result<()> {
         let mut tray = self.tray_icon.lock().unwrap();
         tray.register(self.hwnd)?;
-        debug!("Tray icon initialized");
+        info!("Tray icon registered");
         Ok(())
     }
 
@@ -127,7 +138,7 @@ impl MessageWindow {
             let mut msg: MSG = std::mem::zeroed();
 
             while GetMessageW(&mut msg, None, 0, 0).into() {
-                TranslateMessage(&msg);
+                let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
         }
@@ -151,14 +162,14 @@ impl MessageWindow {
         self.hwnd
     }
 
-    /// Get instance reference from window handle (safely reconstruct Arc)
-    unsafe fn get_instance(hwnd: HWND) -> Option<Arc<Self>> {
+    /// Get instance reference from window handle (get reference without consuming Arc)
+    unsafe fn get_instance(hwnd: HWND) -> Option<&'static Self> {
         let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
         if ptr == 0 {
             return None;
         }
-        // Safely reconstruct Arc from raw pointer
-        Some(Arc::from_raw(ptr as *const Self))
+        // Get reference without consuming the Arc
+        Some(&*(ptr as *const Self))
     }
 
     /// Window procedure
@@ -178,14 +189,18 @@ impl MessageWindow {
                 PostQuitMessage(0);
                 LRESULT(0)
             }
-            WM_APP_TRAY_NOTIFY => {
-                // Tray icon message
+            WM_TRAY_NOTIFY => {
+                // Tray icon message - lparam contains the mouse message directly
                 Self::handle_tray_notify(hwnd, lparam)
             }
             WM_COMMAND => {
-                // Menu command
-                let id = wparam.0 as u32;
-                Self::handle_menu_command(hwnd, id);
+                // Menu command - parse like window-switcher
+                let value = wparam.0 as u32;
+                let kind = ((value >> 16) & 0xffff) as u16;
+                let id = value & 0xffff;
+                if kind == 0 {
+                    Self::handle_menu_command(hwnd, id);
+                }
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, msg, wparam, lparam),
@@ -194,48 +209,23 @@ impl MessageWindow {
 
     /// Handle tray icon message
     unsafe fn handle_tray_notify(hwnd: HWND, lparam: LPARAM) -> LRESULT {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_RBUTTONUP,
-        };
+        let mouse_msg = lparam.0 as u32;
+        debug!("Tray notify: mouse_msg={}", mouse_msg);
 
-        let msg = lparam.0 as u32;
-        match msg {
-            WM_RBUTTONUP => {
-                // Right-click to show menu
-                debug!("Tray icon right-clicked");
+        match mouse_msg {
+            WM_LBUTTONUP | WM_RBUTTONUP => {
+                debug!("Tray icon clicked");
 
                 if let Some(instance) = Self::get_instance(hwnd) {
-                    let tray = instance.tray_icon.lock().unwrap();
-                    match tray.show_menu() {
-                        Ok(cmd_id) => {
-                            if cmd_id != 0 {
-                                // Send WM_COMMAND message to handle menu selection
-                                let _ = PostMessageW(
-                                    hwnd,
-                                    WM_COMMAND,
-                                    WPARAM(cmd_id as usize),
-                                    LPARAM(0),
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to show menu: {}", e);
-                        }
+                    let mut tray = instance.tray_icon.lock().unwrap();
+                    if let Err(e) = tray.show() {
+                        error!("Failed to show menu: {}", e);
                     }
                 }
             }
-            WM_LBUTTONDBLCLK => {
-                // Double-click to toggle active state
-                debug!("Tray icon double-clicked");
-                if let Some(instance) = Self::get_instance(hwnd) {
-                    instance.send_command(AppCommand::ToggleActive);
-                }
+            _ => {
+                debug!("Unknown tray message: {}", mouse_msg);
             }
-            WM_LBUTTONUP => {
-                // Left-click
-                debug!("Tray icon clicked");
-            }
-            _ => {}
         }
 
         LRESULT(0)
@@ -243,25 +233,28 @@ impl MessageWindow {
 
     /// Handle menu command
     unsafe fn handle_menu_command(hwnd: HWND, id: u32) {
+        debug!("Menu command: id={}", id);
         if let Some(instance) = Self::get_instance(hwnd) {
             match id {
                 IDM_TOGGLE_ACTIVE => {
-                    info!("Toggle active menu item clicked");
+                    info!("Toggle active");
                     instance.send_command(AppCommand::ToggleActive);
                 }
                 IDM_RELOAD => {
-                    info!("Reload config menu item clicked");
+                    info!("Reload config");
                     instance.send_command(AppCommand::ReloadConfig);
                 }
                 IDM_OPEN_CONFIG => {
-                    info!("Open config menu item clicked");
+                    info!("Open config folder");
                     instance.send_command(AppCommand::OpenConfigFolder);
                 }
                 IDM_EXIT => {
-                    info!("Exit menu item clicked");
+                    info!("Exit");
                     instance.send_command(AppCommand::Exit);
                 }
-                _ => {}
+                _ => {
+                    debug!("Unknown menu command: {}", id);
+                }
             }
         }
     }
@@ -270,12 +263,6 @@ impl MessageWindow {
 impl Drop for MessageWindow {
     fn drop(&mut self) {
         debug!("MessageWindow dropping");
-        // Clean up tray icon
-        if let Ok(mut tray) = self.tray_icon.lock() {
-            if let Err(e) = tray.unregister() {
-                debug!("Failed to unregister tray icon: {}", e);
-            }
-        }
     }
 }
 

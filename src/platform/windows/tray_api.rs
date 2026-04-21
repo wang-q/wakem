@@ -45,10 +45,14 @@ struct TrayIconInner {
     #[allow(dead_code)]
     tray_icon: super::tray::TrayIcon,
     #[allow(dead_code)]
-    hwnd: isize,
+    hwnd: windows::Win32::Foundation::HWND,
     #[allow(dead_code)]
     active: bool,
 }
+
+// SAFETY: HWND is just a pointer, and we only use it from one thread at a time
+unsafe impl Send for TrayIconInner {}
+unsafe impl Sync for TrayIconInner {}
 
 impl Default for RealTrayApi {
     fn default() -> Self {
@@ -62,21 +66,16 @@ impl RealTrayApi {
         Self {
             inner: Arc::new(Mutex::new(TrayIconInner {
                 tray_icon: super::tray::TrayIcon::new(),
-                hwnd: 0,
+                hwnd: windows::Win32::Foundation::HWND(std::ptr::null_mut()),
                 active: true,
             })),
         }
     }
 
     #[allow(dead_code)]
-    pub fn with_icon_path(icon_path: Option<String>) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(TrayIconInner {
-                tray_icon: super::tray::TrayIcon::with_icon_path(icon_path),
-                hwnd: 0,
-                active: true,
-            })),
-        }
+    pub fn with_icon_path(_icon_path: Option<String>) -> Self {
+        // Icon path is no longer used - we use embedded icon
+        Self::new()
     }
 }
 
@@ -84,11 +83,11 @@ impl RealTrayApi {
 impl TrayApi for RealTrayApi {
     async fn register(&self, hwnd: isize) -> Result<()> {
         let mut inner = self.inner.lock().await;
-        inner.hwnd = hwnd;
         // Note: Actual TrayIcon::register requires HWND type
         // Here we use type conversion for compatibility
-        let hwnd = windows::Win32::Foundation::HWND(hwnd);
-        inner.tray_icon.register(hwnd)?;
+        let hwnd_ptr = windows::Win32::Foundation::HWND(hwnd as *mut std::ffi::c_void);
+        inner.hwnd = hwnd_ptr;
+        inner.tray_icon.register(hwnd_ptr)?;
         Ok(())
     }
 
@@ -105,7 +104,7 @@ impl TrayApi for RealTrayApi {
     }
 
     async fn show_menu(&self) -> Result<u32> {
-        let inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().await;
         inner.tray_icon.show_menu()
     }
 

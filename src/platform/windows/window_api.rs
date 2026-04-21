@@ -3,7 +3,7 @@ use anyhow::Result;
 use std::cell::RefCell;
 #[allow(unused_imports)]
 use std::collections::HashMap;
-use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowRect, GetWindowTextW, IsIconic, IsWindow, IsZoomed,
@@ -167,7 +167,7 @@ impl Default for RealWindowApi {
 impl WindowApi for RealWindowApi {
     fn get_foreground_window(&self) -> Option<HWND> {
         let hwnd = unsafe { GetForegroundWindow() };
-        if hwnd.0 == 0 {
+        if hwnd.0.is_null() {
             None
         } else {
             Some(hwnd)
@@ -242,7 +242,7 @@ impl WindowApi for RealWindowApi {
     }
 
     fn is_window(&self, hwnd: HWND) -> bool {
-        unsafe { IsWindow(hwnd).as_bool() }
+        unsafe { IsWindow(Some(hwnd)).as_bool() }
     }
 
     fn get_window_title(&self, hwnd: HWND) -> Option<String> {
@@ -295,7 +295,7 @@ impl WindowApi for RealWindowApi {
     fn close_window(&self, hwnd: HWND) -> Result<()> {
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
-            let _ = PostMessageW(hwnd, WM_CLOSE, None, None);
+            let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
             Ok(())
         }
     }
@@ -306,9 +306,9 @@ impl WindowApi for RealWindowApi {
                 SetWindowPos, HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
             };
             let pos = if topmost {
-                HWND_TOPMOST
+                Some(HWND_TOPMOST)
             } else {
-                HWND_NOTOPMOST
+                Some(HWND_NOTOPMOST)
             };
             let _ = SetWindowPos(hwnd, pos, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             Ok(())
@@ -325,7 +325,7 @@ impl WindowApi for RealWindowApi {
             let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
             let _ = SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
 
-            let _ = SetLayeredWindowAttributes(hwnd, None, opacity, LWA_ALPHA);
+            let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), opacity, LWA_ALPHA);
             Ok(())
         }
     }
@@ -365,15 +365,19 @@ impl MockWindowApi {
     }
 
     pub fn set_window_rect(&self, hwnd: HWND, frame: WindowFrame) {
-        self.window_rects.borrow_mut().insert(hwnd.0, frame);
+        self.window_rects
+            .borrow_mut()
+            .insert(hwnd.0 as isize, frame);
     }
 
     pub fn set_monitor_info(&self, hwnd: HWND, info: MonitorInfo) {
-        self.monitor_info.borrow_mut().insert(hwnd.0, info);
+        self.monitor_info.borrow_mut().insert(hwnd.0 as isize, info);
     }
 
     pub fn set_window_state(&self, hwnd: HWND, state: WindowState) {
-        self.window_states.borrow_mut().insert(hwnd.0, state);
+        self.window_states
+            .borrow_mut()
+            .insert(hwnd.0 as isize, state);
     }
 
     pub fn get_operations(&self) -> Vec<WindowOperation> {
@@ -398,7 +402,7 @@ impl WindowApi for MockWindowApi {
 
     fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame> {
         self.log_operation(WindowOperation::GetWindowRect { hwnd });
-        self.window_rects.borrow().get(&hwnd.0).copied()
+        self.window_rects.borrow().get(&(hwnd.0 as isize)).copied()
     }
 
     fn set_window_pos(
@@ -418,11 +422,11 @@ impl WindowApi for MockWindowApi {
         });
 
         let mut rects = self.window_rects.borrow_mut();
-        rects.insert(hwnd.0, WindowFrame::new(x, y, width, height));
+        rects.insert(hwnd.0 as isize, WindowFrame::new(x, y, width, height));
 
         // Update window state
         let mut states = self.window_states.borrow_mut();
-        if let Some(state) = states.get_mut(&hwnd.0) {
+        if let Some(state) = states.get_mut(&(hwnd.0 as isize)) {
             state.minimized = false;
             state.maximized = false;
         }
@@ -432,7 +436,7 @@ impl WindowApi for MockWindowApi {
 
     fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo> {
         self.log_operation(WindowOperation::GetMonitorInfo { hwnd });
-        self.monitor_info.borrow().get(&hwnd.0).cloned()
+        self.monitor_info.borrow().get(&(hwnd.0 as isize)).cloned()
     }
 
     fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea> {
@@ -446,18 +450,18 @@ impl WindowApi for MockWindowApi {
 
     fn is_window(&self, hwnd: HWND) -> bool {
         self.log_operation(WindowOperation::IsWindow { hwnd });
-        self.window_rects.borrow().contains_key(&hwnd.0)
+        self.window_rects.borrow().contains_key(&(hwnd.0 as isize))
     }
 
     fn get_window_title(&self, hwnd: HWND) -> Option<String> {
         self.log_operation(WindowOperation::GetWindowTitle { hwnd });
-        Some(format!("Window {:?}", hwnd.0))
+        Some(format!("Window {:?}", hwnd.0 as isize))
     }
 
     fn is_iconic(&self, hwnd: HWND) -> bool {
         self.window_states
             .borrow()
-            .get(&hwnd.0)
+            .get(&(hwnd.0 as isize))
             .map(|s| s.minimized)
             .unwrap_or(false)
     }
@@ -465,7 +469,7 @@ impl WindowApi for MockWindowApi {
     fn is_zoomed(&self, hwnd: HWND) -> bool {
         self.window_states
             .borrow()
-            .get(&hwnd.0)
+            .get(&(hwnd.0 as isize))
             .map(|s| s.maximized)
             .unwrap_or(false)
     }
@@ -473,21 +477,21 @@ impl WindowApi for MockWindowApi {
     fn minimize_window(&self, hwnd: HWND) -> Result<()> {
         self.log_operation(WindowOperation::MinimizeWindow { hwnd });
         let mut states = self.window_states.borrow_mut();
-        states.entry(hwnd.0).or_default().minimized = true;
+        states.entry(hwnd.0 as isize).or_default().minimized = true;
         Ok(())
     }
 
     fn maximize_window(&self, hwnd: HWND) -> Result<()> {
         self.log_operation(WindowOperation::MaximizeWindow { hwnd });
         let mut states = self.window_states.borrow_mut();
-        states.entry(hwnd.0).or_default().maximized = true;
+        states.entry(hwnd.0 as isize).or_default().maximized = true;
         Ok(())
     }
 
     fn restore_window(&self, hwnd: HWND) -> Result<()> {
         self.log_operation(WindowOperation::RestoreWindow { hwnd });
         let mut states = self.window_states.borrow_mut();
-        if let Some(state) = states.get_mut(&hwnd.0) {
+        if let Some(state) = states.get_mut(&(hwnd.0 as isize)) {
             state.minimized = false;
             state.maximized = false;
         }
@@ -496,22 +500,22 @@ impl WindowApi for MockWindowApi {
 
     fn close_window(&self, hwnd: HWND) -> Result<()> {
         self.log_operation(WindowOperation::CloseWindow { hwnd });
-        self.window_rects.borrow_mut().remove(&hwnd.0);
-        self.window_states.borrow_mut().remove(&hwnd.0);
+        self.window_rects.borrow_mut().remove(&(hwnd.0 as isize));
+        self.window_states.borrow_mut().remove(&(hwnd.0 as isize));
         Ok(())
     }
 
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()> {
         self.log_operation(WindowOperation::SetTopmost { hwnd, topmost });
         let mut states = self.window_states.borrow_mut();
-        states.entry(hwnd.0).or_default().topmost = topmost;
+        states.entry(hwnd.0 as isize).or_default().topmost = topmost;
         Ok(())
     }
 
     fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()> {
         self.log_operation(WindowOperation::SetOpacity { hwnd, opacity });
         let mut states = self.window_states.borrow_mut();
-        states.entry(hwnd.0).or_default().opacity = opacity;
+        states.entry(hwnd.0 as isize).or_default().opacity = opacity;
         Ok(())
     }
 

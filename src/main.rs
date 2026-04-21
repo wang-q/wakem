@@ -193,7 +193,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
     info!("wakem client starting (instance {})...", instance_id);
 
     // Load config to get icon path
-    let icon_path =
+    let _icon_path =
         config::resolve_config_file_path(None, instance_id).and_then(|path| {
             Config::from_file(&path)
                 .ok()
@@ -212,8 +212,8 @@ async fn run_tray(instance_id: u32) -> Result<()> {
     // Create command channel
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(IPC_CHANNEL_CAPACITY);
 
-    // Create message window with custom icon
-    let window = MessageWindow::with_icon_path(icon_path)?;
+    // Create message window
+    let window = MessageWindow::new()?;
 
     // Set command callback
     let cmd_tx_for_callback = cmd_tx.clone();

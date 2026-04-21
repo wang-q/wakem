@@ -1,17 +1,19 @@
 use anyhow::Result;
-use tracing::{debug, error};
-use windows::core::{w, HSTRING, PCWSTR};
-use windows::Win32::Foundation::{HINSTANCE, HWND, POINT};
+use tracing::error;
+use windows::core::{w, PCWSTR};
+use windows::Win32::Foundation::{HWND, POINT};
 use windows::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
     NIM_MODIFY, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, DestroyMenu, GetCursorPos, LoadIconW, LoadImageW,
-    SetForegroundWindow, TrackPopupMenu, HMENU, IDI_APPLICATION, IMAGE_ICON,
-    LR_DEFAULTSIZE, LR_LOADFROMFILE, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN,
-    TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP,
+    AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, DestroyMenu, GetCursorPos,
+    LookupIconIdFromDirectoryEx, SetForegroundWindow, TrackPopupMenu, HMENU,
+    LR_DEFAULTCOLOR, MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
 };
+
+/// Embedded icon resource
+const ICON_BYTES: &[u8] = include_bytes!("../../../assets/icon.ico");
 
 /// Menu item IDs
 pub const IDM_TOGGLE_ACTIVE: u32 = 100;
@@ -19,117 +21,81 @@ pub const IDM_RELOAD: u32 = 101;
 pub const IDM_OPEN_CONFIG: u32 = 102;
 pub const IDM_EXIT: u32 = 103;
 
-/// Custom messages
-pub const WM_APP_TRAY_NOTIFY: u32 = WM_APP + 1;
+/// Custom messages - use WM_USER range like window-switcher
+pub const WM_TRAY_NOTIFY: u32 = 6000;
 
 /// Tray icon
 pub struct TrayIcon {
     data: NOTIFYICONDATAW,
-    hwnd: HWND,
-    active: bool,
-    icon_path: Option<String>,
 }
+
+// SAFETY: TrayIcon contains HWND and HICON which are raw pointers.
+// They are only used from the main thread and are safe to send/sync
+// as long as they are not accessed concurrently.
+unsafe impl Send for TrayIcon {}
+unsafe impl Sync for TrayIcon {}
 
 impl TrayIcon {
     /// Create new tray icon
     pub fn new() -> Self {
-        Self::with_icon_path(None)
+        Self::create()
     }
 
-    /// Create tray icon with custom icon path
-    pub fn with_icon_path(icon_path: Option<String>) -> Self {
-        let mut data = NOTIFYICONDATAW {
-            uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
-            uCallbackMessage: WM_APP_TRAY_NOTIFY,
-            ..Default::default()
+    /// Create tray icon (like window-switcher)
+    fn create() -> Self {
+        let data = Self::create_nid();
+        Self { data }
+    }
+
+    /// Create NOTIFYICONDATAW (like window-switcher)
+    fn create_nid() -> NOTIFYICONDATAW {
+        let offset = unsafe {
+            LookupIconIdFromDirectoryEx(ICON_BYTES.as_ptr(), true, 0, 0, LR_DEFAULTCOLOR)
         };
-
-        // Set tooltip text
-        let tooltip = w!("wakem - Window/Keyboard/Mouse Enhancer");
-        let tooltip_slice = unsafe { tooltip.as_wide() };
-        let len = tooltip_slice.len().min(127);
-        data.szTip[..len].copy_from_slice(&tooltip_slice[..len]);
-        data.szTip[len] = 0;
-
-        Self {
-            data,
-            hwnd: HWND(0),
-            active: true,
-            icon_path,
+        let icon_data = &ICON_BYTES[offset as usize..];
+        let hicon = unsafe {
+            CreateIconFromResourceEx(icon_data, true, 0x30000, 0, 0, LR_DEFAULTCOLOR)
         }
-    }
+        .expect("Failed to load icon resource");
 
-    /// Load icon from file
-    fn load_icon_from_file(
-        path: &str,
-    ) -> anyhow::Result<windows::Win32::UI::WindowsAndMessaging::HICON> {
-        let path_wide = HSTRING::from(path);
+        let mut tooltip: Vec<u16> = unsafe { w!("wakem").as_wide() }.to_vec();
+        tooltip.resize(128, 0);
+        tooltip.pop();
+        tooltip.push(0);
+        let tooltip: [u16; 128] = tooltip.try_into().unwrap();
 
-        unsafe {
-            let hicon = LoadImageW(
-                HINSTANCE(0),
-                &path_wide,
-                IMAGE_ICON,
-                0,
-                0,
-                LR_LOADFROMFILE | LR_DEFAULTSIZE,
-            )
-            .map_err(|e| anyhow::anyhow!("Failed to load icon from file: {}", e))?;
-
-            Ok(windows::Win32::UI::WindowsAndMessaging::HICON(hicon.0))
+        NOTIFYICONDATAW {
+            uID: WM_TRAY_NOTIFY,
+            uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
+            uCallbackMessage: WM_TRAY_NOTIFY,
+            hIcon: hicon,
+            szTip: tooltip,
+            ..Default::default()
         }
     }
 
     /// Register tray icon
     pub fn register(&mut self, hwnd: HWND) -> Result<()> {
-        self.hwnd = hwnd;
         self.data.hWnd = hwnd;
-        self.data.uID = 1;
-
-        // Try to load custom icon, fallback to system default
-        self.data.hIcon = if let Some(ref path) = self.icon_path {
-            match Self::load_icon_from_file(path) {
-                Ok(icon) => {
-                    debug!("Loaded custom icon from: {}", path);
-                    icon
-                }
-                Err(e) => {
-                    debug!(
-                        "Failed to load custom icon from '{}': {}, using default",
-                        path, e
-                    );
-                    unsafe { LoadIconW(None, IDI_APPLICATION)? }
-                }
-            }
-        } else {
-            unsafe { LoadIconW(None, IDI_APPLICATION)? }
-        };
-
         unsafe {
             Shell_NotifyIconW(NIM_ADD, &self.data)
                 .ok()
-                .map_err(|e| anyhow::anyhow!("Failed to add tray icon: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to add tray icon: {}", e))
         }
-
-        debug!("Tray icon registered");
-        Ok(())
     }
 
-    /// Unregister tray icon
-    pub fn unregister(&mut self) -> Result<()> {
-        if self.hwnd.0 == 0 {
-            return Ok(());
-        }
+    /// Check if tray icon exists
+    pub fn exist(&mut self) -> bool {
+        unsafe { Shell_NotifyIconW(NIM_MODIFY, &self.data).as_bool() }
+    }
 
+    /// Unregister tray icon (alias for Drop)
+    pub fn unregister(&mut self) -> Result<()> {
         unsafe {
             Shell_NotifyIconW(NIM_DELETE, &self.data)
                 .ok()
-                .map_err(|e| anyhow::anyhow!("Failed to delete tray icon: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to delete tray icon: {}", e))
         }
-
-        self.hwnd = HWND(0);
-        debug!("Tray icon unregistered");
-        Ok(())
     }
 
     /// Show balloon notification
@@ -160,57 +126,62 @@ impl TrayIcon {
         Ok(())
     }
 
+    /// Show context menu and return selected item ID (for API compatibility)
+    pub fn show_menu(&mut self) -> Result<u32> {
+        // This is a synchronous version that doesn't return the selection
+        // The actual menu selection is handled via WM_COMMAND messages
+        self.show()?;
+        Ok(0)
+    }
+
     /// Show context menu
-    pub fn show_menu(&self) -> Result<u32> {
+    pub fn show(&mut self) -> Result<()> {
         unsafe {
-            SetForegroundWindow(self.hwnd).ok().map_err(|e| {
+            SetForegroundWindow(self.data.hWnd).ok().map_err(|e| {
                 anyhow::anyhow!("Failed to set foreground window: {}", e)
             })?;
 
             let mut cursor = POINT::default();
-            if GetCursorPos(&mut cursor).is_err() {
-                return Err(anyhow::anyhow!("Failed to get cursor pos"));
-            }
+            GetCursorPos(&mut cursor)
+                .map_err(|e| anyhow::anyhow!("Failed to get cursor pos: {}", e))?;
 
             let hmenu = self.create_menu()?;
 
-            let result = TrackPopupMenu(
+            TrackPopupMenu(
                 hmenu,
-                TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RETURNCMD,
+                TPM_LEFTALIGN | TPM_BOTTOMALIGN,
                 cursor.x,
                 cursor.y,
-                0,
-                self.hwnd,
                 None,
-            );
+                self.data.hWnd,
+                None,
+            )
+            .ok()
+            .map_err(|e| anyhow::anyhow!("Failed to show popup menu: {}", e))?;
 
             // Destroy menu
             if DestroyMenu(hmenu).is_err() {
                 error!("Failed to destroy menu");
             }
 
-            if result.0 == 0 {
-                return Ok(0);
-            }
-
-            Ok(result.0 as u32)
+            Ok(())
         }
     }
 
     /// Create context menu
-    fn create_menu(&self) -> Result<HMENU> {
+    fn create_menu(&mut self) -> Result<HMENU> {
         unsafe {
             let hmenu = CreatePopupMenu()
                 .map_err(|e| anyhow::anyhow!("Failed to create menu: {}", e))?;
 
             // Enable/Disable
-            let active_text = if self.active {
-                w!("Disable (&D)")
-            } else {
-                w!("Enable (&E)")
-            };
-            if AppendMenuW(hmenu, MF_STRING, IDM_TOGGLE_ACTIVE as usize, active_text)
-                .is_err()
+            if AppendMenuW(
+                hmenu,
+                MF_STRING,
+                IDM_TOGGLE_ACTIVE as usize,
+                w!("Enable/Disable"),
+            )
+            .is_err()
             {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
@@ -221,13 +192,8 @@ impl TrayIcon {
             }
 
             // Reload config
-            if AppendMenuW(
-                hmenu,
-                MF_STRING,
-                IDM_RELOAD as usize,
-                w!("Reload Config (&R)"),
-            )
-            .is_err()
+            if AppendMenuW(hmenu, MF_STRING, IDM_RELOAD as usize, w!("Reload Config"))
+                .is_err()
             {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
@@ -237,7 +203,7 @@ impl TrayIcon {
                 hmenu,
                 MF_STRING,
                 IDM_OPEN_CONFIG as usize,
-                w!("Open Config Folder (&O)"),
+                w!("Open Config Folder"),
             )
             .is_err()
             {
@@ -250,8 +216,7 @@ impl TrayIcon {
             }
 
             // Exit
-            if AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Exit (&X)")).is_err()
-            {
+            if AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Exit")).is_err() {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 
@@ -268,8 +233,8 @@ impl Default for TrayIcon {
 
 impl Drop for TrayIcon {
     fn drop(&mut self) {
-        if let Err(e) = self.unregister() {
-            error!("Failed to unregister tray icon: {}", e);
+        unsafe {
+            let _ = Shell_NotifyIconW(NIM_DELETE, &self.data);
         }
     }
 }

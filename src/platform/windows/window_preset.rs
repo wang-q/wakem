@@ -186,7 +186,7 @@ impl WindowPresetManager {
                 .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
 
         let mut buffer = [0u16; 260];
-        let len = GetModuleFileNameExW(handle, None, &mut buffer);
+        let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
 
         CloseHandle(handle).ok();
 
@@ -203,7 +203,7 @@ impl WindowPresetManager {
     ) -> Result<(HWND, String, Option<String>, Option<String>)> {
         unsafe {
             let hwnd = GetForegroundWindow();
-            if hwnd.0 == 0 {
+            if hwnd.0.is_null() {
                 return Err(anyhow::anyhow!("No foreground window"));
             }
 

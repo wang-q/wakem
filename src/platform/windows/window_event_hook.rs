@@ -16,8 +16,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[derive(Debug, Clone)]
 pub enum WindowEvent {
     /// Window activated (became foreground)
-    WindowActivated(HWND),
+    WindowActivated(isize), // Store as isize instead of HWND for Send/Sync
 }
+
+// SAFETY: We store HWND as isize, which is Send + Sync
+unsafe impl Send for WindowEvent {}
+unsafe impl Sync for WindowEvent {}
 
 /// Window event hook manager
 pub struct WindowEventHook {
@@ -118,7 +122,7 @@ unsafe extern "system" fn win_event_callback(
     _id_event_thread: u32,
     _dwms_event_time: u32,
 ) {
-    if hwnd.0 == 0 {
+    if hwnd.0.is_null() {
         return;
     }
 
@@ -131,7 +135,7 @@ unsafe extern "system" fn win_event_callback(
         EVENT_SYSTEM_FOREGROUND => {
             debug!("Window activated: {} ({:?})", title, hwnd);
             if let Some(sender) = get_global_sender() {
-                let _ = sender.send(WindowEvent::WindowActivated(hwnd));
+                let _ = sender.send(WindowEvent::WindowActivated(hwnd.0 as isize));
             }
         }
         _ => {}

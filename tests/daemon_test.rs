@@ -470,9 +470,9 @@ async fn test_set_message_window_hwnd() {
 
     let state = ServerState::new();
 
-    // 注册窗口句柄
-    let hwnd = HWND(12345 as isize);
-    state.set_message_window_hwnd(hwnd).await;
+    // 注册窗口句柄（使用 isize 而不是 HWND）
+    let hwnd_value = 12345_isize;
+    state.set_message_window_hwnd(hwnd_value).await;
 
     // 验证通知功能可用（不应该 panic）
     let result = state.show_notification("Test", "Test message").await;
