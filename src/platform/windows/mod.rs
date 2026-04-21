@@ -1,3 +1,5 @@
+//! Windows platform implementation
+
 pub mod context;
 pub mod input;
 pub mod input_device;
@@ -11,27 +13,19 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-#[allow(unused_imports)]
+// Re-export types for backward compatibility
 pub use context::WindowContext;
-#[allow(unused_imports)]
 pub use input::RawInputDevice as LegacyRawInputDevice;
-#[allow(unused_imports)]
 pub use input_device::{
     InputDevice, InputDeviceConfig, InputDeviceFactory, RawInputDevice,
 };
-#[allow(unused_imports)]
 pub use launcher::Launcher;
-#[allow(unused_imports)]
 pub use output::OutputDevice as LegacyOutputDevice;
-#[allow(unused_imports)]
 pub use output_device::{OutputDevice, OutputEvent, SendInputDevice};
-#[allow(unused_imports)]
 pub use tray::TrayIcon;
-#[allow(unused_imports)]
 pub use tray_api::{
     MenuAction, RealTrayApi, TrayApi, TrayIcon as TrayIconAlias, TrayManager,
 };
-#[allow(unused_imports)]
 pub use window_api::{
     MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi, WindowOperation, WindowState,
 };
@@ -49,3 +43,46 @@ pub use window_api::MockWindowApi;
 pub use window_event_hook::{WindowEvent, WindowEventHook};
 pub use window_manager::{MonitorDirection, WindowFrame, WindowManager};
 pub use window_preset::WindowPresetManager;
+
+/// Get current modifier state for Windows
+pub fn get_modifier_state() -> crate::types::ModifierState {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_MENU,
+        VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_SHIFT,
+    };
+
+    let mut modifiers = crate::types::ModifierState::default();
+
+    unsafe {
+        // Check Shift key
+        if GetAsyncKeyState(VK_SHIFT.0 as i32) < 0
+            || GetAsyncKeyState(VK_LSHIFT.0 as i32) < 0
+            || GetAsyncKeyState(VK_RSHIFT.0 as i32) < 0
+        {
+            modifiers.shift = true;
+        }
+
+        // Check Ctrl key
+        if GetAsyncKeyState(VK_CONTROL.0 as i32) < 0
+            || GetAsyncKeyState(VK_LCONTROL.0 as i32) < 0
+            || GetAsyncKeyState(VK_RCONTROL.0 as i32) < 0
+        {
+            modifiers.ctrl = true;
+        }
+
+        // Check Alt key
+        if GetAsyncKeyState(VK_MENU.0 as i32) < 0
+            || GetAsyncKeyState(VK_LMENU.0 as i32) < 0
+            || GetAsyncKeyState(VK_RMENU.0 as i32) < 0
+        {
+            modifiers.alt = true;
+        }
+
+        // Check Win key (VK_LWIN = 0x5B, VK_RWIN = 0x5C)
+        if GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0 {
+            modifiers.meta = true;
+        }
+    }
+
+    modifiers
+}

@@ -539,10 +539,14 @@ impl Default for MockWindowApi {
 mod tests {
     use super::*;
 
+    fn test_hwnd(value: usize) -> HWND {
+        HWND(value as *mut core::ffi::c_void)
+    }
+
     #[test]
     fn test_mock_window_api_basic() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         // Set window rect
         let frame = WindowFrame::new(100, 200, 800, 600);
@@ -564,7 +568,7 @@ mod tests {
     #[test]
     fn test_mock_window_api_set_window_pos() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(5678);
+        let hwnd = test_hwnd(5678);
 
         api.set_window_pos(hwnd, 50, 100, 1024, 768).unwrap();
 
@@ -578,7 +582,7 @@ mod tests {
     #[test]
     fn test_mock_window_api_window_state() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(9999);
+        let hwnd = test_hwnd(9999);
 
         // Initial state
         assert!(!api.is_iconic(hwnd));
@@ -603,13 +607,13 @@ mod tests {
     #[test]
     fn test_mock_window_api_foreground_window() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1111);
+        let hwnd = test_hwnd(1111);
 
         // Initially empty
         assert!(api.get_foreground_window().is_none());
 
         // Set foreground window
         api.set_foreground_window(hwnd);
-        assert_eq!(api.get_foreground_window().unwrap().0, 1111);
+        assert_eq!(api.get_foreground_window().unwrap().0 as usize, 1111);
     }
 }

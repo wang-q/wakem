@@ -1,4 +1,7 @@
-use crate::types::{InputEvent, KeyState, ModifierState};
+use crate::types::{
+    InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
+    MouseEventType,
+};
 use anyhow::Result;
 #[allow(unused_imports)]
 use std::cell::RefCell;
@@ -331,7 +334,9 @@ impl InputDeviceFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::MouseEventType;
+    use crate::types::{
+        InputEvent, KeyEvent, KeyState, MouseButton, MouseEvent, MouseEventType,
+    };
 
     #[test]
     fn test_mock_input_device_creation() {

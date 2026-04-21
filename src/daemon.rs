@@ -794,52 +794,21 @@ impl Default for ServerState {
 }
 
 /// Get current modifier key state
-#[cfg(target_os = "windows")]
 fn get_current_modifier_state() -> ModifierState {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{
-        GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_MENU,
-        VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_SHIFT,
-    };
-
-    let mut modifiers = ModifierState::default();
-
-    unsafe {
-        // Check Shift key
-        if GetAsyncKeyState(VK_SHIFT.0 as i32) < 0
-            || GetAsyncKeyState(VK_LSHIFT.0 as i32) < 0
-            || GetAsyncKeyState(VK_RSHIFT.0 as i32) < 0
-        {
-            modifiers.shift = true;
-        }
-
-        // Check Ctrl key
-        if GetAsyncKeyState(VK_CONTROL.0 as i32) < 0
-            || GetAsyncKeyState(VK_LCONTROL.0 as i32) < 0
-            || GetAsyncKeyState(VK_RCONTROL.0 as i32) < 0
-        {
-            modifiers.ctrl = true;
-        }
-
-        // Check Alt key
-        if GetAsyncKeyState(VK_MENU.0 as i32) < 0
-            || GetAsyncKeyState(VK_LMENU.0 as i32) < 0
-            || GetAsyncKeyState(VK_RMENU.0 as i32) < 0
-        {
-            modifiers.alt = true;
-        }
-
-        // Check Win key (VK_LWIN = 0x5B, VK_RWIN = 0x5C)
-        if GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0 {
-            modifiers.meta = true;
-        }
+    #[cfg(target_os = "windows")]
+    {
+        crate::platform::windows::get_modifier_state()
     }
 
-    modifiers
-}
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::macos::get_modifier_state()
+    }
 
-#[cfg(not(target_os = "windows"))]
-fn get_current_modifier_state() -> ModifierState {
-    ModifierState::default()
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        ModifierState::default()
+    }
 }
 
 /// Run server

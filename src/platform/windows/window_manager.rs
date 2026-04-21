@@ -739,19 +739,23 @@ mod tests {
     use super::super::MockWindowApi;
     use super::*;
 
+    fn test_hwnd(value: usize) -> HWND {
+        HWND(value as *mut core::ffi::c_void)
+    }
+
     #[test]
     fn test_window_manager_creation() {
         let api = MockWindowApi::new();
         let wm = WindowManager::with_api(api);
 
         // Verify creation success
-        assert!(wm.api().is_window(HWND(0)) == false);
+        assert!(wm.api().is_window(test_hwnd(0)) == false);
     }
 
     #[test]
     fn test_get_window_info() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         // Set test data
         api.set_window_rect(hwnd, WindowFrame::new(100, 200, 800, 600));
@@ -777,7 +781,7 @@ mod tests {
     #[test]
     fn test_move_to_center() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         // Set test data - 800x600 window on 1920x1080 monitor
         api.set_window_rect(hwnd, WindowFrame::new(0, 0, 800, 600));
@@ -803,7 +807,7 @@ mod tests {
     #[test]
     fn test_move_to_edge() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
         api.set_monitor_info(
@@ -832,7 +836,7 @@ mod tests {
     #[test]
     fn test_set_half_screen() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
         api.set_monitor_info(
@@ -865,7 +869,7 @@ mod tests {
     #[test]
     fn test_loop_width() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         // Set all data before creating WindowManager
         api.set_monitor_info(
@@ -892,7 +896,7 @@ mod tests {
     #[test]
     fn test_set_fixed_ratio() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         // Set all data before creating WindowManager
         api.set_monitor_info(
@@ -921,7 +925,7 @@ mod tests {
     #[test]
     fn test_window_state_operations() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
 
@@ -943,7 +947,7 @@ mod tests {
     #[test]
     fn test_close_window() {
         let api = MockWindowApi::new();
-        let hwnd = HWND(1234);
+        let hwnd = test_hwnd(1234);
 
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
 
