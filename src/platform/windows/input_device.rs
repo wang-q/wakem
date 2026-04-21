@@ -327,6 +327,7 @@ impl InputDeviceFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::MouseEventType;
 
     #[test]
     fn test_mock_input_device_creation() {

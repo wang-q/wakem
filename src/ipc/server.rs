@@ -2,6 +2,7 @@ use super::{
     auth, read_message, security, send_message, ConnectionLimiter, IpcError, Message,
     Result,
 };
+use crate::constants::{AUTH_OPERATION_TIMEOUT_SECS, IPC_CHANNEL_CAPACITY, IPC_IDLE_TIMEOUT_SECS};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -135,7 +136,7 @@ async fn handle_connection(
     }
 
     // Create response channel
-    let (response_tx, mut response_rx) = mpsc::channel(100);
+    let (response_tx, mut response_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
 
     // Message processing loop
     loop {
@@ -167,8 +168,8 @@ async fn handle_connection(
                 }
             }
 
-            // Timeout check (2 minutes idle timeout, balancing resource usage and user experience)
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(120)) => {
+            // Timeout check (idle timeout, balancing resource usage and user experience)
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(IPC_IDLE_TIMEOUT_SECS)) => {
                 debug!("Connection timeout for {}", addr);
                 break;
             }
@@ -189,14 +190,14 @@ async fn perform_authentication_with_timeout(
     // Generate challenge
     let challenge = auth::generate_challenge();
 
-    // Send challenge to client (with 5 second timeout)
-    timeout(Duration::from_secs(5), stream.write_all(&challenge))
+    // Send challenge to client (with timeout)
+    timeout(Duration::from_secs(AUTH_OPERATION_TIMEOUT_SECS), stream.write_all(&challenge))
         .await
         .map_err(|_| IpcError::Timeout)??;
 
-    // Read response (with 5 second timeout)
+    // Read response (with timeout)
     let mut response = [0u8; auth::RESPONSE_SIZE];
-    timeout(Duration::from_secs(5), stream.read_exact(&mut response))
+    timeout(Duration::from_secs(AUTH_OPERATION_TIMEOUT_SECS), stream.read_exact(&mut response))
         .await
         .map_err(|_| IpcError::Timeout)??;
 

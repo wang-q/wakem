@@ -1,3 +1,4 @@
+use crate::constants::{RATE_LIMIT_MAX_ATTEMPTS, RATE_LIMIT_WINDOW_SECS};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
@@ -33,12 +34,8 @@ impl ConnectionLimiter {
     }
 
     /// Create rate limiter with default configuration
-    ///
-    /// Defaults:
-    /// - Max attempts: 5
-    /// - Time window: 60 seconds
     pub fn with_defaults() -> Self {
-        Self::new(5, 60)
+        Self::new(RATE_LIMIT_MAX_ATTEMPTS, RATE_LIMIT_WINDOW_SECS)
     }
 
     /// Check if connection is allowed

@@ -1,3 +1,4 @@
+use crate::constants::WHEEL_DELTA;
 use crate::types::{KeyAction, MouseAction, MouseButton, SystemAction};
 use anyhow::Result;
 #[allow(unused_imports)]
@@ -271,7 +272,7 @@ impl OutputDevice {
             ..Default::default()
         };
 
-        input.Anonymous.mi.mouseData = (delta * 120) as u32; // WHEEL_DELTA = 120
+        input.Anonymous.mi.mouseData = (delta * WHEEL_DELTA) as u32;
         input.Anonymous.mi.dwFlags = if horizontal {
             MOUSEEVENTF_HWHEEL
         } else {

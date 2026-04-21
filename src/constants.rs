@@ -42,12 +42,6 @@ pub const WILDCARD_MAX_INPUT_SIZE: usize = 1024;
 
 // ==================== Authentication Related Constants ====================
 
-/// Challenge length (bytes)
-pub const AUTH_CHALLENGE_SIZE: usize = 32;
-
-/// Response length (bytes, HMAC-SHA256 output)
-pub const AUTH_RESPONSE_SIZE: usize = 32;
-
 /// Authentication operation timeout (seconds)
 pub const AUTH_OPERATION_TIMEOUT_SECS: u64 = 5;
 
