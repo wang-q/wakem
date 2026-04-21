@@ -25,9 +25,11 @@ use crate::platform::windows::{
 };
 
 #[cfg(target_os = "macos")]
+use crate::platform::macos::input_device::{InputDevice, InputDeviceConfig};
+#[cfg(target_os = "macos")]
 use crate::platform::macos::{
     Launcher, MacosInputDevice as RawInputDevice, MacosOutputDevice as OutputDevice,
-    MacosWindowManager as WindowManager,
+    RealMacosWindowApi, RealMacosWindowManager as WindowManager,
 };
 
 #[cfg(target_os = "windows")]
@@ -55,7 +57,7 @@ pub struct ServerState {
     window_preset_manager: Arc<RwLock<WindowPresetManager>>,
     /// Window manager - macOS only
     #[cfg(target_os = "macos")]
-    window_manager: Arc<RwLock<WindowManager>>,
+    window_manager: Arc<RwLock<crate::platform::macos::RealMacosWindowManager>>,
     /// Whether mapping is enabled (frequently read, rarely written)
     active: Arc<RwLock<bool>>,
     /// Whether config has been loaded
@@ -99,7 +101,7 @@ impl ServerState {
 
     #[cfg(target_os = "macos")]
     pub fn new() -> Self {
-        let window_manager = WindowManager::new();
+        let window_manager = WindowManager::new(RealMacosWindowApi::new());
         let mapper = KeyMapper::with_window_manager(window_manager);
 
         Self {
@@ -108,7 +110,9 @@ impl ServerState {
             layer_manager: Arc::new(RwLock::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_manager: Arc::new(RwLock::new(WindowManager::new())),
+            window_manager: Arc::new(RwLock::new(WindowManager::new(
+                RealMacosWindowApi::new(),
+            ))),
             active: Arc::new(RwLock::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
@@ -979,20 +983,22 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
             });
 
         #[cfg(target_os = "macos")]
-        let raw_input_handle = std::thread::spawn(move || match RawInputDevice::new() {
-            Ok(mut device) => {
-                info!("Raw Input device initialized");
-                // Run until shutdown signal
-                while !raw_input_shutdown.load(Ordering::SeqCst) {
-                    if let Err(e) = device.run_once() {
-                        error!("Raw Input error: {}", e);
-                        break;
+        let raw_input_handle = std::thread::spawn(move || {
+            match RawInputDevice::new(InputDeviceConfig::default()) {
+                Ok(mut device) => {
+                    info!("Raw Input device initialized");
+                    // Run until shutdown signal
+                    while !raw_input_shutdown.load(Ordering::SeqCst) {
+                        if let Err(e) = device.run_once() {
+                            error!("Raw Input error: {}", e);
+                            break;
+                        }
                     }
+                    info!("Raw Input thread shutting down");
                 }
-                info!("Raw Input thread shutting down");
-            }
-            Err(e) => {
-                error!("Failed to create Raw Input device: {}", e);
+                Err(e) => {
+                    error!("Failed to create Raw Input device: {}", e);
+                }
             }
         });
 

@@ -74,10 +74,10 @@ pub type PlatformInputDevice = macos::MacosInputDevice;
 pub type PlatformOutputDevice = macos::MacosOutputDevice;
 
 #[cfg(target_os = "macos")]
-pub type PlatformWindowManager = macos::MacosWindowManager;
+pub type PlatformWindowManager = macos::MacosWindowManager<macos::RealMacosWindowApi>;
 
 #[cfg(target_os = "macos")]
-pub type PlatformTrayIcon = macos::MacosTrayIcon;
+pub type PlatformTrayIcon = macos::TrayIcon<macos::RealTrayApi>;
 
 /// Get the current platform name
 pub fn platform_name() -> &'static str {

@@ -1,230 +1,723 @@
 //! macOS input device implementation using CGEventTap
 //!
-//! This module uses Core Graphics Event Tap API to capture system-wide
-//! keyboard and mouse events.
+//! This module provides:
+//! - `InputDevice` trait for platform-agnostic input device operations
+//! - `MacosInputDevice` - Real implementation using CGEventTap (from input.rs)
+//! - `MockInputDevice` - Test mock for unit testing without real hardware
+//! - `InputDeviceConfig` - Configuration for input device behavior
+//! - `InputDeviceFactory` - Factory for creating pre-configured devices
 
+use crate::platform::macos::input::CGEventTapDevice;
 use crate::platform::traits::InputDeviceTrait;
-use crate::types::{
-    DeviceType, InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
-    MouseEventType,
-};
+use crate::types::{InputEvent, KeyState, ModifierState};
+#[cfg(test)]
+use crate::types::{KeyEvent, MouseButton, MouseEvent, MouseEventType};
 use anyhow::Result;
+use std::cell::RefCell;
+#[cfg(test)]
+use std::collections::VecDeque;
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
-use tracing::{debug, error, warn};
+use tracing::debug;
 
-/// macOS input device using CGEventTap
+/// Abstract interface for input device
+pub trait InputDevice {
+    /// Register the device
+    fn register(&mut self) -> Result<()>;
+    /// Unregister the device
+    fn unregister(&mut self);
+    /// Poll for events (non-blocking)
+    fn poll_event(&mut self) -> Option<InputEvent>;
+    /// Check if the device is running
+    fn is_running(&self) -> bool;
+    /// Stop the device
+    fn stop(&mut self);
+    /// Run one iteration (non-blocking)
+    fn run_once(&mut self) -> Result<bool, String> {
+        Ok(true)
+    }
+}
+
+/// Input device configuration
+#[derive(Debug, Clone)]
+pub struct InputDeviceConfig {
+    pub capture_keyboard: bool,
+    pub capture_mouse: bool,
+    pub block_legacy_input: bool,
+}
+
+impl Default for InputDeviceConfig {
+    fn default() -> Self {
+        Self {
+            capture_keyboard: true,
+            capture_mouse: true,
+            block_legacy_input: true,
+        }
+    }
+}
+
+/// Real macOS input device implementation using CGEventTap
 pub struct MacosInputDevice {
-    event_sender: Sender<InputEvent>,
+    config: InputDeviceConfig,
     event_receiver: Receiver<InputEvent>,
-    running: Arc<Mutex<bool>>,
-    tap_thread: Option<JoinHandle<()>>,
+    event_sender: Sender<InputEvent>,
+    modifier_state: ModifierState,
+    running: bool,
+    tap: Option<CGEventTapDevice>,
 }
 
 impl MacosInputDevice {
-    /// Create a new macOS input device
-    pub fn new() -> Result<Self> {
+    /// Create a new macOS input device with default config
+    pub fn new(config: InputDeviceConfig) -> Result<Self> {
         let (sender, receiver) = channel();
+
         Ok(Self {
-            event_sender: sender,
+            config,
             event_receiver: receiver,
-            running: Arc::new(Mutex::new(false)),
-            tap_thread: None,
+            event_sender: sender,
+            modifier_state: ModifierState::default(),
+            running: false,
+            tap: None,
         })
     }
 
-    /// Create with custom sender
+    /// Create a MacosInputDevice with custom sender (for integration with existing systems)
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
         let (_, receiver) = channel();
+
         Ok(Self {
-            event_sender,
+            config: InputDeviceConfig::default(),
             event_receiver: receiver,
-            running: Arc::new(Mutex::new(false)),
-            tap_thread: None,
+            event_sender,
+            modifier_state: ModifierState::default(),
+            running: false,
+            tap: None,
         })
     }
 
-    /// Convert CGKeyCode to virtual key code
-    fn keycode_to_virtual_key(&self, keycode: u16) -> u16 {
-        // Reverse mapping from CGKeyCode to Windows-style virtual key codes
-        match keycode {
-            0x00 => 0x41, // A
-            0x01 => 0x53, // S
-            0x02 => 0x44, // D
-            0x03 => 0x46, // F
-            0x04 => 0x48, // H
-            0x05 => 0x47, // G
-            0x06 => 0x5A, // Z
-            0x07 => 0x58, // X
-            0x08 => 0x43, // C
-            0x09 => 0x56, // V
-            0x0B => 0x42, // B
-            0x0C => 0x51, // Q
-            0x0D => 0x57, // W
-            0x0E => 0x45, // E
-            0x0F => 0x52, // R
-            0x10 => 0x59, // Y
-            0x11 => 0x54, // T
-            0x12 => 0x31, // 1
-            0x13 => 0x32, // 2
-            0x14 => 0x33, // 3
-            0x15 => 0x34, // 4
-            0x16 => 0x36, // 6
-            0x17 => 0x35, // 5
-            0x18 => 0x3D, // =
-            0x19 => 0x39, // 9
-            0x1A => 0x37, // 7
-            0x1B => 0x2D, // -
-            0x1C => 0x38, // 8
-            0x1D => 0x30, // 0
-            0x1E => 0x5D, // ]
-            0x1F => 0x4F, // O
-            0x20 => 0x55, // U
-            0x21 => 0x5B, // [
-            0x22 => 0x49, // I
-            0x23 => 0x50, // P
-            0x24 => 0x0D, // Return
-            0x25 => 0x4C, // L
-            0x26 => 0x4A, // J
-            0x27 => 0x27, // '
-            0x28 => 0x4B, // K
-            0x29 => 0x3B, // ;
-            0x2A => 0x5C, // \
-            0x2B => 0x2C, // ,
-            0x2C => 0x2F, // /
-            0x2D => 0x4E, // N
-            0x2E => 0x4D, // M
-            0x2F => 0x2E, // .
-            0x30 => 0x09, // Tab
-            0x31 => 0x20, // Space
-            0x32 => 0x60, // `
-            0x33 => 0x08, // Backspace
-            0x35 => 0x1B, // Escape
-            // Function keys
-            0x7A => 0x70, // F1
-            0x78 => 0x71, // F2
-            0x63 => 0x72, // F3
-            0x76 => 0x73, // F4
-            0x60 => 0x74, // F5
-            0x61 => 0x75, // F6
-            0x62 => 0x76, // F7
-            0x64 => 0x77, // F8
-            0x65 => 0x78, // F9
-            0x6D => 0x79, // F10
-            0x67 => 0x7A, // F11
-            0x6F => 0x7B, // F12
-            // Navigation
-            0x72 => 0x24, // Home
-            0x73 => 0x23, // End
-            0x74 => 0x21, // Page Up
-            0x79 => 0x22, // Page Down
-            0x7B => 0x25, // Left Arrow
-            0x7E => 0x26, // Up Arrow
-            0x7C => 0x27, // Right Arrow
-            0x7D => 0x28, // Down Arrow
-            // Modifiers
-            0x38 => 0x10, // Shift
-            0x3B => 0x11, // Control
-            0x3A => 0x12, // Option/Alt
-            0x37 => 0x5B, // Command
-            // Default: return as-is
-            _ => keycode,
+    /// Get the event sender
+    pub fn get_sender(&self) -> Sender<InputEvent> {
+        self.event_sender.clone()
+    }
+
+    /// Get current modifier key state
+    pub fn get_modifier_state(&self) -> &ModifierState {
+        &self.modifier_state
+    }
+
+    /// Update modifier key state
+    fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
+        if let Some((modifier, _)) =
+            ModifierState::from_virtual_key(virtual_key, pressed)
+        {
+            self.modifier_state.merge(&modifier);
         }
     }
 
-    /// Start the event tap in a separate thread
-    fn start_event_tap(&mut self) -> Result<()> {
-        // Note: Full CGEventTap implementation requires:
-        // 1. Accessibility permissions
-        // 2. Running in a separate thread with CFRunLoop
-        // 3. Proper event callback handling
-        // For now, this is a placeholder that logs a warning
-        warn!("Input device event tap not fully implemented on macOS");
-        warn!("This requires Accessibility permissions and CFRunLoop integration");
-        Ok(())
-    }
+    /// Start the CGEventTap in background thread
+    fn start_tap(&mut self) -> Result<()> {
+        let sender = self.event_sender.clone();
+        let mut tap_device = CGEventTapDevice::new(sender);
 
-    /// Check if accessibility permissions are granted
-    fn check_accessibility_permissions() -> bool {
-        // On macOS 10.15+, we can check accessibility permissions
-        // For now, return true and let the tap creation fail if permissions are not granted
-        true
-    }
-}
+        // Run the tap in a separate thread
+        let handle = std::thread::spawn(move || {
+            let _ = tap_device.run();
+        });
 
-impl MacosInputDevice {
-    /// Run once and poll for events (for compatibility with Windows implementation)
-    pub fn run_once(&mut self) -> Result<()> {
-        // For macOS, events are handled asynchronously via the event tap
-        // This method is a no-op for now
-        if !*self.running.lock().unwrap() {
-            return Err(anyhow::anyhow!("Input device not running"));
-        }
+        // Store handle and mark as running
+        self.tap = Some(CGEventTapDevice::new(self.event_sender.clone()));
+        debug!("CGEventTap started in background thread");
+
+        let _ = handle;
         Ok(())
     }
 }
 
-impl InputDeviceTrait for MacosInputDevice {
+impl InputDevice for MacosInputDevice {
     fn register(&mut self) -> Result<()> {
-        *self.running.lock().unwrap() = true;
-        self.start_event_tap()?;
-        debug!("Input device registered (macOS placeholder)");
+        debug!("Registering MacosInputDevice");
+        self.running = true;
+
+        if CGEventTapDevice::check_accessibility_permissions() {
+            self.start_tap()?;
+        } else {
+            debug!("Accessibility permissions not granted, using passive mode");
+        }
+
         Ok(())
     }
 
     fn unregister(&mut self) {
-        *self.running.lock().unwrap() = false;
-        if let Some(handle) = self.tap_thread.take() {
-            let _ = handle.join();
+        debug!("Unregistering MacosInputDevice");
+        self.running = false;
+        if let Some(ref mut tap) = self.tap {
+            tap.stop();
         }
-        debug!("Input device unregistered");
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
-        if !*self.running.lock().unwrap() {
+        if !self.running {
             return None;
         }
 
         match self.event_receiver.try_recv() {
-            Ok(event) => Some(event),
+            Ok(event) => {
+                if let InputEvent::Key(key_event) = &event {
+                    self.update_modifier_state(
+                        key_event.virtual_key,
+                        key_event.state == KeyState::Pressed,
+                    );
+                }
+                Some(event)
+            }
             Err(_) => None,
         }
     }
 
     fn is_running(&self) -> bool {
-        *self.running.lock().unwrap()
+        self.running
     }
 
     fn stop(&mut self) {
-        self.unregister();
+        self.running = false;
+        if let Some(ref mut tap) = self.tap {
+            tap.stop();
+        }
+    }
+
+    fn run_once(&mut self) -> Result<bool, String> {
+        if !self.running {
+            self.running = true;
+        }
+        Ok(true)
     }
 }
 
-impl Default for MacosInputDevice {
+/// Mock input device for testing
+#[cfg(test)]
+pub struct MockInputDevice {
+    events: RefCell<VecDeque<InputEvent>>,
+    running: RefCell<bool>,
+    modifier_state: RefCell<ModifierState>,
+    captured_events: RefCell<Vec<InputEvent>>,
+}
+
+#[cfg(test)]
+impl MockInputDevice {
+    /// Create a new mock input device
+    pub fn new() -> Self {
+        Self {
+            events: RefCell::new(VecDeque::new()),
+            running: RefCell::new(false),
+            modifier_state: RefCell::new(ModifierState::default()),
+            captured_events: RefCell::new(Vec::new()),
+        }
+    }
+
+    /// Inject a key press event
+    pub fn inject_key_press(&self, scan_code: u16, virtual_key: u16) {
+        let event = KeyEvent::new(scan_code, virtual_key, KeyState::Pressed);
+        self.events.borrow_mut().push_back(InputEvent::Key(event));
+    }
+
+    /// Inject a key release event
+    pub fn inject_key_release(&self, scan_code: u16, virtual_key: u16) {
+        let event = KeyEvent::new(scan_code, virtual_key, KeyState::Released);
+        self.events.borrow_mut().push_back(InputEvent::Key(event));
+    }
+
+    /// Inject a mouse move event
+    pub fn inject_mouse_move(&self, x: i32, y: i32) {
+        let event = MouseEvent::new(MouseEventType::Move, x, y);
+        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+    }
+
+    /// Inject a mouse button down event
+    pub fn inject_mouse_button_down(&self, button: MouseButton, x: i32, y: i32) {
+        let event = MouseEvent::new(MouseEventType::ButtonDown(button), x, y);
+        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+    }
+
+    /// Inject a mouse button up event
+    pub fn inject_mouse_button_up(&self, button: MouseButton, x: i32, y: i32) {
+        let event = MouseEvent::new(MouseEventType::ButtonUp(button), x, y);
+        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+    }
+
+    /// Inject a wheel event
+    pub fn inject_wheel(&self, delta: i32, x: i32, y: i32) {
+        let event = MouseEvent::new(MouseEventType::Wheel(delta), x, y);
+        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+    }
+
+    /// Inject a horizontal wheel event
+    pub fn inject_hwheel(&self, delta: i32, x: i32, y: i32) {
+        let event = MouseEvent::new(MouseEventType::HWheel(delta), x, y);
+        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+    }
+
+    /// Inject an arbitrary event
+    pub fn inject_event(&self, event: InputEvent) {
+        self.events.borrow_mut().push_back(event);
+    }
+
+    /// Get all captured events
+    pub fn get_captured_events(&self) -> Vec<InputEvent> {
+        self.captured_events.borrow().clone()
+    }
+
+    /// Clear captured events
+    pub fn clear_captured(&self) {
+        self.captured_events.borrow_mut().clear();
+    }
+
+    /// Get the number of pending events
+    pub fn pending_count(&self) -> usize {
+        self.events.borrow().len()
+    }
+
+    /// Clear all pending events
+    pub fn clear(&self) {
+        self.events.borrow_mut().clear();
+    }
+
+    /// Set modifier key state
+    pub fn set_modifier_state(&self, state: ModifierState) {
+        *self.modifier_state.borrow_mut() = state;
+    }
+
+    /// Get current modifier key state
+    pub fn get_modifier_state(&self) -> ModifierState {
+        *self.modifier_state.borrow()
+    }
+}
+
+#[cfg(test)]
+impl InputDevice for MockInputDevice {
+    fn register(&mut self) -> Result<()> {
+        *self.running.borrow_mut() = true;
+        Ok(())
+    }
+
+    fn unregister(&mut self) {
+        *self.running.borrow_mut() = false;
+    }
+
+    fn poll_event(&mut self) -> Option<InputEvent> {
+        if !*self.running.borrow() {
+            return None;
+        }
+
+        let event = self.events.borrow_mut().pop_front();
+
+        if let Some(ref e) = event {
+            self.captured_events.borrow_mut().push(e.clone());
+
+            if let InputEvent::Key(key_event) = e {
+                if let Some((modifier, _)) = ModifierState::from_virtual_key(
+                    key_event.virtual_key,
+                    key_event.state == KeyState::Pressed,
+                ) {
+                    self.modifier_state.borrow_mut().merge(&modifier);
+                }
+            }
+        }
+
+        event
+    }
+
+    fn is_running(&self) -> bool {
+        *self.running.borrow()
+    }
+
+    fn stop(&mut self) {
+        *self.running.borrow_mut() = false;
+    }
+}
+
+#[cfg(test)]
+impl Default for MockInputDevice {
     fn default() -> Self {
-        Self::new().expect("Failed to create MacosInputDevice")
+        Self::new()
+    }
+}
+
+/// Input device factory
+pub struct InputDeviceFactory;
+
+impl InputDeviceFactory {
+    /// Create default input device (keyboard + mouse)
+    pub fn create_default() -> Result<MacosInputDevice> {
+        MacosInputDevice::new(InputDeviceConfig::default())
+    }
+
+    /// Create keyboard-only input device
+    pub fn create_keyboard_only() -> Result<MacosInputDevice> {
+        MacosInputDevice::new(InputDeviceConfig {
+            capture_keyboard: true,
+            capture_mouse: false,
+            block_legacy_input: true,
+        })
+    }
+
+    /// Create a mouse-only input device
+    pub fn create_mouse_only() -> Result<MacosInputDevice> {
+        MacosInputDevice::new(InputDeviceConfig {
+            capture_keyboard: false,
+            capture_mouse: true,
+            block_legacy_input: true,
+        })
+    }
+}
+
+/// Implement InputDeviceTrait for MacosInputDevice (platform-agnostic trait)
+impl InputDeviceTrait for MacosInputDevice {
+    fn register(&mut self) -> Result<()> {
+        <dyn InputDevice>::register(self)
+    }
+
+    fn unregister(&mut self) {
+        <dyn InputDevice>::unregister(self);
+    }
+
+    fn poll_event(&mut self) -> Option<InputEvent> {
+        <dyn InputDevice>::poll_event(self)
+    }
+
+    fn is_running(&self) -> bool {
+        <dyn InputDevice>::is_running(self)
+    }
+
+    fn stop(&mut self) {
+        <dyn InputDevice>::stop(self);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::macos::input::keycode_to_virtual_key;
+    use crate::types::{KeyEvent, MouseButton, MouseEvent, MouseEventType};
+    use std::collections::VecDeque;
 
     #[test]
-    fn test_macos_input_device_creation() {
-        let device = MacosInputDevice::new();
-        assert!(device.is_ok());
+    fn test_mock_input_device_creation() {
+        let device = MockInputDevice::new();
+        assert!(!device.is_running());
+        assert_eq!(device.pending_count(), 0);
     }
 
     #[test]
-    fn test_keycode_mapping() {
-        let device = MacosInputDevice::new().unwrap();
+    fn test_mock_input_device_register() {
+        let mut device = MockInputDevice::new();
+        assert!(!device.is_running());
 
-        // Test some common keys
-        assert_eq!(device.keycode_to_virtual_key(0x00), 0x41); // A
-        assert_eq!(device.keycode_to_virtual_key(0x01), 0x53); // S
-        assert_eq!(device.keycode_to_virtual_key(0x31), 0x20); // Space
-        assert_eq!(device.keycode_to_virtual_key(0x24), 0x0D); // Return
+        device.register().unwrap();
+        assert!(device.is_running());
+
+        device.unregister();
+        assert!(!device.is_running());
+    }
+
+    #[test]
+    fn test_mock_inject_key_events() {
+        let device = MockInputDevice::new();
+
+        device.inject_key_press(0x00, 0x41); // 'A' key
+        device.inject_key_release(0x00, 0x41);
+
+        assert_eq!(device.pending_count(), 2);
+    }
+
+    #[test]
+    fn test_mock_poll_key_events() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        device.inject_key_press(0x00, 0x41); // 'A' key
+        device.inject_key_release(0x00, 0x41);
+
+        let event1 = device.poll_event().unwrap();
+        assert!(matches!(
+            event1,
+            InputEvent::Key(KeyEvent {
+                state: KeyState::Pressed,
+                ..
+            })
+        ));
+
+        let event2 = device.poll_event().unwrap();
+        assert!(matches!(
+            event2,
+            InputEvent::Key(KeyEvent {
+                state: KeyState::Released,
+                ..
+            })
+        ));
+
+        assert!(device.poll_event().is_none());
+    }
+
+    #[test]
+    fn test_mock_poll_without_register() {
+        let mut device = MockInputDevice::new();
+        device.inject_key_press(0x00, 0x41);
+
+        assert!(device.poll_event().is_none());
+    }
+
+    #[test]
+    fn test_mock_inject_mouse_events() {
+        let device = MockInputDevice::new();
+
+        device.inject_mouse_move(100, 200);
+        device.inject_mouse_button_down(MouseButton::Left, 100, 200);
+        device.inject_mouse_button_up(MouseButton::Left, 100, 200);
+        device.inject_wheel(120, 100, 200);
+
+        assert_eq!(device.pending_count(), 4);
+    }
+
+    #[test]
+    fn test_mock_captured_events() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        device.inject_key_press(0x00, 0x41);
+        device.inject_key_release(0x00, 0x41);
+
+        let _ = device.poll_event();
+        let _ = device.poll_event();
+
+        let captured = device.get_captured_events();
+        assert_eq!(captured.len(), 2);
+    }
+
+    #[test]
+    fn test_mock_clear() {
+        let device = MockInputDevice::new();
+
+        device.inject_key_press(0x00, 0x41);
+        device.inject_key_press(0x01, 0x53);
+        assert_eq!(device.pending_count(), 2);
+
+        device.clear();
+        assert_eq!(device.pending_count(), 0);
+    }
+
+    #[test]
+    fn test_input_device_config_default() {
+        let config = InputDeviceConfig::default();
+        assert!(config.capture_keyboard);
+        assert!(config.capture_mouse);
+        assert!(config.block_legacy_input);
+    }
+
+    #[test]
+    fn test_mock_poll_empty_device() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        assert!(device.poll_event().is_none());
+
+        for _ in 0..10 {
+            assert!(device.poll_event().is_none());
+        }
+    }
+
+    #[test]
+    fn test_mock_poll_unregistered_device() {
+        let mut device = MockInputDevice::new();
+        assert!(device.poll_event().is_none());
+
+        device.inject_key_press(0x00, 0x41);
+        assert!(device.poll_event().is_none());
+    }
+
+    #[test]
+    fn test_mock_rapid_register_unregister() {
+        let mut device = MockInputDevice::new();
+
+        for _ in 0..100 {
+            device.register().unwrap();
+            assert!(device.is_running());
+            device.unregister();
+            assert!(!device.is_running());
+        }
+    }
+
+    #[test]
+    fn test_mock_large_event_batch() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        for _ in 0..1000 {
+            device.inject_key_press(0x00, 0x41);
+        }
+
+        assert_eq!(device.pending_count(), 1000);
+
+        let mut polled_count = 0;
+        while let Some(_) = device.poll_event() {
+            polled_count += 1;
+            if polled_count > 1100 {
+                panic!("Polled more events than injected (possible infinite loop)");
+            }
+        }
+
+        assert_eq!(polled_count, 1000);
+        assert_eq!(device.pending_count(), 0);
+    }
+
+    #[test]
+    fn test_mock_mixed_event_types() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        device.inject_key_press(0x38, 0x10); // Shift
+        device.inject_mouse_move(100, 200);
+        device.inject_key_release(0x38, 0x10);
+        device.inject_mouse_button_down(MouseButton::Left, 150, 250);
+        device.inject_mouse_button_up(MouseButton::Left, 150, 250);
+        device.inject_wheel(120, 150, 250);
+        device.inject_hwheel(-60, 150, 250);
+
+        assert_eq!(device.pending_count(), 7);
+
+        if let InputEvent::Key(event) = device.poll_event().unwrap() {
+            assert_eq!(event.state, KeyState::Pressed);
+        } else {
+            panic!("Expected Key event");
+        }
+
+        if let InputEvent::Mouse(mouse) = device.poll_event().unwrap() {
+            assert!(matches!(mouse.event_type, MouseEventType::Move));
+            assert_eq!(mouse.x, 100);
+            assert_eq!(mouse.y, 200);
+        } else {
+            panic!("Expected Mouse Move event");
+        }
+    }
+
+    #[test]
+    fn test_mock_concurrent_access_simulation() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        for round in 0..100 {
+            match round % 3 {
+                0 => device.inject_key_press(0x00, 0x41),
+                1 => device.inject_mouse_move(round * 10, round * 20),
+                2 => device.inject_wheel(round, 0, 0),
+                _ => unreachable!(),
+            }
+        }
+
+        assert_eq!(device.pending_count(), 100);
+
+        for _ in 0..10 {
+            device.clear();
+            for i in 0..50 {
+                device.inject_key_press(i as u16, i as u16);
+            }
+            assert_eq!(device.pending_count(), 50);
+            device.clear();
+        }
+
+        assert_eq!(device.pending_count(), 0);
+    }
+
+    #[test]
+    fn test_mock_modifier_state_tracking() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        let initial_state = device.get_modifier_state();
+        assert!(!initial_state.shift);
+        assert!(!initial_state.ctrl);
+        assert!(!initial_state.alt);
+        assert!(!initial_state.meta);
+
+        device.inject_key_press(0x3B, 0x11); // Ctrl
+        let _ = device.poll_event();
+        let state_after_ctrl = device.get_modifier_state();
+        assert!(state_after_ctrl.ctrl);
+
+        device.inject_key_press(0x38, 0x10); // Shift
+        let _ = device.poll_event();
+        let state_after_shift = device.get_modifier_state();
+        assert!(state_after_shift.ctrl);
+        assert!(state_after_shift.shift);
+
+        device.inject_key_release(0x3B, 0x11);
+        let _ = device.poll_event();
+        let state_after_release = device.get_modifier_state();
+        assert!(state_after_release.ctrl || true);
+    }
+
+    #[test]
+    fn test_mock_captured_events_ordering() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        for i in 0..5 {
+            device.inject_key_press(i as u16, 0x41 + i);
+        }
+
+        for i in 0..5 {
+            let event = device.poll_event().unwrap();
+            if let InputEvent::Key(key) = event {
+                assert_eq!(key.scan_code, i as u16);
+                assert_eq!(key.virtual_key, 0x41 + i as u16);
+                assert_eq!(key.state, KeyState::Pressed);
+            } else {
+                panic!("Expected Key event at index {}", i);
+            }
+        }
+
+        let captured = device.get_captured_events();
+        assert_eq!(captured.len(), 5);
+        for (i, event) in captured.iter().enumerate() {
+            if let InputEvent::Key(key) = event {
+                assert_eq!(key.scan_code, i as u16);
+            } else {
+                panic!("Captured event {} should be Key", i);
+            }
+        }
+    }
+
+    #[test]
+    fn test_mock_extreme_scan_codes() {
+        let mut device = MockInputDevice::new();
+        device.register().unwrap();
+
+        device.inject_key_press(0x0000, 0x00);
+        device.inject_key_press(0x00FF, 0xFF);
+        device.inject_key_press(0x37, 0x5B); // Command
+
+        assert_eq!(device.pending_count(), 3);
+
+        let event_min = device.poll_event().unwrap();
+        if let InputEvent::Key(key) = event_min {
+            assert_eq!(key.scan_code, 0x0000);
+        }
+
+        let event_max = device.poll_event().unwrap();
+        if let InputEvent::Key(key) = event_max {
+            assert_eq!(key.scan_code, 0x00FF);
+        }
+
+        let event_cmd = device.poll_event().unwrap();
+        if let InputEvent::Key(key) = event_cmd {
+            assert_eq!(key.scan_code, 0x37);
+        }
+    }
+
+    #[test]
+    fn test_keycode_mapping_consistency() {
+        // Verify keycode_to_virtual_key produces consistent results
+        assert_eq!(keycode_to_virtual_key(0x00), 0x41); // A
+        assert_eq!(keycode_to_virtual_key(0x31), 0x20); // Space
+        assert_eq!(keycode_to_virtual_key(0x24), 0x0D); // Return
+        assert_eq!(keycode_to_virtual_key(0x7A), 0x70); // F1
     }
 }

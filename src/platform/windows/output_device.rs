@@ -334,7 +334,10 @@ mod tests {
     #[test]
     fn test_send_combo_ctrl_a() {
         let device = SendInputDevice::new();
-        let modifiers = ModifierState { ctrl: true, ..ModifierState::default() };
+        let modifiers = ModifierState {
+            ctrl: true,
+            ..ModifierState::default()
+        };
         let result = device.send_combo(&modifiers, 0x1D, 0x41);
         assert!(result.is_ok());
     }
@@ -342,7 +345,11 @@ mod tests {
     #[test]
     fn test_send_combo_shift_alt() {
         let device = SendInputDevice::new();
-        let modifiers = ModifierState { shift: true, alt: true, ..ModifierState::default() };
+        let modifiers = ModifierState {
+            shift: true,
+            alt: true,
+            ..ModifierState::default()
+        };
         let result = device.send_combo(&modifiers, 0, 0x42);
         assert!(result.is_ok());
     }
@@ -360,7 +367,10 @@ mod tests {
     #[test]
     fn test_send_key_action_click() {
         let device = WindowsOutputDevice::new();
-        let action = KeyAction::Click { scan_code: 0x1C, virtual_key: 0x41 };
+        let action = KeyAction::Click {
+            scan_code: 0x1C,
+            virtual_key: 0x41,
+        };
         let result = device.send_key_action(&action);
         assert!(result.is_ok());
     }
@@ -368,8 +378,14 @@ mod tests {
     #[test]
     fn test_send_key_action_press_release() {
         let device = WindowsOutputDevice::new();
-        let press = KeyAction::Press { scan_code: 0x1C, virtual_key: 0x41 };
-        let release = KeyAction::Release { scan_code: 0x1C, virtual_key: 0x41 };
+        let press = KeyAction::Press {
+            scan_code: 0x1C,
+            virtual_key: 0x41,
+        };
+        let release = KeyAction::Release {
+            scan_code: 0x1C,
+            virtual_key: 0x41,
+        };
         assert!(device.send_key_action(&press).is_ok());
         assert!(device.send_key_action(&release).is_ok());
     }
@@ -377,8 +393,15 @@ mod tests {
     #[test]
     fn test_send_key_action_combo() {
         let device = WindowsOutputDevice::new();
-        let modifiers = ModifierState { ctrl: true, shift: true, ..ModifierState::default() };
-        let action = KeyAction::Combo { modifiers, key: (0x2A, 0x53) };
+        let modifiers = ModifierState {
+            ctrl: true,
+            shift: true,
+            ..ModifierState::default()
+        };
+        let action = KeyAction::Combo {
+            modifiers,
+            key: (0x2A, 0x53),
+        };
         let result = device.send_key_action(&action);
         assert!(result.is_ok());
     }
@@ -393,7 +416,11 @@ mod tests {
     #[test]
     fn test_send_mouse_action_move_relative() {
         let device = WindowsOutputDevice::new();
-        let action = MouseAction::Move { x: 100, y: 200, relative: true };
+        let action = MouseAction::Move {
+            x: 100,
+            y: 200,
+            relative: true,
+        };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }
@@ -401,7 +428,11 @@ mod tests {
     #[test]
     fn test_send_mouse_action_move_absolute() {
         let device = WindowsOutputDevice::new();
-        let action = MouseAction::Move { x: 1920, y: 1080, relative: false };
+        let action = MouseAction::Move {
+            x: 1920,
+            y: 1080,
+            relative: false,
+        };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }
@@ -409,7 +440,9 @@ mod tests {
     #[test]
     fn test_send_mouse_action_left_click() {
         let device = WindowsOutputDevice::new();
-        let action = MouseAction::ButtonClick { button: MouseButton::Left };
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Left,
+        };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }
@@ -417,7 +450,9 @@ mod tests {
     #[test]
     fn test_send_mouse_action_right_click() {
         let device = WindowsOutputDevice::new();
-        let action = MouseAction::ButtonClick { button: MouseButton::Right };
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Right,
+        };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }
@@ -425,7 +460,9 @@ mod tests {
     #[test]
     fn test_send_mouse_action_middle_click() {
         let device = WindowsOutputDevice::new();
-        let action = MouseAction::ButtonClick { button: MouseButton::Middle };
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Middle,
+        };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }

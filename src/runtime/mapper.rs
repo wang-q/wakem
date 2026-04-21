@@ -153,7 +153,7 @@ impl KeyMapper {
     /// Create a mapping engine with window manager (macOS version)
     #[cfg(target_os = "macos")]
     pub fn with_window_manager(
-        _window_manager: crate::platform::macos::MacosWindowManager,
+        _window_manager: crate::platform::macos::RealMacosWindowManager,
     ) -> Self {
         Self {
             mappings: HashMap::new(),

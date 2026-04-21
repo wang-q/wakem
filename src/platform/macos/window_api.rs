@@ -1,6 +1,7 @@
-//! macOS window API implementation using AppleScript
+//! macOS window API implementation
 //!
-//! This module uses AppleScript to manipulate windows on macOS.
+//! Provides window operations on macOS using AppleScript and Core Graphics.
+//! Includes RealMacosWindowApi for production and MockMacosWindowApi for testing.
 
 use crate::platform::traits::{MonitorInfo, WindowApiTrait, WindowId, WindowInfo};
 use anyhow::Result;
@@ -8,11 +9,70 @@ use core_graphics::display::{CGDisplay, CGDisplayBounds};
 use std::process::Command;
 use tracing::{debug, warn};
 
-/// macOS window API implementation
-pub struct MacosWindowApi;
+/// Monitor work area (usable area excluding dock/menu bar)
+#[derive(Debug, Clone)]
+pub struct MonitorWorkArea {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
 
-impl MacosWindowApi {
-    /// Create a new macOS window API instance
+/// Window state enumeration
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowState {
+    Normal,
+    Minimized,
+    Maximized,
+    FullScreen,
+}
+
+/// Window operation types
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowOperation {
+    Move(i32, i32),
+    Resize(i32, i32),
+    MoveAndResize(i32, i32, i32, i32),
+    Minimize,
+    Maximize,
+    Restore,
+    Close,
+    SetTopmost(bool),
+    SetOpacity(u8),
+}
+
+/// macOS Window API trait
+pub trait MacosWindowApi {
+    fn get_foreground_window(&self) -> Option<WindowId>;
+    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
+    fn set_window_pos(
+        &self,
+        window: WindowId,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    ) -> Result<()>;
+    fn minimize_window(&self, window: WindowId) -> Result<()>;
+    fn maximize_window(&self, window: WindowId) -> Result<()>;
+    fn restore_window(&self, window: WindowId) -> Result<()>;
+    fn close_window(&self, window: WindowId) -> Result<()>;
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
+    fn set_opacity(&self, window: WindowId, opacity: u8) -> Result<()>;
+    fn get_monitors(&self) -> Vec<MonitorInfo>;
+    fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea>;
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
+    fn is_window_valid(&self, window: WindowId) -> bool;
+    fn is_minimized(&self, window: WindowId) -> bool;
+    fn is_maximized(&self, window: WindowId) -> bool;
+    fn get_window_state(&self, window: WindowId) -> WindowState;
+}
+
+/// Real macOS window API using AppleScript
+#[derive(Clone, Default)]
+pub struct RealMacosWindowApi;
+
+impl RealMacosWindowApi {
     pub fn new() -> Self {
         Self
     }
@@ -32,23 +92,31 @@ impl MacosWindowApi {
 
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
-}
 
-impl Default for MacosWindowApi {
-    fn default() -> Self {
-        Self::new()
+    /// Get frontmost application's PID
+    fn get_frontmost_pid(&self) -> Option<u32> {
+        let script = r#"tell application "System Events" to unix id of first application process whose frontmost is true"#;
+
+        let output = Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output()
+            .ok()?;
+
+        if output.status.success() {
+            String::from_utf8_lossy(&output.stdout).trim().parse().ok()
+        } else {
+            None
+        }
     }
 }
 
-impl WindowApiTrait for MacosWindowApi {
+impl MacosWindowApi for RealMacosWindowApi {
     fn get_foreground_window(&self) -> Option<WindowId> {
-        // On macOS, we use a simple counter as window ID
-        // Full implementation would use Accessibility API
         Some(1)
     }
 
     fn get_window_info(&self, _window: WindowId) -> Result<WindowInfo> {
-        // Get frontmost window info using AppleScript
         let script = r#"
             tell application "System Events"
                 set frontApp to first application process whose frontmost is true
@@ -58,25 +126,51 @@ impl WindowApiTrait for MacosWindowApi {
                 on error
                     set winTitle to ""
                 end try
-                return {appName, winTitle}
+                try
+                    set winPos to position of first window of frontApp
+                on error
+                    set winPos to {0, 0}
+                end try
+                try
+                    set winSize to size of first window of frontApp
+                on error
+                    set winSize to {800, 600}
+                end try
+                return {appName, winTitle, item 1 of winPos, item 2 of winPos, item 1 of winSize, item 2 of winSize}
             end tell
         "#;
 
-        let result = self.run_applescript(script)?;
+        let result = self.run_applescript(&script)?;
         let parts: Vec<&str> = result.split(", ").collect();
 
         let process_name = parts.get(0).unwrap_or(&"Unknown").to_string();
         let window_title = parts.get(1).unwrap_or(&"").to_string();
+        let x = parts
+            .get(2)
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+        let y = parts
+            .get(3)
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+        let width = parts
+            .get(4)
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(800);
+        let height = parts
+            .get(5)
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(600);
 
         Ok(WindowInfo {
             id: _window,
             title: window_title,
             process_name,
             executable_path: None,
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 600,
+            x,
+            y,
+            width,
+            height,
         })
     }
 
@@ -88,16 +182,24 @@ impl WindowApiTrait for MacosWindowApi {
         width: i32,
         height: i32,
     ) -> Result<()> {
+        // Convert from bottom-left origin (CG) to top-left origin (AppleScript)
+        let screen_height = self
+            .get_monitors()
+            .first()
+            .map(|m| m.height)
+            .unwrap_or(1080);
+        let apple_y = screen_height - y - height;
+
         let script = format!(
             r#"tell application "System Events"
                 set position of first window of (first application process whose frontmost is true) to {{{}, {}}}
                 set size of first window of (first application process whose frontmost is true) to {{{}, {}}}
             end tell"#,
-            x, y, width, height
+            x, apple_y, width, height
         );
 
         self.run_applescript(&script)?;
-        debug!("Set window position: {}x{} at {}, {}", width, height, x, y);
+        debug!("Set window pos: {}x{} at ({}, {})", width, height, x, y);
         Ok(())
     }
 
@@ -105,19 +207,16 @@ impl WindowApiTrait for MacosWindowApi {
         let script = r#"tell application "System Events"
             set value of attribute "AXMinimized" of first window of (first application process whose frontmost is true) to true
         end tell"#;
-
-        self.run_applescript(script)?;
+        self.run_applescript(&script)?;
         debug!("Minimized window");
         Ok(())
     }
 
     fn maximize_window(&self, _window: WindowId) -> Result<()> {
-        // macOS doesn't have a direct "maximize" concept, but we can zoom the window
         let script = r#"tell application "System Events"
-            click button 2 of first window of (first application process whose frontmost is true)
+            click button "zoom" of first window of (first application process whose frontmost is true)
         end tell"#;
-
-        self.run_applescript(script)?;
+        self.run_applescript(&script)?;
         debug!("Maximized (zoomed) window");
         Ok(())
     }
@@ -126,42 +225,49 @@ impl WindowApiTrait for MacosWindowApi {
         let script = r#"tell application "System Events"
             set value of attribute "AXMinimized" of first window of (first application process whose frontmost is true) to false
         end tell"#;
-
-        self.run_applescript(script)?;
+        self.run_applescript(&script)?;
         debug!("Restored window");
         Ok(())
     }
 
     fn close_window(&self, _window: WindowId) -> Result<()> {
         let script = r#"tell application "System Events"
-            click button 1 of first window of (first application process whose frontmost is true)
+            click button "close" of first window of (first application process whose frontmost is true)
         end tell"#;
-
-        self.run_applescript(script)?;
+        self.run_applescript(&script)?;
         debug!("Closed window");
         Ok(())
     }
 
-    fn set_topmost(&self, _window: WindowId, _topmost: bool) -> Result<()> {
-        // Window topmost on macOS requires private APIs
-        warn!("set_topmost not fully implemented on macOS");
+    fn set_topmost(&self, _window: WindowId, topmost: bool) -> Result<()> {
+        if topmost {
+            let script = r#"tell application "System Events"
+                set value of attribute "AXFloating" of first window of (first application process whose frontmost is true) to true
+            end tell"#;
+            self.run_applescript(&script)?;
+        }
+        debug!("Set topmost: {}", topmost);
         Ok(())
     }
 
-    fn set_opacity(&self, _window: WindowId, _opacity: u8) -> Result<()> {
-        // Window opacity on macOS requires private APIs
-        warn!("set_opacity not implemented on macOS");
+    fn set_opacity(&self, _window: WindowId, opacity: u8) -> Result<()> {
+        let alpha = opacity as f64 / 255.0;
+        let script = format!(
+            r#"tell application "System Events"
+                set value of attribute "AXAlphaValue" of first window of (first application process whose frontmost is true) to {}
+            end tell"#,
+            alpha
+        );
+        self.run_applescript(&script)?;
+        debug!("Set opacity: {}/255", opacity);
         Ok(())
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let mut monitors = Vec::new();
-
-        // Get all active displays
+        let mut monitors = std::vec::Vec::new();
         let display_ids = CGDisplay::active_displays().unwrap_or_default();
 
         for display_id in display_ids {
-            // SAFETY: CGDisplayBounds is safe to call with valid display ID
             let bounds = unsafe { CGDisplayBounds(display_id) };
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
@@ -171,14 +277,12 @@ impl WindowApiTrait for MacosWindowApi {
             });
         }
 
-        // Fallback to primary display if no monitors found
         if monitors.is_empty() {
             let main = CGDisplay::main();
-            // SAFETY: CGDisplayBounds is safe to call with valid display ID
             let bounds = unsafe { CGDisplayBounds(main.id) };
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
-                y: bounds.origin.y as i32,
+                y: bounds.origin.x as i32,
                 width: bounds.size.width as i32,
                 height: bounds.size.height as i32,
             });
@@ -187,19 +291,39 @@ impl WindowApiTrait for MacosWindowApi {
         monitors
     }
 
+    fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
+        let monitors = self.get_monitors();
+        let monitor = monitors.get(monitor_index)?;
+
+        // Estimate dock height (typically ~68px) and menu bar height (~25px)
+        let dock_height = 68;
+        let menu_bar_height = 25;
+
+        Some(MonitorWorkArea {
+            x: monitor.x,
+            y: monitor.y,
+            width: monitor.width,
+            height: monitor.height - dock_height - menu_bar_height,
+        })
+    }
+
     fn move_to_monitor(&self, _window: WindowId, monitor_index: usize) -> Result<()> {
         let monitors = self.get_monitors();
-        if monitor_index >= monitors.len() {
-            return Err(anyhow::anyhow!("Invalid monitor index: {}", monitor_index));
-        }
+        let monitor = monitors.get(monitor_index).ok_or_else(|| {
+            anyhow::anyhow!("Invalid monitor index: {}", monitor_index)
+        })?;
 
-        let monitor = &monitors[monitor_index];
         let info = self.get_window_info(_window)?;
 
-        // Move window to the target monitor, keeping the same size
-        self.set_window_pos(_window, monitor.x, monitor.y, info.width, info.height)?;
+        // Center the window on the target monitor
+        let new_x = monitor.x + (monitor.width - info.width) / 2;
+        let new_y = monitor.y + (monitor.height - info.height) / 2;
 
-        debug!("Moved window to monitor {}", monitor_index);
+        self.set_window_pos(_window, new_x, new_y, info.width, info.height)?;
+        debug!(
+            "Moved window to monitor {} at ({}, {})",
+            monitor_index, new_x, new_y
+        );
         Ok(())
     }
 
@@ -208,30 +332,381 @@ impl WindowApiTrait for MacosWindowApi {
     }
 
     fn is_minimized(&self, _window: WindowId) -> bool {
-        // Would need Accessibility API to check this properly
-        false
+        let script = r#"tell application "System Events"
+            try
+                value of attribute "AXMinimized" of first window of (first application process whose frontmost is true)
+            on error
+                false
+            end try
+        end tell"#;
+
+        match Command::new("osascript").arg("-e").arg(script).output() {
+            Ok(output) if output.status.success() => {
+                String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .parse::<bool>()
+                    .unwrap_or(false)
+            }
+            _ => false,
+        }
     }
 
     fn is_maximized(&self, _window: WindowId) -> bool {
-        // macOS doesn't have a clear "maximized" state
+        // Check if window fills most of the screen area
+        if let Ok(info) = self.get_window_info(_window) {
+            let monitors = self.get_monitors();
+            if let Some(monitor) = monitors.first() {
+                let threshold = 0.95;
+                let width_ratio = info.width as f64 / monitor.width as f64;
+                let height_ratio = info.height as f64 / monitor.height as f64;
+                return width_ratio >= threshold && height_ratio >= threshold;
+            }
+        }
         false
+    }
+
+    fn get_window_state(&self, window: WindowId) -> WindowState {
+        if self.is_minimized(window) {
+            WindowState::Minimized
+        } else if self.is_maximized(window) {
+            WindowState::Maximized
+        } else {
+            WindowState::Normal
+        }
+    }
+}
+
+/// Mock window API for testing
+#[cfg(test)]
+pub struct MockMacosWindowApi {
+    windows: std::sync::Mutex<
+        std::collections::HashMap<WindowId, crate::platform::traits::WindowInfo>,
+    >,
+    foreground: std::sync::Mutex<Option<WindowId>>,
+    monitors: std::sync::Mutex<Vec<MonitorInfo>>,
+}
+
+#[cfg(test)]
+impl MockMacosWindowApi {
+    pub fn new() -> Self {
+        let mut windows = std::collections::HashMap::new();
+        windows.insert(
+            1,
+            WindowInfo {
+                id: 1,
+                title: "Test Window".to_string(),
+                process_name: "TestApp".to_string(),
+                executable_path: None,
+                x: 100,
+                y: 100,
+                width: 800,
+                height: 600,
+            },
+        );
+
+        Self {
+            windows: std::sync::Mutex::new(windows),
+            foreground: std::sync::Mutex::new(Some(1)),
+            monitors: std::sync::Mutex::new(vec![MonitorInfo {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            }]),
+        }
+    }
+
+    pub fn add_window(&self, id: WindowId, info: WindowInfo) {
+        self.windows.lock().unwrap().insert(id, info);
+    }
+
+    pub fn set_monitors(&self, monitors: Vec<MonitorInfo>) {
+        *self.monitors.lock().unwrap() = monitors;
+    }
+
+    pub fn set_minimized(&self, id: WindowId, minimized: bool) {
+        if let Some(info) = self.windows.lock().unwrap().get_mut(&id) {
+            if minimized {
+                info.title = format!("[MINIMIZED]{}", info.title);
+            } else {
+                info.title = info
+                    .title
+                    .strip_prefix("[MINIMIZED]")
+                    .unwrap_or(&info.title)
+                    .to_string();
+            }
+        }
     }
 }
 
 #[cfg(test)]
+impl Default for MockMacosWindowApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+impl MacosWindowApi for MockMacosWindowApi {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        *self.foreground.lock().unwrap()
+    }
+
+    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
+        self.windows
+            .lock()
+            .unwrap()
+            .get(&window)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Window not found: {}", window))
+    }
+
+    fn set_window_pos(
+        &self,
+        window: WindowId,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    ) -> Result<()> {
+        if let Some(mut info) = self.windows.lock().unwrap().get_mut(&window) {
+            info.x = x;
+            info.y = y;
+            info.width = w;
+            info.height = h;
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Window not found: {}", window))
+        }
+    }
+
+    fn minimize_window(&self, window: WindowId) -> Result<()> {
+        self.set_minimized(window, true);
+        Ok(())
+    }
+
+    fn maximize_window(&self, window: WindowId) -> Result<()> {
+        let monitors = self.monitors.lock().unwrap();
+        if let Some(monitor) = monitors.first() {
+            if let Some(mut info) = self.windows.lock().unwrap().get_mut(&window) {
+                info.x = monitor.x;
+                info.y = monitor.y;
+                info.width = monitor.width;
+                info.height = monitor.height;
+            }
+        }
+        Ok(())
+    }
+
+    fn restore_window(&self, window: WindowId) -> Result<()> {
+        self.set_minimized(window, false);
+        Ok(())
+    }
+
+    fn close_window(&self, window: WindowId) -> Result<()> {
+        self.windows.lock().unwrap().remove(&window);
+        Ok(())
+    }
+
+    fn set_topmost(&self, _window: WindowId, _topmost: bool) -> Result<()> {
+        Ok(())
+    }
+
+    fn set_opacity(&self, _window: WindowId, _opacity: u8) -> Result<()> {
+        Ok(())
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.monitors.lock().unwrap().clone()
+    }
+
+    fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
+        let monitors = self.monitors.lock().unwrap();
+        let m = monitors.get(monitor_index)?;
+        Some(MonitorWorkArea {
+            x: m.x,
+            y: m.y,
+            width: m.width,
+            height: m.height - 93, // Subtract estimated dock+menu bar
+        })
+    }
+
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        let monitors = self.monitors.lock().unwrap();
+        let m = monitors
+            .get(monitor_index)
+            .ok_or_else(|| anyhow::anyhow!("Invalid monitor index"))?;
+        if let Some(mut info) = self.windows.lock().unwrap().get_mut(&window) {
+            info.x = m.x + (m.width - info.width) / 2;
+            info.y = m.y + (m.height - info.height) / 2;
+        }
+        Ok(())
+    }
+
+    fn is_window_valid(&self, window: WindowId) -> bool {
+        self.windows.lock().unwrap().contains_key(&window)
+    }
+
+    fn is_minimized(&self, window: WindowId) -> bool {
+        self.windows
+            .lock()
+            .unwrap()
+            .get(&window)
+            .map(|info| info.title.starts_with("[MINIMIZED]"))
+            .unwrap_or(false)
+    }
+
+    fn is_maximized(&self, window: WindowId) -> bool {
+        if let Some(info) = self.windows.lock().unwrap().get(&window) {
+            let monitors = self.monitors.lock().unwrap();
+            if let Some(m) = monitors.first() {
+                return info.width == m.width && info.height == m.height;
+            }
+        }
+        false
+    }
+
+    fn get_window_state(&self, window: WindowId) -> WindowState {
+        if self.is_minimized(window) {
+            WindowState::Minimized
+        } else if self.is_maximized(window) {
+            WindowState::Maximized
+        } else {
+            WindowState::Normal
+        }
+    }
+}
+
+// Note: RealMacosWindowApi implements MacosWindowApi which provides all window operations.
+// The WindowApiTrait bridge is omitted to avoid method ambiguity between traits.
+// Use MacosWindowApi directly for macOS-specific code.
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
 
     #[test]
-    fn test_macos_window_api_creation() {
-        let api = MacosWindowApi::new();
-        let _ = api;
+    fn test_real_api_creation() {
+        let api = RealMacosWindowApi::new();
+        drop(api);
     }
 
     #[test]
     fn test_get_monitors() {
-        let api = MacosWindowApi::new();
+        let api = RealMacosWindowApi::new();
         let monitors = api.get_monitors();
-        assert!(!monitors.is_empty(), "Should have at least one monitor");
+        assert!(!monitors.is_empty());
+    }
+
+    #[test]
+    fn test_mock_creation() {
+        let mock = MockMacosWindowApi::new();
+        assert!(mock.is_window_valid(1));
+        assert!(!mock.is_window_valid(999));
+    }
+
+    #[test]
+    fn test_mock_set_window_pos() {
+        let mock = MockMacosWindowApi::new();
+        mock.set_window_pos(1, 200, 300, 1024, 768).unwrap();
+        let info = mock.get_window_info(1).unwrap();
+        assert_eq!(info.x, 200);
+        assert_eq!(info.y, 300);
+        assert_eq!(info.width, 1024);
+        assert_eq!(info.height, 768);
+    }
+
+    #[test]
+    fn test_mock_minimize_restore() {
+        let mock = MockMacosWindowApi::new();
+        assert!(!mock.is_minimized(1));
+
+        mock.minimize_window(1).unwrap();
+        assert!(mock.is_minimized(1));
+        assert_eq!(mock.get_window_state(1), WindowState::Minimized);
+
+        mock.restore_window(1).unwrap();
+        assert!(!mock.is_minimized(1));
+        assert_eq!(mock.get_window_state(1), WindowState::Normal);
+    }
+
+    #[test]
+    fn test_mock_maximize() {
+        let mock = MockMacosWindowApi::new();
+        mock.maximize_window(1).unwrap();
+        assert!(mock.is_maximized(1));
+        assert_eq!(mock.get_window_state(1), WindowState::Maximized);
+
+        let info = mock.get_window_info(1).unwrap();
+        assert_eq!(info.width, 1920);
+        assert_eq!(info.height, 1080);
+    }
+
+    #[test]
+    fn test_mock_close_window() {
+        let mock = MockMacosWindowApi::new();
+        assert!(mock.is_window_valid(1));
+        mock.close_window(1).unwrap();
+        assert!(!mock.is_window_valid(1));
+    }
+
+    #[test]
+    fn test_mock_move_to_monitor() {
+        let mut mock = MockMacosWindowApi::new();
+        mock.set_monitors(vec![
+            MonitorInfo {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            MonitorInfo {
+                x: 1920,
+                y: 0,
+                width: 2560,
+                height: 1440,
+            },
+        ]);
+
+        mock.move_to_monitor(1, 1).unwrap();
+        let info = mock.get_window_info(1).unwrap();
+        // Should be centered on second monitor
+        assert!(info.x >= 1920);
+    }
+
+    #[test]
+    fn test_mock_monitor_work_area() {
+        let mock = MockMacosWindowApi::new();
+        let work_area = mock.get_monitor_work_area(0).unwrap();
+        assert!(work_area.height < 1080); // Less than full height due to dock/menu bar
+    }
+
+    #[test]
+    fn test_mock_add_window() {
+        let mock = MockMacosWindowApi::new();
+        mock.add_window(
+            2,
+            WindowInfo {
+                id: 2,
+                title: "Second Window".to_string(),
+                process_name: "OtherApp".to_string(),
+                executable_path: None,
+                x: 500,
+                y: 500,
+                width: 640,
+                height: 480,
+            },
+        );
+        assert!(mock.is_window_valid(2));
+        let info = mock.get_window_info(2).unwrap();
+        assert_eq!(info.title, "Second Window");
+    }
+
+    #[test]
+    fn test_mock_foreground_window() {
+        let mock = MockMacosWindowApi::new();
+        assert_eq!(mock.get_foreground_window(), Some(1));
     }
 }

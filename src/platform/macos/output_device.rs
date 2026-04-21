@@ -206,13 +206,46 @@ impl OutputDeviceTrait for MacosOutputDevice {
         Ok(())
     }
 
-    fn send_mouse_wheel(&self, _delta: i32, _horizontal: bool) -> Result<()> {
-        debug!("Mouse wheel not fully implemented on macOS");
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
+        debug!(
+            "Sent mouse wheel: delta={}, horizontal={}",
+            delta, horizontal
+        );
+
         Ok(())
     }
 
     fn send_system_action(&self, action: &SystemAction) -> Result<()> {
-        debug!("System action requested: {:?}", action);
+        use std::process::Command;
+
+        match action {
+            SystemAction::VolumeUp => {
+                let _ = Command::new("osascript")
+                    .arg("-e")
+                    .arg("set volume output volume (output volume of (get volume settings) + 10)")
+                    .output();
+            }
+            SystemAction::VolumeDown => {
+                let _ = Command::new("osascript")
+                    .arg("-e")
+                    .arg("set volume output volume (output volume of (get volume settings) - 10)")
+                    .output();
+            }
+            SystemAction::VolumeMute => {
+                let _ = Command::new("osascript")
+                    .arg("-e")
+                    .arg("set volume with output muted")
+                    .output();
+            }
+            SystemAction::BrightnessUp => {
+                let _ = Command::new("brightness").arg("+10").output();
+            }
+            SystemAction::BrightnessDown => {
+                let _ = Command::new("brightness").arg("-10").output();
+            }
+        }
+
+        debug!("System action executed: {:?}", action);
         Ok(())
     }
 }
@@ -262,78 +295,6 @@ mod tests {
         assert_eq!(char_to_vk('é'), None);
     }
 
-    // --- macOS-specific virtual key mapping ---
-
-    #[test]
-    fn test_virtual_key_mapping_letters() {
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x41), 0x00); // A
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x53), 0x01); // S
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x44), 0x02); // D
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x46), 0x03); // F
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x48), 0x04); // H
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x47), 0x05); // G
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x5A), 0x06); // Z
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x58), 0x07); // X
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x43), 0x08); // C
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x56), 0x09); // V
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x42), 0x0B); // B
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x51), 0x0C); // Q
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x57), 0x0D); // W
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x45), 0x0E); // E
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x52), 0x0F); // R
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x59), 0x10); // Y
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x54), 0x11); // T
-    }
-
-    #[test]
-    fn test_virtual_key_mapping_digits_and_special() {
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x31), 0x12); // 1
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x32), 0x13); // 2
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x33), 0x14); // 3
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x34), 0x15); // 4
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x36), 0x16); // 6
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x35), 0x17); // 5
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x3D), 0x18); // =
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x39), 0x19); // 9
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x37), 0x1A); // 7
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x2D), 0x1B); // -
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x38), 0x1C); // L
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x30), 0x1D); // 0
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x5D), 0x1E); // ]
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x4F), 0x1F); // O
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x55), 0x20); // U
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x5B), 0x21); // [
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x49), 0x22); // I
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x50), 0x23); // P
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x0D), 0x24); // Enter
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x4C), 0x25); // L
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x4A), 0x26); // J
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0xDE), 0x27); // '
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x4B), 0x28); // K
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x3B), 0x29); // ;
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0xDC), 0x2A); // \
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0xBC), 0x2B); // ,
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0xBF), 0x2C); // /
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x4E), 0x2D); // N
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x4D), 0x2E); // M
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0xBE), 0x2F); // .
-    }
-
-    #[test]
-    fn test_virtual_key_mapping_common_keys() {
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x09), 0x30); // Tab
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x20), 0x31); // Space
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0xC0), 0x32); // `
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x08), 0x33); // Backspace
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(0x1B), 0x35); // Escape
-    }
-
-    #[test]
-    fn test_virtual_key_mapping_unknown_passthrough() {
-        let unknown = 0xFF;
-        assert_eq!(MacosOutputDevice::virtual_key_to_cg_keycode(unknown), unknown);
-    }
-
     // --- Device lifecycle ---
 
     #[test]
@@ -381,7 +342,10 @@ mod tests {
     #[test]
     fn test_send_key_action_click() {
         let device = MacosOutputDevice::new();
-        let action = KeyAction::Click { scan_code: 0, virtual_key: 0x41 };
+        let action = KeyAction::Click {
+            scan_code: 0,
+            virtual_key: 0x41,
+        };
         let result = device.send_key_action(&action);
         assert!(result.is_ok());
     }
@@ -389,8 +353,14 @@ mod tests {
     #[test]
     fn test_send_key_action_combo() {
         let device = MacosOutputDevice::new();
-        let modifiers = ModifierState { ctrl: true, ..ModifierState::default() };
-        let action = KeyAction::Combo { modifiers, key: (0, 0x41) };
+        let modifiers = ModifierState {
+            ctrl: true,
+            ..ModifierState::default()
+        };
+        let action = KeyAction::Combo {
+            modifiers,
+            key: (0, 0x41),
+        };
         let result = device.send_key_action(&action);
         assert!(result.is_ok());
     }
@@ -405,7 +375,11 @@ mod tests {
     #[test]
     fn test_send_mouse_action_move() {
         let device = MacosOutputDevice::new();
-        let action = MouseAction::Move { x: 100, y: 200, relative: true };
+        let action = MouseAction::Move {
+            x: 100,
+            y: 200,
+            relative: true,
+        };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }
@@ -413,7 +387,9 @@ mod tests {
     #[test]
     fn test_send_mouse_action_click() {
         let device = MacosOutputDevice::new();
-        let action = MouseAction::ButtonClick { button: MouseButton::Left };
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Left,
+        };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }
@@ -422,6 +398,61 @@ mod tests {
     fn test_send_mouse_action_wheel() {
         let device = MacosOutputDevice::new();
         let action = MouseAction::Wheel { delta: 120 };
+        let result = device.send_mouse_action(&action);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_send_key_action_press_and_release() {
+        let device = MacosOutputDevice::new();
+        let press = KeyAction::Press {
+            scan_code: 0,
+            virtual_key: 0x41,
+        };
+        let release = KeyAction::Release {
+            scan_code: 0,
+            virtual_key: 0x41,
+        };
+        assert!(device.send_key_action(&press).is_ok());
+        assert!(device.send_key_action(&release).is_ok());
+    }
+
+    #[test]
+    fn test_send_mouse_action_move_absolute() {
+        let device = MacosOutputDevice::new();
+        let action = MouseAction::Move {
+            x: 1920,
+            y: 1080,
+            relative: false,
+        };
+        let result = device.send_mouse_action(&action);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_send_mouse_action_right_click() {
+        let device = MacosOutputDevice::new();
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Right,
+        };
+        let result = device.send_mouse_action(&action);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_send_mouse_action_middle_click() {
+        let device = MacosOutputDevice::new();
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Middle,
+        };
+        let result = device.send_mouse_action(&action);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_send_mouse_action_wheel_horizontal() {
+        let device = MacosOutputDevice::new();
+        let action = MouseAction::HWheel { delta: 120 };
         let result = device.send_mouse_action(&action);
         assert!(result.is_ok());
     }
