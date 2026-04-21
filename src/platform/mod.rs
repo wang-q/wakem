@@ -10,10 +10,12 @@
 //! platform-specific implementation.
 
 pub mod mock;
+pub mod output_helpers;
 pub mod traits;
 
 // Re-export mock implementations for testing
 pub use mock::MockInputDevice;
+pub use output_helpers::char_to_vk;
 
 // Re-export specific items from traits
 pub use traits::{

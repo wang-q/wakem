@@ -3,7 +3,10 @@
 //! This module defines the cross-platform interfaces that can be implemented
 //! by each platform-specific module (Windows, macOS, Linux).
 
-use crate::types::{InputEvent, KeyAction, MouseAction, MouseButton, SystemAction};
+use crate::platform::output_helpers::char_to_vk;
+use crate::types::{
+    InputEvent, KeyAction, ModifierState, MouseAction, MouseButton, SystemAction,
+};
 use anyhow::Result;
 
 /// Input device trait - for capturing keyboard and mouse events
@@ -25,15 +28,105 @@ pub trait InputDeviceTrait: Send {
 }
 
 /// Output device trait - for sending simulated input events
-pub trait OutputDeviceTrait: Send + Sync {
-    /// Send a key action (press/release/click)
-    fn send_key_action(&self, action: &KeyAction) -> Result<()>;
+pub trait OutputDeviceTrait: Send {
+    /// Send a key action
+    fn send_key_action(&self, action: &KeyAction) -> Result<()> {
+        match action {
+            KeyAction::Press {
+                scan_code,
+                virtual_key,
+            } => self.send_key(*scan_code, *virtual_key, false),
+            KeyAction::Release {
+                scan_code,
+                virtual_key,
+            } => self.send_key(*scan_code, *virtual_key, true),
+            KeyAction::Click {
+                scan_code,
+                virtual_key,
+            } => {
+                self.send_key(*scan_code, *virtual_key, false)?;
+                self.send_key(*scan_code, *virtual_key, true)
+            }
+            KeyAction::TypeText(text) => self.send_text(text),
+            KeyAction::Combo { modifiers, key } => {
+                self.send_combo(modifiers, key.0, key.1)
+            }
+            KeyAction::None => Ok(()),
+        }
+    }
+
+    /// Send text by typing each character
+    fn send_text(&self, text: &str) -> Result<()> {
+        for ch in text.chars() {
+            if let Some(vk) = char_to_vk(ch) {
+                self.send_key(0, vk, false)?;
+                self.send_key(0, vk, true)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Send key combination with modifiers
+    ///
+    /// Sequence: press modifiers → press target → release target → release modifiers (reverse order).
+    fn send_combo(
+        &self,
+        modifiers: &ModifierState,
+        scan_code: u16,
+        virtual_key: u16,
+    ) -> Result<()> {
+        if modifiers.shift {
+            self.send_key(0, 0x10, false)?;
+        }
+        if modifiers.ctrl {
+            self.send_key(0, 0x11, false)?;
+        }
+        if modifiers.alt {
+            self.send_key(0, 0x12, false)?;
+        }
+        if modifiers.meta {
+            self.send_key(0, 0x5B, false)?;
+        }
+
+        self.send_key(scan_code, virtual_key, false)?;
+        self.send_key(scan_code, virtual_key, true)?;
+
+        if modifiers.meta {
+            self.send_key(0, 0x5B, true)?;
+        }
+        if modifiers.alt {
+            self.send_key(0, 0x12, true)?;
+        }
+        if modifiers.ctrl {
+            self.send_key(0, 0x11, true)?;
+        }
+        if modifiers.shift {
+            self.send_key(0, 0x10, true)?;
+        }
+
+        Ok(())
+    }
 
     /// Send a single key event
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()>;
 
     /// Send a mouse action
-    fn send_mouse_action(&self, action: &MouseAction) -> Result<()>;
+    fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
+        match action {
+            MouseAction::Move { x, y, relative } => {
+                self.send_mouse_move(*x, *y, *relative)
+            }
+            MouseAction::ButtonDown { button } => self.send_mouse_button(*button, false),
+            MouseAction::ButtonUp { button } => self.send_mouse_button(*button, true),
+            MouseAction::ButtonClick { button } => {
+                self.send_mouse_button(*button, false)?;
+                self.send_mouse_button(*button, true)
+            }
+            MouseAction::Wheel { delta } => self.send_mouse_wheel(*delta, false),
+            MouseAction::HWheel { delta } => self.send_mouse_wheel(*delta, true),
+            MouseAction::None => Ok(()),
+        }
+    }
 
     /// Send mouse move
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()>;
