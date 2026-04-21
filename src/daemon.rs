@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::config::Config;
 use crate::constants::{
@@ -788,6 +788,16 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         config.network.instance_id = instance_id;
     }
 
+    // Load configuration from file on startup
+    if let Err(e) = state.reload_config_from_file().await {
+        warn!(
+            "Failed to load config on startup: {}. Using default config.",
+            e
+        );
+    } else {
+        info!("Configuration loaded successfully on startup");
+    }
+
     // Create IPC server (with dynamic auth key)
     let (message_tx, mut message_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
     let bind_address = {
@@ -818,9 +828,12 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     // Start Raw Input capture (in separate thread, send to tokio channel via bridge)
     let input_tx_bridge = input_tx.clone();
+    let input_shutdown_flag = Arc::new(AtomicBool::new(false));
+    let input_shutdown_flag_clone = input_shutdown_flag.clone();
     let input_bridge_handle = std::thread::spawn(move || {
         let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
         let tx_clone = input_tx_bridge;
+        let shutdown_flag = input_shutdown_flag_clone;
 
         let raw_input_handle =
             std::thread::spawn(move || match RawInputDevice::new(std_tx) {
@@ -839,14 +852,33 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         let _ = raw_input_handle.join();
 
         // Bridge: receive from std channel and send to tokio channel
-        while let Ok(event) = std_rx.recv() {
-            if tx_clone.blocking_send(event).is_err() {
-                break; // Channel closed, exit
+        // Use try_recv with timeout to allow checking shutdown flag
+        loop {
+            if shutdown_flag.load(Ordering::SeqCst) {
+                break;
+            }
+            match std_rx.try_recv() {
+                Ok(event) => {
+                    if tx_clone.blocking_send(event).is_err() {
+                        break; // Channel closed, exit
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    // No events, sleep briefly to avoid busy waiting
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    // Sender dropped, exit
+                    break;
+                }
             }
         }
         info!("Input bridge thread shutdown complete");
     });
     thread_handles.push(input_bridge_handle);
+
+    // Store input_shutdown_flag for later use during shutdown
+    let input_shutdown_flag_stored = input_shutdown_flag;
 
     // Start input processing task (with shutdown signal check and batch processing optimization)
     let state_clone = state.clone();
@@ -940,6 +972,10 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     });
 
     // Start window event listener (for auto-applying presets)
+    // Create shutdown flag for window event bridge thread (outside the block so it's accessible later)
+    let window_shutdown_flag = Arc::new(AtomicBool::new(false));
+    let window_shutdown_flag_clone = window_shutdown_flag.clone();
+
     let mut window_event_rx = {
         let (tx, rx) = tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(
             WINDOW_EVENT_CHANNEL_CAPACITY,
@@ -948,6 +984,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         // Create shutdown flag for window event hook
         let hook_shutdown_flag = Arc::new(AtomicBool::new(false));
         let hook_shutdown_flag_clone = hook_shutdown_flag.clone();
+        let shutdown_flag = window_shutdown_flag_clone;
 
         let window_bridge_handle = std::thread::spawn(move || {
             let (std_tx, std_rx) =
@@ -970,9 +1007,25 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
             });
 
             // Bridge: receive from std channel and send to tokio channel
-            while let Ok(event) = std_rx.recv() {
-                if tx.blocking_send(event).is_err() {
+            // Use try_recv to allow checking shutdown flag
+            loop {
+                if shutdown_flag.load(Ordering::SeqCst) {
                     break;
+                }
+                match std_rx.try_recv() {
+                    Ok(event) => {
+                        if tx.blocking_send(event).is_err() {
+                            break;
+                        }
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => {
+                        // No events, sleep briefly to avoid busy waiting
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        // Sender dropped, exit
+                        break;
+                    }
                 }
             }
 
@@ -1066,6 +1119,10 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     // Trigger graceful shutdown
     info!("Initiating graceful shutdown...");
     shutdown.shutdown().await;
+
+    // Signal bridge threads to exit
+    input_shutdown_flag_stored.store(true, Ordering::SeqCst);
+    window_shutdown_flag.store(true, Ordering::SeqCst);
 
     // Wait a short time for tasks to clean up
     tokio::time::sleep(tokio::time::Duration::from_millis(SHUTDOWN_WAIT_DELAY_MS)).await;
