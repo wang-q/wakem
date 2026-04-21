@@ -4,7 +4,7 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
 
 use crate::config::Config;
-use crate::constants::{IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_PRESET_APPLY_DELAY_MS};
+use crate::constants::{INPUT_CHANNEL_CAPACITY, IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_EVENT_CHANNEL_CAPACITY, WINDOW_PRESET_APPLY_DELAY_MS};
 use crate::ipc::{IpcServer, Message};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -804,7 +804,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     info!("Server listening on {}", bind_address);
 
     // Create input event channel (using tokio::sync::mpsc for efficient async processing)
-    let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<InputEvent>(1000);
+    let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<InputEvent>(INPUT_CHANNEL_CAPACITY);
 
     // Collect all std thread JoinHandles for graceful shutdown
     let mut thread_handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
@@ -935,7 +935,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     // Start window event listener (for auto-applying presets)
     let mut window_event_rx = {
         let (tx, rx) =
-            tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(100);
+            tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(WINDOW_EVENT_CHANNEL_CAPACITY);
 
         let window_bridge_handle = std::thread::spawn(move || {
             let (std_tx, std_rx) =

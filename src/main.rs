@@ -20,6 +20,7 @@ mod window;
 use cli::{Cli, Commands};
 use client::DaemonClient;
 use config::Config;
+use constants::IPC_CHANNEL_CAPACITY;
 use window::{AppCommand, MessageWindow};
 
 /// Simple daemon command executor macro to reduce boilerplate for parameterless methods
@@ -209,7 +210,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
         });
 
     // Create command channel
-    let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(100);
+    let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(IPC_CHANNEL_CAPACITY);
 
     // Create message window with custom icon
     let window = MessageWindow::with_icon_path(icon_path)?;

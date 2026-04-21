@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use tracing::debug;
 
+use crate::constants::WILDCARD_MAX_INPUT_SIZE;
 use crate::platform::windows::Launcher;
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
@@ -457,8 +458,7 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
     }
 
     // Prevent large inputs from causing memory issues
-    const MAX_SIZE: usize = 1024;
-    if m > MAX_SIZE || n > MAX_SIZE {
+    if m > WILDCARD_MAX_INPUT_SIZE || n > WILDCARD_MAX_INPUT_SIZE {
         return false;
     }
 

@@ -1,3 +1,4 @@
+use crate::constants::WILDCARD_MAX_INPUT_SIZE;
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
@@ -180,8 +181,8 @@ impl RawInputDevice {
 
     /// Handle Raw Input message
     unsafe fn handle_raw_input(lparam: LPARAM) {
-        let mut raw_data: [u8; 1024] = [0; 1024];
-        let mut size: u32 = 1024;
+        let mut raw_data: [u8; WILDCARD_MAX_INPUT_SIZE] = [0; WILDCARD_MAX_INPUT_SIZE];
+        let mut size: u32 = WILDCARD_MAX_INPUT_SIZE as u32;
 
         let hrawinput: windows::Win32::UI::Input::HRAWINPUT =
             std::mem::transmute(lparam.0);
