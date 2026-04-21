@@ -55,7 +55,9 @@ impl LayerManager {
                         match event.state {
                             KeyState::Pressed => {
                                 trace!("Activating layer (Hold): {}", layer.name);
-                                if let Some(layer) = self.layers.get(&layer.name).cloned() {
+                                if let Some(layer) =
+                                    self.layers.get(&layer.name).cloned()
+                                {
                                     self.stack.hold_layer(&layer.name);
                                     self.stack.activate_layer(layer);
                                 }

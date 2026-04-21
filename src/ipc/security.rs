@@ -75,22 +75,32 @@ mod tests {
 
     #[test]
     fn test_ipv6_loopback() {
-        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1))));
+        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(
+            0, 0, 0, 0, 0, 0, 0, 1
+        ))));
         assert!(is_private_ip(IpAddr::V6(Ipv6Addr::LOCALHOST)));
     }
 
     #[test]
     fn test_ipv6_link_local() {
         // fe80::/10
-        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1))));
-        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(0xfebf, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff))));
+        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(
+            0xfe80, 0, 0, 0, 0, 0, 0, 1
+        ))));
+        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(
+            0xfebf, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff
+        ))));
     }
 
     #[test]
     fn test_ipv6_public() {
         // 2001::/16 (Global unicast)
-        assert!(!is_private_ip(IpAddr::V6(Ipv6Addr::new(0x2001, 0, 0, 0, 0, 0, 0, 1))));
+        assert!(!is_private_ip(IpAddr::V6(Ipv6Addr::new(
+            0x2001, 0, 0, 0, 0, 0, 0, 1
+        ))));
         // 2606::/32 (Cloudflare)
-        assert!(!is_private_ip(IpAddr::V6(Ipv6Addr::new(0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 1))));
+        assert!(!is_private_ip(IpAddr::V6(Ipv6Addr::new(
+            0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 1
+        ))));
     }
 }

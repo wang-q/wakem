@@ -448,14 +448,44 @@ impl WindowPreset {
 /// Unified implementation to avoid code duplication
 ///
 /// Performance optimizations:
-/// - Uses dynamic programming (DP) instead of recursive implementation
-/// - Time complexity: O(m*n), space complexity: O(m*n)
+/// - Fast path for exact matches and simple patterns
+/// - Uses dynamic programming (DP) for complex patterns
+/// - Time complexity: O(m*n) worst case, O(1) best case
 /// - Prevents stack overflow and exponential time complexity
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
-    let text = text.to_lowercase();
-    let pattern = pattern.to_lowercase();
+    // Fast path 1: Exact match (case-insensitive)
+    if text.eq_ignore_ascii_case(pattern) {
+        return true;
+    }
 
-    wildcard_match_dp(&text, &pattern)
+    // Fast path 2: Pattern is "*" (matches everything)
+    if pattern == "*" {
+        return true;
+    }
+
+    // Fast path 3: No wildcards - simple string comparison
+    if !pattern.contains('*') && !pattern.contains('?') {
+        return text.eq_ignore_ascii_case(pattern);
+    }
+
+    // Fast path 4: Pattern starts/ends with * (suffix/prefix match)
+    if pattern.starts_with('*') && !pattern[1..].contains('*') && !pattern.contains('?')
+    {
+        let suffix = &pattern[1..];
+        return text.to_lowercase().ends_with(&suffix.to_lowercase());
+    }
+    if pattern.ends_with('*')
+        && !pattern[..pattern.len() - 1].contains('*')
+        && !pattern.contains('?')
+    {
+        let prefix = &pattern[..pattern.len() - 1];
+        return text.to_lowercase().starts_with(&prefix.to_lowercase());
+    }
+
+    // Full DP implementation for complex patterns
+    let text_lower = text.to_lowercase();
+    let pattern_lower = pattern.to_lowercase();
+    wildcard_match_dp(&text_lower, &pattern_lower)
 }
 
 /// Dynamic programming implementation of wildcard matching
@@ -881,136 +911,97 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 }
 
 /// Parse key name to scan code and virtual key code
-/// Uses static HashMap for data-driven key name mapping, easy to maintain and extend
+/// Uses match expression for O(1) lookup without heap allocation
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
-    use std::collections::HashMap;
-
-    use once_cell::sync::Lazy;
-
-    static KEY_MAP: Lazy<HashMap<&'static str, (u16, u16)>> = Lazy::new(|| {
-        let mut map = HashMap::new();
-
+    match name.to_lowercase().as_str() {
         // Special keys
-        map.insert("capslock", (0x3A, 0x14));
-        map.insert("caps", (0x3A, 0x14));
-        map.insert("backspace", (0x0E, 0x08));
-        map.insert("enter", (0x1C, 0x0D));
-        map.insert("return", (0x1C, 0x0D));
-        map.insert("escape", (0x01, 0x1B));
-        map.insert("esc", (0x01, 0x1B));
-        map.insert("space", (0x39, 0x20));
-        map.insert("tab", (0x0F, 0x09));
+        "capslock" | "caps" => Ok((0x3A, 0x14)),
+        "backspace" => Ok((0x0E, 0x08)),
+        "enter" | "return" => Ok((0x1C, 0x0D)),
+        "escape" | "esc" => Ok((0x01, 0x1B)),
+        "space" => Ok((0x39, 0x20)),
+        "tab" => Ok((0x0F, 0x09)),
 
         // Arrow keys
-        map.insert("left", (0x4B, 0x25));
-        map.insert("up", (0x48, 0x26));
-        map.insert("right", (0x4D, 0x27));
-        map.insert("down", (0x50, 0x28));
+        "left" => Ok((0x4B, 0x25)),
+        "up" => Ok((0x48, 0x26)),
+        "right" => Ok((0x4D, 0x27)),
+        "down" => Ok((0x50, 0x28)),
 
         // Editing keys
-        map.insert("home", (0x47, 0x24));
-        map.insert("end", (0x4F, 0x23));
-        map.insert("pageup", (0x49, 0x21));
-        map.insert("pagedown", (0x51, 0x22));
-        map.insert("delete", (0x53, 0x2E));
-        map.insert("del", (0x53, 0x2E));
-        map.insert("forwarddelete", (0x53, 0x2E));
-        map.insert("forwarddel", (0x53, 0x2E));
-        map.insert("insert", (0x52, 0x2D));
-        map.insert("ins", (0x52, 0x2D));
+        "home" => Ok((0x47, 0x24)),
+        "end" => Ok((0x4F, 0x23)),
+        "pageup" => Ok((0x49, 0x21)),
+        "pagedown" => Ok((0x51, 0x22)),
+        "delete" | "del" | "forwarddelete" | "forwarddel" => Ok((0x53, 0x2E)),
+        "insert" | "ins" => Ok((0x52, 0x2D)),
 
         // Modifier keys
-        map.insert("lshift", (0x2A, 0xA0));
-        map.insert("rshift", (0x36, 0xA1));
-        map.insert("lctrl", (0x1D, 0xA2));
-        map.insert("lcontrol", (0x1D, 0xA2));
-        map.insert("rctrl", (0xE01D, 0xA3));
-        map.insert("rcontrol", (0xE01D, 0xA3));
-        map.insert("lalt", (0x38, 0xA4));
-        map.insert("ralt", (0xE038, 0xA5));
-        map.insert("lwin", (0xE05B, 0x5B));
-        map.insert("lmeta", (0xE05B, 0x5B));
-        map.insert("rwin", (0xE05C, 0x5C));
-        map.insert("rmeta", (0xE05C, 0x5C));
+        "lshift" => Ok((0x2A, 0xA0)),
+        "rshift" => Ok((0x36, 0xA1)),
+        "lctrl" | "lcontrol" => Ok((0x1D, 0xA2)),
+        "rctrl" | "rcontrol" => Ok((0xE01D, 0xA3)),
+        "lalt" => Ok((0x38, 0xA4)),
+        "ralt" => Ok((0xE038, 0xA5)),
+        "lwin" | "lmeta" => Ok((0xE05B, 0x5B)),
+        "rwin" | "rmeta" => Ok((0xE05C, 0x5C)),
 
         // Letter keys a-z
-        let letter_keys = [
-            ('a', 0x1E, 0x41),
-            ('b', 0x30, 0x42),
-            ('c', 0x2E, 0x43),
-            ('d', 0x20, 0x44),
-            ('e', 0x12, 0x45),
-            ('f', 0x21, 0x46),
-            ('g', 0x22, 0x47),
-            ('h', 0x23, 0x48),
-            ('i', 0x17, 0x49),
-            ('j', 0x24, 0x4A),
-            ('k', 0x25, 0x4B),
-            ('l', 0x26, 0x4C),
-            ('m', 0x32, 0x4D),
-            ('n', 0x31, 0x4E),
-            ('o', 0x18, 0x4F),
-            ('p', 0x19, 0x50),
-            ('q', 0x10, 0x51),
-            ('r', 0x13, 0x52),
-            ('s', 0x1F, 0x53),
-            ('t', 0x14, 0x54),
-            ('u', 0x16, 0x55),
-            ('v', 0x2F, 0x56),
-            ('w', 0x11, 0x57),
-            ('x', 0x2D, 0x58),
-            ('y', 0x15, 0x59),
-            ('z', 0x2C, 0x5A),
-        ];
-        for (ch, scan_code, vk) in letter_keys.iter() {
-            let key = ch.to_string();
-            map.insert(Box::leak(key.into_boxed_str()), (*scan_code, *vk));
-        }
+        "a" => Ok((0x1E, 0x41)),
+        "b" => Ok((0x30, 0x42)),
+        "c" => Ok((0x2E, 0x43)),
+        "d" => Ok((0x20, 0x44)),
+        "e" => Ok((0x12, 0x45)),
+        "f" => Ok((0x21, 0x46)),
+        "g" => Ok((0x22, 0x47)),
+        "h" => Ok((0x23, 0x48)),
+        "i" => Ok((0x17, 0x49)),
+        "j" => Ok((0x24, 0x4A)),
+        "k" => Ok((0x25, 0x4B)),
+        "l" => Ok((0x26, 0x4C)),
+        "m" => Ok((0x32, 0x4D)),
+        "n" => Ok((0x31, 0x4E)),
+        "o" => Ok((0x18, 0x4F)),
+        "p" => Ok((0x19, 0x50)),
+        "q" => Ok((0x10, 0x51)),
+        "r" => Ok((0x13, 0x52)),
+        "s" => Ok((0x1F, 0x53)),
+        "t" => Ok((0x14, 0x54)),
+        "u" => Ok((0x16, 0x55)),
+        "v" => Ok((0x2F, 0x56)),
+        "w" => Ok((0x11, 0x57)),
+        "x" => Ok((0x2D, 0x58)),
+        "y" => Ok((0x15, 0x59)),
+        "z" => Ok((0x2C, 0x5A)),
 
         // Number keys 0-9
-        let digit_keys = [
-            ('0', 0x0B, 0x30),
-            ('1', 0x02, 0x31),
-            ('2', 0x03, 0x32),
-            ('3', 0x04, 0x33),
-            ('4', 0x05, 0x34),
-            ('5', 0x06, 0x35),
-            ('6', 0x07, 0x36),
-            ('7', 0x08, 0x37),
-            ('8', 0x09, 0x38),
-            ('9', 0x0A, 0x39),
-        ];
-        for (ch, scan_code, vk) in digit_keys.iter() {
-            let key = ch.to_string();
-            map.insert(Box::leak(key.into_boxed_str()), (*scan_code, *vk));
-        }
+        "0" => Ok((0x0B, 0x30)),
+        "1" => Ok((0x02, 0x31)),
+        "2" => Ok((0x03, 0x32)),
+        "3" => Ok((0x04, 0x33)),
+        "4" => Ok((0x05, 0x34)),
+        "5" => Ok((0x06, 0x35)),
+        "6" => Ok((0x07, 0x36)),
+        "7" => Ok((0x08, 0x37)),
+        "8" => Ok((0x09, 0x38)),
+        "9" => Ok((0x0A, 0x39)),
 
         // Function keys F1-F12
-        let func_keys = [
-            ("f1", 0x3B, 0x70),
-            ("f2", 0x3C, 0x71),
-            ("f3", 0x3D, 0x72),
-            ("f4", 0x3E, 0x73),
-            ("f5", 0x3F, 0x74),
-            ("f6", 0x40, 0x75),
-            ("f7", 0x41, 0x76),
-            ("f8", 0x42, 0x77),
-            ("f9", 0x43, 0x78),
-            ("f10", 0x44, 0x79),
-            ("f11", 0x57, 0x7A),
-            ("f12", 0x58, 0x7B),
-        ];
-        for (key, scan_code, vk) in func_keys.iter() {
-            map.insert(*key, (*scan_code, *vk));
-        }
+        "f1" => Ok((0x3B, 0x70)),
+        "f2" => Ok((0x3C, 0x71)),
+        "f3" => Ok((0x3D, 0x72)),
+        "f4" => Ok((0x3E, 0x73)),
+        "f5" => Ok((0x3F, 0x74)),
+        "f6" => Ok((0x40, 0x75)),
+        "f7" => Ok((0x41, 0x76)),
+        "f8" => Ok((0x42, 0x77)),
+        "f9" => Ok((0x43, 0x78)),
+        "f10" => Ok((0x44, 0x79)),
+        "f11" => Ok((0x57, 0x7A)),
+        "f12" => Ok((0x58, 0x7B)),
 
-        map
-    });
-
-    KEY_MAP
-        .get(&name.to_lowercase().as_str())
-        .copied()
-        .ok_or_else(|| anyhow::anyhow!("Unknown key name: {}", name))
+        _ => Err(anyhow::anyhow!("Unknown key name: {}", name)),
+    }
 }
 
 /// Config file path cache (reduces repeated file system I/O)

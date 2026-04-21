@@ -3,6 +3,11 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
+/// Maximum number of IPs to track (prevents memory exhaustion)
+const MAX_TRACKED_IPS: usize = 1000;
+/// Cleanup threshold - when exceeded, remove oldest entries
+const CLEANUP_THRESHOLD: usize = 900;
+
 /// Connection rate limiter
 ///
 /// Used to prevent brute force and denial of service attacks
@@ -10,6 +15,7 @@ use std::time::{Duration, Instant};
 /// - IP-based rate limiting
 /// - Configurable max attempts and time window
 /// - Automatic cleanup of expired records
+/// - Memory limit protection (max 1000 tracked IPs)
 pub struct ConnectionLimiter {
     /// Attempt records for each IP
     attempts: HashMap<IpAddr, Vec<Instant>>,
@@ -47,11 +53,22 @@ impl ConnectionLimiter {
         let now = Instant::now();
         let window = Duration::from_secs(self.window_seconds);
 
+        // Memory protection: cleanup if too many IPs tracked
+        if self.attempts.len() >= MAX_TRACKED_IPS {
+            self.cleanup_oldest_entries(MAX_TRACKED_IPS - CLEANUP_THRESHOLD);
+        }
+
         // Get or create record for this IP
         let attempt_times = self.attempts.entry(ip).or_default();
 
-        // Cleanup expired records
+        // Cleanup expired records for this IP
         attempt_times.retain(|&time| now.duration_since(time) < window);
+
+        // Remove IP entry if no attempts remain (prevents memory leak)
+        if attempt_times.is_empty() {
+            self.attempts.remove(&ip);
+            return true;
+        }
 
         // Check if limit exceeded
         if attempt_times.len() >= self.max_attempts as usize {
@@ -61,6 +78,24 @@ impl ConnectionLimiter {
         // Record this attempt
         attempt_times.push(now);
         true
+    }
+
+    /// Cleanup oldest entries when memory limit is reached
+    fn cleanup_oldest_entries(&mut self, count: usize) {
+        // Find IPs with oldest attempts
+        let mut ip_ages: Vec<(IpAddr, Instant)> = self
+            .attempts
+            .iter()
+            .filter_map(|(ip, times)| times.first().copied().map(|t| (*ip, t)))
+            .collect();
+
+        // Sort by age (oldest first)
+        ip_ages.sort_by(|a, b| a.1.cmp(&b.1));
+
+        // Remove oldest entries
+        for (ip, _) in ip_ages.iter().take(count) {
+            self.attempts.remove(ip);
+        }
     }
 
     /// Reset limit count for specified IP
