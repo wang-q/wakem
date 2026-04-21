@@ -1100,8 +1100,7 @@ impl ServerState {
         }
 
         match event {
-            crate::platform::windows::WindowEvent::WindowCreated(hwnd)
-            | crate::platform::windows::WindowEvent::WindowActivated(hwnd) => {
+            crate::platform::windows::WindowEvent::WindowActivated(hwnd) => {
                 // Delay applying preset to ensure window is fully created
                 tokio::time::sleep(tokio::time::Duration::from_millis(
                     WINDOW_PRESET_APPLY_DELAY_MS,

@@ -8,15 +8,12 @@ use windows::Win32::UI::Accessibility::{
     SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowTextW, EVENT_OBJECT_CREATE, EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT,
-    WINEVENT_SKIPOWNPROCESS,
+    GetWindowTextW, EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
 /// Window event types
 #[derive(Debug, Clone)]
 pub enum WindowEvent {
-    /// Window created
-    WindowCreated(HWND),
     /// Window activated (became foreground)
     WindowActivated(HWND),
 }
@@ -43,9 +40,10 @@ impl WindowEventHook {
     pub fn start(&mut self) -> Result<()> {
         unsafe {
             // Set window event hook
-            // Monitor: window creation and foreground window changes
+            // Monitor: foreground window changes (window activation)
+            // Note: eventMin must be <= eventMax, so we use the same value for both
             let hook = SetWinEventHook(
-                EVENT_OBJECT_CREATE,
+                EVENT_SYSTEM_FOREGROUND,
                 EVENT_SYSTEM_FOREGROUND,
                 None, // Current process
                 Some(win_event_callback),
@@ -129,12 +127,6 @@ unsafe extern "system" fn win_event_callback(
     let title = String::from_utf16_lossy(&title_buffer[..len as usize]);
 
     match event {
-        EVENT_OBJECT_CREATE => {
-            debug!("Window created: {} ({:?})", title, hwnd);
-            if let Some(sender) = get_global_sender() {
-                let _ = sender.send(WindowEvent::WindowCreated(hwnd));
-            }
-        }
         EVENT_SYSTEM_FOREGROUND => {
             debug!("Window activated: {} ({:?})", title, hwnd);
             if let Some(sender) = get_global_sender() {
