@@ -46,6 +46,7 @@ type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
 /// Global tray icon storage
 static mut TRAY_ICON: Option<TrayIcon> = None;
 static mut CMD_CALLBACK: Option<CommandCallback> = None;
+static mut TRAY_HWND: Option<HWND> = None;
 
 /// Tray icon structure
 struct TrayIcon {
@@ -86,7 +87,7 @@ impl TrayIcon {
         unsafe {
             let _ = Shell_NotifyIconW(NIM_ADD, &self.data);
         }
-        info!("Tray icon registered!");
+        debug!("Tray icon registered");
     }
 
     fn show_menu(&self) {
@@ -127,7 +128,7 @@ impl TrayIcon {
 
             let _ = DestroyMenu(hmenu);
         }
-        info!("Menu shown!");
+        debug!("Menu shown");
     }
 }
 
@@ -139,20 +140,19 @@ unsafe extern "system" fn window_proc(
 ) -> LRESULT {
     match msg {
         WM_CREATE => {
-            info!("Window created");
+            debug!("Window created");
             LRESULT(0)
         }
         WM_DESTROY => {
-            info!("Window destroyed");
+            debug!("Window destroyed");
             PostQuitMessage(0);
             LRESULT(0)
         }
         WM_USER_TRAYICON => {
             let mouse_msg = lparam.0 as u32;
-            info!("Tray notify: mouse_msg=0x{:04X}", mouse_msg);
-
+            // Only log on actual clicks, not mouse move (0x0200)
             if mouse_msg == WM_LBUTTONUP || mouse_msg == WM_RBUTTONUP {
-                info!("Tray icon clicked!");
+                debug!("Tray icon clicked");
                 if let Some(ref tray) = TRAY_ICON {
                     tray.show_menu();
                 }
@@ -161,7 +161,7 @@ unsafe extern "system" fn window_proc(
         }
         WM_COMMAND => {
             let id = wparam.0 as u32 & 0xffff;
-            info!("Menu command: id={}", id);
+            debug!("Menu command: id={}", id);
 
             if let Some(ref callback) = CMD_CALLBACK {
                 match id {
@@ -212,7 +212,7 @@ where
                 err
             ));
         }
-        info!("Window class registered: {}", atom);
+        debug!("Window class registered: {}", atom);
 
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
@@ -229,7 +229,10 @@ where
             None,
         )?;
 
-        info!("Window created: {:?}", hwnd);
+        debug!("Window created: {:?}", hwnd);
+
+        // Store window handle for later use
+        TRAY_HWND = Some(hwnd);
 
         // Create and register tray icon
         TRAY_ICON = Some(TrayIcon::create());
@@ -238,7 +241,7 @@ where
         }
 
         // Message loop
-        info!("Starting message loop");
+        debug!("Starting message loop");
         let mut msg: MSG = std::mem::zeroed();
 
         loop {
@@ -256,7 +259,7 @@ where
             }
         }
 
-        info!("Message loop ended");
+        debug!("Message loop ended");
         Ok(())
     }
 }
@@ -264,6 +267,14 @@ where
 /// Post a quit message to stop the message loop
 pub fn stop_tray() {
     unsafe {
-        PostQuitMessage(0);
+        // Send WM_DESTROY to the window to force the message loop to exit
+        if let Some(hwnd) = TRAY_HWND {
+            let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
+                Some(hwnd),
+                WM_DESTROY,
+                WPARAM(0),
+                LPARAM(0),
+            );
+        }
     }
 }
