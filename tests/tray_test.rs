@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(test, target_os = "windows"))]
 mod tray_tests {
     use wakem::platform::windows::tray::{
         MenuAction, MockTrayApi, TrayApi, TrayManager, IDM_EXIT, IDM_OPEN_CONFIG,

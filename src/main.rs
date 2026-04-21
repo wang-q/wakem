@@ -190,7 +190,8 @@ async fn cmd_instances() -> Result<()> {
     Ok(())
 }
 
-/// Run system tray
+/// Run system tray (Windows only)
+#[cfg(target_os = "windows")]
 async fn run_tray(instance_id: u32) -> Result<()> {
     info!("wakem client starting (instance {})...", instance_id);
 
@@ -322,6 +323,13 @@ async fn run_tray(instance_id: u32) -> Result<()> {
     }
 
     info!("wakem client shutdown complete");
+    Ok(())
+}
+
+/// Run system tray (macOS stub)
+#[cfg(target_os = "macos")]
+async fn run_tray(_instance_id: u32) -> Result<()> {
+    info!("Tray not implemented on macOS");
     Ok(())
 }
 

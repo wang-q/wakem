@@ -463,7 +463,8 @@ async fn test_get_status_consistency() {
     assert_eq!(status2, status3);
 }
 
-/// 测试消息窗口句柄注册
+/// 测试消息窗口句柄注册（Windows 特定）
+#[cfg(target_os = "windows")]
 #[tokio::test]
 async fn test_set_message_window_hwnd() {
     use windows::Win32::Foundation::HWND;
@@ -477,5 +478,20 @@ async fn test_set_message_window_hwnd() {
     // 验证通知功能可用（不应该 panic）
     let result = state.show_notification("Test", "Test message").await;
     // 可能失败（Windows API），但不应 panic
+    let _ = result;
+}
+
+/// 测试消息窗口句柄注册（macOS 版本）
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn test_set_message_window_hwnd() {
+    let state = ServerState::new();
+
+    // 注册窗口句柄（macOS 版本是 no-op）
+    let hwnd_value = 12345_isize;
+    state.set_message_window_hwnd(hwnd_value).await;
+
+    // 验证通知功能可用（不应该 panic）
+    let result = state.show_notification("Test", "Test message").await;
     let _ = result;
 }

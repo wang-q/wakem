@@ -161,7 +161,8 @@ impl WindowApiTrait for MacosWindowApi {
         let display_ids = CGDisplay::active_displays().unwrap_or_default();
 
         for display_id in display_ids {
-            let bounds = CGDisplayBounds(display_id);
+            // SAFETY: CGDisplayBounds is safe to call with valid display ID
+            let bounds = unsafe { CGDisplayBounds(display_id) };
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
                 y: bounds.origin.y as i32,
@@ -173,7 +174,8 @@ impl WindowApiTrait for MacosWindowApi {
         // Fallback to primary display if no monitors found
         if monitors.is_empty() {
             let main = CGDisplay::main();
-            let bounds = CGDisplayBounds(main.id);
+            // SAFETY: CGDisplayBounds is safe to call with valid display ID
+            let bounds = unsafe { CGDisplayBounds(main.id) };
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
                 y: bounds.origin.y as i32,
