@@ -5,7 +5,10 @@ use std::path::Path;
 use std::sync::Mutex;
 use tracing::debug;
 
-use crate::constants::WILDCARD_MAX_INPUT_SIZE;
+use crate::constants::{
+    DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
+    WILDCARD_MAX_INPUT_SIZE,
+};
 use crate::platform::windows::Launcher;
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
@@ -554,11 +557,11 @@ impl Default for WheelConfig {
 }
 
 fn default_wheel_speed() -> i32 {
-    3
+    DEFAULT_WHEEL_SPEED
 }
 
 fn default_acceleration_multiplier() -> f32 {
-    2.0
+    DEFAULT_ACCELERATION_MULTIPLIER
 }
 
 /// Wheel modifier configuration
@@ -572,7 +575,7 @@ pub struct WheelModifierConfig {
 }
 
 fn default_wheel_step() -> i32 {
-    1
+    DEFAULT_WHEEL_STEP
 }
 
 /// Parse simple key mapping configuration

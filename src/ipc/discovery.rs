@@ -2,6 +2,8 @@ use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 use tracing::debug;
 
+use crate::constants::IPC_DISCOVERY_TIMEOUT_MS;
+
 use super::{get_instance_address, get_instance_port};
 
 /// Instance information
@@ -24,9 +26,9 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
         let address = get_instance_address(id);
         let _port = get_instance_port(id);
 
-        // Try to connect, timeout 100ms
+        // Try to connect, timeout
         let active = match timeout(
-            Duration::from_millis(100),
+            Duration::from_millis(IPC_DISCOVERY_TIMEOUT_MS),
             TcpStream::connect(&address),
         )
         .await

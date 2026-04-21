@@ -1,4 +1,4 @@
-use crate::constants::WILDCARD_MAX_INPUT_SIZE;
+use crate::constants::{WHEEL_DELTA, WILDCARD_MAX_INPUT_SIZE};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
@@ -306,7 +306,7 @@ impl RawInputDevice {
             if mouse_inner.usButtonFlags & 0x0400 != 0 {
                 let delta = mouse_inner.usButtonData as i16 as i32;
                 let event = MouseEvent::new(
-                    MouseEventType::Wheel(delta / 120),
+                    MouseEventType::Wheel(delta / WHEEL_DELTA),
                     mouse.lLastX,
                     mouse.lLastY,
                 );

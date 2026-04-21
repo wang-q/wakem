@@ -4,7 +4,11 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
 
 use crate::config::Config;
-use crate::constants::{INPUT_CHANNEL_CAPACITY, IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_EVENT_CHANNEL_CAPACITY, WINDOW_PRESET_APPLY_DELAY_MS};
+use crate::constants::{
+    INPUT_BATCH_SIZE_LIMIT, INPUT_BATCH_TIMEOUT_MICROS, INPUT_CHANNEL_CAPACITY,
+    IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_EVENT_CHANNEL_CAPACITY,
+    WINDOW_PRESET_APPLY_DELAY_MS,
+};
 use crate::ipc::{IpcServer, Message};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -847,8 +851,8 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     tokio::spawn(async move {
         use tokio::time::{Duration, Instant};
 
-        let batch_size_limit = 50; // Max batch size per processing
-        let batch_timeout_micros = 100; // Batch timeout (microseconds)
+        let batch_size_limit = INPUT_BATCH_SIZE_LIMIT; // Max batch size per processing
+        let batch_timeout_micros = INPUT_BATCH_TIMEOUT_MICROS; // Batch timeout (microseconds)
         let mut event_batch = Vec::with_capacity(batch_size_limit);
 
         loop {

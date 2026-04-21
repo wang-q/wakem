@@ -13,6 +13,9 @@ pub const IPC_MAX_MESSAGE_SIZE: usize = 1024 * 1024;
 /// IPC connection timeout (seconds)
 pub const IPC_CONNECTION_TIMEOUT_SECS: u64 = 5;
 
+/// IPC discovery timeout (milliseconds) - quick scan for active instances
+pub const IPC_DISCOVERY_TIMEOUT_MS: u64 = 100;
+
 /// IPC idle timeout (seconds) - 2 minutes, balancing resource usage and user experience
 pub const IPC_IDLE_TIMEOUT_SECS: u64 = 120;
 
@@ -26,6 +29,12 @@ pub const INPUT_CHANNEL_CAPACITY: usize = 1000;
 
 /// Window event channel capacity
 pub const WINDOW_EVENT_CHANNEL_CAPACITY: usize = 100;
+
+/// Input batch processing timeout (microseconds)
+pub const INPUT_BATCH_TIMEOUT_MICROS: u64 = 100;
+
+/// Input batch size limit
+pub const INPUT_BATCH_SIZE_LIMIT: usize = 50;
 
 // ==================== Window Management Related Constants ====================
 
