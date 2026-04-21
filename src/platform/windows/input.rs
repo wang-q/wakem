@@ -293,9 +293,12 @@ impl RawInputDevice {
             let event =
                 KeyEvent::new(scan_code, keyboard.VKey, state).with_modifiers(modifiers);
 
-            info!(
+            trace!(
                 "Keyboard: scan_code={:04X}, vk={:04X}, state={:?}, modifiers={:?}",
-                scan_code, keyboard.VKey, state, modifiers
+                scan_code,
+                keyboard.VKey,
+                state,
+                modifiers
             );
 
             // Send event

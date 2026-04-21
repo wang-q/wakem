@@ -300,15 +300,15 @@ impl<A: WindowApi> WindowManager<A> {
         self.set_window_frame(hwnd, &new_frame)
     }
 
-    /// Set fixed ratio window (centered)
+    /// Set fixed ratio window (centered) with loop support
+    /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
     pub fn set_fixed_ratio(
         &self,
         hwnd: HWND,
         ratio: f32,
-        scale_index: usize,
+        _scale_index: usize, // Kept for API compatibility, but auto-detected
     ) -> Result<()> {
         const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
-        let scale = SCALES[scale_index % SCALES.len()];
 
         let info = self.get_window_info(hwnd)?;
 
@@ -317,8 +317,23 @@ impl<A: WindowApi> WindowManager<A> {
         let base_width = (base_size as f32 * ratio) as i32;
         let base_height = base_size;
 
-        let new_width = (base_width as f32 * scale) as i32;
-        let new_height = (base_height as f32 * scale) as i32;
+        // Calculate current scale based on window size
+        let current_width_ratio = info.frame.width as f32 / base_width as f32;
+        let current_height_ratio = info.frame.height as f32 / base_height as f32;
+        let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
+
+        // Find next scale (loop through SCALES array)
+        let mut next_scale = SCALES[0];
+        for (i, scale) in SCALES.iter().enumerate() {
+            if (current_scale - scale).abs() < 0.05 {
+                // Found current scale, move to next
+                next_scale = SCALES[(i + 1) % SCALES.len()];
+                break;
+            }
+        }
+
+        let new_width = (base_width as f32 * next_scale) as i32;
+        let new_height = (base_height as f32 * next_scale) as i32;
 
         // Center
         let new_x = info.work_area.x + (info.work_area.width - new_width) / 2;
@@ -328,10 +343,10 @@ impl<A: WindowApi> WindowManager<A> {
         self.set_window_frame(hwnd, &new_frame)
     }
 
-    /// Set native ratio window (based on screen ratio)
-    pub fn set_native_ratio(&self, hwnd: HWND, scale_index: usize) -> Result<()> {
+    /// Set native ratio window (based on screen ratio) with loop support
+    /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
+    pub fn set_native_ratio(&self, hwnd: HWND, _scale_index: usize) -> Result<()> {
         const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
-        let scale = SCALES[scale_index % SCALES.len()];
 
         let info = self.get_window_info(hwnd)?;
 
@@ -341,8 +356,23 @@ impl<A: WindowApi> WindowManager<A> {
         let base_width = (base_size as f32 * screen_ratio) as i32;
         let base_height = base_size;
 
-        let new_width = (base_width as f32 * scale) as i32;
-        let new_height = (base_height as f32 * scale) as i32;
+        // Calculate current scale based on window size
+        let current_width_ratio = info.frame.width as f32 / base_width as f32;
+        let current_height_ratio = info.frame.height as f32 / base_height as f32;
+        let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
+
+        // Find next scale (loop through SCALES array)
+        let mut next_scale = SCALES[0];
+        for (i, scale) in SCALES.iter().enumerate() {
+            if (current_scale - scale).abs() < 0.05 {
+                // Found current scale, move to next
+                next_scale = SCALES[(i + 1) % SCALES.len()];
+                break;
+            }
+        }
+
+        let new_width = (base_width as f32 * next_scale) as i32;
+        let new_height = (base_height as f32 * next_scale) as i32;
 
         // Center
         let new_x = info.work_area.x + (info.work_area.width - new_width) / 2;

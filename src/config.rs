@@ -924,6 +924,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         "escape" | "esc" => Ok((0x01, 0x1B)),
         "space" => Ok((0x39, 0x20)),
         "tab" => Ok((0x0F, 0x09)),
+        "grave" | "backtick" => Ok((0x29, 0xC0)),
 
         // Arrow keys
         "left" => Ok((0x4B, 0x25)),
@@ -1167,6 +1168,9 @@ J = "Down"
         assert_eq!(parse_key("capslock").unwrap(), (0x3A, 0x14));
         assert_eq!(parse_key("a").unwrap(), (0x1E, 0x41));
         assert_eq!(parse_key("1").unwrap(), (0x02, 0x31));
+        // Test Grave/Backtick key (Alt+` shortcut)
+        assert_eq!(parse_key("grave").unwrap(), (0x29, 0xC0));
+        assert_eq!(parse_key("backtick").unwrap(), (0x29, 0xC0));
     }
 
     #[test]
@@ -1189,8 +1193,8 @@ J = "Down"
 
         // Verify action is Sequence (contains modifier key press/release)
         if let crate::types::Action::Sequence(actions) = &rule.action {
-            // Should have 6 actions: Ctrl press, Alt press, Win press, Win release, Alt release, Ctrl release
-            assert_eq!(actions.len(), 6);
+            // Should have 8 actions: Ctrl press, Alt press, Win press, Delay, None marker, Win release, Alt release, Ctrl release
+            assert_eq!(actions.len(), 8);
 
             // Verify first action is Ctrl press
             if let crate::types::Action::Key(crate::types::KeyAction::Press {
@@ -1225,18 +1229,29 @@ J = "Down"
                 panic!("Expected Win Press as third action, got {:?}", actions[2]);
             }
 
-            // Verify fourth, fifth, sixth actions are release
+            // Verify fourth action is Delay (10ms)
+            if let crate::types::Action::Delay { milliseconds } = &actions[3] {
+                assert_eq!(*milliseconds, 10);
+            } else {
+                panic!("Expected Delay as fourth action, got {:?}", actions[3]);
+            }
+
+            // Verify fifth action is None (marker to split press and release)
+            assert!(
+                matches!(actions[4], crate::types::Action::None),
+                "Expected None marker as fifth action, got {:?}",
+                actions[4]
+            );
+
+            // Verify sixth, seventh, eighth actions are release
             if let crate::types::Action::Key(crate::types::KeyAction::Release {
                 virtual_key,
                 ..
-            }) = &actions[3]
+            }) = &actions[5]
             {
                 assert_eq!(*virtual_key, 0x5B); // VK_LWIN release
             } else {
-                panic!(
-                    "Expected Win Release as fourth action, got {:?}",
-                    actions[3]
-                );
+                panic!("Expected Win Release as sixth action, got {:?}", actions[5]);
             }
         } else {
             panic!(
