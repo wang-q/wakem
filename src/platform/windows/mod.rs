@@ -1,4 +1,5 @@
 //! Windows platform implementation
+#![cfg(target_os = "windows")]
 
 pub mod context;
 pub mod input;

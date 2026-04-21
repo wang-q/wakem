@@ -1,3 +1,6 @@
+//! Windows window manager implementation
+#![cfg(target_os = "windows")]
+
 use anyhow::Result;
 use tracing::debug;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT};

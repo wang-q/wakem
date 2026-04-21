@@ -1,3 +1,6 @@
+//! Windows program launcher implementation
+#![cfg(target_os = "windows")]
+
 use crate::types::LaunchAction;
 use anyhow::Result;
 use std::path::Path;

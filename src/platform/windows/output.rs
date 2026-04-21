@@ -1,3 +1,6 @@
+//! Windows output device implementation (legacy)
+#![cfg(target_os = "windows")]
+
 use crate::constants::WHEEL_DELTA;
 use crate::types::{KeyAction, MouseAction, MouseButton, SystemAction};
 use anyhow::Result;

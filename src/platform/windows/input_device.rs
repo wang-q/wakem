@@ -1,3 +1,6 @@
+//! Windows input device implementation
+#![cfg(target_os = "windows")]
+
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,

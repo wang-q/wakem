@@ -1,3 +1,6 @@
+//! Windows Raw Input implementation
+#![cfg(target_os = "windows")]
+
 use crate::constants::{WHEEL_DELTA, WILDCARD_MAX_INPUT_SIZE};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,

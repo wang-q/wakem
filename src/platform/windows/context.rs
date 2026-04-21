@@ -1,3 +1,6 @@
+//! Windows window context implementation
+#![cfg(target_os = "windows")]
+
 use tracing::debug;
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
@@ -161,6 +164,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_os = "windows")]
     fn test_get_current() {
         // Test if can get current window
         let context = WindowContext::get_current();

@@ -9,7 +9,11 @@
 //! The module uses conditional compilation to select the appropriate
 //! platform-specific implementation.
 
+pub mod mock;
 pub mod traits;
+
+// Re-export mock implementations for testing
+pub use mock::MockInputDevice;
 
 // Re-export specific items from traits
 pub use traits::{

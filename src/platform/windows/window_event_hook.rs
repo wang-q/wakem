@@ -1,3 +1,6 @@
+//! Windows window event hook implementation
+#![cfg(target_os = "windows")]
+
 use anyhow::Result;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Sender;
@@ -147,6 +150,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_os = "windows")]
     fn test_window_event_creation() {
         let (tx, _rx) = std::sync::mpsc::channel();
         let hook = WindowEventHook::new(tx);

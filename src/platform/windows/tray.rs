@@ -5,6 +5,7 @@
 //! - Context menu display
 //! - Message loop for handling tray events
 //! - Async API trait for integration with async code
+#![cfg(target_os = "windows")]
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;

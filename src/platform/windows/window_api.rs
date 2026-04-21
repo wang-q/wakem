@@ -1,3 +1,6 @@
+//! Windows window API implementation
+#![cfg(target_os = "windows")]
+
 use anyhow::Result;
 #[allow(unused_imports)]
 use std::cell::RefCell;
