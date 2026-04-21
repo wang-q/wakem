@@ -133,7 +133,7 @@ impl MacosWindowApi for RealMacosWindowApi {
             .ok_or_else(|| anyhow!("No frontmost application"))?;
 
         let app_elem = ax_element::create_app_element(pid)?;
-        let win_elem = ax_element::get_main_window(app_elem)?;
+        let win_elem = ax_element::get_main_window(&app_elem)?;
 
         // Convert from Windows-style (top-left origin) to CG-style (bottom-left origin)
         let screen_height = ns_workspace::get_main_display_height();
@@ -161,9 +161,9 @@ impl MacosWindowApi for RealMacosWindowApi {
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
-        let win_elem = ax_element::get_main_window(app_elem)?;
+        let win_elem = ax_element::get_main_window(&app_elem)?;
 
-        ax_element::set_minimized(&win_elem, true)?;
+        ax_element::minimize_window(&win_elem)?;
         debug!("Minimized window via native API");
         Ok(())
     }
@@ -172,7 +172,7 @@ impl MacosWindowApi for RealMacosWindowApi {
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
-        let win_elem = ax_element::get_main_window(app_elem)?;
+        let win_elem = ax_element::get_main_window(&app_elem)?;
 
         ax_element::maximize_window(&win_elem)?;
         debug!("Maximized window via native API");
@@ -183,9 +183,9 @@ impl MacosWindowApi for RealMacosWindowApi {
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
-        let win_elem = ax_element::get_main_window(app_elem)?;
+        let win_elem = ax_element::get_main_window(&app_elem)?;
 
-        ax_element::set_minimized(&win_elem, false)?;
+        ax_element::restore_window(&win_elem)?;
         debug!("Restored window from minimized state via native API");
         Ok(())
     }
@@ -194,7 +194,7 @@ impl MacosWindowApi for RealMacosWindowApi {
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
-        let win_elem = ax_element::get_main_window(app_elem)?;
+        let win_elem = ax_element::get_main_window(&app_elem)?;
 
         ax_element::close_window(&win_elem)?;
         debug!("Closed window via native API");
@@ -294,7 +294,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     fn is_minimized(&self, _window: WindowId) -> bool {
         match ns_workspace::get_frontmost_app_pid() {
             Some(pid) => match ax_element::create_app_element(pid) {
-                Ok(app_elem) => match ax_element::get_main_window(app_elem) {
+                Ok(app_elem) => match ax_element::get_main_window(&app_elem) {
                     Ok(win_elem) => ax_element::is_minimized(&win_elem).unwrap_or(false),
                     Err(_) => false,
                 },
