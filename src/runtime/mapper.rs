@@ -221,17 +221,24 @@ impl KeyMapper {
             }
         }
 
-        // 2. Check base mappings (global rules)
-        if let Some(action) = self.mappings.get(&event.scan_code) {
-            let adjusted_action = self.adjust_action_for_key_state(action, event);
-            if adjusted_action.is_some() {
-                trace!(
-                    "Base mapping found: {:04X} -> {:?}",
-                    event.scan_code,
-                    action
-                );
+        // 2. Check base rules (considering modifiers)
+        let input_event = InputEvent::Key(event.clone());
+        for rule in &self.rules {
+            if !rule.enabled {
+                continue;
             }
-            return adjusted_action;
+            if rule.trigger.matches(&input_event) {
+                let action = &rule.action;
+                let adjusted_action = self.adjust_action_for_key_state(action, event);
+                if adjusted_action.is_some() {
+                    trace!(
+                        "Base rule matched: trigger={:?} -> {:?}",
+                        rule.trigger,
+                        action
+                    );
+                }
+                return adjusted_action;
+            }
         }
 
         None
