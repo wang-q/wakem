@@ -36,6 +36,7 @@ clap = { version = "4.4", features = ["derive"] }
 # Other
 indexmap = "2.0"
 once_cell = "1.19"
+lazy_static = "1.4"
 
 # Crypto (for network auth)
 hmac = "0.12"
@@ -72,17 +73,13 @@ windows-core = "0.61"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # macOS Core Graphics for input/output
-core-graphics = { version = "0.24", optional = true }
-core-foundation = { version = "0.10", optional = true }
+core-graphics = { version = "0.24" }
+core-foundation = { version = "0.10" }
 # macOS Cocoa for UI
-cocoa = { version = "0.26", optional = true }
-objc = { version = "0.2", optional = true }
+cocoa = { version = "0.26" }
+objc = { version = "0.2" }
 # macOS Accessibility
-accessibility = { version = "0.2", optional = true }
-
-[features]
-default = []
-macos = ["core-graphics", "core-foundation", "cocoa", "objc", "accessibility"]
+accessibility = { version = "0.2" }
 
 [dev-dependencies]
 # 属性测试

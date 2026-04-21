@@ -2,7 +2,7 @@
 
 use crate::platform::macos::window_api::MacosWindowApi;
 use crate::platform::traits::{
-    MonitorInfo, WindowApi, WindowId, WindowInfo, WindowManager,
+    MonitorInfo, WindowApiTrait, WindowId, WindowInfo, WindowManagerTrait,
 };
 use anyhow::Result;
 
@@ -31,7 +31,7 @@ impl Default for MacosWindowManager {
     }
 }
 
-impl WindowManager for MacosWindowManager {
+impl WindowManagerTrait for MacosWindowManager {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
     }

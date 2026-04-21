@@ -9,8 +9,13 @@ use crate::constants::{
     DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
     WILDCARD_MAX_INPUT_SIZE,
 };
-use crate::platform::windows::Launcher;
 use crate::types::{ContextCondition, MacroStep, MappingRule};
+
+#[cfg(target_os = "windows")]
+use crate::platform::windows::Launcher;
+
+#[cfg(target_os = "macos")]
+use crate::platform::macos::Launcher;
 
 /// Global configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

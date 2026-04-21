@@ -3,8 +3,14 @@
 use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
 
-use crate::platform::windows::LegacyOutputDevice as OutputDevice;
+use crate::platform::traits::OutputDeviceTrait;
 use crate::types::{Action, KeyAction, Macro, ModifierState};
+
+#[cfg(target_os = "windows")]
+use crate::platform::windows::LegacyOutputDevice as OutputDevice;
+
+#[cfg(target_os = "macos")]
+use crate::platform::macos::MacosOutputDevice as OutputDevice;
 
 pub struct MacroPlayer;
 
@@ -46,7 +52,7 @@ impl MacroPlayer {
         output: &OutputDevice,
         target: &ModifierState,
     ) -> anyhow::Result<()> {
-        let output_copy = *output;
+        let output_copy = output.clone();
         let target_copy = *target;
 
         tokio::task::spawn_blocking(move || {
@@ -82,7 +88,7 @@ impl MacroPlayer {
 
     /// Release all modifiers (uses spawn_blocking to avoid blocking Tokio runtime)
     async fn release_all_modifiers(output: &OutputDevice) -> anyhow::Result<()> {
-        let output_copy = *output;
+        let output_copy = output.clone();
 
         tokio::task::spawn_blocking(move || {
             // Release order: opposite of press

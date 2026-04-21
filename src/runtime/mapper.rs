@@ -150,6 +150,19 @@ impl KeyMapper {
         }
     }
 
+    /// Create a mapping engine with window manager (macOS version)
+    #[cfg(target_os = "macos")]
+    pub fn with_window_manager(
+        _window_manager: crate::platform::macos::MacosWindowManager,
+    ) -> Self {
+        Self {
+            mappings: HashMap::new(),
+            rules: Vec::new(),
+            context_rules: Vec::new(),
+            enabled: true,
+        }
+    }
+
     /// Set window preset manager
     #[cfg(target_os = "windows")]
     pub fn set_window_preset_manager(
@@ -170,7 +183,7 @@ impl KeyMapper {
     pub fn process_event_with_context(
         &self,
         event: &InputEvent,
-        context: Option<&crate::platform::windows::WindowContext>,
+        context: Option<&crate::platform::traits::WindowContext>,
     ) -> Option<Action> {
         if !self.enabled {
             return None;
@@ -191,7 +204,7 @@ impl KeyMapper {
     fn process_key_event_with_context(
         &self,
         event: &KeyEvent,
-        context: Option<&crate::platform::windows::WindowContext>,
+        context: Option<&crate::platform::traits::WindowContext>,
     ) -> Option<Action> {
         trace!(
             "Processing key event: scan_code={:04X}, vk={:04X}, state={:?}",
@@ -208,7 +221,7 @@ impl KeyMapper {
                     &ctx.process_name,
                     &ctx.window_class,
                     &ctx.window_title,
-                    Some(&ctx.executable_path),
+                    ctx.executable_path.as_deref(),
                 ) {
                     // Look up mapping in matched context
                     if let Some(action) = rule.mappings.get(&event.scan_code) {
@@ -580,6 +593,28 @@ impl KeyMapper {
                     }
                 }
                 WindowAction::None => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Execute action (macOS stub version)
+    #[cfg(target_os = "macos")]
+    pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
+        match action {
+            Action::Window(window_action) => {
+                // macOS window management not yet fully implemented
+                debug!("Window action on macOS: {:?}", window_action);
+            }
+            Action::Key(_)
+            | Action::Mouse(_)
+            | Action::Launch(_)
+            | Action::Sequence(_)
+            | Action::System(_)
+            | Action::Delay { .. }
+            | Action::None => {
+                // These actions are handled by other components
             }
         }
 
