@@ -2,6 +2,7 @@ use anyhow::Result;
 use tokio::time::{timeout, Duration};
 use tracing::{debug, info};
 
+use crate::constants::IPC_CONNECTION_TIMEOUT_SECS;
 use crate::ipc::{get_instance_address, IpcClient, Message};
 
 /// Daemon client
@@ -35,7 +36,7 @@ impl DaemonClient {
             client = client.with_auth_key(key);
         }
 
-        match timeout(Duration::from_secs(5), client.connect()).await {
+        match timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), client.connect()).await {
             Ok(result) => {
                 result.map_err(|e| anyhow::anyhow!("Connection failed: {}", e))?;
                 self.client = Some(client);
@@ -117,7 +118,7 @@ impl DaemonClient {
             .as_mut()
             .ok_or_else(|| anyhow::anyhow!("Not connected to daemon"))?;
 
-        match timeout(Duration::from_secs(5), client.send_receive(message)).await {
+        match timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), client.send_receive(message)).await {
             Ok(result) => result.map_err(|e| anyhow::anyhow!("IPC error: {}", e)),
             Err(_) => Err(anyhow::anyhow!("Request timeout")),
         }

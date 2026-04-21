@@ -1,4 +1,5 @@
 use super::{auth, read_message, send_message, IpcError, Message, Result};
+use crate::constants::IPC_CONNECTION_TIMEOUT_SECS;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
@@ -31,9 +32,9 @@ impl IpcClient {
     pub async fn connect(&mut self) -> Result<()> {
         debug!("Connecting to server at {}", self.address);
 
-        // Connection timeout 5 seconds
+        // Connection timeout
         let mut stream =
-            timeout(Duration::from_secs(5), TcpStream::connect(&self.address))
+            timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), TcpStream::connect(&self.address))
                 .await
                 .map_err(|_| IpcError::Timeout)??;
 
@@ -66,7 +67,7 @@ impl IpcClient {
     /// Send message and wait for response
     pub async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         self.send(message).await?;
-        timeout(Duration::from_secs(5), self.receive()).await?
+        timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), self.receive()).await?
     }
 }
 
@@ -81,7 +82,7 @@ async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Resul
     // Read challenge
     let mut challenge = [0u8; auth::CHALLENGE_SIZE];
 
-    timeout(Duration::from_secs(5), stream.read_exact(&mut challenge))
+    timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), stream.read_exact(&mut challenge))
         .await
         .map_err(|_| IpcError::Timeout)??;
 
@@ -89,7 +90,7 @@ async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Resul
     let response = auth::compute_response(auth_key, &challenge);
 
     // Send response
-    timeout(Duration::from_secs(5), stream.write_all(&response))
+    timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), stream.write_all(&response))
         .await
         .map_err(|_| IpcError::Timeout)??;
 

@@ -4,6 +4,7 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
 
 use crate::config::Config;
+use crate::constants::{IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_PRESET_APPLY_DELAY_MS};
 use crate::ipc::{IpcServer, Message};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -782,7 +783,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     }
 
     // Create IPC server (with dynamic auth key)
-    let (message_tx, mut message_rx) = mpsc::channel(100);
+    let (message_tx, mut message_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
     let bind_address = {
         let mut config = state.config.write().await;
         let addr = config.network.get_bind_address();
@@ -1048,7 +1049,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     shutdown.shutdown().await;
 
     // Wait a short time for tasks to clean up
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(SHUTDOWN_WAIT_DELAY_MS)).await;
 
     // Wait for all std threads to complete (with timeout)
     info!(
@@ -1083,7 +1084,7 @@ impl ServerState {
             crate::platform::windows::WindowEvent::WindowCreated(hwnd)
             | crate::platform::windows::WindowEvent::WindowActivated(hwnd) => {
                 // Delay applying preset to ensure window is fully created
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(WINDOW_PRESET_APPLY_DELAY_MS)).await;
 
                 let preset_manager = self.window_preset_manager.read().await;
                 match preset_manager.apply_preset_for_window(hwnd) {

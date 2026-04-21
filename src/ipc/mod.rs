@@ -1,3 +1,4 @@
+use crate::constants::{IPC_BASE_PORT, IPC_MAX_MESSAGE_SIZE};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -93,8 +94,8 @@ impl From<tokio::time::error::Elapsed> for IpcError {
 
 pub type Result<T> = std::result::Result<T, IpcError>;
 
-/// Base port
-pub const BASE_PORT: u16 = 57427;
+/// Base port (re-export from constants)
+pub const BASE_PORT: u16 = IPC_BASE_PORT;
 
 /// Get instance port
 pub fn get_instance_port(instance_id: u32) -> u16 {
@@ -114,7 +115,7 @@ pub async fn read_message(stream: &mut TcpStream) -> Result<Message> {
     let len = u32::from_be_bytes(len_bytes) as usize;
 
     // Limit maximum message size
-    if len > 1024 * 1024 {
+    if len > IPC_MAX_MESSAGE_SIZE {
         return Err(IpcError::Io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "Message too large",

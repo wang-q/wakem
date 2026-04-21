@@ -213,7 +213,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_server_start() {
-        let (tx, _rx) = mpsc::channel(100);
+        let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
         let mut server = IpcServer::new("127.0.0.1:57428", None, tx);
         server.start().await.unwrap();
     }
@@ -221,7 +221,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_server_start_with_dynamic_key() {
-        let (tx, _rx) = mpsc::channel(100);
+        let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
         let auth_key = Arc::new(RwLock::new("test-key".to_string()));
         let mut server =
             IpcServer::new_with_dynamic_key("127.0.0.1:57429", auth_key, tx);
