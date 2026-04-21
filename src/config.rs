@@ -847,10 +847,6 @@ pub fn parse_window_action(
                 let height = param_list.get(1).unwrap_or(&"600").parse::<i32>()?;
                 Ok(WindowAction::Resize { width, height })
             }
-            "SetOpacity" => {
-                let opacity = param_list.first().unwrap_or(&"255").parse::<u8>()?;
-                Ok(WindowAction::SetOpacity { opacity })
-            }
             "ShowNotification" => {
                 let title = param_list.first().unwrap_or(&"wakem").to_string();
                 let message = param_list.get(1).unwrap_or(&"").to_string();

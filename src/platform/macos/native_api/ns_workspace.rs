@@ -5,7 +5,6 @@
 //! Performance: < 0.5ms for all operations (vs 30ms+ with AppleScript)
 
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
-use tracing::debug;
 
 /// Get PID of the frontmost application
 ///
@@ -78,6 +77,7 @@ pub fn get_main_display_height() -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tracing::debug;
 
     #[test]
     fn test_get_frontmost_app_pid() {

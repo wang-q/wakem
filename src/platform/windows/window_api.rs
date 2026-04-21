@@ -76,10 +76,6 @@ pub enum WindowOperation {
         hwnd: HWND,
         topmost: bool,
     },
-    SetOpacity {
-        hwnd: HWND,
-        opacity: u8,
-    },
     EnsureRestored {
         hwnd: HWND,
     },
@@ -92,7 +88,6 @@ pub struct WindowState {
     pub minimized: bool,
     pub maximized: bool,
     pub topmost: bool,
-    pub opacity: u8,
 }
 
 impl Default for WindowState {
@@ -101,7 +96,6 @@ impl Default for WindowState {
             minimized: false,
             maximized: false,
             topmost: false,
-            opacity: 255,
         }
     }
 }
@@ -144,8 +138,6 @@ pub trait WindowApi {
     fn close_window(&self, hwnd: HWND) -> Result<()>;
     /// Set topmost status
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()>;
-    /// Set transparency
-    fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()>;
     /// Ensure window is restored
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
 }
@@ -314,21 +306,6 @@ impl WindowApi for RealWindowApi {
                 Some(HWND_NOTOPMOST)
             };
             let _ = SetWindowPos(hwnd, pos, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-            Ok(())
-        }
-    }
-
-    fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()> {
-        unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{
-                GetWindowLongW, SetLayeredWindowAttributes, SetWindowLongW, GWL_EXSTYLE,
-            };
-            use windows::Win32::UI::WindowsAndMessaging::{LWA_ALPHA, WS_EX_LAYERED};
-
-            let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-            let _ = SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as i32);
-
-            let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), opacity, LWA_ALPHA);
             Ok(())
         }
     }
@@ -512,13 +489,6 @@ impl WindowApi for MockWindowApi {
         self.log_operation(WindowOperation::SetTopmost { hwnd, topmost });
         let mut states = self.window_states.borrow_mut();
         states.entry(hwnd.0 as isize).or_default().topmost = topmost;
-        Ok(())
-    }
-
-    fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()> {
-        self.log_operation(WindowOperation::SetOpacity { hwnd, opacity });
-        let mut states = self.window_states.borrow_mut();
-        states.entry(hwnd.0 as isize).or_default().opacity = opacity;
         Ok(())
     }
 

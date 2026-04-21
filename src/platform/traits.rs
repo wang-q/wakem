@@ -199,9 +199,6 @@ pub trait WindowApiTrait: Send + Sync {
     /// Set window topmost state
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
 
-    /// Set window opacity
-    fn set_opacity(&self, window: WindowId, opacity: u8) -> Result<()>;
-
     /// Get all monitors
     fn get_monitors(&self) -> Vec<MonitorInfo>;
 
@@ -250,9 +247,6 @@ pub trait WindowManagerTrait: Send + Sync {
 
     /// Set window topmost state
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-
-    /// Set window opacity
-    fn set_opacity(&self, window: WindowId, opacity: u8) -> Result<()>;
 
     /// Get all monitors
     fn get_monitors(&self) -> Vec<MonitorInfo>;

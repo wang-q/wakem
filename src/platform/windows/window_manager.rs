@@ -419,11 +419,6 @@ impl<A: WindowApi> WindowManager<A> {
         self.api.set_topmost(hwnd, new_state)?;
         Ok(new_state)
     }
-
-    /// Set transparency
-    pub fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()> {
-        self.api.set_opacity(hwnd, opacity)
-    }
 }
 
 /// Features requiring real Windows API (cross-monitor movement, window switching, etc.)

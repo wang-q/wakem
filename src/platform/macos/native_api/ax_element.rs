@@ -571,24 +571,6 @@ pub fn get_role(element: &AXElement) -> Result<String> {
 // Advanced Operations (Optional Features)
 // ============================================================================
 
-/// Set window opacity/transparency
-///
-/// Note: Not all windows support this. Requires:
-/// 1. Set `kAXOpaqueAttribute` = false
-/// 2. Use Quartz/Core Animation to set alpha (if available)
-///
-/// For now, this is best-effort only and may not work with all applications.
-///
-/// # Performance
-/// N/A (not fully implemented)
-pub fn set_opacity(_window_element: &AXElement, _opacity: u8) -> Result<()> {
-    warn!(
-        "set_opacity: Not fully supported via Accessibility API alone. \
-         Requires Quartz framework integration."
-    );
-    Ok(())
-}
-
 /// Ensure window is restored (not minimized or maximized)
 ///
 /// Checks if window is minimized and restores it if so.
@@ -915,33 +897,5 @@ mod tests {
             Ok(()) => println!("✅ ensure_window_restored succeeded"),
             Err(e) => eprintln!("⚠️ ensure_window_restored failed: {}", e),
         }
-    }
-
-    #[test]
-    fn test_set_opacity_not_implemented() {
-        use crate::platform::macos::native_api::ns_workspace::get_frontmost_app_pid;
-
-        let pid = match get_frontmost_app_pid() {
-            Some(p) => p,
-            None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
-                return;
-            }
-        };
-
-        let app_elem = match create_app_element(pid) {
-            Ok(elem) => elem,
-            Err(_) => return,
-        };
-
-        let win_elem = match get_main_window(&app_elem) {
-            Ok(win) => win,
-            Err(_) => return,
-        };
-
-        // Should succeed but log warning
-        let result = set_opacity(&win_elem, 128);
-        assert!(result.is_ok(), "set_opacity should not fail (best-effort)");
-        println!("✅ set_opacity returned ok (as expected for unimplemented feature)");
     }
 }

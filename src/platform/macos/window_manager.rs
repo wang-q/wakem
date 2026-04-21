@@ -131,10 +131,6 @@ impl<A: MacosWindowApi + Send + Sync> WindowManagerTrait for MacosWindowManager<
         self.api.set_topmost(window, topmost)
     }
 
-    fn set_opacity(&self, window: WindowId, opacity: u8) -> Result<()> {
-        self.api.set_opacity(window, opacity)
-    }
-
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         self.api.get_monitors()
     }

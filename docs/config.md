@@ -197,7 +197,6 @@ mappings = { "Ctrl+Shift+A" = "ShowNotification(JetBrains, Find Action)" }
 | `Restore` | 无 | 还原窗口 | - |
 | `Close` | 无 | 关闭窗口 | - |
 | `ToggleTopmost` | 无 | 置顶/取消置顶 | - |
-| `SetOpacity` | `opacity (0-255)` | 设置透明度 | - |
 | `Move` | `x, y` | 移动窗口到绝对坐标 | - |
 | `Resize` | `width, height` | 调整窗口大小 | - |
 | `ShowDebugInfo` | 无 | 显示窗口调试信息 | <kbd>Hyper</kbd>+<kbd>W</kbd> |

@@ -151,7 +151,7 @@ wakem delete-macro my-macro  # 删除宏
 
 ## 文档
 
-- [配置指南](docs/confg.md) - 完整的键盘、窗口管理、鼠标等配置说明
+- [配置指南](docs/config.md) - 完整的键盘、窗口管理、鼠标等配置说明
 - [开发文档](docs/developer.md) - 架构说明、开发计划和 API 参考
 - [宏系统文档](docs/macros.md) - 宏录制回放的详细使用说明
 
@@ -195,7 +195,7 @@ L = "Right"
 "Ctrl+Alt+Win+N" = "notepad.exe"
 ```
 
-更多配置示例请参考 [完整配置参考](docs/confg.md)。
+更多配置示例请参考 [完整配置参考](docs/config.md)。
 
 ## 项目结构
 

@@ -145,7 +145,7 @@ wakem delete-macro my-macro
 
 #### Window 动作 (WindowAction)
 
-支持所有窗口管理动作，参见 [配置指南](confg.md#窗口管理动作)。
+支持所有窗口管理动作，参见 [配置指南](config.md#窗口管理动作)。
 
 #### 其他动作
 
@@ -368,4 +368,4 @@ const MIN_DELAY_MS: u64 = 50; // 最小延迟阈值
 
 ---
 
-更多配置信息请参考 [confg.md](confg.md)，开发相关信息请参考 [developer.md](developer.md)。
+更多配置信息请参考 [config.md](config.md)，开发相关信息请参考 [developer.md](developer.md)。

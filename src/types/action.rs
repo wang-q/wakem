@@ -156,8 +156,6 @@ pub enum WindowAction {
     Close,
     /// Toggle always on top
     ToggleTopmost,
-    /// Set transparency
-    SetOpacity { opacity: u8 },
     /// Show debug info (Hyper+W)
     ShowDebugInfo,
     /// Show notification (Hyper+Shift+W)

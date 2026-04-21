@@ -476,29 +476,6 @@ impl KeyMapper {
                     )
                     .ok();
                 }
-                WindowAction::SetOpacity { opacity } => {
-                    use windows::Win32::Foundation::COLORREF;
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        GetWindowLongW, SetLayeredWindowAttributes, SetWindowLongW,
-                        GWL_EXSTYLE, LWA_ALPHA, WS_EX_LAYERED,
-                    };
-
-                    // Get current extended style
-                    let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-
-                    // Add WS_EX_LAYERED style
-                    if ex_style & WS_EX_LAYERED.0 as i32 == 0 {
-                        SetWindowLongW(
-                            hwnd,
-                            GWL_EXSTYLE,
-                            ex_style | WS_EX_LAYERED.0 as i32,
-                        );
-                    }
-
-                    // Set transparency
-                    SetLayeredWindowAttributes(hwnd, COLORREF(0), *opacity, LWA_ALPHA)
-                        .ok();
-                }
                 WindowAction::ShowDebugInfo => {
                     // Show debug info dialog
                     match wm.get_debug_info() {

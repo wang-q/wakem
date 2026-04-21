@@ -8,7 +8,7 @@
 //! Performance: All operations complete in < 10ms (typically < 5ms)
 
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
-use crate::platform::traits::{MonitorInfo, WindowApiTrait, WindowId, WindowInfo};
+use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo};
 use anyhow::{anyhow, Result};
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
 use tracing::debug;
@@ -42,7 +42,6 @@ pub enum WindowOperation {
     Restore,
     Close,
     SetTopmost(bool),
-    SetOpacity(u8),
 }
 
 /// macOS Window API trait
@@ -62,7 +61,6 @@ pub trait MacosWindowApi {
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-    fn set_opacity(&self, window: WindowId, opacity: u8) -> Result<()>;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea>;
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
@@ -210,16 +208,6 @@ impl MacosWindowApi for RealMacosWindowApi {
             ax_element::bring_to_front(&app_elem)?;
             debug!("Brought window to front via native API");
         }
-        Ok(())
-    }
-
-    fn set_opacity(&self, _window: WindowId, opacity: u8) -> Result<()> {
-        // Note: Setting window transparency requires more complex AX operations
-        // For now, this is a placeholder - can be implemented later if needed
-        debug!(
-            "Set opacity: {}/255 (not yet implemented with native API)",
-            opacity
-        );
         Ok(())
     }
 
@@ -462,10 +450,6 @@ impl MacosWindowApi for MockMacosWindowApi {
     }
 
     fn set_topmost(&self, _window: WindowId, _topmost: bool) -> Result<()> {
-        Ok(())
-    }
-
-    fn set_opacity(&self, _window: WindowId, _opacity: u8) -> Result<()> {
         Ok(())
     }
 
