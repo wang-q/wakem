@@ -1,84 +1,81 @@
-# wakem 窗口管理专用配置
-# 借鉴 mrw 项目的窗口管理功能
-# Hyper 键 = Ctrl + Alt + Win（参考 init.ahk 中的 #!^）
+# wakem window management dedicated configuration
+# Inspired by mrw project's window management features
+# Hyper key = Ctrl + Alt + Win (referencing init.ahk #!^)
 
-# 自定义托盘图标路径（可选）
-# 如果未指定，会自动查找程序目录下的 assets/icon.ico
+# Custom tray icon path (optional)
+# If not specified, will auto-detect assets/icon.ico in program directory
 # icon_path = "assets/icon.ico"
 
 [keyboard]
-# 将 CapsLock 映射为 Hyper 键（Ctrl+Alt+Win），方便窗口管理
-# 这样只需按 CapsLock + C 即可居中窗口，无需按三个修饰键
-remap = [
-    { from = "CapsLock", to = "Ctrl+Alt+Win" },
-]
+# Map CapsLock to Hyper key (Ctrl+Alt+Win) for convenient window management
+# This allows centering windows with just CapsLock + C instead of three modifiers
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Win"
 
-[window]
-# 窗口管理快捷键（Hyper 键风格：Ctrl + Alt + Win）
-shortcuts = [
-    # ========== 窗口居中 ==========
-    # 多个按键映射到同一功能（参考 mrw）
-    { "Ctrl+Alt+Win+C" = "Center" },
-    { "Ctrl+Alt+Win+Shift+C" = "Center" },
-    { "Ctrl+Alt+Win+Delete" = "Center" },
-    { "Ctrl+Alt+Win+Shift+Delete" = "Center" },
-    { "Ctrl+Alt+Win+ForwardDelete" = "Center" },
-    { "Ctrl+Alt+Win+Shift+ForwardDelete" = "Center" },
-    
-    # ========== 移动到边缘 ==========
-    { "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)" },
-    { "Ctrl+Alt+Win+Shift+Home" = "MoveToEdge(Left)" },
-    { "Ctrl+Alt+Win+End" = "MoveToEdge(Right)" },
-    { "Ctrl+Alt+Win+Shift+End" = "MoveToEdge(Right)" },
-    { "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)" },
-    { "Ctrl+Alt+Win+Shift+PageUp" = "MoveToEdge(Top)" },
-    { "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)" },
-    { "Ctrl+Alt+Win+Shift+PageDown" = "MoveToEdge(Bottom)" },
-    
-    # ========== 半屏显示 ==========
-    { "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)" },
-    { "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)" },
-    { "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)" },
-    { "Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)" },
-    
-    # ========== 循环调整尺寸 ==========
-    # 宽度循环: 3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4
-    { "Ctrl+Alt+Win+Left" = "LoopWidth(Left)" },
-    { "Ctrl+Alt+Win+Right" = "LoopWidth(Right)" },
-    # 高度循环: 3/4 -> 1/2 -> 1/4
-    { "Ctrl+Alt+Win+Up" = "LoopHeight(Top)" },
-    { "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)" },
-    
-    # ========== 固定比例窗口 ==========
-    # 4:3 比例，循环缩放 100% -> 90% -> 70% -> 50%
-    { "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)" },
-    # 原生比例（基于屏幕比例）
-    { "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)" },
-    { "Ctrl+Alt+Win+Enter" = "FixedRatio(1.333, 0)" },
-    { "Ctrl+Alt+Win+Shift+Enter" = "NativeRatio(0)" },
-    
-    # ========== 同进程窗口切换 ==========
-    { "Alt+Grave" = "SwitchToNextWindow" },
-    
-    # ========== 跨显示器移动 ==========
-    { "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)" },
-    { "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)" },
-    
-    # ========== 调试功能 ==========
-    # Hyper+W: 显示当前窗口调试信息（类似 mrw 的 MsgBox(GetDebugInfo())）
-    { "Ctrl+Alt+Win+W" = "ShowDebugInfo" },
-    # Hyper+Shift+W: 显示测试通知（类似 mrw 的 TrayTip）
-    { "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)" },
-]
+# Window management shortcuts (Hyper key style: Ctrl + Alt + Win)
+[window.shortcuts]
+# ========== Window Centering ==========
+# Multiple keys mapped to same function (referencing mrw)
+"Ctrl+Alt+Win+C" = "Center"
+"Ctrl+Alt+Win+Shift+C" = "Center"
+"Ctrl+Alt+Win+Delete" = "Center"
+"Ctrl+Alt+Win+Shift+Delete" = "Center"
+"Ctrl+Alt+Win+ForwardDelete" = "Center"
+"Ctrl+Alt+Win+Shift+ForwardDelete" = "Center"
 
-# ========== 快速启动程序 ==========
-# 支持带参数的命令行启动
+# ========== Move to Edges ==========
+"Ctrl+Alt+Win+Home" = "MoveToEdge(Left)"
+"Ctrl+Alt+Win+Shift+Home" = "MoveToEdge(Left)"
+"Ctrl+Alt+Win+End" = "MoveToEdge(Right)"
+"Ctrl+Alt+Win+Shift+End" = "MoveToEdge(Right)"
+"Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)"
+"Ctrl+Alt+Win+Shift+PageUp" = "MoveToEdge(Top)"
+"Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)"
+"Ctrl+Alt+Win+Shift+PageDown" = "MoveToEdge(Bottom)"
+
+# ========== Half Screen Display ==========
+"Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)"
+"Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)"
+"Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)"
+"Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)"
+
+# ========== Loop Resize ==========
+# Width loop: 3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4
+"Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
+"Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
+# Height loop: 3/4 -> 1/2 -> 1/4
+"Ctrl+Alt+Win+Up" = "LoopHeight(Top)"
+"Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)"
+
+# ========== Fixed Ratio Window ==========
+# 4:3 ratio, loop zoom: 100% -> 90% -> 70% -> 50%
+"Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)"
+# Native ratio (based on screen ratio)
+"Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)"
+"Ctrl+Alt+Win+Enter" = "FixedRatio(1.333, 0)"
+"Ctrl+Alt+Win+Shift+Enter" = "NativeRatio(0)"
+
+# ========== Same Process Window Switching ==========
+"Alt+Grave" = "SwitchToNextWindow"
+
+# ========== Move Across Monitors ==========
+"Ctrl+Alt+Win+J" = "MoveToMonitor(Next)"
+"Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)"
+
+# ========== Debug Functions ==========
+# Hyper+W: Show current window debug info (similar to mrw's MsgBox(GetDebugInfo()))
+"Ctrl+Alt+Win+W" = "ShowDebugInfo"
+# Hyper+Shift+W: Show test notification (similar to mrw's TrayTip)
+"Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)"
+
+# ========== Quick Launch Programs ==========
+# Supports command line launch with arguments
 [launch]
-# 启动 Windows Terminal
+# Launch Windows Terminal
 "Ctrl+Alt+Win+T" = "wt.exe"
-# 启动记事本并打开特定文件
+# Launch Notepad and open specific file
 "Ctrl+Alt+Win+N" = "notepad.exe"
-# 打开文件资源管理器到 D 盘
+# Open File Explorer to D: drive
 "Ctrl+Alt+Win+E" = "explorer.exe D:\\"
-# 启动计算器
+# Launch Calculator
 "Ctrl+Alt+Win+Equals" = "calc.exe"

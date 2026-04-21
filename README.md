@@ -22,8 +22,8 @@ cargo install --path .
 
 复制示例配置到用户目录：
 
-```bash
-cp examples/minimal.toml %USERPROFILE%\.wakem.toml
+```powershell
+cp examples/minimal.toml $env:USERPROFILE\.wakem.toml
 ```
 
 最小配置示例 (`.wakem.toml`):

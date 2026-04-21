@@ -1,8 +1,6 @@
-# wakem 最小配置示例
-# 只包含最基本的功能
+# wakem minimal configuration example
+# Contains only the most basic functionality
 
-[keyboard]
-# 最常用的重映射：CapsLock -> Backspace
-remap = [
-    { from = "CapsLock", to = "Backspace" },
-]
+# Most common remapping: CapsLock -> Backspace
+[keyboard.remap]
+CapsLock = "Backspace"

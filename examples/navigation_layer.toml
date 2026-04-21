@@ -1,58 +1,55 @@
-# wakem 导航层配置示例
-# Vim 风格的导航层
+# wakem navigation layer configuration example
+# Vim-style navigation layer
 
 [keyboard]
-# 基础重映射
-remap = [
-    { from = "CapsLock", to = "Backspace" },
-]
+# Basic remapping
+[keyboard.remap]
+CapsLock = "Backspace"
 
-# Vim 风格的导航层
-# 按住 CapsLock 时，使用 HJKL 进行方向导航
-[[keyboard.layers]]
-name = "vim_navigation"
+# Vim-style navigation layer
+# Use HJKL for directional navigation while holding CapsLock
+[keyboard.layers.vim_navigation]
 activation_key = "CapsLock"
 mode = "Hold"
-mappings = [
-    # 基本方向
-    { from = "H", to = "Left" },
-    { from = "J", to = "Down" },
-    { from = "K", to = "Up" },
-    { from = "L", to = "Right" },
-    
-    # 快速移动
-    { from = "W", to = "Ctrl+Right" },      # 下一个单词
-    { from = "B", to = "Ctrl+Left" },       # 上一个单词
-    { from = "0", to = "Home" },            # 行首
-    { from = "4", to = "End" },             # 行尾（Shift+4 是 $）
-    { from = "G", to = "Ctrl+End" },        # 文档末尾
-    { from = "U", to = "PageUp" },
-    { from = "D", to = "PageDown" },
-    
-    # 文本编辑
-    { from = "X", to = "Delete" },          # 删除字符
-    { from = "I", to = "Home" },            # 行首插入
-    { from = "A", to = "End" },             # 行尾追加
-    { from = "O", to = "Ctrl+Enter" },      # 下方插入新行
-    
-    # 选择（配合 Shift）
-    { from = "V", to = "Shift+Down" },      # 开始选择
-]
 
-# 另一个层：数字层（使用 RightAlt 激活）
-[[keyboard.layers]]
-name = "numpad"
+[keyboard.layers.vim_navigation.mappings]
+# Basic directions
+H = "Left"
+J = "Down"
+K = "Up"
+L = "Right"
+
+# Fast movement
+W = "Ctrl+Right"      # Next word
+B = "Ctrl+Left"       # Previous word
+"0" = "Home"          # Beginning of line
+"4" = "End"           # End of line (Shift+4 is $)
+G = "Ctrl+End"        # End of document
+U = "PageUp"
+D = "PageDown"
+
+# Text editing
+X = "Delete"          # Delete character
+I = "Home"            # Insert at beginning of line
+A = "End"             # Append at end of line
+O = "Ctrl+Enter"      # Insert new line below
+
+# Selection (with Shift)
+V = "Shift+Down"      # Start selection
+
+# Another layer: numpad layer (activated with RightAlt)
+[keyboard.layers.numpad]
 activation_key = "RightAlt"
 mode = "Hold"
-mappings = [
-    # 将 UIO/JKL/M,. 映射为数字键盘
-    { from = "U", to = "Numpad7" },
-    { from = "I", to = "Numpad8" },
-    { from = "O", to = "Numpad9" },
-    { from = "J", to = "Numpad4" },
-    { from = "K", to = "Numpad5" },
-    { from = "L", to = "Numpad6" },
-    { from = "M", to = "Numpad1" },
-    { from = "Comma", to = "Numpad2" },
-    { from = "Period", to = "Numpad3" },
-]
+
+[keyboard.layers.numpad.mappings]
+# Map UIO/JKL/M,. to numpad
+U = "Numpad7"
+I = "Numpad8"
+O = "Numpad9"
+J = "Numpad4"
+K = "Numpad5"
+L = "Numpad6"
+M = "Numpad1"
+Comma = "Numpad2"
+Period = "Numpad3"

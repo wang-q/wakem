@@ -1,93 +1,88 @@
-# wakem 测试配置文件
-# 复制此文件到 %USERPROFILE%\wakem.toml 进行测试
+# wakem test configuration file
+# Copy this file to %USERPROFILE%\.wakem.toml for testing
 
-# 日志级别: trace, debug, info, warn, error
+# Log level: trace, debug, info, warn, error
 log_level = "debug"
 
-# 显示系统托盘图标
+# Show system tray icon
 tray_icon = true
 
-# 自动重新加载配置（预留）
+# Auto-reload configuration (reserved)
 auto_reload = true
 
 [keyboard]
-# 基础重映射
-# 格式: { from = "源按键", to = "目标按键" }
-remap = [
-    { from = "CapsLock", to = "Backspace" },      # CapsLock 改为 Backspace
-    { from = "RightAlt", to = "Ctrl" },           # 右 Alt 改为 Ctrl
-]
+# Basic remapping
+[keyboard.remap]
+CapsLock = "Backspace"      # CapsLock -> Backspace
+RightAlt = "Ctrl"           # Right Alt -> Ctrl
 
-# 导航层（类似 mrw 的 hyper 键概念）
-# 按住 CapsLock 时，HJKL 变为方向键
-[[keyboard.layers]]
-name = "navigation"
+# Navigation layer (similar to mrw's hyper key concept)
+# HJKL becomes arrow keys while holding CapsLock
+[keyboard.layers.navigation]
 activation_key = "CapsLock"
-mode = "Hold"  # Hold: 按住激活，Toggle: 切换激活
-mappings = [
-    { from = "H", to = "Left" },      # H -> 左箭头
-    { from = "J", to = "Down" },      # J -> 下箭头
-    { from = "K", to = "Up" },        # K -> 上箭头
-    { from = "L", to = "Right" },     # L -> 右箭头
-    { from = "U", to = "Home" },      # U -> Home
-    { from = "O", to = "End" },       # O -> End
-    { from = "Y", to = "PageUp" },    # Y -> PageUp
-    { from = "N", to = "PageDown" },  # N -> PageDown
-]
+mode = "Hold"  # Hold: activate while held, Toggle: toggle mode
 
-# 窗口管理快捷键
-[window]
-shortcuts = [
-    # 窗口居中
-    { "Ctrl+Alt+C" = "Center" },
-    
-    # 移动到屏幕边缘
-    { "Ctrl+Alt+Home" = "MoveToEdge(Left)" },
-    { "Ctrl+Alt+End" = "MoveToEdge(Right)" },
-    { "Ctrl+Alt+PageUp" = "MoveToEdge(Top)" },
-    { "Ctrl+Alt+PageDown" = "MoveToEdge(Bottom)" },
-    
-    # 半屏显示
-    { "Ctrl+Alt+Shift+Left" = "HalfScreen(Left)" },
-    { "Ctrl+Alt+Shift+Right" = "HalfScreen(Right)" },
-    { "Ctrl+Alt+Shift+Up" = "HalfScreen(Top)" },
-    { "Ctrl+Alt+Shift+Down" = "HalfScreen(Bottom)" },
-    
-    # 循环调整宽度（3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4）
-    { "Ctrl+Alt+Left" = "LoopWidth(Left)" },
-    { "Ctrl+Alt+Right" = "LoopWidth(Right)" },
-    
-    # 循环调整高度（3/4 -> 1/2 -> 1/4）
-    { "Ctrl+Alt+Up" = "LoopHeight(Top)" },
-    { "Ctrl+Alt+Down" = "LoopHeight(Bottom)" },
-    
-    # 固定比例窗口（4:3，循环缩放 100% -> 90% -> 70% -> 50%）
-    { "Ctrl+Alt+M" = "FixedRatio(1.333, 0)" },
-    
-    # 同进程窗口切换（Alt+`）
-    { "Alt+Grave" = "SwitchToNextWindow" },
-    
-    # 跨显示器移动
-    { "Ctrl+Alt+J" = "MoveToMonitor(Next)" },
-    { "Ctrl+Alt+K" = "MoveToMonitor(Prev)" },
-    
-    # 窗口最小化/最大化/关闭
-    { "Ctrl+Alt+N" = "Minimize" },
-    { "Ctrl+Alt+X" = "Maximize" },
-    { "Ctrl+Alt+Q" = "Close" },
-]
+[keyboard.layers.navigation.mappings]
+H = "Left"      # H -> Left arrow
+J = "Down"      # J -> Down arrow
+K = "Up"        # K -> Up arrow
+L = "Right"     # L -> Right arrow
+U = "Home"      # U -> Home
+O = "End"       # O -> End
+Y = "PageUp"    # Y -> PageUp
+N = "PageDown"  # N -> PageDown
+
+# Window management shortcuts
+[window.shortcuts]
+# Center window
+"Ctrl+Alt+C" = "Center"
+
+# Move to screen edges
+"Ctrl+Alt+Home" = "MoveToEdge(Left)"
+"Ctrl+Alt+End" = "MoveToEdge(Right)"
+"Ctrl+Alt+PageUp" = "MoveToEdge(Top)"
+"Ctrl+Alt+PageDown" = "MoveToEdge(Bottom)"
+
+# Half screen display
+"Ctrl+Alt+Shift+Left" = "HalfScreen(Left)"
+"Ctrl+Alt+Shift+Right" = "HalfScreen(Right)"
+"Ctrl+Alt+Shift+Up" = "HalfScreen(Top)"
+"Ctrl+Alt+Shift+Down" = "HalfScreen(Bottom)"
+
+# Loop adjust width (3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4)
+"Ctrl+Alt+Left" = "LoopWidth(Left)"
+"Ctrl+Alt+Right" = "LoopWidth(Right)"
+
+# Loop adjust height (3/4 -> 1/2 -> 1/4)
+"Ctrl+Alt+Up" = "LoopHeight(Top)"
+"Ctrl+Alt+Down" = "LoopHeight(Bottom)"
+
+# Fixed ratio window (4:3, loop zoom: 100% -> 90% -> 70% -> 50%)
+"Ctrl+Alt+M" = "FixedRatio(1.333, 0)"
+
+# Switch to next window of same process (Alt+`)
+"Alt+Grave" = "SwitchToNextWindow"
+
+# Move across monitors
+"Ctrl+Alt+J" = "MoveToMonitor(Next)"
+"Ctrl+Alt+K" = "MoveToMonitor(Prev)"
+
+# Window minimize/maximize/close
+"Ctrl+Alt+N" = "Minimize"
+"Ctrl+Alt+X" = "Maximize"
+"Ctrl+Alt+Q" = "Close"
 
 [mouse]
-# 鼠标设置（预留）
-# 滚轮速度调整
+# Mouse settings (reserved)
+# Wheel speed adjustment
 # wheel_speed = 1.0
 
 [launch]
-# 快速启动程序
-# 格式 1: 简单命令（保持兼容）
+# Quick launch programs
+# Format 1: Simple command (backward compatible)
 # "Ctrl+Alt+T" = "wt.exe"  # Windows Terminal
 
-# 格式 2: 带参数的命令（使用 parse_command）
+# Format 2: Command with arguments (using parse_command)
 # "Ctrl+Alt+N" = "notepad.exe C:\\Users\\note.txt"
 # "Ctrl+Alt+G" = "git.exe status"
-# "Ctrl+Alt+E" = "explorer.exe D:\\"  # 打开 D 盘
+# "Ctrl+Alt+E" = "explorer.exe D:\\"  # Open D: drive
