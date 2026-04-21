@@ -242,6 +242,8 @@ mod tests {
     use super::*;
     use crate::platform::output_helpers::char_to_vk;
     use crate::types::{KeyAction, ModifierState, MouseAction, MouseButton};
+    use std::cell::RefCell;
+    use std::sync::Arc;
 
     // --- char_to_vk tests (shared logic) ---
 
@@ -282,7 +284,7 @@ mod tests {
         assert_eq!(char_to_vk('é'), None);
     }
 
-    // --- SendInputDevice lifecycle ---
+    // --- SendInputDevice lifecycle (no side effects) ---
 
     #[test]
     fn test_send_input_device_creation() {
@@ -295,7 +297,7 @@ mod tests {
         let _device = SendInputDevice::default();
     }
 
-    // --- WindowsOutputDevice lifecycle ---
+    // --- WindowsOutputDevice lifecycle (no side effects) ---
 
     #[test]
     fn test_windows_output_device_creation() {
@@ -307,77 +309,312 @@ mod tests {
     fn test_windows_output_device_default() {
         let _device = WindowsOutputDevice::default();
     }
+}
 
-    // --- Output trait: send_text / send_combo (local trait) ---
+/// Recorded output event for mock verification
+#[derive(Debug, Clone)]
+pub enum MockOutputEvent {
+    Key {
+        scan_code: u16,
+        virtual_key: u16,
+        release: bool,
+    },
+    MouseMove {
+        x: i32,
+        y: i32,
+        relative: bool,
+    },
+    MouseButton {
+        button: MouseButton,
+        release: bool,
+    },
+    MouseWheel {
+        delta: i32,
+        horizontal: bool,
+    },
+    SystemAction(SystemAction),
+}
+
+#[cfg(test)]
+use std::cell::RefCell;
+
+/// Mock output device implementing the local OutputDevice trait
+///
+/// Records all calls without sending real input events.
+#[cfg(test)]
+pub struct MockOutputDevice {
+    events: RefCell<Vec<MockOutputEvent>>,
+}
+
+#[cfg(test)]
+impl MockOutputDevice {
+    pub fn new() -> Self {
+        Self {
+            events: RefCell::new(Vec::new()),
+        }
+    }
+
+    pub fn recorded_events(&self) -> Vec<MockOutputEvent> {
+        self.events.borrow().clone()
+    }
+
+    pub fn clear(&self) {
+        self.events.borrow_mut().clear();
+    }
+
+    pub fn event_count(&self) -> usize {
+        self.events.borrow().len()
+    }
+}
+
+#[cfg(test)]
+impl Default for MockOutputDevice {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+impl OutputDevice for MockOutputDevice {
+    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
+        self.events.borrow_mut().push(MockOutputEvent::Key {
+            scan_code,
+            virtual_key,
+            release,
+        });
+        Ok(())
+    }
+
+    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
+        self.events
+            .borrow_mut()
+            .push(MockOutputEvent::MouseMove { x, y, relative });
+        Ok(())
+    }
+
+    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
+        self.events
+            .borrow_mut()
+            .push(MockOutputEvent::MouseButton { button, release });
+        Ok(())
+    }
+
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
+        self.events
+            .borrow_mut()
+            .push(MockOutputEvent::MouseWheel { delta, horizontal });
+        Ok(())
+    }
+}
+
+/// Mock output device implementing the platform OutputDeviceTrait
+///
+/// Wraps MockOutputDevice and is safe for use in tests.
+#[cfg(test)]
+pub struct MockWindowsOutputDevice {
+    inner: MockOutputDevice,
+}
+
+#[cfg(test)]
+impl MockWindowsOutputDevice {
+    pub fn new() -> Self {
+        Self {
+            inner: MockOutputDevice::new(),
+        }
+    }
+
+    pub fn recorded_events(&self) -> Vec<MockOutputEvent> {
+        self.inner.recorded_events()
+    }
+
+    pub fn clear(&self) {
+        self.inner.clear()
+    }
+
+    pub fn event_count(&self) -> usize {
+        self.inner.event_count()
+    }
+}
+
+#[cfg(test)]
+impl Default for MockWindowsOutputDevice {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+impl Clone for MockWindowsOutputDevice {
+    fn clone(&self) -> Self {
+        Self {
+            inner: MockOutputDevice::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl OutputDeviceTrait for MockWindowsOutputDevice {
+    fn send_key_action(&self, action: &KeyAction) -> Result<()> {
+        match action {
+            KeyAction::Press {
+                scan_code,
+                virtual_key,
+            } => self.inner.send_key(*scan_code, *virtual_key, false),
+            KeyAction::Release {
+                scan_code,
+                virtual_key,
+            } => self.inner.send_key(*scan_code, *virtual_key, true),
+            KeyAction::Click {
+                scan_code,
+                virtual_key,
+            } => {
+                self.inner.send_key(*scan_code, *virtual_key, false)?;
+                self.inner.send_key(*scan_code, *virtual_key, true)
+            }
+            KeyAction::TypeText(text) => self.inner.send_text(text),
+            KeyAction::Combo { modifiers, key } => {
+                self.inner.send_combo(modifiers, key.0, key.1)
+            }
+            KeyAction::None => Ok(()),
+        }
+    }
+
+    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
+        self.inner.send_key(scan_code, virtual_key, release)
+    }
+
+    fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
+        match action {
+            MouseAction::Move { x, y, relative } => {
+                self.inner.send_mouse_move(*x, *y, *relative)
+            }
+            MouseAction::ButtonDown { button } => {
+                self.inner.send_mouse_button(*button, false)
+            }
+            MouseAction::ButtonUp { button } => {
+                self.inner.send_mouse_button(*button, true)
+            }
+            MouseAction::ButtonClick { button } => {
+                self.inner.send_mouse_button(*button, false)?;
+                self.inner.send_mouse_button(*button, true)
+            }
+            MouseAction::Wheel { delta } => self.inner.send_mouse_wheel(*delta, false),
+            MouseAction::HWheel { delta } => self.inner.send_mouse_wheel(*delta, true),
+            MouseAction::None => Ok(()),
+        }
+    }
+
+    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
+        self.inner.send_mouse_move(x, y, relative)
+    }
+
+    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
+        self.inner.send_mouse_button(button, release)
+    }
+
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
+        self.inner.send_mouse_wheel(delta, horizontal)
+    }
+
+    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        self.inner
+            .events
+            .borrow_mut()
+            .push(MockOutputEvent::SystemAction(action.clone()));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod mock_tests {
+    use super::*;
+    use crate::types::{KeyAction, ModifierState, MouseAction, MouseButton};
+
+    // --- MockOutputDevice: send_text / send_combo ---
 
     #[test]
-    fn test_send_text_via_inner_trait() {
-        let device = SendInputDevice::new();
-        let result = device.send_text("ab");
-        assert!(result.is_ok());
+    fn test_mock_send_text_ab() {
+        let device = MockOutputDevice::new();
+        device.send_text("ab").unwrap();
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 4); // a press+release, b press+release
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[0]
+        {
+            assert_eq!(*virtual_key, 0x41);
+            assert!(!release);
+        } else {
+            panic!("Expected key event");
+        }
     }
 
     #[test]
-    fn test_send_text_empty_string() {
-        let device = SendInputDevice::new();
-        let result = device.send_text("");
-        assert!(result.is_ok());
+    fn test_mock_send_text_empty() {
+        let device = MockOutputDevice::new();
+        device.send_text("").unwrap();
+        assert_eq!(device.event_count(), 0);
     }
 
     #[test]
-    fn test_send_text_with_unsupported_chars_skips_gracefully() {
-        let device = SendInputDevice::new();
-        let result = device.send_text("a中b");
-        assert!(result.is_ok());
+    fn test_mock_send_text_unsupported_chars_skipped() {
+        let device = MockOutputDevice::new();
+        device.send_text("a中b").unwrap();
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 4); // '中' is skipped
     }
 
     #[test]
-    fn test_send_combo_ctrl_a() {
-        let device = SendInputDevice::new();
+    fn test_mock_send_combo_ctrl_a() {
+        let device = MockOutputDevice::new();
         let modifiers = ModifierState {
             ctrl: true,
             ..ModifierState::default()
         };
-        let result = device.send_combo(&modifiers, 0x1D, 0x41);
-        assert!(result.is_ok());
+        device.send_combo(&modifiers, 0x1D, 0x41).unwrap();
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 6); // ctrl down, a down+up, ctrl up
     }
 
     #[test]
-    fn test_send_combo_shift_alt() {
-        let device = SendInputDevice::new();
+    fn test_mock_send_combo_shift_alt() {
+        let device = MockOutputDevice::new();
         let modifiers = ModifierState {
             shift: true,
             alt: true,
             ..ModifierState::default()
         };
-        let result = device.send_combo(&modifiers, 0, 0x42);
-        assert!(result.is_ok());
+        device.send_combo(&modifiers, 0, 0x42).unwrap();
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 8); // shift down, alt down, b down+up, alt up, shift up
     }
 
-    // --- OutputDeviceTrait: dispatch methods ---
+    // --- MockWindowsOutputDevice: send_key_action ---
 
     #[test]
-    fn test_send_key_action_type_text() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_key_action_type_text() {
+        let device = MockWindowsOutputDevice::new();
         let action = KeyAction::TypeText("hello".to_string());
-        let result = device.send_key_action(&action);
-        assert!(result.is_ok());
+        device.send_key_action(&action).unwrap();
+        assert_eq!(device.event_count(), 10); // 5 chars * 2 (press+release)
     }
 
     #[test]
-    fn test_send_key_action_click() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_key_action_click() {
+        let device = MockWindowsOutputDevice::new();
         let action = KeyAction::Click {
             scan_code: 0x1C,
             virtual_key: 0x41,
         };
-        let result = device.send_key_action(&action);
-        assert!(result.is_ok());
+        device.send_key_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2); // press + release
     }
 
     #[test]
-    fn test_send_key_action_press_release() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_key_action_press_release() {
+        let device = MockWindowsOutputDevice::new();
         let press = KeyAction::Press {
             scan_code: 0x1C,
             virtual_key: 0x41,
@@ -386,13 +623,21 @@ mod tests {
             scan_code: 0x1C,
             virtual_key: 0x41,
         };
-        assert!(device.send_key_action(&press).is_ok());
-        assert!(device.send_key_action(&release).is_ok());
+        device.send_key_action(&press).unwrap();
+        device.send_key_action(&release).unwrap();
+        assert_eq!(device.event_count(), 2);
+        let events = device.recorded_events();
+        if let MockOutputEvent::Key { release: r, .. } = &events[0] {
+            assert!(!r);
+        }
+        if let MockOutputEvent::Key { release: r, .. } = &events[1] {
+            assert!(*r);
+        }
     }
 
     #[test]
-    fn test_send_key_action_combo() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_key_action_combo() {
+        let device = MockWindowsOutputDevice::new();
         let modifiers = ModifierState {
             ctrl: true,
             shift: true,
@@ -402,99 +647,185 @@ mod tests {
             modifiers,
             key: (0x2A, 0x53),
         };
-        let result = device.send_key_action(&action);
-        assert!(result.is_ok());
+        device.send_key_action(&action).unwrap();
+        assert!(device.event_count() > 0);
     }
 
     #[test]
-    fn test_send_key_action_none() {
-        let device = WindowsOutputDevice::new();
-        let result = device.send_key_action(&KeyAction::None);
-        assert!(result.is_ok());
+    fn test_mock_send_key_action_none() {
+        let device = MockWindowsOutputDevice::new();
+        device.send_key_action(&KeyAction::None).unwrap();
+        assert_eq!(device.event_count(), 0);
     }
 
+    // --- MockWindowsOutputDevice: mouse actions ---
+
     #[test]
-    fn test_send_mouse_action_move_relative() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_mouse_action_move_relative() {
+        let device = MockWindowsOutputDevice::new();
         let action = MouseAction::Move {
             x: 100,
             y: 200,
             relative: true,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseMove { relative, .. } = &device.recorded_events()[0]
+        {
+            assert!(*relative);
+        }
     }
 
     #[test]
-    fn test_send_mouse_action_move_absolute() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_mouse_action_move_absolute() {
+        let device = MockWindowsOutputDevice::new();
         let action = MouseAction::Move {
             x: 1920,
             y: 1080,
             relative: false,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseMove { relative, .. } = &device.recorded_events()[0]
+        {
+            assert!(!*relative);
+        }
     }
 
     #[test]
-    fn test_send_mouse_action_left_click() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_mouse_action_left_click() {
+        let device = MockWindowsOutputDevice::new();
         let action = MouseAction::ButtonClick {
             button: MouseButton::Left,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2); // down + up
     }
 
     #[test]
-    fn test_send_mouse_action_right_click() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_mouse_action_right_click() {
+        let device = MockWindowsOutputDevice::new();
         let action = MouseAction::ButtonClick {
             button: MouseButton::Right,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2);
     }
 
     #[test]
-    fn test_send_mouse_action_middle_click() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_mouse_action_middle_click() {
+        let device = MockWindowsOutputDevice::new();
         let action = MouseAction::ButtonClick {
             button: MouseButton::Middle,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2);
     }
 
     #[test]
-    fn test_send_mouse_action_wheel_vertical() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_mouse_action_wheel_vertical() {
+        let device = MockWindowsOutputDevice::new();
         let action = MouseAction::Wheel { delta: 120 };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseWheel { horizontal, .. } =
+            &device.recorded_events()[0]
+        {
+            assert!(!*horizontal);
+        }
     }
 
     #[test]
-    fn test_send_mouse_action_wheel_horizontal() {
-        let device = WindowsOutputDevice::new();
+    fn test_mock_send_mouse_action_wheel_horizontal() {
+        let device = MockWindowsOutputDevice::new();
         let action = MouseAction::HWheel { delta: 120 };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseWheel { horizontal, .. } =
+            &device.recorded_events()[0]
+        {
+            assert!(*horizontal);
+        }
+    }
+
+    // --- MockWindowsOutputDevice: system actions ---
+
+    #[test]
+    fn test_mock_send_system_action_volume_up() {
+        let device = MockWindowsOutputDevice::new();
+        device.send_system_action(&SystemAction::VolumeUp).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::SystemAction(action) = &device.recorded_events()[0] {
+            assert!(matches!(action, SystemAction::VolumeUp));
+        }
     }
 
     #[test]
-    fn test_send_system_action_volume_up() {
-        let device = WindowsOutputDevice::new();
-        let result = device.send_system_action(&SystemAction::VolumeUp);
-        assert!(result.is_ok());
+    fn test_mock_send_system_action_mute() {
+        let device = MockWindowsOutputDevice::new();
+        device.send_system_action(&SystemAction::Mute).unwrap();
+        assert_eq!(device.event_count(), 1);
+    }
+
+    // --- Mock lifecycle and utility ---
+
+    #[test]
+    fn test_mock_output_device_creation() {
+        let _device = MockOutputDevice::new();
+        let _device = MockOutputDevice::default();
     }
 
     #[test]
-    fn test_send_system_action_mute() {
-        let device = WindowsOutputDevice::new();
-        let result = device.send_system_action(&SystemAction::Mute);
-        assert!(result.is_ok());
+    fn test_mock_windows_output_device_creation() {
+        let _device = MockWindowsOutputDevice::new();
+        let _device = MockWindowsOutputDevice::default();
+        let _cloned = MockWindowsOutputDevice::new().clone();
+    }
+
+    #[test]
+    fn test_mock_clear() {
+        let device = MockOutputDevice::new();
+        device.send_text("ab").unwrap();
+        assert_eq!(device.event_count(), 4);
+        device.clear();
+        assert_eq!(device.event_count(), 0);
+    }
+
+    #[test]
+    fn test_mock_event_ordering() {
+        let device = MockOutputDevice::new();
+        device.send_key(0x1E, 0x41, false).unwrap(); // A press
+        device.send_key(0x1E, 0x41, true).unwrap(); // A release
+        device.send_key(0x30, 0x42, false).unwrap(); // B press
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 3);
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[0]
+        {
+            assert_eq!(*virtual_key, 0x41);
+            assert!(!release);
+        }
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[1]
+        {
+            assert_eq!(*virtual_key, 0x41);
+            assert!(*release);
+        }
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[2]
+        {
+            assert_eq!(*virtual_key, 0x42);
+            assert!(!release);
+        }
     }
 }
 

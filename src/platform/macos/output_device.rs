@@ -255,6 +255,7 @@ mod tests {
     use super::*;
     use crate::platform::output_helpers::char_to_vk;
     use crate::types::{KeyAction, ModifierState, MouseAction, MouseButton};
+    use std::cell::RefCell;
 
     // --- char_to_vk tests (shared logic) ---
 
@@ -295,7 +296,7 @@ mod tests {
         assert_eq!(char_to_vk('é'), None);
     }
 
-    // --- Device lifecycle ---
+    // --- Device lifecycle (no side effects) ---
 
     #[test]
     fn test_macos_output_device_creation() {
@@ -307,52 +308,225 @@ mod tests {
     fn test_macos_output_device_default() {
         let _device = MacosOutputDevice::default();
     }
+}
 
-    // --- Trait default implementations (send_text / send_combo / dispatch) ---
+/// Recorded output event for mock verification
+#[derive(Debug, Clone)]
+pub enum MockOutputEvent {
+    Key {
+        scan_code: u16,
+        virtual_key: u16,
+        release: bool,
+    },
+    MouseMove {
+        x: i32,
+        y: i32,
+        relative: bool,
+    },
+    MouseButton {
+        button: MouseButton,
+        release: bool,
+    },
+    MouseWheel {
+        delta: i32,
+        horizontal: bool,
+    },
+    SystemAction(SystemAction),
+}
+
+#[cfg(test)]
+use std::cell::RefCell;
+
+/// Mock output device for macOS testing
+///
+/// Records all calls without sending real input events via CGEvent.
+#[cfg(test)]
+pub struct MockMacosOutputDevice {
+    events: RefCell<Vec<MockOutputEvent>>,
+}
+
+#[cfg(test)]
+impl MockMacosOutputDevice {
+    pub fn new() -> Self {
+        Self {
+            events: RefCell::new(Vec::new()),
+        }
+    }
+
+    pub fn recorded_events(&self) -> Vec<MockOutputEvent> {
+        self.events.borrow().clone()
+    }
+
+    pub fn clear(&self) {
+        self.events.borrow_mut().clear();
+    }
+
+    pub fn event_count(&self) -> usize {
+        self.events.borrow().len()
+    }
+}
+
+#[cfg(test)]
+impl Default for MockMacosOutputDevice {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+impl Clone for MockMacosOutputDevice {
+    fn clone(&self) -> Self {
+        Self {
+            events: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+#[cfg(test)]
+impl OutputDeviceTrait for MockMacosOutputDevice {
+    fn send_key_action(&self, action: &KeyAction) -> Result<()> {
+        match action {
+            KeyAction::Press {
+                scan_code,
+                virtual_key,
+            } => self.send_key(*scan_code, *virtual_key, false),
+            KeyAction::Release {
+                scan_code,
+                virtual_key,
+            } => self.send_key(*scan_code, *virtual_key, true),
+            KeyAction::Click {
+                scan_code,
+                virtual_key,
+            } => {
+                self.send_key(*scan_code, *virtual_key, false)?;
+                self.send_key(*scan_code, *virtual_key, true)
+            }
+            KeyAction::TypeText(text) => self.send_text(text),
+            KeyAction::Combo { modifiers, key } => {
+                self.send_combo(modifiers, key.0, key.1)
+            }
+            KeyAction::None => Ok(()),
+        }
+    }
+
+    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
+        self.events.borrow_mut().push(MockOutputEvent::Key {
+            scan_code,
+            virtual_key,
+            release,
+        });
+        Ok(())
+    }
+
+    fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
+        match action {
+            MouseAction::Move { x, y, relative } => {
+                self.send_mouse_move(*x, *y, *relative)
+            }
+            MouseAction::ButtonDown { button } => self.send_mouse_button(*button, false),
+            MouseAction::ButtonUp { button } => self.send_mouse_button(*button, true),
+            MouseAction::ButtonClick { button } => {
+                self.send_mouse_button(*button, false)?;
+                self.send_mouse_button(*button, true)
+            }
+            MouseAction::Wheel { delta } => self.send_mouse_wheel(*delta, false),
+            MouseAction::HWheel { delta } => self.send_mouse_wheel(*delta, true),
+            MouseAction::None => Ok(()),
+        }
+    }
+
+    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
+        self.events
+            .borrow_mut()
+            .push(MockOutputEvent::MouseMove { x, y, relative });
+        Ok(())
+    }
+
+    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
+        self.events
+            .borrow_mut()
+            .push(MockOutputEvent::MouseButton { button, release });
+        Ok(())
+    }
+
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
+        self.events
+            .borrow_mut()
+            .push(MockOutputEvent::MouseWheel { delta, horizontal });
+        Ok(())
+    }
+
+    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        self.events
+            .borrow_mut()
+            .push(MockOutputEvent::SystemAction(action.clone()));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod mock_tests {
+    use super::*;
+    use crate::types::{KeyAction, ModifierState, MouseAction, MouseButton};
+
+    // --- MockMacosOutputDevice: send_text ---
 
     #[test]
-    fn test_send_text_dispatches_press_release_pairs() {
-        let device = MacosOutputDevice::new();
-        let result = device.send_text("ab");
-        assert!(result.is_ok());
+    fn test_mock_send_text_ab() {
+        let device = MockMacosOutputDevice::new();
+        device.send_text("ab").unwrap();
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 4); // a press+release, b press+release
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[0]
+        {
+            assert_eq!(*virtual_key, 0x41);
+            assert!(!release);
+        }
     }
 
     #[test]
-    fn test_send_text_empty_string() {
-        let device = MacosOutputDevice::new();
-        let result = device.send_text("");
-        assert!(result.is_ok());
+    fn test_mock_send_text_empty() {
+        let device = MockMacosOutputDevice::new();
+        device.send_text("").unwrap();
+        assert_eq!(device.event_count(), 0);
     }
 
     #[test]
-    fn test_send_text_with_unsupported_chars_skips_gracefully() {
-        let device = MacosOutputDevice::new();
-        let result = device.send_text("a中b");
-        assert!(result.is_ok());
+    fn test_mock_send_text_unsupported_chars_skipped() {
+        let device = MockMacosOutputDevice::new();
+        device.send_text("a中b").unwrap();
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 4); // '中' is skipped
     }
 
+    // --- MockMacosOutputDevice: key actions ---
+
     #[test]
-    fn test_send_key_action_type_text() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_key_action_type_text() {
+        let device = MockMacosOutputDevice::new();
         let action = KeyAction::TypeText("hello".to_string());
-        let result = device.send_key_action(&action);
-        assert!(result.is_ok());
+        device.send_key_action(&action).unwrap();
+        assert_eq!(device.event_count(), 10); // 5 chars * 2 (press+release)
     }
 
     #[test]
-    fn test_send_key_action_click() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_key_action_click() {
+        let device = MockMacosOutputDevice::new();
         let action = KeyAction::Click {
             scan_code: 0,
             virtual_key: 0x41,
         };
-        let result = device.send_key_action(&action);
-        assert!(result.is_ok());
+        device.send_key_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2); // press + release
     }
 
     #[test]
-    fn test_send_key_action_combo() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_key_action_combo() {
+        let device = MockMacosOutputDevice::new();
         let modifiers = ModifierState {
             ctrl: true,
             ..ModifierState::default()
@@ -361,50 +535,20 @@ mod tests {
             modifiers,
             key: (0, 0x41),
         };
-        let result = device.send_key_action(&action);
-        assert!(result.is_ok());
+        device.send_key_action(&action).unwrap();
+        assert!(device.event_count() > 0);
     }
 
     #[test]
-    fn test_send_key_action_none() {
-        let device = MacosOutputDevice::new();
-        let result = device.send_key_action(&KeyAction::None);
-        assert!(result.is_ok());
+    fn test_mock_send_key_action_none() {
+        let device = MockMacosOutputDevice::new();
+        device.send_key_action(&KeyAction::None).unwrap();
+        assert_eq!(device.event_count(), 0);
     }
 
     #[test]
-    fn test_send_mouse_action_move() {
-        let device = MacosOutputDevice::new();
-        let action = MouseAction::Move {
-            x: 100,
-            y: 200,
-            relative: true,
-        };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_send_mouse_action_click() {
-        let device = MacosOutputDevice::new();
-        let action = MouseAction::ButtonClick {
-            button: MouseButton::Left,
-        };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_send_mouse_action_wheel() {
-        let device = MacosOutputDevice::new();
-        let action = MouseAction::Wheel { delta: 120 };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_send_key_action_press_and_release() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_key_action_press_and_release() {
+        let device = MockMacosOutputDevice::new();
         let press = KeyAction::Press {
             scan_code: 0,
             virtual_key: 0x41,
@@ -413,47 +557,160 @@ mod tests {
             scan_code: 0,
             virtual_key: 0x41,
         };
-        assert!(device.send_key_action(&press).is_ok());
-        assert!(device.send_key_action(&release).is_ok());
+        device.send_key_action(&press).unwrap();
+        device.send_key_action(&release).unwrap();
+        assert_eq!(device.event_count(), 2);
+        let events = device.recorded_events();
+        if let MockOutputEvent::Key { release: r, .. } = &events[0] {
+            assert!(!r);
+        }
+        if let MockOutputEvent::Key { release: r, .. } = &events[1] {
+            assert!(*r);
+        }
+    }
+
+    // --- MockMacosOutputDevice: mouse actions ---
+
+    #[test]
+    fn test_mock_send_mouse_action_move() {
+        let device = MockMacosOutputDevice::new();
+        let action = MouseAction::Move {
+            x: 100,
+            y: 200,
+            relative: true,
+        };
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseMove { relative, .. } = &device.recorded_events()[0]
+        {
+            assert!(*relative);
+        }
     }
 
     #[test]
-    fn test_send_mouse_action_move_absolute() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_mouse_action_move_absolute() {
+        let device = MockMacosOutputDevice::new();
         let action = MouseAction::Move {
             x: 1920,
             y: 1080,
             relative: false,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseMove { relative, .. } = &device.recorded_events()[0]
+        {
+            assert!(!*relative);
+        }
     }
 
     #[test]
-    fn test_send_mouse_action_right_click() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_mouse_action_left_click() {
+        let device = MockMacosOutputDevice::new();
+        let action = MouseAction::ButtonClick {
+            button: MouseButton::Left,
+        };
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2); // down + up
+    }
+
+    #[test]
+    fn test_mock_send_mouse_action_right_click() {
+        let device = MockMacosOutputDevice::new();
         let action = MouseAction::ButtonClick {
             button: MouseButton::Right,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2);
     }
 
     #[test]
-    fn test_send_mouse_action_middle_click() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_mouse_action_middle_click() {
+        let device = MockMacosOutputDevice::new();
         let action = MouseAction::ButtonClick {
             button: MouseButton::Middle,
         };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 2);
     }
 
     #[test]
-    fn test_send_mouse_action_wheel_horizontal() {
-        let device = MacosOutputDevice::new();
+    fn test_mock_send_mouse_action_wheel() {
+        let device = MockMacosOutputDevice::new();
+        let action = MouseAction::Wheel { delta: 120 };
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseWheel { horizontal, .. } =
+            &device.recorded_events()[0]
+        {
+            assert!(!*horizontal);
+        }
+    }
+
+    #[test]
+    fn test_mock_send_mouse_action_wheel_horizontal() {
+        let device = MockMacosOutputDevice::new();
         let action = MouseAction::HWheel { delta: 120 };
-        let result = device.send_mouse_action(&action);
-        assert!(result.is_ok());
+        device.send_mouse_action(&action).unwrap();
+        assert_eq!(device.event_count(), 1);
+        if let MockOutputEvent::MouseWheel { horizontal, .. } =
+            &device.recorded_events()[0]
+        {
+            assert!(*horizontal);
+        }
+    }
+
+    // --- Mock lifecycle and utility ---
+
+    #[test]
+    fn test_mock_macos_output_device_creation() {
+        let _device = MockMacosOutputDevice::new();
+        let _device = MockMacosOutputDevice::default();
+        let _cloned = MockMacosOutputDevice::new().clone();
+    }
+
+    #[test]
+    fn test_mock_clear() {
+        let device = MockMacosOutputDevice::new();
+        device.send_text("ab").unwrap();
+        assert_eq!(device.event_count(), 4);
+        device.clear();
+        assert_eq!(device.event_count(), 0);
+    }
+
+    #[test]
+    fn test_mock_event_ordering() {
+        let device = MockMacosOutputDevice::new();
+        device.send_key(0, 0x41, false).unwrap(); // A press
+        device.send_key(0, 0x41, true).unwrap(); // A release
+        device.send_key(0, 0x42, false).unwrap(); // B press
+        let events = device.recorded_events();
+        assert_eq!(events.len(), 3);
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[0]
+        {
+            assert_eq!(*virtual_key, 0x41);
+            assert!(!release);
+        }
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[1]
+        {
+            assert_eq!(*virtual_key, 0x41);
+            assert!(*release);
+        }
+        if let MockOutputEvent::Key {
+            virtual_key,
+            release,
+            ..
+        } = &events[2]
+        {
+            assert_eq!(*virtual_key, 0x42);
+            assert!(!release);
+        }
     }
 }
