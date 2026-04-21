@@ -8,6 +8,7 @@ use std::num::NonZeroU16;
 /// - Prevent confusion with other u16 types
 /// - Provide semantic construction methods
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct ScanCode(NonZeroU16);
 
 impl ScanCode {
@@ -19,6 +20,7 @@ impl ScanCode {
     /// # Returns
     /// * `Some(ScanCode)` - If code > 0
     /// * `None` - If code == 0 (invalid)
+    #[allow(dead_code)]
     pub fn new(code: u16) -> Option<Self> {
         NonZeroU16::new(code).map(ScanCode)
     }
@@ -26,16 +28,19 @@ impl ScanCode {
     /// Create scan code, 0 value is treated as None
     ///
     /// This is the most commonly used construction method for handling inputs that may be 0
+    #[allow(dead_code)]
     pub fn from_option(code: u16) -> Option<Self> {
         Self::new(code)
     }
 
     /// Get raw value
+    #[allow(dead_code)]
     pub fn value(&self) -> u16 {
         self.0.get()
     }
 
     /// Check if valid (always returns true since 0 cannot be created)
+    #[allow(dead_code)]
     pub fn is_valid(&self) -> bool {
         true // NonZeroU16 guarantees non-zero
     }

@@ -323,6 +323,7 @@ impl OutputDevice for SendInputDevice {
 
 impl SendInputDevice {
     /// Send text (internal method)
+    #[allow(dead_code)]
     fn send_text(&self, text: &str) -> Result<()> {
         for ch in text.chars() {
             if let Some(vk) = char_to_vk(ch) {
@@ -334,6 +335,7 @@ impl SendInputDevice {
     }
 
     /// Send key combo (internal method)
+    #[allow(dead_code)]
     fn send_combo(
         &self,
         modifiers: &crate::types::ModifierState,
@@ -635,6 +637,7 @@ impl OutputDevice for MockOutputDevice {
 }
 
 /// Convert character to virtual key code (simplified)
+#[allow(dead_code)]
 fn char_to_vk(ch: char) -> Option<u16> {
     match ch {
         'a'..='z' => Some(ch as u16 - 'a' as u16 + 0x41),

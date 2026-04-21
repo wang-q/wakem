@@ -1,6 +1,5 @@
 use crate::types::{
-    InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
-    MouseEventType,
+    InputEvent, KeyState, ModifierState,
 };
 use anyhow::Result;
 #[allow(unused_imports)]
@@ -72,6 +71,7 @@ impl RawInputDevice {
     }
 
     /// Create a Raw Input device with custom sender (for integration with existing systems)
+    #[allow(dead_code)]
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
         let (_, receiver) = channel();
 
@@ -86,16 +86,19 @@ impl RawInputDevice {
     }
 
     /// Get the event sender
+    #[allow(dead_code)]
     pub fn get_sender(&self) -> Sender<InputEvent> {
         self.event_sender.clone()
     }
 
     /// Get current modifier key state
+    #[allow(dead_code)]
     pub fn get_modifier_state(&self) -> &ModifierState {
         &self.modifier_state
     }
 
     /// Update modifier key state
+    #[allow(dead_code)]
     fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
         if let Some((modifier, _)) =
             ModifierState::from_virtual_key(virtual_key, pressed)

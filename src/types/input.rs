@@ -34,12 +34,14 @@ impl KeyEvent {
     }
 
     /// Set modifier key state (for building events)
+    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
     /// Mark as injected event (for simulated input)
+    #[allow(dead_code)]
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
@@ -57,6 +59,7 @@ impl KeyEvent {
     }
 
     /// Get modifier key identifier (if is modifier key)
+    #[allow(dead_code)]
     pub fn modifier_identifier(&self) -> Option<&'static str> {
         match self.virtual_key {
             0x10 | 0xA0 | 0xA1 => Some("Shift"),
@@ -122,12 +125,14 @@ impl MouseEvent {
     }
 
     /// Set modifier key state (for building events)
+    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
     /// Mark as injected event (for simulated input)
+    #[allow(dead_code)]
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
@@ -139,6 +144,7 @@ impl MouseEvent {
     }
 
     /// Check if is button release event
+    #[allow(dead_code)]
     pub fn is_button_up(&self, button: MouseButton) -> bool {
         matches!(&self.event_type, MouseEventType::ButtonUp(b) if *b == button)
     }

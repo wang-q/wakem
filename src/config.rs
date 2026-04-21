@@ -138,6 +138,23 @@ impl Config {
             }
         }
 
+        // 7. Validate mouse wheel acceleration_multiplier range
+        let multiplier = self.mouse.wheel.acceleration_multiplier;
+        if !(0.1..=10.0).contains(&multiplier) {
+            anyhow::bail!(
+                "Invalid mouse.wheel.acceleration_multiplier: {}. Must be in range 0.1-10.0",
+                multiplier
+            );
+        }
+
+        // 8. Validate wheel speed is positive
+        if self.mouse.wheel.speed <= 0 {
+            anyhow::bail!(
+                "Invalid mouse.wheel.speed: {}. Must be positive",
+                self.mouse.wheel.speed
+            );
+        }
+
         Ok(())
     }
 
@@ -1036,6 +1053,7 @@ impl ConfigPathCache {
     }
 
     /// Invalidate cache for specified instance
+    #[allow(dead_code)]
     fn invalidate(&self, instance_id: u32) {
         if let Ok(mut cache) = self.cache.lock() {
             cache.remove(&instance_id);
@@ -1044,6 +1062,7 @@ impl ConfigPathCache {
     }
 
     /// Clear all cache
+    #[allow(dead_code)]
     fn clear(&self) {
         if let Ok(mut cache) = self.cache.lock() {
             cache.clear();
@@ -1108,11 +1127,13 @@ pub fn resolve_config_file_path(
 /// Invalidate config file path cache
 ///
 /// Call this function after config file is moved, renamed, or deleted
+#[allow(dead_code)]
 pub fn invalidate_config_path_cache(instance_id: u32) {
     CONFIG_PATH_CACHE.invalidate(instance_id);
 }
 
 /// Clear all config file path cache
+#[allow(dead_code)]
 pub fn clear_config_path_cache() {
     CONFIG_PATH_CACHE.clear();
 }

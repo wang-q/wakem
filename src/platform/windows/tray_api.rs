@@ -42,8 +42,11 @@ pub struct RealTrayApi {
 }
 
 struct TrayIconInner {
+    #[allow(dead_code)]
     tray_icon: super::tray::TrayIcon,
+    #[allow(dead_code)]
     hwnd: isize,
+    #[allow(dead_code)]
     active: bool,
 }
 
@@ -54,6 +57,7 @@ impl Default for RealTrayApi {
 }
 
 impl RealTrayApi {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(TrayIconInner {
@@ -64,6 +68,7 @@ impl RealTrayApi {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_icon_path(icon_path: Option<String>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(TrayIconInner {
@@ -131,11 +136,13 @@ impl TrayApi for RealTrayApi {
 }
 
 /// Mock tray icon API implementation - for testing
+#[allow(dead_code)]
 pub struct MockTrayApi {
     state: Arc<Mutex<MockTrayState>>,
 }
 
 #[derive(Default)]
+#[allow(dead_code)]
 struct MockTrayState {
     registered: bool,
     hwnd: isize,
@@ -152,6 +159,7 @@ impl Default for MockTrayApi {
 }
 
 impl MockTrayApi {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(MockTrayState {

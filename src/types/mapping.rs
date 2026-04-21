@@ -40,6 +40,7 @@ impl MappingRule {
     }
 
     /// Check if input event matches this rule
+    #[allow(dead_code)]
     pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
         if !self.enabled {
             return false;
@@ -163,25 +164,30 @@ pub struct ContextCondition {
 }
 
 impl ContextCondition {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[allow(dead_code)]
     pub fn with_window_class(mut self, class: impl Into<String>) -> Self {
         self.window_class = Some(class.into());
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_process_name(mut self, name: impl Into<String>) -> Self {
         self.process_name = Some(name.into());
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_window_title(mut self, title: impl Into<String>) -> Self {
         self.window_title = Some(title.into());
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_executable_path(mut self, path: impl Into<String>) -> Self {
         self.executable_path = Some(path.into());
         self
@@ -239,18 +245,8 @@ pub struct ContextInfo {
     pub window_handle: isize, // HWND
 }
 
-/// Simple wildcard matching (* matches any characters, ? matches single character)
-#[allow(dead_code)]
+/// Wildcard matching using the implementation from config module
+/// Supports * (matches any characters) and ? (matches single character)
 fn wildcard_match(text: &str, pattern: &str) -> bool {
-    // Simplified implementation, should use more complex matching algorithm in production
-    if pattern == "*" || pattern.is_empty() {
-        return true;
-    }
-    if pattern.contains('*') || pattern.contains('?') {
-        // TODO: Implement complete wildcard matching
-        text.to_lowercase()
-            .contains(&pattern.replace('*', "").to_lowercase())
-    } else {
-        text.to_lowercase() == pattern.to_lowercase()
-    }
+    crate::config::wildcard_match(text, pattern)
 }

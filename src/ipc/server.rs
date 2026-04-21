@@ -45,6 +45,7 @@ impl IpcServer {
     }
 
     /// Create new server (static key, backward compatible)
+    #[allow(dead_code)]
     pub fn new(
         bind_address: impl Into<String>,
         auth_key: Option<String>,
@@ -127,7 +128,11 @@ async fn handle_connection(
 ) -> Result<()> {
     // If auth key is configured, perform challenge-response authentication (dynamically read latest key)
     if let Some(key_arc) = auth_key {
-        let key = key_arc.read().await;
+        // Clone the key immediately to release the lock before authentication
+        let key = {
+            let key_guard = key_arc.read().await;
+            key_guard.clone()
+        };
         if !key.is_empty() {
             if !perform_authentication_with_timeout(&mut stream, &key).await? {
                 warn!("Authentication failed for {}", addr);

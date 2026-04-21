@@ -55,10 +55,10 @@ impl LayerManager {
                         match event.state {
                             KeyState::Pressed => {
                                 trace!("Activating layer (Hold): {}", layer.name);
-                                let layer =
-                                    self.layers.get(&layer.name).cloned().unwrap();
-                                self.stack.hold_layer(&layer.name);
-                                self.stack.activate_layer(layer);
+                                if let Some(layer) = self.layers.get(&layer.name).cloned() {
+                                    self.stack.hold_layer(&layer.name);
+                                    self.stack.activate_layer(layer);
+                                }
                             }
                             KeyState::Released => {
                                 trace!("Deactivating layer (Hold): {}", layer.name);
@@ -71,8 +71,9 @@ impl LayerManager {
                     LayerMode::Toggle => {
                         if event.state == KeyState::Pressed {
                             trace!("Toggling layer: {}", layer.name);
-                            let layer = self.layers.get(&layer.name).cloned().unwrap();
-                            self.stack.toggle_layer(layer);
+                            if let Some(layer) = self.layers.get(&layer.name).cloned() {
+                                self.stack.toggle_layer(layer);
+                            }
                             // Toggle key itself is not passed through
                             return (true, None);
                         }

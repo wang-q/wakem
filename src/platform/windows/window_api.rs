@@ -84,6 +84,7 @@ pub enum WindowOperation {
 
 /// Window state
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct WindowState {
     pub minimized: bool,
     pub maximized: bool,

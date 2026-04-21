@@ -50,11 +50,13 @@ pub struct Macro {
 
 impl Macro {
     /// Get step count
+    #[allow(dead_code)]
     pub fn step_count(&self) -> usize {
         self.steps.len()
     }
 
     /// Get total delay (milliseconds)
+    #[allow(dead_code)]
     pub fn total_delay(&self) -> u64 {
         self.steps.iter().map(|s| s.delay_ms).sum()
     }
@@ -185,6 +187,7 @@ impl MacroRecorder {
     }
 
     /// Get current recording name
+    #[allow(dead_code)]
     pub async fn current_macro_name(&self) -> Option<String> {
         self.recording.read().await.as_ref().map(|r| r.name.clone())
     }

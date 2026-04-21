@@ -64,16 +64,19 @@ impl ConnectionLimiter {
     }
 
     /// Reset limit count for specified IP
+    #[allow(dead_code)]
     pub fn reset(&mut self, ip: &IpAddr) {
         self.attempts.remove(ip);
     }
 
     /// Clear all records
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.attempts.clear();
     }
 
     /// Get current number of tracked IPs
+    #[allow(dead_code)]
     pub fn tracked_count(&self) -> usize {
         self.attempts.len()
     }

@@ -29,6 +29,7 @@ pub struct MessageWindow {
     hwnd: HWND,
     tray_icon: Arc<Mutex<TrayIcon>>,
     running: Arc<Mutex<bool>>,
+    #[allow(clippy::type_complexity)]
     command_callback: Arc<Mutex<Option<Box<dyn Fn(AppCommand) + Send + 'static>>>>,
 }
 

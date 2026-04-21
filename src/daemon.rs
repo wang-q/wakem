@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info};
@@ -477,7 +478,6 @@ impl ServerState {
 
                 // Handle delay actions (wait without locks)
                 Delay { milliseconds } => {
-                    let _ = i; // Explicitly ignore for sleep
                     tokio::time::sleep(tokio::time::Duration::from_millis(
                         *milliseconds,
                     ))
@@ -639,6 +639,7 @@ impl ServerState {
     }
 
     /// Check if recording macro
+    #[allow(dead_code)]
     pub async fn is_recording_macro(&self) -> bool {
         self.macro_recorder.is_recording().await
     }
@@ -651,6 +652,7 @@ impl ServerState {
     }
 
     /// Get current auth key (for IPC authentication)
+    #[allow(dead_code)]
     pub async fn get_auth_key(&self) -> String {
         self.auth_key.read().await.clone()
     }
@@ -943,24 +945,29 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
             WINDOW_EVENT_CHANNEL_CAPACITY,
         );
 
+        // Create shutdown flag for window event hook
+        let hook_shutdown_flag = Arc::new(AtomicBool::new(false));
+        let hook_shutdown_flag_clone = hook_shutdown_flag.clone();
+
         let window_bridge_handle = std::thread::spawn(move || {
             let (std_tx, std_rx) =
                 std::sync::mpsc::channel::<crate::platform::windows::WindowEvent>();
 
+            let hook_shutdown_flag_inner = hook_shutdown_flag.clone();
             let hook_handle = std::thread::spawn(move || {
                 let mut hook = crate::platform::windows::WindowEventHook::new(std_tx);
-                if let Err(e) = hook.start() {
+                if let Err(e) = hook.start_with_shutdown(hook_shutdown_flag_inner) {
                     error!("Failed to start window event hook: {}", e);
                 } else {
                     info!("Window event hook started");
-                    loop {
-                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    // Graceful exit: check shutdown flag instead of infinite sleep
+                    while !hook.shutdown_flag().load(Ordering::SeqCst) {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
                     }
+                    info!("Window event hook received shutdown signal");
                 }
+                hook.stop();
             });
-
-            // Wait for hook thread to finish
-            let _ = hook_handle.join();
 
             // Bridge: receive from std channel and send to tokio channel
             while let Ok(event) = std_rx.recv() {
@@ -968,6 +975,12 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                     break;
                 }
             }
+
+            // Signal hook thread to shutdown
+            hook_shutdown_flag_clone.store(true, Ordering::SeqCst);
+
+            // Wait for hook thread to finish
+            let _ = hook_handle.join();
             info!("Window event bridge thread shutdown complete");
         });
         thread_handles.push(window_bridge_handle);

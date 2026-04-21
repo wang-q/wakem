@@ -62,6 +62,7 @@ impl KeyAction {
     }
 
     /// Create key combination action
+    #[allow(dead_code)]
     pub fn combo(
         modifiers: super::ModifierState,
         scan_code: u16,
@@ -220,6 +221,7 @@ impl Action {
     }
 
     /// Create mouse action
+    #[allow(dead_code)]
     pub fn mouse(action: MouseAction) -> Self {
         Self::Mouse(action)
     }
@@ -240,6 +242,7 @@ impl Action {
     }
 
     /// Create action sequence
+    #[allow(dead_code)]
     pub fn sequence(actions: Vec<Action>) -> Self {
         Self::Sequence(actions)
     }
@@ -250,6 +253,7 @@ impl Action {
     }
 
     /// Check if no operation
+    #[allow(dead_code)]
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }

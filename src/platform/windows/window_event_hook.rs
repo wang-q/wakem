@@ -1,5 +1,7 @@
 use anyhow::Result;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use tracing::debug;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Accessibility::{
@@ -23,6 +25,8 @@ pub enum WindowEvent {
 pub struct WindowEventHook {
     hook: Option<HWINEVENTHOOK>,
     event_tx: Sender<WindowEvent>,
+    /// Shutdown flag for graceful exit
+    shutdown_flag: Arc<AtomicBool>,
 }
 
 impl WindowEventHook {
@@ -31,6 +35,7 @@ impl WindowEventHook {
         Self {
             hook: None,
             event_tx,
+            shutdown_flag: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -63,6 +68,12 @@ impl WindowEventHook {
         }
     }
 
+    /// Start window event monitoring with shutdown flag for graceful exit
+    pub fn start_with_shutdown(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()> {
+        self.shutdown_flag = shutdown_flag;
+        self.start()
+    }
+
     /// Stop window event monitoring
     pub fn stop(&mut self) {
         if let Some(hook) = self.hook.take() {
@@ -71,6 +82,11 @@ impl WindowEventHook {
             }
             debug!("Window event hook stopped");
         }
+    }
+
+    /// Get shutdown flag reference
+    pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
+        self.shutdown_flag.clone()
     }
 }
 

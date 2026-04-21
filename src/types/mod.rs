@@ -7,6 +7,7 @@ pub mod mapping;
 
 pub use action::*;
 pub use input::*;
+#[allow(unused_imports)]
 pub use key_codes::*;
 pub use layer::*;
 pub use macros::*;
@@ -43,6 +44,7 @@ impl ModifierState {
     }
 
     /// Check if no modifier keys are pressed
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }

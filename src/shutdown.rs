@@ -39,6 +39,7 @@ impl ShutdownSignal {
     /// # Returns
     /// * `true` - Shutdown signal received
     /// * `false` - Shutdown signal not received
+    #[allow(dead_code)]
     pub async fn is_shutdown_requested(&mut self) -> bool {
         self.receiver.changed().await.is_ok() && *self.receiver.borrow()
     }
@@ -51,6 +52,7 @@ impl ShutdownSignal {
     /// # Returns
     /// * `Ok(T)` - Operation completed successfully
     /// * `Err(())` - Shutdown signal received, operation cancelled
+    #[allow(dead_code)]
     pub async fn run_until_shutdown<F, T, E>(
         &mut self,
         operation: F,
