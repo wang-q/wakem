@@ -21,7 +21,7 @@ use cli::{Cli, Commands};
 use client::DaemonClient;
 use config::Config;
 use constants::IPC_CHANNEL_CAPACITY;
-use window::{AppCommand, MessageWindow};
+use window::AppCommand;
 
 /// Simple daemon command executor macro to reduce boilerplate for parameterless methods
 macro_rules! simple_daemon_command {
@@ -192,41 +192,24 @@ async fn cmd_instances() -> Result<()> {
 async fn run_tray(instance_id: u32) -> Result<()> {
     info!("wakem client starting (instance {})...", instance_id);
 
-    // Load config to get icon path
-    let _icon_path =
-        config::resolve_config_file_path(None, instance_id).and_then(|path| {
-            Config::from_file(&path)
-                .ok()
-                .and_then(|cfg| cfg.icon_path)
-                .or_else(|| {
-                    // Try to load assets/icon.ico from program directory
-                    path.parent().map(|p| {
-                        p.join("assets")
-                            .join("icon.ico")
-                            .to_string_lossy()
-                            .to_string()
-                    })
-                })
-        });
-
-    // Create command channel
+    // Create command channel for communication between tray and async code
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<AppCommand>(IPC_CHANNEL_CAPACITY);
 
-    // Create message window
-    let window = MessageWindow::new()?;
-
-    // Set command callback
+    // Clone for use in callback
     let cmd_tx_for_callback = cmd_tx.clone();
-    window.set_command_callback(move |cmd| {
-        let _ = cmd_tx_for_callback.try_send(cmd);
+
+    // Spawn the tray message loop in a blocking task
+    let tray_handle = tokio::task::spawn_blocking(move || {
+        window::run_tray_message_loop(move |cmd| {
+            let _ = cmd_tx_for_callback.try_send(cmd);
+        })
     });
 
-    // Initialize tray
-    window.init_tray()?;
-
-    // Connect to server
+    // Connect to daemon
+    let mut client_option: Option<DaemonClient> = None;
     let mut client = DaemonClient::new();
-    let connected = match client.connect_to_instance(instance_id).await {
+
+    match client.connect_to_instance(instance_id).await {
         Ok(_) => {
             info!("Connected to wakemd instance {}", instance_id);
 
@@ -240,16 +223,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
                 }
             }
 
-            // Register message window handle to daemon
-            let hwnd = window.hwnd();
-            let hwnd_usize = hwnd.0 as usize;
-            if let Err(e) = client.register_message_window(hwnd_usize).await {
-                error!("Failed to register message window: {}", e);
-            } else {
-                info!("Message window registered with daemon");
-            }
-
-            true
+            client_option = Some(client);
         }
         Err(e) => {
             error!("Failed to connect to daemon: {}", e);
@@ -257,107 +231,71 @@ async fn run_tray(instance_id: u32) -> Result<()> {
                 "Please make sure wakemd --instance {} is running",
                 instance_id
             );
-            false
         }
-    };
-
-    // Use Arc<AtomicBool> to share exit state
-    let should_exit = Arc::new(AtomicBool::new(false));
-    let should_exit_clone = should_exit.clone();
-
-    // Start command handler task
-    let cmd_tx_clone = cmd_tx.clone();
-    let mut client_option = if connected { Some(client) } else { None };
-
-    let command_handler = tokio::spawn(async move {
-        while let Some(cmd) = cmd_rx.recv().await {
-            if should_exit_clone.load(Ordering::SeqCst) {
-                break;
-            }
-
-            match cmd {
-                AppCommand::ToggleActive => {
-                    info!("Toggle active command received");
-                    if let Some(ref mut client) = client_option {
-                        // Get current status first
-                        match client.get_status().await {
-                            Ok((current_active, _)) => {
-                                let new_active = !current_active;
-                                match client.set_active(new_active).await {
-                                    Ok(_) => {
-                                        info!(
-                                            "Daemon active state changed to: {}",
-                                            new_active
-                                        );
-                                    }
-                                    Err(e) => {
-                                        error!("Failed to set active state: {}", e);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("Failed to get status: {}", e);
-                            }
-                        }
-                    } else {
-                        error!("Not connected to daemon, command ignored");
-                    }
-                }
-                AppCommand::ReloadConfig => {
-                    info!("Reload config command received");
-                    if let Some(ref mut client) = client_option {
-                        match client.reload_config().await {
-                            Ok(_) => {
-                                info!("Configuration reloaded successfully");
-                            }
-                            Err(e) => {
-                                error!("Failed to reload config: {}", e);
-                            }
-                        }
-                    } else {
-                        error!("Not connected to daemon, command ignored");
-                    }
-                }
-                AppCommand::OpenConfigFolder => {
-                    info!("Open config folder command received");
-                    if let Err(e) = open_config_folder().await {
-                        error!("Failed to open config folder: {}", e);
-                    }
-                }
-                AppCommand::Exit => {
-                    info!("Exit command received");
-                    should_exit_clone.store(true, Ordering::SeqCst);
-                    let _ = cmd_tx_clone.send(AppCommand::Exit).await;
-                    break;
-                }
-            }
-        }
-    });
-
-    // Run message loop in a separate thread because GetMessageW is blocking
-    let window_handle = Arc::new(std::sync::Mutex::new(window));
-    let window_clone = window_handle.clone();
-
-    let msg_thread = std::thread::spawn(move || {
-        let window = window_clone.lock().unwrap();
-        if let Err(e) = window.run() {
-            error!("Message loop error: {}", e);
-        }
-    });
-
-    // Wait for command handler to complete (i.e., receive exit command)
-    let _ = command_handler.await;
-
-    info!("Shutdown signal received");
-
-    // Stop message loop
-    {
-        let window = window_handle.lock().unwrap();
-        window.stop();
     }
 
-    // Wait for message thread to finish
-    let _ = msg_thread.join();
+    // Handle commands from tray
+    while let Some(cmd) = cmd_rx.recv().await {
+        match cmd {
+            AppCommand::ToggleActive => {
+                info!("Toggle active command received");
+                if let Some(ref mut client) = client_option {
+                    match client.get_status().await {
+                        Ok((current_active, _)) => {
+                            let new_active = !current_active;
+                            match client.set_active(new_active).await {
+                                Ok(_) => {
+                                    info!(
+                                        "Daemon active state changed to: {}",
+                                        new_active
+                                    );
+                                }
+                                Err(e) => {
+                                    error!("Failed to set active state: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to get status: {}", e);
+                        }
+                    }
+                } else {
+                    error!("Not connected to daemon, command ignored");
+                }
+            }
+            AppCommand::ReloadConfig => {
+                info!("Reload config command received");
+                if let Some(ref mut client) = client_option {
+                    match client.reload_config().await {
+                        Ok(_) => {
+                            info!("Configuration reloaded successfully");
+                        }
+                        Err(e) => {
+                            error!("Failed to reload config: {}", e);
+                        }
+                    }
+                } else {
+                    error!("Not connected to daemon, command ignored");
+                }
+            }
+            AppCommand::OpenConfigFolder => {
+                info!("Open config folder command received");
+                if let Err(e) = open_config_folder().await {
+                    error!("Failed to open config folder: {}", e);
+                }
+            }
+            AppCommand::Exit => {
+                info!("Exit command received");
+                break;
+            }
+        }
+    }
+
+    // Stop the tray message loop
+    window::stop_tray();
+
+    // Wait for tray task to complete
+    let _ = tray_handle.await;
 
     info!("wakem client shutdown complete");
     Ok(())

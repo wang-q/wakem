@@ -77,6 +77,12 @@ impl TrayIcon {
     /// Register tray icon
     pub fn register(&mut self, hwnd: HWND) -> Result<()> {
         self.data.hWnd = hwnd;
+        tracing::info!(
+            "Registering tray icon with hwnd={:?}, uID={}, uCallbackMessage={}",
+            hwnd,
+            self.data.uID,
+            self.data.uCallbackMessage
+        );
         unsafe {
             Shell_NotifyIconW(NIM_ADD, &self.data)
                 .ok()

@@ -1,6 +1,4 @@
-use crate::types::{
-    InputEvent, KeyState, ModifierState,
-};
+use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 #[allow(unused_imports)]
 use std::cell::RefCell;
