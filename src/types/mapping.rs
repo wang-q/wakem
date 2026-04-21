@@ -95,7 +95,7 @@ impl Trigger {
                 Trigger::Key {
                     scan_code,
                     virtual_key,
-                    modifiers: _,
+                    modifiers,
                 },
                 InputEvent::Key(e),
             ) => {
@@ -111,8 +111,10 @@ impl Trigger {
                         return false;
                     }
                 }
-                // Check modifiers
-                // Note: should compare modifier state here, simplified for now
+                // Check modifiers match
+                if modifiers != &e.modifiers {
+                    return false;
+                }
                 true
             }
             (Trigger::MouseButton { button, .. }, InputEvent::Mouse(e)) => {
@@ -249,4 +251,125 @@ pub struct ContextInfo {
 /// Supports * (matches any characters) and ? (matches single character)
 fn wildcard_match(text: &str, pattern: &str) -> bool {
     crate::config::wildcard_match(text, pattern)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{KeyEvent, KeyState};
+
+    #[test]
+    fn test_trigger_matches_simple_key() {
+        let trigger = Trigger::key(0x1E, 0x41); // 'A' key
+
+        // Matching event
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        assert!(trigger.matches(&event));
+
+        // Non-matching scan code
+        let event = InputEvent::Key(KeyEvent::new(0x1F, 0x41, KeyState::Pressed));
+        assert!(!trigger.matches(&event));
+
+        // Non-matching virtual key
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x42, KeyState::Pressed));
+        assert!(!trigger.matches(&event));
+    }
+
+    #[test]
+    fn test_trigger_matches_with_modifiers() {
+        let mut modifiers = ModifierState::new();
+        modifiers.ctrl = true;
+        modifiers.alt = true;
+        let trigger = Trigger::key_with_modifiers(0x4B, 0x25, modifiers); // Ctrl+Alt+Left
+
+        // Matching event with correct modifiers
+        let mut event = KeyEvent::new(0x4B, 0x25, KeyState::Pressed);
+        event.modifiers.ctrl = true;
+        event.modifiers.alt = true;
+        assert!(trigger.matches(&InputEvent::Key(event)));
+
+        // Non-matching: missing modifiers
+        let event = KeyEvent::new(0x4B, 0x25, KeyState::Pressed);
+        assert!(!trigger.matches(&InputEvent::Key(event)));
+
+        // Non-matching: wrong key
+        let mut event = KeyEvent::new(0x4D, 0x27, KeyState::Pressed); // Right arrow
+        event.modifiers.ctrl = true;
+        event.modifiers.alt = true;
+        assert!(!trigger.matches(&InputEvent::Key(event)));
+
+        // Non-matching: extra modifier
+        let mut event = KeyEvent::new(0x4B, 0x25, KeyState::Pressed);
+        event.modifiers.ctrl = true;
+        event.modifiers.alt = true;
+        event.modifiers.shift = true;
+        assert!(!trigger.matches(&InputEvent::Key(event)));
+    }
+
+    #[test]
+    fn test_trigger_matches_hyper_key_combo() {
+        // Simulate "Ctrl+Alt+Win+Left" window shortcut
+        let mut modifiers = ModifierState::new();
+        modifiers.ctrl = true;
+        modifiers.alt = true;
+        modifiers.meta = true;
+        let trigger = Trigger::key_with_modifiers(0x4B, 0x25, modifiers);
+
+        // Should match when all three modifiers are pressed
+        let mut event = KeyEvent::new(0x4B, 0x25, KeyState::Pressed);
+        event.modifiers.ctrl = true;
+        event.modifiers.alt = true;
+        event.modifiers.meta = true;
+        assert!(trigger.matches(&InputEvent::Key(event)));
+
+        // Should NOT match with only two modifiers
+        let mut event = KeyEvent::new(0x4B, 0x25, KeyState::Pressed);
+        event.modifiers.ctrl = true;
+        event.modifiers.alt = true;
+        assert!(!trigger.matches(&InputEvent::Key(event)));
+
+        // Should NOT match with no modifiers (the bug we fixed)
+        let event = KeyEvent::new(0x4B, 0x25, KeyState::Pressed);
+        assert!(!trigger.matches(&InputEvent::Key(event)));
+    }
+
+    #[test]
+    fn test_trigger_matches_only_virtual_key() {
+        // Trigger with only virtual key specified
+        let trigger = Trigger::Key {
+            scan_code: None,
+            virtual_key: Some(0x25),
+            modifiers: ModifierState::default(),
+        };
+
+        // Should match any scan code as long as virtual key matches
+        let event = InputEvent::Key(KeyEvent::new(0x4B, 0x25, KeyState::Pressed));
+        assert!(trigger.matches(&event));
+    }
+
+    #[test]
+    fn test_mapping_rule_matches() {
+        let trigger = Trigger::key(0x1E, 0x41);
+        let action = Action::System(crate::types::SystemAction::VolumeUp);
+        let rule = MappingRule::new(trigger, action);
+
+        let context = ContextInfo::default();
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        assert!(rule.matches(&event, &context));
+
+        let event = InputEvent::Key(KeyEvent::new(0x1F, 0x41, KeyState::Pressed));
+        assert!(!rule.matches(&event, &context));
+    }
+
+    #[test]
+    fn test_disabled_rule_never_matches() {
+        let trigger = Trigger::key(0x1E, 0x41);
+        let action = Action::System(crate::types::SystemAction::VolumeUp);
+        let mut rule = MappingRule::new(trigger, action);
+        rule.enabled = false;
+
+        let context = ContextInfo::default();
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        assert!(!rule.matches(&event, &context));
+    }
 }
