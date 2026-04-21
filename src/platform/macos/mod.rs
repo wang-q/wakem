@@ -7,6 +7,7 @@ pub mod context;
 pub mod input;
 pub mod input_device;
 pub mod launcher;
+pub mod native_api; // Native API wrappers (Core Graphics + Accessibility)
 pub mod output_device;
 pub mod tray;
 pub mod window_api;

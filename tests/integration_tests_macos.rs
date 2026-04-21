@@ -9,12 +9,16 @@
 #[cfg(test)]
 mod macos_integration_tests {
     use wakem::platform::macos::context::WindowContext;
-    use wakem::platform::macos::input::{keycode_to_virtual_key, virtual_key_to_keycode};
+    use wakem::platform::macos::input::{
+        keycode_to_virtual_key, virtual_key_to_keycode,
+    };
     use wakem::platform::macos::launcher::Launcher;
-    use wakem::platform::macos::window_preset::{MacosWindowPresetManager, WindowPreset};
+    use wakem::platform::macos::window_preset::{
+        MacosWindowPresetManager, WindowPreset,
+    };
     use wakem::types::{
-        KeyEvent, KeyAction, KeyState, MouseButton, ModifierState,
-        MouseEvent, MouseAction, MouseEventType,
+        KeyAction, KeyEvent, KeyState, ModifierState, MouseAction, MouseButton,
+        MouseEvent, MouseEventType,
     };
 
     /// Test 1: Keycode mapping consistency across modules
@@ -74,7 +78,9 @@ mod macos_integration_tests {
             process_name: "Safari".to_string(),
             window_class: String::new(),
             window_title: "Apple - Official Website".to_string(),
-            executable_path: Some("/Applications/Safari.app/Contents/MacOS/Safari".to_string()),
+            executable_path: Some(
+                "/Applications/Safari.app/Contents/MacOS/Safari".to_string(),
+            ),
         };
 
         // Test exact match
@@ -99,7 +105,10 @@ mod macos_integration_tests {
             process_name: "Terminal".to_string(),
             window_class: String::new(),
             window_title: "~/Projects/wakem — zsh".to_string(),
-            executable_path: Some("/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal".to_string()),
+            executable_path: Some(
+                "/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"
+                    .to_string(),
+            ),
         };
 
         // Test terminal-specific patterns
@@ -211,16 +220,28 @@ mod macos_integration_tests {
         assert!(matches!(move_event.event_type, MouseEventType::Move));
 
         // Left button down
-        let left_down = MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Left), 150, 250);
-        assert!(matches!(left_down.event_type, MouseEventType::ButtonDown(MouseButton::Left)));
+        let left_down =
+            MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Left), 150, 250);
+        assert!(matches!(
+            left_down.event_type,
+            MouseEventType::ButtonDown(MouseButton::Left)
+        ));
 
         // Left button up
-        let left_up = MouseEvent::new(MouseEventType::ButtonUp(MouseButton::Left), 150, 250);
-        assert!(matches!(left_up.event_type, MouseEventType::ButtonUp(MouseButton::Left)));
+        let left_up =
+            MouseEvent::new(MouseEventType::ButtonUp(MouseButton::Left), 150, 250);
+        assert!(matches!(
+            left_up.event_type,
+            MouseEventType::ButtonUp(MouseButton::Left)
+        ));
 
         // Right button
-        let right_down = MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Right), 300, 400);
-        assert!(matches!(right_down.event_type, MouseEventType::ButtonDown(MouseButton::Right)));
+        let right_down =
+            MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Right), 300, 400);
+        assert!(matches!(
+            right_down.event_type,
+            MouseEventType::ButtonDown(MouseButton::Right)
+        ));
 
         // Scroll wheel
         let scroll = MouseEvent::new(MouseEventType::Wheel(120), 500, 600);
@@ -265,10 +286,10 @@ mod macos_integration_tests {
     #[test]
     fn test_roundtrip_conversion_common_keys() {
         let test_keys = vec![
-            (0x00, 'A'),   // A
-            (0x0D, 'W'),   // W
-            (0x31, ' '),   // Space
-            (0x30, '\t'),  // Tab
+            (0x00, 'A'),         // A
+            (0x0D, 'W'),         // W
+            (0x31, ' '),         // Space
+            (0x30, '\t'),        // Tab
             (0x33, 8u8 as char), // Backspace (ASCII BS)
         ];
 
