@@ -137,7 +137,7 @@ impl InputDevice for MacosInputDevice {
         debug!("Registering MacosInputDevice");
         self.running = true;
 
-        if CGEventTapDevice::check_accessibility_permissions() {
+        if crate::platform::macos::input::check_accessibility_permissions() {
             self.start_tap()?;
         } else {
             debug!("Accessibility permissions not granted, using passive mode");
@@ -716,8 +716,8 @@ mod tests {
     fn test_keycode_mapping_consistency() {
         // Verify keycode_to_virtual_key produces consistent results
         assert_eq!(keycode_to_virtual_key(0x00), 0x41); // A
-        assert_eq!(keycode_to_virtual_key(0x31), 0x20); // Space
-        assert_eq!(keycode_to_virtual_key(0x24), 0x0D); // Return
+        assert_eq!(keycode_to_virtual_key(0x2F), 0x20); // Space
+        assert_eq!(keycode_to_virtual_key(0x23), 0x0D); // Return
         assert_eq!(keycode_to_virtual_key(0x7A), 0x70); // F1
     }
 }
