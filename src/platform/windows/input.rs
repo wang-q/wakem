@@ -8,6 +8,10 @@ use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use tracing::{debug, trace};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_MENU,
+    VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_SHIFT,
+};
 use windows::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, RIDEV_INPUTSINK, RIDEV_NOLEGACY,
 };
@@ -205,6 +209,38 @@ impl RawInputDevice {
         }
     }
 
+    /// Get current modifier key state from Windows
+    unsafe fn get_current_modifier_state() -> ModifierState {
+        let mut modifiers = ModifierState::new();
+
+        // Check if modifier keys are currently pressed
+        // GetAsyncKeyState returns negative value if key is currently down
+        if GetAsyncKeyState(VK_SHIFT.0 as i32) < 0
+            || GetAsyncKeyState(VK_LSHIFT.0 as i32) < 0
+            || GetAsyncKeyState(VK_RSHIFT.0 as i32) < 0
+        {
+            modifiers.shift = true;
+        }
+        if GetAsyncKeyState(VK_CONTROL.0 as i32) < 0
+            || GetAsyncKeyState(VK_LCONTROL.0 as i32) < 0
+            || GetAsyncKeyState(VK_RCONTROL.0 as i32) < 0
+        {
+            modifiers.ctrl = true;
+        }
+        if GetAsyncKeyState(VK_MENU.0 as i32) < 0
+            || GetAsyncKeyState(VK_LMENU.0 as i32) < 0
+            || GetAsyncKeyState(VK_RMENU.0 as i32) < 0
+        {
+            modifiers.alt = true;
+        }
+        if GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0 {
+            // VK_LWIN (0x5B) or VK_RWIN (0x5C)
+            modifiers.meta = true;
+        }
+
+        modifiers
+    }
+
     /// Handle Raw Input message
     unsafe fn handle_raw_input(lparam: LPARAM) {
         let mut raw_data: [u8; WILDCARD_MAX_INPUT_SIZE] = [0; WILDCARD_MAX_INPUT_SIZE];
@@ -250,13 +286,18 @@ impl RawInputDevice {
                 KeyState::Released
             };
 
-            let event = KeyEvent::new(scan_code, keyboard.VKey, state);
+            // Get current modifier state
+            let modifiers = Self::get_current_modifier_state();
+
+            let event =
+                KeyEvent::new(scan_code, keyboard.VKey, state).with_modifiers(modifiers);
 
             trace!(
-                "Keyboard: scan_code={:04X}, vk={:04X}, state={:?}",
+                "Keyboard: scan_code={:04X}, vk={:04X}, state={:?}, modifiers={:?}",
                 scan_code,
                 keyboard.VKey,
-                state
+                state,
+                modifiers
             );
 
             // Send event
