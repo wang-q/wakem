@@ -31,7 +31,7 @@ impl MacroPlayer {
             Self::ensure_modifiers(output_device, &step.modifiers).await?;
 
             // Execute action
-            Self::execute_action(output_device, &step.action)?;
+            Self::execute_action(output_device, &step.action).await?;
         }
 
         // Finally release all modifiers
@@ -80,12 +80,12 @@ impl MacroPlayer {
         .await?
     }
 
-    /// 释放所有修饰键（使用 spawn_blocking 避免阻塞 Tokio 运行时）
+    /// Release all modifiers (uses spawn_blocking to avoid blocking Tokio runtime)
     async fn release_all_modifiers(output: &OutputDevice) -> anyhow::Result<()> {
         let output_copy = *output;
 
         tokio::task::spawn_blocking(move || {
-            // 释放顺序：与按下相反
+            // Release order: opposite of press
             output_copy.send_key_action(&KeyAction::Release {
                 scan_code: 0x5B,
                 virtual_key: 0x5B,
@@ -108,8 +108,8 @@ impl MacroPlayer {
         .await?
     }
 
-    /// 执行单个动作
-    fn execute_action(
+    /// Execute single action
+    async fn execute_action(
         output_device: &OutputDevice,
         action: &Action,
     ) -> anyhow::Result<()> {
@@ -124,29 +124,29 @@ impl MacroPlayer {
             }
             Action::Delay { milliseconds } => {
                 debug!("Macro Delay: {}ms", milliseconds);
-                // 延迟在 play_macro 中处理
+                // Delay is handled in play_macro
             }
             Action::Window(window_action) => {
                 debug!("Macro WindowAction: {:?}", window_action);
-                // 窗口动作需要通过 ActionMapper 执行
-                // 这里暂时只记录日志
+                // Window actions need to be executed via ActionMapper
+                // Just log here for now
             }
             Action::Launch(launch_action) => {
                 debug!("Macro LaunchAction: {:?}", launch_action);
-                // 启动程序动作
+                // Launch program action
             }
             Action::System(system_action) => {
                 debug!("Macro SystemAction: {:?}", system_action);
-                // 系统控制动作
+                // System control action
             }
             Action::Sequence(actions) => {
                 debug!("Macro Sequence: {} actions", actions.len());
                 for sub_action in actions {
-                    Self::execute_action(output_device, sub_action)?;
+                    Box::pin(Self::execute_action(output_device, sub_action)).await?;
                 }
             }
             Action::None => {
-                // 无操作
+                // No operation
             }
         }
 
@@ -163,13 +163,13 @@ mod tests {
 
     #[test]
     fn test_macro_player_creation() {
-        // 这个测试只是验证编译通过
-        // 实际测试需要 OutputDevice，比较复杂
+        // This test just verifies compilation passes
+        // Actual testing requires OutputDevice, which is complex
     }
 
     #[test]
     fn test_macro_step_variants() {
-        // 验证所有动作变体可以创建
+        // Verify all action variants can be created
         let steps: Vec<MacroStep> = vec![
             MacroStep::new(
                 0,
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_macro_with_modifiers() {
-        // Test带修饰键的宏步骤
+        // Test macro steps with modifiers
         let mut modifiers = ModifierState::default();
         modifiers.ctrl = true;
         modifiers.shift = true;

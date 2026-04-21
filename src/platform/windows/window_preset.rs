@@ -7,7 +7,7 @@ use crate::config::WindowPreset;
 use crate::platform::windows::window_manager::RealWindowManager;
 use crate::platform::windows::WindowFrame;
 
-/// Window preset管理器
+/// Window preset manager
 #[allow(dead_code)]
 pub struct WindowPresetManager {
     presets: Vec<WindowPreset>,
@@ -16,7 +16,7 @@ pub struct WindowPresetManager {
 
 #[allow(dead_code)]
 impl WindowPresetManager {
-    /// 创建新的预设管理器
+    /// Create new preset manager
     pub fn new() -> Self {
         Self {
             presets: Vec::new(),
@@ -24,7 +24,7 @@ impl WindowPresetManager {
         }
     }
 
-    /// 从配置加载预设
+    /// Load presets from config
     pub fn load_presets(&mut self, presets: Vec<WindowPreset>) {
         self.presets = presets;
         debug!("Loaded {} window presets", self.presets.len());
@@ -41,19 +41,19 @@ impl WindowPresetManager {
     ) -> Result<()> {
         let info = self.window_manager.get_window_info(hwnd)?;
 
-        // 如果未提供进程名，尝试自动获取
+        // If process name not provided, try to get automatically
         let process_name = process_name.or_else(|| unsafe {
             let pid = Self::get_window_process_id(hwnd).ok()?;
             Self::get_process_name_by_pid(pid).ok()
         });
 
-        // 如果未提供可执行路径，尝试自动获取
+        // If executable path not provided, try to get automatically
         let executable_path = executable_path
             .or_else(|| unsafe { Self::get_window_executable_path(hwnd).ok() });
 
-        // 检查是否已存在同名预设
+        // Check if preset with same name already exists
         if let Some(existing) = self.presets.iter_mut().find(|p| p.name == name) {
-            // 更新现有预设
+            // Update existing preset
             existing.process_name = process_name;
             existing.executable_path = executable_path;
             existing.title_pattern = title_pattern;
@@ -63,7 +63,7 @@ impl WindowPresetManager {
             existing.height = info.frame.height;
             debug!("Updated preset '{}' for window {:?}", name, hwnd);
         } else {
-            // 创建新预设
+            // Create new preset
             let preset = WindowPreset {
                 name: name.to_string(),
                 process_name,
@@ -81,7 +81,7 @@ impl WindowPresetManager {
         Ok(())
     }
 
-    /// 加载指定预设到窗口
+    /// Load specified preset to window
     pub fn load_preset(&self, name: &str, hwnd: HWND) -> Result<()> {
         let preset = self
             .presets
@@ -103,7 +103,7 @@ impl WindowPresetManager {
     pub fn apply_preset_for_window(&self, hwnd: HWND) -> Result<bool> {
         let info = self.window_manager.get_window_info(hwnd)?;
 
-        // 获取窗口的进程信息
+        // Get window process info
         let (process_name, executable_path) = unsafe {
             let pid = Self::get_window_process_id(hwnd)?;
             let proc_name = Self::get_process_name_by_pid(pid).unwrap_or_default();
@@ -111,7 +111,7 @@ impl WindowPresetManager {
             (proc_name, Some(exec_path))
         };
 
-        // 查找匹配的预设
+        // Find matching preset
         for preset in &self.presets {
             if preset.matches(&process_name, executable_path.as_deref(), &info.title) {
                 let frame =
@@ -132,7 +132,7 @@ impl WindowPresetManager {
         Ok(false)
     }
 
-    /// 获取窗口进程ID
+    /// Get window process ID
     unsafe fn get_window_process_id(hwnd: HWND) -> Result<u32> {
         let mut pid: u32 = 0;
         windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
@@ -147,7 +147,7 @@ impl WindowPresetManager {
         Ok(pid)
     }
 
-    /// 通过进程ID获取进程名
+    /// Get process name by process ID
     unsafe fn get_process_name_by_pid(pid: u32) -> Result<String> {
         use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
@@ -171,7 +171,7 @@ impl WindowPresetManager {
         Ok(String::from_utf16_lossy(&buffer[..len as usize]))
     }
 
-    /// 获取窗口可执行文件路径
+    /// Get window executable file path
     unsafe fn get_window_executable_path(hwnd: HWND) -> Result<String> {
         use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
@@ -197,7 +197,7 @@ impl WindowPresetManager {
         Ok(String::from_utf16_lossy(&buffer[..len as usize]))
     }
 
-    /// 获取前台窗口信息（用于保存预设时）
+    /// Get foreground window info (used when saving preset)
     pub fn get_foreground_window_info(
         &self,
     ) -> Result<(HWND, String, Option<String>, Option<String>)> {

@@ -1557,7 +1557,7 @@ test_macro = []
         assert!(wildcard_match_dp("hello", "hello"));
         assert!(!wildcard_match_dp("hello", "world"));
 
-        // * 通配符（匹配任意字符序列）
+        // * wildcard (matches any character sequence)
         assert!(wildcard_match_dp("test.exe", "*.exe"));
         assert!(wildcard_match_dp("file.txt", "*.txt"));
         assert!(wildcard_match_dp("", "*"));
@@ -1565,14 +1565,14 @@ test_macro = []
         assert!(wildcard_match_dp("prefix-suffix", "*suffix"));
         assert!(wildcard_match_dp("prefix-suffix", "prefix*"));
 
-        // ? 通配符（匹配单个字符）
+        // ? wildcard (matches single character)
         assert!(wildcard_match_dp("cat", "?at"));
         assert!(wildcard_match_dp("bat", "?at"));
-        assert!(!wildcard_match_dp("at", "?at")); // ? 需要一个字符
+        assert!(!wildcard_match_dp("at", "?at")); // ? requires one character
         assert!(wildcard_match_dp("abc", "???"));
         assert!(!wildcard_match_dp("ab", "???"));
 
-        // 混合使用
+        // Mixed usage
         assert!(wildcard_match_dp("test123.txt", "test*.txt"));
         assert!(wildcard_match_dp("file_1.txt", "file_?.txt"));
     }
@@ -1583,7 +1583,7 @@ test_macro = []
         assert!(wildcard_match_dp("", ""));
         assert!(!wildcard_match_dp("a", ""));
         assert!(wildcard_match_dp("", "*"));
-        assert!(!wildcard_match_dp("", "?")); // ? 需要至少一个字符
+        assert!(!wildcard_match_dp("", "?")); // ? requires at least one character
 
         // consecutive *
         assert!(wildcard_match_dp("test", "**test"));
@@ -1593,7 +1593,7 @@ test_macro = []
         // multiple leading *
         assert!(wildcard_match_dp("test", "****test"));
 
-        // case insensitive（已转换为小写）
+        // case insensitive (converted to lowercase)
         assert!(wildcard_match_dp("TEST.EXE", "*.exe"));
         assert!(wildcard_match_dp("File.TXT", "*.txt"));
     }
@@ -1618,18 +1618,18 @@ test_macro = []
 
     #[test]
     fn test_wildcard_dp_performance_safety() {
-        // Test不会因为长输入而崩溃或栈溢出
+        // Test should not crash or stack overflow on long input
         let long_text = "a".repeat(1000);
         let long_pattern = "*".repeat(100);
 
-        // 应该能正常处理，不会栈溢出
+        // Should handle normally without stack overflow
         let result = wildcard_match_dp(&long_text, &long_pattern);
-        assert!(result); // * 匹配任何内容
+        assert!(result); // * matches anything
 
-        // 空模式和长文本
+        // empty pattern and long text
         assert!(!wildcard_match_dp(&long_text, ""));
 
-        // 长文本和简单模式
+        // long text and simple pattern
         assert!(wildcard_match_dp(&long_text, "*"));
     }
 
@@ -1653,7 +1653,7 @@ test_macro = []
             panic!("Expected Key trigger");
         }
 
-        // Test带 Win 键
+        // Test with Win key
         let trigger = parse_shortcut_trigger("Ctrl+Win+Left").unwrap();
         if let Trigger::Key { modifiers, .. } = trigger {
             assert!(modifiers.ctrl);
@@ -1665,10 +1665,10 @@ test_macro = []
 
     #[test]
     fn test_parse_shortcut_trigger_invalid() {
-        // 空快捷键
+        // Empty shortcut
         assert!(parse_shortcut_trigger("").is_err());
 
-        // 只有修饰键
+        // Modifiers only
         assert!(parse_shortcut_trigger("Ctrl+Alt").is_err());
     }
 
@@ -1676,14 +1676,14 @@ test_macro = []
     fn test_parse_launch_mapping() {
         let rule = parse_launch_mapping("F1", "notepad.exe").unwrap();
 
-        // 验证触发器
+        // Verify trigger
         if let crate::types::Trigger::Key { virtual_key, .. } = &rule.trigger {
             assert_eq!(*virtual_key, Some(0x70)); // VK_F1
         } else {
             panic!("Expected Key trigger");
         }
 
-        // 验证动作
+        // Verify action
         if let crate::types::Action::Launch(cmd) = &rule.action {
             assert_eq!(cmd.program, "notepad.exe");
         } else {
@@ -1743,23 +1743,23 @@ F5 = "test_macro"
     }
 }
 
-/// 解析启动项映射
-/// 支持格式:
-/// - 简单命令: "notepad.exe"
-/// - 带参数命令: "notepad.exe C:\\Users\\test.txt"
+/// Parse launch item mapping
+/// Supported formats:
+/// - Simple command: "notepad.exe"
+/// - Command with arguments: "notepad.exe C:\\Users\\test.txt"
 fn parse_launch_mapping(trigger: &str, command: &str) -> anyhow::Result<MappingRule> {
     use crate::types::{Action, Trigger};
 
-    // 解析触发键
+    // Parse trigger key
     let (scan_code, virtual_key) = parse_key(trigger)?;
     let trigger_obj = Trigger::key(scan_code, virtual_key);
 
-    // 解析启动命令
+    // Parse launch command
     let action = if command.contains(' ') {
-        // 使用 Launcher::parse_command 解析带参数的命令
+        // Use Launcher::parse_command to parse commands with arguments
         Action::Launch(Launcher::parse_command(command))
     } else {
-        // 简单命令
+        // Simple command
         Action::launch(command)
     };
 

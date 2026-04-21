@@ -9,24 +9,24 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
-/// IPC 服务端（基于 TCP）
+/// IPC server (based on TCP)
 ///
-/// Security特性：
-/// - IP 白名单（仅允许内网连接）
-/// - 挑战-响应认证机制
-/// - 连接速率限制（防止暴力破解）
+/// Security features:
+/// - IP whitelist (only allow local connections)
+/// - Challenge-response authentication mechanism
+/// - Connection rate limiting (prevent brute force attacks)
 pub struct IpcServer {
     listener: Option<TcpListener>,
     bind_address: String,
-    /// Authentication密钥（使用 Arc<RwLock> 支持动态更新）
+    /// Authentication key (using Arc<RwLock> for dynamic updates)
     auth_key: Option<Arc<RwLock<String>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
-    /// 连接速率限制器（防止暴力破解）
+    /// Connection rate limiter (prevent brute force attacks)
     rate_limiter: Arc<RwLock<ConnectionLimiter>>,
 }
 
 impl IpcServer {
-    /// 创建新的服务端（使用动态密钥）
+    /// Create new server (with dynamic key)
     pub fn new_with_dynamic_key(
         bind_address: impl Into<String>,
         auth_key: Arc<RwLock<String>>,
@@ -41,7 +41,7 @@ impl IpcServer {
         }
     }
 
-    /// 创建新的服务端（静态密钥，向后兼容）
+    /// Create new server (static key, backward compatible)
     pub fn new(
         bind_address: impl Into<String>,
         auth_key: Option<String>,
@@ -56,7 +56,7 @@ impl IpcServer {
         }
     }
 
-    /// 启动服务端
+    /// Start server
     pub async fn start(&mut self) -> Result<()> {
         let listener = TcpListener::bind(&self.bind_address).await?;
         info!("Server listening on {}", self.bind_address);
@@ -64,7 +64,7 @@ impl IpcServer {
         Ok(())
     }
 
-    /// 运行服务端主循环
+    /// Run server main loop
     pub async fn run(&mut self) -> Result<()> {
         let listener = self.listener.as_ref().ok_or(IpcError::ConnectionClosed)?;
 
@@ -73,7 +73,7 @@ impl IpcServer {
                 Ok((stream, addr)) => {
                     debug!("New connection from {}", addr);
 
-                    // 检查 IP 是否允许（安全层1：IP白名单）
+                    // Check if IP is allowed (Security layer 1: IP whitelist)
                     if !security::is_allowed_ip(addr.ip()) {
                         warn!("Rejected connection from external IP: {}", addr);
                         continue;

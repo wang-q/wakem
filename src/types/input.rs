@@ -91,7 +91,7 @@ pub struct MouseEvent {
     pub modifiers: ModifierState,
     /// Timestamp
     pub timestamp: Timestamp,
-    /// 是否来自物理设备
+    /// Whether from physical device
     pub is_injected: bool,
 }
 

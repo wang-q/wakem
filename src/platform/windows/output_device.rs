@@ -5,11 +5,11 @@ use std::cell::RefCell;
 #[allow(unused_imports)]
 use tracing::trace;
 
-/// Output事件类型
+/// Output event types
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub enum OutputEvent {
-    /// 按键事件
+    /// Key event
     Key {
         scan_code: u16,
         virtual_key: u16,
@@ -19,36 +19,36 @@ pub enum OutputEvent {
     MouseMove { x: i32, y: i32, relative: bool },
     /// Mouse button
     MouseButton { button: MouseButton, release: bool },
-    /// 鼠标滚轮
+    /// Mouse wheel
     MouseWheel { delta: i32, horizontal: bool },
 }
 
-/// Output device抽象接口
+/// Output device abstract interface
 #[allow(dead_code)]
 pub trait OutputDevice {
-    /// 发送按键动作
+    /// Send key action
     fn send_key_action(&self, action: &KeyAction) -> Result<()>;
-    /// 发送单个按键
+    /// Send single key
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()>;
-    /// 发送鼠标动作
+    /// Send mouse action
     fn send_mouse_action(&self, action: &MouseAction) -> Result<()>;
-    /// 发送鼠标移动
+    /// Send mouse move
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()>;
-    /// 发送鼠标按钮
+    /// Send mouse button
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()>;
-    /// 发送鼠标滚轮
+    /// Send mouse wheel
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()>;
-    /// 发送系统动作
+    /// Send system action
     fn send_system_action(&self, action: &SystemAction) -> Result<()>;
 }
 
-/// 真实 SendInput 实现
+/// Real SendInput implementation
 #[allow(dead_code)]
 pub struct SendInputDevice;
 
 #[allow(dead_code)]
 impl SendInputDevice {
-    /// 创建新的 SendInput 设备
+    /// Create new SendInput device
     pub fn new() -> Self {
         Self
     }
@@ -112,7 +112,7 @@ impl OutputDevice for SendInputDevice {
                 input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
             }
 
-            // 如果是扩展键，添加标志
+            // If extended key, add flag
             if virtual_key >= 0xE000 {
                 input.Anonymous.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
             }
@@ -179,7 +179,7 @@ impl OutputDevice for SendInputDevice {
             input.Anonymous.mi.dwFlags = MOUSEEVENTF_MOVE;
 
             if !relative {
-                // 绝对坐标（需要归一化到 0-65535）
+                // Absolute coordinates (need to normalize to 0-65535)
                 input.Anonymous.mi.dwFlags |= MOUSEEVENTF_ABSOLUTE;
             }
         }
@@ -321,7 +321,7 @@ impl OutputDevice for SendInputDevice {
 }
 
 impl SendInputDevice {
-    /// 发送文本（内部方法）
+    /// Send text (internal method)
     fn send_text(&self, text: &str) -> Result<()> {
         for ch in text.chars() {
             if let Some(vk) = char_to_vk(ch) {
@@ -332,14 +332,14 @@ impl SendInputDevice {
         Ok(())
     }
 
-    /// 发送组合键（内部方法）
+    /// Send key combo (internal method)
     fn send_combo(
         &self,
         modifiers: &crate::types::ModifierState,
         scan_code: u16,
         virtual_key: u16,
     ) -> Result<()> {
-        // 按下修饰键
+        // Press modifier keys
         if modifiers.shift {
             self.send_key(0x2A, 0xA0, false)?; // LShift
         }
@@ -353,13 +353,13 @@ impl SendInputDevice {
             self.send_key(0xE05B, 0x5B, false)?; // LWin
         }
 
-        // 按下目标键
+        // Press target key
         self.send_key(scan_code, virtual_key, false)?;
 
-        // 释放目标键
+        // Release target key
         self.send_key(scan_code, virtual_key, true)?;
 
-        // 释放修饰键（逆序）
+        // Release modifier keys (reverse order)
         if modifiers.meta {
             self.send_key(0xE05B, 0x5B, true)?;
         }
@@ -377,7 +377,7 @@ impl SendInputDevice {
     }
 }
 
-/// Mock 输出设备用于测试
+/// Mock output device for testing
 #[cfg(test)]
 pub struct MockOutputDevice {
     events: RefCell<Vec<OutputEvent>>,
@@ -385,29 +385,29 @@ pub struct MockOutputDevice {
 
 #[cfg(test)]
 impl MockOutputDevice {
-    /// 创建新的 Mock 输出设备
+    /// Create new Mock output device
     pub fn new() -> Self {
         Self {
             events: RefCell::new(Vec::new()),
         }
     }
 
-    /// 获取所有输出的事件
+    /// Get all output events
     pub fn get_events(&self) -> Vec<OutputEvent> {
         self.events.borrow().clone()
     }
 
-    /// 获取事件数量
+    /// Get event count
     pub fn event_count(&self) -> usize {
         self.events.borrow().len()
     }
 
-    /// 清空事件
+    /// Clear events
     pub fn clear(&self) {
         self.events.borrow_mut().clear();
     }
 
-    /// 获取最后一个事件
+    /// Get last event
     pub fn last_event(&self) -> Option<OutputEvent> {
         self.events.borrow().last().cloned()
     }
@@ -480,7 +480,7 @@ impl OutputDevice for MockOutputDevice {
                 }
             }
             KeyAction::Combo { modifiers, key } => {
-                // 按下修饰键
+                // Press modifier keys
                 if modifiers.shift {
                     self.record_event(OutputEvent::Key {
                         scan_code: 0x2A,
@@ -509,7 +509,7 @@ impl OutputDevice for MockOutputDevice {
                         release: false,
                     });
                 }
-                // 目标键
+                // Target key
                 self.record_event(OutputEvent::Key {
                     scan_code: key.0,
                     virtual_key: key.1,
@@ -520,7 +520,7 @@ impl OutputDevice for MockOutputDevice {
                     virtual_key: key.1,
                     release: true,
                 });
-                // 释放修饰键
+                // Release modifier keys
                 if modifiers.meta {
                     self.record_event(OutputEvent::Key {
                         scan_code: 0xE05B,
@@ -628,12 +628,12 @@ impl OutputDevice for MockOutputDevice {
     }
 
     fn send_system_action(&self, _action: &SystemAction) -> Result<()> {
-        // Mock 实现不记录系统动作
+        // Mock implementation doesn't record system actions
         Ok(())
     }
 }
 
-/// 将字符转换为虚拟键码（简化版）
+/// Convert character to virtual key code (simplified)
 fn char_to_vk(ch: char) -> Option<u16> {
     match ch {
         'a'..='z' => Some(ch as u16 - 'a' as u16 + 0x41),

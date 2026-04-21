@@ -10,18 +10,18 @@ pub struct DaemonClient {
 }
 
 impl DaemonClient {
-    /// 创建新的客户端（不连接）
+    /// Create new client (not connected)
     pub fn new() -> Self {
         Self { client: None }
     }
 
-    /// 连接到指定实例
+    /// Connect to specified instance
     pub async fn connect_to_instance(&mut self, instance_id: u32) -> Result<()> {
         let address = get_instance_address(instance_id);
         self.connect(&address, None).await
     }
 
-    /// 连接到指定地址
+    /// Connect to specified address
     pub async fn connect(
         &mut self,
         address: impl Into<String>,
@@ -46,13 +46,13 @@ impl DaemonClient {
         }
     }
 
-    /// 检查是否已连接
+    /// Check if connected
     #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         self.client.is_some()
     }
 
-    /// 获取服务端状态
+    /// Get server status
     pub async fn get_status(&mut self) -> Result<(bool, bool)> {
         let response = self.send_receive(&Message::GetStatus).await?;
 
@@ -65,7 +65,7 @@ impl DaemonClient {
         }
     }
 
-    /// 设置启用状态
+    /// Set active state
     pub async fn set_active(&mut self, active: bool) -> Result<()> {
         let response = self.send_receive(&Message::SetActive { active }).await?;
 

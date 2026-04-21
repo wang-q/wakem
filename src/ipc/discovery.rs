@@ -4,19 +4,19 @@ use tracing::debug;
 
 use super::{get_instance_address, get_instance_port};
 
-/// 实例信息
+/// Instance information
 #[derive(Debug, Clone)]
 pub struct InstanceInfo {
-    /// 实例ID
+    /// Instance ID
     pub id: u32,
-    /// 绑定地址
+    /// Bind address
     pub address: String,
-    /// 是否活跃（可连接）
+    /// Whether active (connectable)
     pub active: bool,
 }
 
-/// Discovery运行中的实例
-/// 扫描端口 57427-57436（最多10个实例，ID 0-9）
+/// Discover running instances
+/// Scan ports 57427-57436 (max 10 instances, ID 0-9)
 pub async fn discover_instances() -> Vec<InstanceInfo> {
     let mut instances = Vec::new();
 
@@ -24,7 +24,7 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
         let address = get_instance_address(id);
         let _port = get_instance_port(id);
 
-        // 尝试连接，超时100ms
+        // Try to connect, timeout 100ms
         let active = match timeout(
             Duration::from_millis(100),
             TcpStream::connect(&address),
@@ -57,10 +57,10 @@ mod tests {
         let instances = discover_instances().await;
         assert_eq!(instances.len(), 10);
 
-        // 验证实例ID和地址格式
+        // Verify instance ID and address format
         for (i, info) in instances.iter().enumerate() {
             assert_eq!(info.id, i as u32);
-            // 地址格式应为 127.0.0.1:PORT
+            // Address format should be 127.0.0.1:PORT
             assert!(info.address.starts_with("127.0.0.1:"));
         }
     }

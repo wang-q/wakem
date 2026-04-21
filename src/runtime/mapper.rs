@@ -8,15 +8,16 @@ use tracing::{debug, trace};
 #[cfg(target_os = "windows")]
 use crate::platform::windows::window_manager::RealWindowManager;
 
-/// Context感知映射规则
+/// Context-aware mapping rule
 ///
-/// 根据当前窗口的属性（进程名、窗口类、标题等）来选择不同的映射表。
-/// 这使得同一个按键在不同应用中可以有不同的行为。
+/// Select different mapping tables based on current window attributes
+/// (process name, window class, title, etc.).
+/// This allows the same key to have different behaviors in different applications.
 ///
-/// # 示例
+/// # Example
 ///
 /// ```ignore
-/// // 在 VSCode 中将 CapsLock 映射为 Ctrl，但在其他应用中映射为 Esc
+/// // Map CapsLock to Ctrl in VSCode, but to Esc in other apps
 /// let rule = ContextMappingRule {
 ///     context: ContextCondition::new()
 ///         .with_process_name("Code.exe"),
@@ -29,88 +30,88 @@ use crate::platform::windows::window_manager::RealWindowManager;
 /// ```
 #[derive(Debug, Clone)]
 pub struct ContextMappingRule {
-    /// Context condition（决定何时应用此规则）
+    /// Context condition (determines when to apply this rule)
     pub context: ContextCondition,
-    /// 映射表：扫描码 -> 动作（当条件满足时使用）
+    /// Mapping table: scan code -> action (used when condition is met)
     pub mappings: HashMap<u16, Action>,
 }
 
-/// 键位映射引擎
+/// Key mapping engine
 ///
-/// wakem 的核心组件，负责：
-/// - 管理基础键位映射规则
-/// - 支持上下文感知映射（根据当前窗口动态切换）
-/// - 处理输入事件并返回相应的动作
-/// - 执行各种动作类型（键盘、鼠标、窗口、启动程序等）
+/// Core component of wakem, responsible for:
+/// - Managing basic key mapping rules
+/// - Supporting context-aware mapping (dynamic switching based on current window)
+/// - Processing input events and returning corresponding actions
+/// - Executing various action types (keyboard, mouse, window, launch program, etc.)
 ///
-/// # 架构说明
+/// # Architecture
 ///
-/// 映射引擎采用分层处理策略：
-/// 1. **基础映射** - 始终生效的全局规则
-/// 2. **上下文映射** - 仅在特定条件下生效的规则（优先级更高）
-/// 3. **层管理器** - 由 LayerManager 提供，支持临时覆盖
+/// The mapping engine uses a layered processing strategy:
+/// 1. **Base mappings** - Global rules that always take effect
+/// 2. **Context mappings** - Rules that only take effect under specific conditions (higher priority)
+/// 3. **Layer manager** - Provided by LayerManager, supports temporary overrides
 ///
-/// # 使用示例
+/// # Usage Example
 ///
 /// ```ignore
 /// use wakem::runtime::KeyMapper;
 ///
-/// // 创建映射引擎
+/// // Create mapping engine
 /// let mut mapper = KeyMapper::new();
 ///
-/// // 加载配置中的规则
+/// // Load rules from configuration
 /// let rules = config.get_all_rules();
 /// mapper.load_rules(rules);
 ///
-/// // 处理输入事件
+/// // Process input event
 /// if let Some(action) = mapper.process_event(&input_event) {
 ///     mapper.execute_action(&action)?;
 /// }
 /// ```
 ///
-/// # 性能特性
+/// # Performance Characteristics
 ///
-/// - 使用 HashMap 实现快速查找（O(1) 平均复杂度）
-/// - 上下文条件缓存以减少重复计算
-/// - 支持热重载配置而不重启服务
+/// - Uses HashMap for fast lookup (O(1) average complexity)
+/// - Context condition caching to reduce repeated calculations
+/// - Supports hot-reload configuration without restarting service
 pub struct KeyMapper {
-    /// 基础映射表：扫描码 -> 动作
+    /// Base mapping table: scan code -> action
     ///
-    /// 存储全局性的键位映射规则，这些规则始终生效。
-    /// 键是扫描码（硬件相关），值是要执行的动作。
+    /// Stores global key mapping rules that always take effect.
+    /// Key is scan code (hardware-related), value is the action to execute.
     mappings: HashMap<u16, Action>,
 
-    /// 完整的映射规则列表
+    /// Complete mapping rule list
     ///
-    /// 保留原始规则用于调试和序列化。
+    /// Preserves original rules for debugging and serialization.
     rules: Vec<MappingRule>,
 
-    /// Context感知映射规则列表
+    /// Context-aware mapping rule list
     ///
-    /// 这些规则仅在满足特定上下文条件时生效，
-    /// 例如：只在 VSCode 中将 CapsLock 映射为 Ctrl。
+    /// These rules only take effect when specific context conditions are met,
+    /// e.g.: Only map CapsLock to Ctrl in VSCode.
     context_rules: Vec<ContextMappingRule>,
 
-    /// 是否启用映射引擎
+    /// Whether the mapping engine is enabled
     ///
-    /// 当为 false 时，所有输入事件直接透传，不进行任何映射。
+    /// When false, all input events are passed through without any mapping.
     enabled: bool,
 
-    /// Window manager（用于执行窗口管理动作）
+    /// Window manager (for executing window management actions)
     #[cfg(target_os = "windows")]
     window_manager: Option<RealWindowManager>,
 
-    /// Tray图标（用于显示通知）
+    /// Tray icon (for displaying notifications)
     #[cfg(target_os = "windows")]
     tray_icon: Option<crate::platform::windows::TrayIcon>,
 
-    /// Window preset管理器（用于保存/加载窗口预设）
+    /// Window preset manager (for saving/loading window presets)
     #[cfg(target_os = "windows")]
     window_preset_manager: Option<crate::platform::windows::WindowPresetManager>,
 }
 
 impl KeyMapper {
-    /// 创建新的映射引擎
+    /// Create a new mapping engine
     pub fn new() -> Self {
         Self {
             mappings: HashMap::new(),
@@ -126,7 +127,7 @@ impl KeyMapper {
         }
     }
 
-    /// 创建带窗口管理器的映射引擎
+    /// Create a mapping engine with window manager
     #[cfg(target_os = "windows")]
     pub fn with_window_manager(window_manager: RealWindowManager) -> Self {
         Self {
@@ -142,7 +143,7 @@ impl KeyMapper {
         }
     }
 
-    /// 设置窗口预设管理器
+    /// Set window preset manager
     #[cfg(target_os = "windows")]
     pub fn set_window_preset_manager(
         &mut self,
@@ -151,14 +152,14 @@ impl KeyMapper {
         self.window_preset_manager = Some(manager);
     }
 
-    /// 从配置加载映射规则
+    /// Load mapping rules from configuration
     pub fn load_rules(&mut self, rules: Vec<MappingRule>) {
         self.rules = rules;
         self.rebuild_mappings();
         debug!("Loaded {} mapping rules", self.rules.len());
     }
 
-    /// Process input event（带上下文感知）
+    /// Process input event (with context awareness)
     pub fn process_event_with_context(
         &self,
         event: &InputEvent,
@@ -173,13 +174,13 @@ impl KeyMapper {
                 self.process_key_event_with_context(key_event, context)
             }
             InputEvent::Mouse(_) => {
-                // 鼠标事件处理（TODO）
+                // Mouse event handling (TODO)
                 None
             }
         }
     }
 
-    /// 处理键盘事件（带上下文感知）
+    /// Process keyboard event (with context awareness)
     fn process_key_event_with_context(
         &self,
         event: &KeyEvent,
@@ -192,17 +193,17 @@ impl KeyMapper {
             event.state
         );
 
-        // 1. 首先检查上下文特定规则（优先级高）
+        // 1. First check context-specific rules (high priority)
         if let Some(ctx) = context {
             for rule in &self.context_rules {
-                // 检查上下文是否匹配
+                // Check if context matches
                 if rule.context.matches(
                     &ctx.process_name,
                     &ctx.window_class,
                     &ctx.window_title,
                     Some(&ctx.executable_path),
                 ) {
-                    // 在匹配的上下文中查找映射
+                    // Look up mapping in matched context
                     if let Some(action) = rule.mappings.get(&event.scan_code) {
                         let adjusted_action =
                             self.adjust_action_for_key_state(action, event);
@@ -220,7 +221,7 @@ impl KeyMapper {
             }
         }
 
-        // 2. 检查基础映射（全局规则）
+        // 2. Check base mappings (global rules)
         if let Some(action) = self.mappings.get(&event.scan_code) {
             let adjusted_action = self.adjust_action_for_key_state(action, event);
             if adjusted_action.is_some() {
@@ -236,7 +237,7 @@ impl KeyMapper {
         None
     }
 
-    /// 根据按键状态调整动作
+    /// Adjust action based on key state
     fn adjust_action_for_key_state(
         &self,
         action: &Action,
@@ -250,7 +251,7 @@ impl KeyMapper {
                 }),
                 _,
             ) => {
-                // 如果是点击动作，根据实际按键状态调整
+                // If it's a click action, adjust based on actual key state
                 match event.state {
                     KeyState::Pressed => Some(Action::Key(KeyAction::Press {
                         scan_code: *scan_code,
@@ -266,7 +267,7 @@ impl KeyMapper {
         }
     }
 
-    /// Execute action（包括窗口管理动作）
+    /// Execute action (including window management actions)
     #[cfg(target_os = "windows")]
     pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
         match action {
@@ -289,14 +290,14 @@ impl KeyMapper {
             | Action::System(_)
             | Action::Delay { .. }
             | Action::None => {
-                // 这些动作由其他组件处理
+                // These actions are handled by other components
             }
         }
 
         Ok(())
     }
 
-    /// 执行窗口管理动作（内部静态方法，避免借用冲突）
+    /// Execute window management action (internal static method to avoid borrow conflicts)
     #[cfg(target_os = "windows")]
     fn execute_window_action_internal(
         wm: &RealWindowManager,
@@ -394,7 +395,7 @@ impl KeyMapper {
                         HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOPMOST,
                     };
 
-                    // 正确判断：检查 WS_EX_TOPMOST 扩展窗口样式
+                    // Correctly determine: check WS_EX_TOPMOST extended window style
                     let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
                     let is_topmost = (ex_style & WS_EX_TOPMOST.0 as i32) != 0;
 
@@ -422,10 +423,10 @@ impl KeyMapper {
                         GWL_EXSTYLE, LWA_ALPHA, WS_EX_LAYERED,
                     };
 
-                    // 获取当前扩展样式
+                    // Get current extended style
                     let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
 
-                    // 添加 WS_EX_LAYERED 样式
+                    // Add WS_EX_LAYERED style
                     if ex_style & WS_EX_LAYERED.0 as i32 == 0 {
                         SetWindowLongW(
                             hwnd,
@@ -434,12 +435,12 @@ impl KeyMapper {
                         );
                     }
 
-                    // 设置透明度
+                    // Set transparency
                     SetLayeredWindowAttributes(hwnd, COLORREF(0), *opacity, LWA_ALPHA)
                         .ok();
                 }
                 WindowAction::ShowDebugInfo => {
-                    // 显示调试信息对话框
+                    // Show debug info dialog
                     match wm.get_debug_info() {
                         Ok(info) => {
                             use windows::core::HSTRING;
@@ -463,7 +464,7 @@ impl KeyMapper {
                     }
                 }
                 WindowAction::ShowNotification { title, message } => {
-                    // 使用托盘图标显示通知
+                    // Use tray icon to show notification
                     if let Some(tray) = tray_icon {
                         if let Err(e) = tray.show_notification(title, message) {
                             debug!("Failed to show notification: {}", e);
@@ -481,16 +482,16 @@ impl KeyMapper {
                                     hwnd,
                                     process_name,
                                     executable_path,
-                                    None, // 不使用标题模式，使用进程名匹配
+                                    None, // Don't use title mode, use process name matching
                                 ) {
                                     debug!("Failed to save preset '{}': {}", name, e);
                                 } else {
                                     debug!("Saved preset '{}' for current window", name);
-                                    // 显示通知
+                                    // Show notification
                                     if let Some(tray) = tray_icon {
                                         let _ = tray.show_notification(
                                             "wakem",
-                                            &format!("已保存预设 '{}'", name),
+                                            &format!("Preset '{}' saved", name),
                                         );
                                     }
                                 }
@@ -538,7 +539,7 @@ impl KeyMapper {
         Ok(())
     }
 
-    /// 重建映射表
+    /// Rebuild mapping table
     fn rebuild_mappings(&mut self) {
         self.mappings.clear();
 
@@ -547,7 +548,7 @@ impl KeyMapper {
                 continue;
             }
 
-            // 提取简单按键映射
+            // Extract simple key mappings
             if let Trigger::Key {
                 scan_code,
                 virtual_key,
@@ -557,7 +558,7 @@ impl KeyMapper {
                 if let Some(sc) = scan_code {
                     self.mappings.insert(*sc, rule.action.clone());
                 } else if let Some(vk) = virtual_key {
-                    // 如果没有扫描码，使用虚拟键码作为备用
+                    // If no scan code, use virtual key as fallback
                     self.mappings.insert(*vk, rule.action.clone());
                 }
             }
@@ -566,7 +567,7 @@ impl KeyMapper {
         debug!("Rebuilt mappings: {} entries", self.mappings.len());
     }
 
-    /// 加载上下文感知映射规则
+    /// Load context-aware mapping rules
     pub fn load_context_rules(
         &mut self,
         context_mappings: &[crate::config::ContextMapping],
@@ -576,7 +577,7 @@ impl KeyMapper {
         for mapping in context_mappings {
             let mut rule_mappings = HashMap::new();
 
-            // 解析每个映射字符串
+            // Parse each mapping string
             for (from, to) in &mapping.mappings {
                 if let Ok((scan_code, action)) = Self::parse_context_mapping(from, to) {
                     rule_mappings.insert(scan_code, action);
@@ -594,7 +595,7 @@ impl KeyMapper {
         debug!("Loaded {} context mapping rules", self.context_rules.len());
     }
 
-    /// 解析上下文映射字符串
+    /// Parse context mapping string
     fn parse_context_mapping(from: &str, to: &str) -> anyhow::Result<(u16, Action)> {
         use crate::config::parse_key;
         use crate::types::KeyAction;
@@ -611,7 +612,7 @@ impl KeyMapper {
             ));
         }
 
-        // 尝试解析为窗口动作
+        // Try to parse as window action
         if let Ok(window_action) = crate::config::parse_window_action(to) {
             return Ok((from_key.0, Action::window(window_action)));
         }
@@ -638,7 +639,7 @@ mod tests {
     fn test_key_mapper_basic() {
         let mapper = KeyMapper::new();
 
-        // Test创建成功
+        // Test creation successful
         assert!(mapper.enabled);
     }
 
@@ -646,10 +647,10 @@ mod tests {
     fn test_key_mapper_disabled() {
         let mut mapper = KeyMapper::new();
 
-        // 禁用映射器
+        // Disable mapper
         mapper.enabled = false;
 
-        // Test事件处理返回 None
+        // Test event processing returns None
         let event = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         let result = mapper.process_event_with_context(&InputEvent::Key(event), None);
 
@@ -660,7 +661,7 @@ mod tests {
     fn test_key_mapper_load_rules() {
         let mut mapper = KeyMapper::new();
 
-        // 创建简单的映射规则
+        // Create simple mapping rule
         let rules = vec![MappingRule::new(
             Trigger::key(0x3A, 0x14),                  // CapsLock
             Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
@@ -668,7 +669,7 @@ mod tests {
 
         mapper.load_rules(rules);
 
-        // 验证规则已加载
+        // Verify rules loaded
         assert_eq!(mapper.rules.len(), 1);
     }
 }

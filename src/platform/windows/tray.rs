@@ -13,16 +13,16 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TPM_LEFTALIGN, TPM_RETURNCMD, WM_APP,
 };
 
-/// 菜单项 ID
+/// Menu item IDs
 pub const IDM_TOGGLE_ACTIVE: u32 = 100;
 pub const IDM_RELOAD: u32 = 101;
 pub const IDM_OPEN_CONFIG: u32 = 102;
 pub const IDM_EXIT: u32 = 103;
 
-/// 自定义消息
+/// Custom messages
 pub const WM_APP_TRAY_NOTIFY: u32 = WM_APP + 1;
 
-/// Tray图标
+/// Tray icon
 pub struct TrayIcon {
     data: NOTIFYICONDATAW,
     hwnd: HWND,
@@ -31,12 +31,12 @@ pub struct TrayIcon {
 }
 
 impl TrayIcon {
-    /// 创建新的托盘图标
+    /// Create new tray icon
     pub fn new() -> Self {
         Self::with_icon_path(None)
     }
 
-    /// 创建带自定义图标路径的托盘图标
+    /// Create tray icon with custom icon path
     pub fn with_icon_path(icon_path: Option<String>) -> Self {
         let mut data = NOTIFYICONDATAW {
             uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
@@ -44,7 +44,7 @@ impl TrayIcon {
             ..Default::default()
         };
 
-        // 设置提示文本
+        // Set tooltip text
         let tooltip = w!("wakem - Window/Keyboard/Mouse Enhancer");
         let tooltip_slice = unsafe { tooltip.as_wide() };
         let len = tooltip_slice.len().min(127);
@@ -59,7 +59,7 @@ impl TrayIcon {
         }
     }
 
-    /// Load from file图标
+    /// Load icon from file
     fn load_icon_from_file(
         path: &str,
     ) -> anyhow::Result<windows::Win32::UI::WindowsAndMessaging::HICON> {
@@ -80,13 +80,13 @@ impl TrayIcon {
         }
     }
 
-    /// 注册托盘图标
+    /// Register tray icon
     pub fn register(&mut self, hwnd: HWND) -> Result<()> {
         self.hwnd = hwnd;
         self.data.hWnd = hwnd;
         self.data.uID = 1;
 
-        // 尝试加载自定义图标，失败则使用系统默认图标
+        // Try to load custom icon, fallback to system default
         self.data.hIcon = if let Some(ref path) = self.icon_path {
             match Self::load_icon_from_file(path) {
                 Ok(icon) => {
@@ -115,7 +115,7 @@ impl TrayIcon {
         Ok(())
     }
 
-    /// 注销托盘图标
+    /// Unregister tray icon
     pub fn unregister(&mut self) -> Result<()> {
         if self.hwnd.0 == 0 {
             return Ok(());
@@ -132,17 +132,17 @@ impl TrayIcon {
         Ok(())
     }
 
-    /// 显示气泡通知
+    /// Show balloon notification
     pub fn show_notification(&mut self, title: &str, message: &str) -> Result<()> {
         self.data.uFlags = NIF_INFO;
 
-        // 设置标题
+        // Set title
         let title_wide: Vec<u16> = title.encode_utf16().collect();
         let title_len = title_wide.len().min(63);
         self.data.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
         self.data.szInfoTitle[title_len] = 0;
 
-        // 设置消息
+        // Set message
         let msg_wide: Vec<u16> = message.encode_utf16().collect();
         let msg_len = msg_wide.len().min(255);
         self.data.szInfo[..msg_len].copy_from_slice(&msg_wide[..msg_len]);
@@ -154,13 +154,13 @@ impl TrayIcon {
                 .map_err(|e| anyhow::anyhow!("Failed to show notification: {}", e))?;
         }
 
-        // 恢复标志
+        // Restore flags
         self.data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 
         Ok(())
     }
 
-    /// 显示右键菜单
+    /// Show context menu
     pub fn show_menu(&self) -> Result<u32> {
         unsafe {
             SetForegroundWindow(self.hwnd).ok().map_err(|e| {
@@ -184,7 +184,7 @@ impl TrayIcon {
                 None,
             );
 
-            // 销毁菜单
+            // Destroy menu
             if DestroyMenu(hmenu).is_err() {
                 error!("Failed to destroy menu");
             }
@@ -197,17 +197,17 @@ impl TrayIcon {
         }
     }
 
-    /// 创建右键菜单
+    /// Create context menu
     fn create_menu(&self) -> Result<HMENU> {
         unsafe {
             let hmenu = CreatePopupMenu()
                 .map_err(|e| anyhow::anyhow!("Failed to create menu: {}", e))?;
 
-            // 启用/禁用
+            // Enable/Disable
             let active_text = if self.active {
-                w!("禁用 (&D)")
+                w!("Disable (&D)")
             } else {
-                w!("启用 (&E)")
+                w!("Enable (&E)")
             };
             if AppendMenuW(hmenu, MF_STRING, IDM_TOGGLE_ACTIVE as usize, active_text)
                 .is_err()
@@ -215,42 +215,42 @@ impl TrayIcon {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 
-            // 分隔线
+            // Separator
             if AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null()).is_err() {
                 return Err(anyhow::anyhow!("Failed to append separator"));
             }
 
-            // 重新加载配置
+            // Reload config
             if AppendMenuW(
                 hmenu,
                 MF_STRING,
                 IDM_RELOAD as usize,
-                w!("重新加载配置 (&R)"),
+                w!("Reload Config (&R)"),
             )
             .is_err()
             {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 
-            // 打开配置文件夹
+            // Open config folder
             if AppendMenuW(
                 hmenu,
                 MF_STRING,
                 IDM_OPEN_CONFIG as usize,
-                w!("打开配置文件夹 (&O)"),
+                w!("Open Config Folder (&O)"),
             )
             .is_err()
             {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }
 
-            // 分隔线
+            // Separator
             if AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null()).is_err() {
                 return Err(anyhow::anyhow!("Failed to append separator"));
             }
 
-            // 退出
-            if AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("退出 (&X)")).is_err()
+            // Exit
+            if AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Exit (&X)")).is_err()
             {
                 return Err(anyhow::anyhow!("Failed to append menu item"));
             }

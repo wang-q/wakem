@@ -10,27 +10,27 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use crate::config::wildcard_match;
 
-/// 窗口上下文信息
+/// Window context information
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
 pub struct WindowContext {
-    /// 窗口句柄
+    /// Window handle
     pub hwnd: isize,
-    /// 窗口类名
+    /// Window class name
     pub window_class: String,
     /// Window title
     pub window_title: String,
-    /// 进程 ID
+    /// Process ID
     pub process_id: u32,
-    /// 进程名
+    /// Process name
     pub process_name: String,
-    /// 可执行文件路径
+    /// Executable file path
     pub executable_path: String,
 }
 
 #[allow(dead_code)]
 impl WindowContext {
-    /// 获取当前前台窗口的上下文
+    /// Get current foreground window context
     pub fn get_current() -> Option<Self> {
         unsafe {
             let hwnd = GetForegroundWindow();
@@ -43,7 +43,7 @@ impl WindowContext {
                 ..Default::default()
             };
 
-            // 获取窗口类名
+            // Get window class name
             let mut class_name = [0u16; 256];
             let len = GetClassNameW(hwnd, &mut class_name);
             if len > 0 {
@@ -51,23 +51,23 @@ impl WindowContext {
                     String::from_utf16_lossy(&class_name[..len as usize]);
             }
 
-            // 获取窗口标题
+            // Get window title
             let mut title = [0u16; 512];
             let len = GetWindowTextW(hwnd, &mut title);
             if len > 0 {
                 context.window_title = String::from_utf16_lossy(&title[..len as usize]);
             }
 
-            // 获取进程 ID
+            // Get process ID
             let mut process_id: u32 = 0;
             GetWindowThreadProcessId(hwnd, Some(&mut process_id));
             context.process_id = process_id;
 
-            // 获取进程名
+            // Get process name
             context.process_name = Self::get_process_name_by_pid(process_id)
                 .unwrap_or_else(|| format!("pid:{}", process_id));
 
-            // 获取可执行文件路径
+            // Get executable file path
             context.executable_path =
                 Self::get_executable_path_by_pid(process_id).unwrap_or_default();
 
@@ -83,7 +83,7 @@ impl WindowContext {
         }
     }
 
-    /// 通过进程 ID 获取进程名
+    /// Get process name by process ID
     unsafe fn get_process_name_by_pid(pid: u32) -> Option<String> {
         let handle =
             OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
@@ -100,7 +100,7 @@ impl WindowContext {
         Some(String::from_utf16_lossy(&buffer[..len as usize]))
     }
 
-    /// 通过进程 ID 获取可执行文件路径
+    /// Get executable path by process ID
     unsafe fn get_executable_path_by_pid(pid: u32) -> Option<String> {
         use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
 
@@ -119,7 +119,7 @@ impl WindowContext {
         Some(String::from_utf16_lossy(&buffer[..len as usize]))
     }
 
-    /// 检查是否匹配给定的上下文条件
+    /// Check if matches given context conditions
     #[allow(dead_code)]
     pub fn matches(
         &self,
@@ -162,12 +162,12 @@ mod tests {
 
     #[test]
     fn test_get_current() {
-        // Test能否获取当前窗口
+        // Test if can get current window
         let context = WindowContext::get_current();
         assert!(context.is_some());
 
         let ctx = context.unwrap();
-        // 验证基本字段已填充
+        // Verify basic fields are populated
         assert!(!ctx.window_class.is_empty() || !ctx.window_title.is_empty());
     }
 
@@ -182,19 +182,19 @@ mod tests {
             executable_path: "C:\\Program Files\\Firefox\\firefox.exe".to_string(),
         };
 
-        // Test进程名匹配
+        // Test process name matching
         assert!(context.matches(None, Some("firefox.exe"), None, None));
         assert!(context.matches(None, Some("*.exe"), None, None));
         assert!(!context.matches(None, Some("chrome.exe"), None, None));
 
-        // Test窗口类名匹配
+        // Test window class name matching
         assert!(context.matches(Some("Mozilla*"), None, None, None));
         assert!(!context.matches(Some("Chrome*"), None, None, None));
 
-        // Test窗口标题匹配
+        // Test window title matching
         assert!(context.matches(None, None, Some("Fire*"), None));
 
-        // Test路径匹配
+        // Test path matching
         assert!(context.matches(None, None, None, Some("*Firefox*")));
     }
 }

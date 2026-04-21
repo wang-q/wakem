@@ -2,20 +2,20 @@ use hmac::{Hmac, Mac};
 use rand::RngCore;
 use sha2::Sha256;
 
-/// 挑战长度（32 字节）
+/// Challenge length (32 bytes)
 pub const CHALLENGE_SIZE: usize = 32;
 
-/// Response长度（32 字节，HMAC-SHA256 输出）
+/// Response length (32 bytes, HMAC-SHA256 output)
 pub const RESPONSE_SIZE: usize = 32;
 
-/// 生成随机挑战
+/// Generate random challenge
 pub fn generate_challenge() -> [u8; CHALLENGE_SIZE] {
     let mut challenge = [0u8; CHALLENGE_SIZE];
     rand::thread_rng().fill_bytes(&mut challenge);
     challenge
 }
 
-/// 计算响应（HMAC-SHA256）
+/// Compute response (HMAC-SHA256)
 pub fn compute_response(auth_key: &str, challenge: &[u8]) -> [u8; RESPONSE_SIZE] {
     type HmacSha256 = Hmac<Sha256>;
 
@@ -31,7 +31,7 @@ pub fn compute_response(auth_key: &str, challenge: &[u8]) -> [u8; RESPONSE_SIZE]
     response
 }
 
-/// 验证响应
+/// Verify response
 pub fn verify_response(auth_key: &str, challenge: &[u8], response: &[u8]) -> bool {
     if response.len() != RESPONSE_SIZE {
         return false;
@@ -41,7 +41,7 @@ pub fn verify_response(auth_key: &str, challenge: &[u8], response: &[u8]) -> boo
     constant_time_eq(&expected, response)
 }
 
-/// 常量时间比较（防止时序攻击）
+/// Constant-time comparison (prevent timing attacks)
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
@@ -64,7 +64,7 @@ mod tests {
         let challenge1 = generate_challenge();
         let challenge2 = generate_challenge();
 
-        // 两个挑战应该不同（概率极低会相同）
+        // Two challenges should be different (very low probability of being same)
         assert_ne!(challenge1, challenge2);
     }
 
@@ -76,7 +76,7 @@ mod tests {
         let response1 = compute_response(auth_key, &challenge);
         let response2 = compute_response(auth_key, &challenge);
 
-        // 相同的密钥和挑战应该产生相同的响应
+        // Same key and challenge should produce same response
         assert_eq!(response1, response2);
     }
 
@@ -87,7 +87,7 @@ mod tests {
         let response1 = compute_response("key1", &challenge);
         let response2 = compute_response("key2", &challenge);
 
-        // 不同的密钥应该产生不同的响应
+        // Different keys should produce different responses
         assert_ne!(response1, response2);
     }
 

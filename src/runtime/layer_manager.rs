@@ -7,11 +7,11 @@ use tracing::{debug, trace};
 
 /// Layer manager
 pub struct LayerManager {
-    /// 所有可用的层
+    /// All available layers
     layers: HashMap<String, Layer>,
-    /// Layer stack（管理激活状态）
+    /// Layer stack (manages activation state)
     stack: LayerStack,
-    /// Base layer映射（从配置加载的简单重映射）
+    /// Base layer mappings (simple remapping loaded from config)
     base_mappings: Vec<MappingRule>,
 }
 
@@ -24,20 +24,20 @@ impl LayerManager {
         }
     }
 
-    /// 注册一个层
+    /// Register a layer
     pub fn register_layer(&mut self, layer: Layer) {
         debug!("Registering layer: {}", layer.name);
         self.layers.insert(layer.name.clone(), layer);
     }
 
-    /// 设置基础层映射
+    /// Set base layer mappings
     pub fn set_base_mappings(&mut self, mappings: Vec<MappingRule>) {
         self.base_mappings = mappings.clone();
         self.stack.set_base_layer(mappings);
     }
 
-    /// Process input event，检查是否是层激活键
-    /// 返回 (是否处理了事件, 可选的动作)
+    /// Process input event, check if it's a layer activation key
+    /// Returns (whether event was handled, optional action)
     pub fn process_event(&mut self, event: &InputEvent) -> (bool, Option<Action>) {
         match event {
             InputEvent::Key(key_event) => self.process_key_event(key_event),
@@ -45,9 +45,9 @@ impl LayerManager {
         }
     }
 
-    /// 处理键盘事件
+    /// Process keyboard event
     fn process_key_event(&mut self, event: &KeyEvent) -> (bool, Option<Action>) {
-        // 检查是否是某个层的激活键
+        // Check if it's an activation key for any layer
         for layer in self.layers.values() {
             if layer.is_activation_key(event.scan_code, event.virtual_key) {
                 match layer.mode {
@@ -65,7 +65,7 @@ impl LayerManager {
                                 self.stack.release_layer(&layer.name);
                             }
                         }
-                        // 层激活键本身不传递
+                        // Layer activation key itself is not passed through
                         return (true, None);
                     }
                     LayerMode::Toggle => {
@@ -73,7 +73,7 @@ impl LayerManager {
                             trace!("Toggling layer: {}", layer.name);
                             let layer = self.layers.get(&layer.name).cloned().unwrap();
                             self.stack.toggle_layer(layer);
-                            // 切换键本身不传递
+                            // Toggle key itself is not passed through
                             return (true, None);
                         }
                     }
@@ -81,7 +81,7 @@ impl LayerManager {
             }
         }
 
-        // 如果不是激活键，在激活的层中查找映射
+        // If not an activation key, search for mapping in active layers
         let input_event = InputEvent::Key(event.clone());
         let mappings = self.stack.get_all_mappings();
         for rule in &mappings {
@@ -94,7 +94,7 @@ impl LayerManager {
         (false, None)
     }
 
-    /// 获取当前激活的层列表
+    /// Get list of currently active layers
     #[allow(dead_code)]
     pub fn get_active_layers(&self) -> Vec<String> {
         self.stack
@@ -104,19 +104,19 @@ impl LayerManager {
             .collect()
     }
 
-    /// 检查层是否激活
+    /// Check if layer is active
     #[allow(dead_code)]
     pub fn is_layer_active(&self, name: &str) -> bool {
         self.stack.is_layer_active(name)
     }
 
-    /// 停用所有层
+    /// Deactivate all layers
     #[allow(dead_code)]
     pub fn clear_layers(&mut self) {
         self.stack.clear_active_layers();
     }
 
-    /// 从配置创建层
+    /// Create layer from config
     pub fn create_layer_from_config(
         name: &str,
         activation_key: &str,
@@ -156,7 +156,7 @@ mod tests {
     fn test_layer_manager_hold() {
         let mut manager = LayerManager::new();
 
-        // 创建导航层
+        // Create navigation layer
         let layer = LayerManager::create_layer_from_config(
             "navigate",
             "CapsLock",
@@ -167,13 +167,13 @@ mod tests {
 
         manager.register_layer(layer);
 
-        // 模拟按下 CapsLock
+        // Simulate pressing CapsLock
         let press = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         let (handled, _) = manager.process_event(&InputEvent::Key(press));
         assert!(handled);
         assert!(manager.is_layer_active("navigate"));
 
-        // 模拟释放 CapsLock
+        // Simulate releasing CapsLock
         let release = KeyEvent::new(0x3A, 0x14, KeyState::Released);
         let (handled, _) = manager.process_event(&InputEvent::Key(release));
         assert!(handled);
@@ -184,7 +184,7 @@ mod tests {
     fn test_layer_mapping() {
         let mut manager = LayerManager::new();
 
-        // 创建导航层
+        // Create navigation layer
         let layer = LayerManager::create_layer_from_config(
             "navigate",
             "CapsLock",
@@ -195,11 +195,11 @@ mod tests {
 
         manager.register_layer(layer);
 
-        // 先激活层
+        // Activate layer first
         let caps_press = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
         manager.process_event(&InputEvent::Key(caps_press));
 
-        // 模拟按下 H，应该映射为 Left
+        // Simulate pressing H, should map to Left
         let h_press = KeyEvent::new(0x23, 0x48, KeyState::Pressed);
         let (handled, action) = manager.process_event(&InputEvent::Key(h_press));
         assert!(handled);

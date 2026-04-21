@@ -59,17 +59,17 @@ impl MockTimeSource {
         }
     }
 
-    /// Advance time（毫秒）
+    /// Advance time (milliseconds)
     pub fn advance_ms(&self, ms: u64) {
         *self.current_time_ms.borrow_mut() += ms;
     }
 
-    /// Advance time（微秒）
+    /// Advance time (microseconds)
     pub fn advance_us(&self, us: u64) {
         *self.current_time_ms.borrow_mut() += us / 1000;
     }
 
-    /// 设置当前时间
+    /// Set current time
     pub fn set_time(&self, ms: u64) {
         *self.current_time_ms.borrow_mut() = ms;
     }

@@ -10,17 +10,17 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
 };
 
-/// Output device（用于发送模拟输入）
+/// Output device (for sending simulated input)
 #[derive(Clone, Copy)]
 pub struct OutputDevice;
 
 impl OutputDevice {
-    /// 创建新的输出设备
+    /// Create new output device
     pub fn new() -> Self {
         Self
     }
 
-    /// 发送按键动作
+    /// Send key action
     pub fn send_key_action(&self, action: &KeyAction) -> Result<()> {
         match action {
             KeyAction::Press {
@@ -53,7 +53,7 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送单个按键
+    /// Send single key
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
         let mut input = INPUT {
             r#type: INPUT_KEYBOARD,
@@ -68,7 +68,7 @@ impl OutputDevice {
                 input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
             }
 
-            // 如果是扩展键，添加标志
+            // If extended key, add flag
             if virtual_key >= 0xE000 {
                 input.Anonymous.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
             }
@@ -93,11 +93,11 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送文本
+    /// Send text
     fn send_text(&self, text: &str) -> Result<()> {
         for ch in text.chars() {
-            // 简单实现：将字符转换为虚拟键码并发送
-            // 实际实现需要更复杂的 Unicode 输入处理
+            // Simple implementation: convert character to virtual key code and send
+            // Actual implementation needs more complex Unicode input handling
             if let Some(vk) = char_to_vk(ch) {
                 self.send_key(0, vk, false)?;
                 self.send_key(0, vk, true)?;
@@ -106,14 +106,14 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送组合键
+    /// Send key combo
     fn send_combo(
         &self,
         modifiers: &crate::types::ModifierState,
         scan_code: u16,
         virtual_key: u16,
     ) -> Result<()> {
-        // 按下修饰键
+        // Press modifier keys
         if modifiers.shift {
             self.send_key(0x2A, 0xA0, false)?; // LShift
         }
@@ -127,13 +127,13 @@ impl OutputDevice {
             self.send_key(0xE05B, 0x5B, false)?; // LWin
         }
 
-        // 按下目标键
+        // Press target key
         self.send_key(scan_code, virtual_key, false)?;
 
-        // 释放目标键
+        // Release target key
         self.send_key(scan_code, virtual_key, true)?;
 
-        // 释放修饰键（逆序）
+        // Release modifier keys (reverse order)
         if modifiers.meta {
             self.send_key(0xE05B, 0x5B, true)?;
         }
@@ -150,7 +150,7 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送鼠标动作
+    /// Send mouse action
     pub fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
         match action {
             MouseAction::Move { x, y, relative } => {
@@ -177,7 +177,7 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送鼠标移动
+    /// Send mouse move
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
         let mut input = INPUT {
             r#type: INPUT_MOUSE,
@@ -190,7 +190,7 @@ impl OutputDevice {
             input.Anonymous.mi.dwFlags = MOUSEEVENTF_MOVE;
 
             if !relative {
-                // 绝对坐标（需要归一化到 0-65535）
+                // Absolute coordinates (need to normalize to 0-65535)
                 input.Anonymous.mi.dwFlags |= MOUSEEVENTF_ABSOLUTE;
             }
         }
@@ -206,7 +206,7 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送鼠标按钮
+    /// Send mouse button
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
         let mut input = INPUT {
             r#type: INPUT_MOUSE,
@@ -264,7 +264,7 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送鼠标滚轮
+    /// Send mouse wheel
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
         let mut input = INPUT {
             r#type: INPUT_MOUSE,
@@ -293,7 +293,7 @@ impl OutputDevice {
         Ok(())
     }
 
-    /// 发送系统控制动作（音量、亮度）
+    /// Send system control action (volume, brightness)
     pub fn send_system_action(&self, action: &SystemAction) -> Result<()> {
         match action {
             SystemAction::VolumeUp => {
@@ -312,9 +312,9 @@ impl OutputDevice {
                 self.send_key(0, 0xAD, true)?;
             }
             SystemAction::BrightnessUp => {
-                // 亮度控制没有标准虚拟键，使用系统快捷键
-                // 模拟 Win + A 打开操作中心，然后发送亮度增加键
-                // 这里简化处理，使用组合键
+                // Brightness control has no standard virtual key, use system shortcut
+                // Simulate Win + A to open action center, then send brightness up key
+                // Simplified handling here using combo keys
                 trace!("Brightness up not yet implemented");
             }
             SystemAction::BrightnessDown => {
@@ -333,7 +333,7 @@ impl Default for OutputDevice {
     }
 }
 
-/// 将字符转换为虚拟键码（简化版）
+/// Convert character to virtual key code (simplified)
 fn char_to_vk(ch: char) -> Option<u16> {
     match ch {
         'a'..='z' => Some(ch as u16 - 'a' as u16 + 0x41),

@@ -102,14 +102,14 @@ impl Default for WindowState {
     }
 }
 
-/// Windows API 抽象接口
+/// Windows API abstract interface
 #[allow(dead_code)]
 pub trait WindowApi {
-    /// 获取前台窗口句柄
+    /// Get foreground window handle
     fn get_foreground_window(&self) -> Option<HWND>;
-    /// 获取窗口矩形
+    /// Get window rectangle
     fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame>;
-    /// 设置窗口位置
+    /// Set window position
     fn set_window_pos(
         &self,
         hwnd: HWND,
@@ -118,17 +118,17 @@ pub trait WindowApi {
         width: i32,
         height: i32,
     ) -> Result<()>;
-    /// 获取显示器信息
+    /// Get monitor info
     fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo>;
-    /// 获取显示器工作区
+    /// Get monitor work area
     fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea>;
-    /// 检查窗口是否有效
+    /// Check if window is valid
     fn is_window(&self, hwnd: HWND) -> bool;
-    /// 获取窗口标题
+    /// Get window title
     fn get_window_title(&self, hwnd: HWND) -> Option<String>;
-    /// 检查窗口是否最小化
+    /// Check if window is minimized
     fn is_iconic(&self, hwnd: HWND) -> bool;
-    /// 检查窗口是否最大化
+    /// Check if window is maximized
     fn is_zoomed(&self, hwnd: HWND) -> bool;
     /// Minimize window
     fn minimize_window(&self, hwnd: HWND) -> Result<()>;
@@ -138,15 +138,15 @@ pub trait WindowApi {
     fn restore_window(&self, hwnd: HWND) -> Result<()>;
     /// Close window
     fn close_window(&self, hwnd: HWND) -> Result<()>;
-    /// 设置置顶状态
+    /// Set topmost status
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()>;
     /// Set transparency
     fn set_opacity(&self, hwnd: HWND, opacity: u8) -> Result<()>;
-    /// 确保窗口已还原
+    /// Ensure window is restored
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
 }
 
-/// 真实 Windows API 实现
+/// Real Windows API implementation
 #[allow(dead_code)]
 pub struct RealWindowApi;
 
@@ -337,7 +337,7 @@ impl WindowApi for RealWindowApi {
     }
 }
 
-/// Mock 实现用于测试
+/// Mock implementation for testing
 #[cfg(test)]
 pub struct MockWindowApi {
     pub foreground_window: RefCell<Option<HWND>>,
@@ -419,7 +419,7 @@ impl WindowApi for MockWindowApi {
         let mut rects = self.window_rects.borrow_mut();
         rects.insert(hwnd.0, WindowFrame::new(x, y, width, height));
 
-        // 更新窗口状态
+        // Update window state
         let mut states = self.window_states.borrow_mut();
         if let Some(state) = states.get_mut(&hwnd.0) {
             state.minimized = false;
@@ -539,18 +539,18 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = HWND(1234);
 
-        // 设置窗口矩形
+        // Set window rect
         let frame = WindowFrame::new(100, 200, 800, 600);
         api.set_window_rect(hwnd, frame);
 
-        // 验证可以获取
+        // Verify can be retrieved
         let retrieved = api.get_window_rect(hwnd).unwrap();
         assert_eq!(retrieved.x, 100);
         assert_eq!(retrieved.y, 200);
         assert_eq!(retrieved.width, 800);
         assert_eq!(retrieved.height, 600);
 
-        // 验证操作日志
+        // Verify operation log
         let ops = api.get_operations();
         assert_eq!(ops.len(), 1);
         assert!(matches!(ops[0], WindowOperation::GetWindowRect { .. }));
@@ -575,21 +575,21 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = HWND(9999);
 
-        // 初始状态
+        // Initial state
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        // 最小化
+        // Minimize
         api.minimize_window(hwnd).unwrap();
         assert!(api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        // 还原
+        // Restore
         api.restore_window(hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        // 最大化
+        // Maximize
         api.maximize_window(hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(api.is_zoomed(hwnd));
@@ -600,10 +600,10 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = HWND(1111);
 
-        // 初始为空
+        // Initially empty
         assert!(api.get_foreground_window().is_none());
 
-        // 设置前台窗口
+        // Set foreground window
         api.set_foreground_window(hwnd);
         assert_eq!(api.get_foreground_window().unwrap().0, 1111);
     }

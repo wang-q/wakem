@@ -1,13 +1,13 @@
 use tokio::sync::watch;
 use tracing::{debug, info};
 
-/// 优雅关闭信号
+/// Graceful shutdown signal
 ///
-/// 用于协调所有长时间运行的任务在收到关闭信号时安全退出
-/// 特性：
-/// - 基于 tokio::watch channel 实现
-/// - 支持多个接收者同时监听
-/// - 线程安全的广播机制
+/// Used to coordinate all long-running tasks to exit safely when shutdown signal is received
+/// Features:
+/// - Based on tokio::watch channel
+/// - Supports multiple receivers listening simultaneously
+/// - Thread-safe broadcast mechanism
 #[derive(Clone)]
 pub struct ShutdownSignal {
     sender: watch::Sender<bool>,
@@ -15,18 +15,18 @@ pub struct ShutdownSignal {
 }
 
 impl ShutdownSignal {
-    /// 创建新的关闭信号
+    /// Create new shutdown signal
     pub fn new() -> Self {
         let (sender, receiver) = watch::channel(false);
         Self { sender, receiver }
     }
 
-    /// 获取新的接收者（用于传递给子任务）
+    /// Get new receiver (for passing to child tasks)
     pub fn subscribe(&self) -> watch::Receiver<bool> {
         self.receiver.clone()
     }
 
-    /// Trigger shutdown信号
+    /// Trigger shutdown signal
     pub async fn shutdown(&self) {
         info!("Initiating graceful shutdown...");
         if self.sender.send(true).is_ok() {
@@ -34,23 +34,23 @@ impl ShutdownSignal {
         }
     }
 
-    /// 检查是否已收到关闭信号
+    /// Check if shutdown signal has been received
     ///
-    /// # 返回值
-    /// * `true` - 已收到关闭信号
-    /// * `false` - 未收到关闭信号
+    /// # Returns
+    /// * `true` - Shutdown signal received
+    /// * `false` - Shutdown signal not received
     pub async fn is_shutdown_requested(&mut self) -> bool {
         self.receiver.changed().await.is_ok() && *self.receiver.borrow()
     }
 
-    /// Wait for shutdown信号或完成操作
+    /// Wait for shutdown signal or complete operation
     ///
-    /// # 参数
-    /// * `operation` - 要执行的操作（Future）
+    /// # Arguments
+    /// * `operation` - Operation to execute (Future)
     ///
-    /// # 返回值
-    /// * `Ok(T)` - 操作成功完成
-    /// * `Err(())` - 收到关闭信号，操作被取消
+    /// # Returns
+    /// * `Ok(T)` - Operation completed successfully
+    /// * `Err(())` - Shutdown signal received, operation cancelled
     pub async fn run_until_shutdown<F, T, E>(
         &mut self,
         operation: F,
@@ -87,13 +87,13 @@ mod tests {
         let shutdown = ShutdownSignal::new();
         let mut rx = shutdown.subscribe();
 
-        // 初始状态应该是 false
+        // Initial state should be false
         assert!(!*rx.borrow());
 
-        // 触发关闭
+        // Trigger shutdown
         shutdown.shutdown().await;
 
-        // 现在应该是 true
+        // Now should be true
         assert!(*rx.borrow());
     }
 
@@ -105,7 +105,7 @@ mod tests {
 
         shutdown.shutdown().await;
 
-        // 两个接收者都应该收到信号
+        // Both receivers should receive signal
         assert!(*rx1.borrow());
         assert!(*rx2.borrow());
     }
@@ -114,7 +114,7 @@ mod tests {
     async fn test_run_until_shutdown_completion() {
         let mut shutdown = ShutdownSignal::new();
 
-        // 正常完成的操作应该返回 Ok
+        // Normal completion should return Ok
         let result = shutdown.run_until_shutdown(async { Ok::<_, ()>(42) }).await;
         assert_eq!(result, Ok(42));
     }
@@ -125,14 +125,14 @@ mod tests {
         let shutdown = Arc::new(ShutdownSignal::new());
         let shutdown_for_trigger = Arc::clone(&shutdown);
 
-        // 在后台触发关闭
+        // Trigger shutdown in background
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(10)).await;
             shutdown_for_trigger.shutdown().await;
         });
 
         let mut shutdown_clone = (*shutdown).clone();
-        // 长时间运行的操作应该被取消
+        // Long-running operation should be cancelled
         let result = timeout(
             Duration::from_millis(100),
             shutdown_clone.run_until_shutdown(async {
@@ -142,7 +142,7 @@ mod tests {
         )
         .await;
 
-        assert!(result.is_ok()); // 应该在超时前返回
-        assert!(result.unwrap().is_err()); // 应该返回错误（被取消）
+        assert!(result.is_ok()); // Should return before timeout
+        assert!(result.unwrap().is_err()); // Should return error (cancelled)
     }
 }

@@ -4,15 +4,15 @@ use serde::{Deserialize, Serialize};
 /// Mapping rule
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MappingRule {
-    /// 规则名称（可选）
+    /// Rule name (optional)
     pub name: Option<String>,
-    /// 触发条件
+    /// Trigger condition
     pub trigger: Trigger,
-    /// 执行的动作
+    /// Action to execute
     pub action: Action,
-    /// Context condition（可选）
+    /// Context condition (optional)
     pub context: Option<ContextCondition>,
-    /// 是否启用
+    /// Whether enabled
     pub enabled: bool,
 }
 
@@ -39,13 +39,13 @@ impl MappingRule {
         self
     }
 
-    /// 检查输入事件是否匹配此规则
+    /// Check if input event matches this rule
     pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
         if !self.enabled {
             return false;
         }
 
-        // 检查上下文条件
+        // Check context condition
         if let Some(ref cond) = self.context {
             if !cond.matches(
                 &context.process_name,
@@ -57,15 +57,15 @@ impl MappingRule {
             }
         }
 
-        // 检查触发条件
+        // Check trigger condition
         self.trigger.matches(event)
     }
 }
 
-/// 触发条件
+/// Trigger condition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Trigger {
-    /// 键盘按键
+    /// Keyboard key
     Key {
         scan_code: Option<u16>,
         virtual_key: Option<u16>,
@@ -76,18 +76,18 @@ pub enum Trigger {
         button: super::MouseButton,
         modifiers: ModifierState,
     },
-    /// 热字符串（文本扩展）
+    /// Hot string (text expansion)
     HotString { trigger: String },
-    /// 组合触发（多个按键按顺序）
+    /// Chord trigger (multiple keys in sequence)
     Chord(Vec<Trigger>),
-    /// 定时触发
+    /// Timer trigger
     Timer { interval_ms: u64 },
-    /// 总是触发
+    /// Always trigger
     Always,
 }
 
 impl Trigger {
-    /// 检查输入事件是否匹配此触发条件
+    /// Check if input event matches this trigger condition
     pub fn matches(&self, event: &InputEvent) -> bool {
         match (self, event) {
             (
@@ -98,31 +98,31 @@ impl Trigger {
                 },
                 InputEvent::Key(e),
             ) => {
-                // 检查扫描码
+                // Check scan code
                 if let Some(sc) = scan_code {
                     if *sc != e.scan_code {
                         return false;
                     }
                 }
-                // 检查虚拟键码
+                // Check virtual key code
                 if let Some(vk) = virtual_key {
                     if *vk != e.virtual_key {
                         return false;
                     }
                 }
-                // 检查修饰键
-                // 注意：这里应该比较修饰键是否匹配，简化处理
+                // Check modifiers
+                // Note: should compare modifier state here, simplified for now
                 true
             }
             (Trigger::MouseButton { button, .. }, InputEvent::Mouse(e)) => {
-                // 检查鼠标按钮按下
+                // Check mouse button press
                 e.is_button_down(*button)
             }
             _ => false,
         }
     }
 
-    /// 创建简单的按键触发器
+    /// Create simple key trigger
     pub fn key(scan_code: u16, virtual_key: u16) -> Self {
         Self::Key {
             scan_code: Some(scan_code),
@@ -131,7 +131,7 @@ impl Trigger {
         }
     }
 
-    /// 创建带修饰键的触发器
+    /// Create a trigger with modifiers
     pub fn key_with_modifiers(
         scan_code: u16,
         virtual_key: u16,
@@ -148,16 +148,16 @@ impl Trigger {
 /// Context condition
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextCondition {
-    /// 窗口类名匹配（支持通配符）
+    /// Window class name matching (supports wildcards)
     #[serde(default)]
     pub window_class: Option<String>,
-    /// 进程名匹配（支持通配符）
+    /// Process name matching (supports wildcards)
     #[serde(default)]
     pub process_name: Option<String>,
-    /// Window title匹配（支持通配符）
+    /// Window title matching (supports wildcards)
     #[serde(default)]
     pub window_title: Option<String>,
-    /// 可执行文件路径匹配（支持通配符）
+    /// Executable path matching (supports wildcards)
     #[serde(default)]
     pub executable_path: Option<String>,
 }
@@ -187,7 +187,7 @@ impl ContextCondition {
         self
     }
 
-    /// 检查当前上下文是否匹配
+    /// Check if current context matches
     pub fn matches(
         &self,
         process_name: &str,
@@ -195,28 +195,28 @@ impl ContextCondition {
         window_title: &str,
         executable_path: Option<&str>,
     ) -> bool {
-        // 检查进程名匹配
+        // Check process name match
         if let Some(ref pattern) = self.process_name {
             if !wildcard_match(process_name, pattern) {
                 return false;
             }
         }
 
-        // 检查窗口类名匹配
+        // Check window class name match
         if let Some(ref pattern) = self.window_class {
             if !wildcard_match(window_class, pattern) {
                 return false;
             }
         }
 
-        // 检查窗口标题匹配
+        // Check window title match
         if let Some(ref pattern) = self.window_title {
             if !wildcard_match(window_title, pattern) {
                 return false;
             }
         }
 
-        // 检查可执行路径匹配
+        // Check executable path match
         if let Some(ref pattern) = self.executable_path {
             let path = executable_path.unwrap_or("");
             if !wildcard_match(path, pattern) {
@@ -228,7 +228,7 @@ impl ContextCondition {
     }
 }
 
-/// Context信息（当前活动窗口等）
+/// Context information (current active window, etc.)
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
 pub struct ContextInfo {
@@ -239,15 +239,15 @@ pub struct ContextInfo {
     pub window_handle: isize, // HWND
 }
 
-/// 简单的通配符匹配（* 匹配任意字符，? 匹配单个字符）
+/// Simple wildcard matching (* matches any characters, ? matches single character)
 #[allow(dead_code)]
 fn wildcard_match(text: &str, pattern: &str) -> bool {
-    // 简化实现，实际应该使用更复杂的匹配算法
+    // Simplified implementation, should use more complex matching algorithm in production
     if pattern == "*" || pattern.is_empty() {
         return true;
     }
     if pattern.contains('*') || pattern.contains('?') {
-        // TODO: 实现完整的通配符匹配
+        // TODO: Implement complete wildcard matching
         text.to_lowercase()
             .contains(&pattern.replace('*', "").to_lowercase())
     } else {

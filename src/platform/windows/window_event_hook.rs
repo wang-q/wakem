@@ -10,23 +10,23 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINEVENT_SKIPOWNPROCESS,
 };
 
-/// 窗口事件类型
+/// Window event types
 #[derive(Debug, Clone)]
 pub enum WindowEvent {
-    /// 窗口被创建
+    /// Window created
     WindowCreated(HWND),
-    /// 窗口成为前台窗口
+    /// Window activated (became foreground)
     WindowActivated(HWND),
 }
 
-/// Window event hook管理器
+/// Window event hook manager
 pub struct WindowEventHook {
     hook: Option<HWINEVENTHOOK>,
     event_tx: Sender<WindowEvent>,
 }
 
 impl WindowEventHook {
-    /// 创建新的窗口事件钩子
+    /// Create new window event hook
     pub fn new(event_tx: Sender<WindowEvent>) -> Self {
         Self {
             hook: None,
@@ -34,18 +34,18 @@ impl WindowEventHook {
         }
     }
 
-    /// 启动窗口事件监听
+    /// Start window event monitoring
     pub fn start(&mut self) -> Result<()> {
         unsafe {
-            // 设置窗口事件钩子
-            // 监听：窗口创建和前台窗口切换
+            // Set window event hook
+            // Monitor: window creation and foreground window changes
             let hook = SetWinEventHook(
                 EVENT_OBJECT_CREATE,
                 EVENT_SYSTEM_FOREGROUND,
-                None, // 当前进程
+                None, // Current process
                 Some(win_event_callback),
-                0, // 所有进程
-                0, // 所有线程
+                0, // All processes
+                0, // All threads
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
             );
 
@@ -53,8 +53,8 @@ impl WindowEventHook {
                 return Err(anyhow::anyhow!("Failed to set WinEventHook"));
             }
 
-            // 将 sender 存储在全局/线程本地存储中供回调使用
-            // 这里使用一个简单的全局变量方式
+            // Store sender in global/thread-local storage for callback use
+            // Using a simple global variable approach here
             set_global_sender(self.event_tx.clone());
 
             self.hook = Some(hook);
@@ -63,7 +63,7 @@ impl WindowEventHook {
         }
     }
 
-    /// 停止窗口事件监听
+    /// Stop window event monitoring
     pub fn stop(&mut self) {
         if let Some(hook) = self.hook.take() {
             unsafe {
@@ -80,7 +80,7 @@ impl Drop for WindowEventHook {
     }
 }
 
-// 全局 sender（用于回调函数）
+// Global sender (for callback function)
 use std::sync::OnceLock;
 
 static GLOBAL_SENDER: OnceLock<Sender<WindowEvent>> = OnceLock::new();
@@ -93,7 +93,7 @@ fn get_global_sender() -> Option<&'static Sender<WindowEvent>> {
     GLOBAL_SENDER.get()
 }
 
-/// WinEvent 回调函数
+/// WinEvent callback function
 unsafe extern "system" fn win_event_callback(
     _hook: HWINEVENTHOOK,
     event: u32,
@@ -107,7 +107,7 @@ unsafe extern "system" fn win_event_callback(
         return;
     }
 
-    // 获取窗口标题用于调试
+    // Get window title for debugging
     let mut title_buffer = [0u16; 256];
     let len = GetWindowTextW(hwnd, &mut title_buffer);
     let title = String::from_utf16_lossy(&title_buffer[..len as usize]);
@@ -137,7 +137,7 @@ mod tests {
     fn test_window_event_creation() {
         let (tx, _rx) = std::sync::mpsc::channel();
         let hook = WindowEventHook::new(tx);
-        // 注意：实际启动钩子需要在有消息循环的环境中
+        // Note: Actually starting the hook requires a message loop environment
         drop(hook);
     }
 }

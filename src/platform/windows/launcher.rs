@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::Command;
 use tracing::{debug, info};
 
-/// 程序启动器
+/// Program launcher
 #[allow(dead_code)]
 pub struct Launcher;
 
@@ -14,21 +14,21 @@ impl Launcher {
         Self
     }
 
-    /// 执行启动动作
+    /// Execute launch action
     pub fn launch(&self, action: &LaunchAction) -> Result<()> {
         info!("Launching program: {}", action.program);
         debug!("Args: {:?}", action.args);
         debug!("Working dir: {:?}", action.working_dir);
 
-        // 检查程序路径
+        // Check program path
         let program = if Path::new(&action.program).exists() {
             action.program.clone()
         } else {
-            // 尝试在 PATH 中查找
+            // Try to find in PATH
             action.program.clone()
         };
 
-        // 使用 std::process::Command 启动程序
+        // Use std::process::Command to launch program
         let mut cmd = Command::new(&program);
         cmd.args(&action.args);
 
@@ -36,7 +36,7 @@ impl Launcher {
             cmd.current_dir(dir);
         }
 
-        // 异步启动，不等待
+        // Launch asynchronously, don't wait
         match cmd.spawn() {
             Ok(child) => {
                 info!(

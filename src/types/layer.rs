@@ -2,13 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{Action, MappingRule, Trigger};
 
-/// Layers模式
+/// Layer mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum LayerMode {
-    /// 按住激活，释放退出
+    /// Hold to activate, release to exit
     #[default]
     Hold,
-    /// 切换模式（按一次进入，再按一次退出）
+    /// Toggle mode (press once to enter, press again to exit)
     Toggle,
 }
 
@@ -17,13 +17,13 @@ pub enum LayerMode {
 pub struct Layer {
     /// Layer name
     pub name: String,
-    /// Activation key（扫描码）
+    /// Activation key (scan code)
     pub activation_key: u16,
-    /// Activation key虚拟键码
+    /// Activation key virtual key code
     pub activation_vk: u16,
-    /// Layers模式
+    /// Layer mode
     pub mode: LayerMode,
-    /// Layers内映射规则
+    /// Mappings within this layer
     pub mappings: Vec<MappingRule>,
 }
 
@@ -51,20 +51,20 @@ impl Layer {
         self.mappings.push(MappingRule::new(trigger, action));
     }
 
-    /// 检查是否是此层的激活键
+    /// Check if this is the activation key for this layer
     pub fn is_activation_key(&self, scan_code: u16, vk: u16) -> bool {
         self.activation_key == scan_code || self.activation_vk == vk
     }
 }
 
-/// Layer stack（管理多个激活的层）
+/// Layer stack (manages multiple active layers)
 #[derive(Debug, Clone, Default)]
 pub struct LayerStack {
-    /// Base layer（最底层）
+    /// Base layer (bottom layer)
     base_layer: Vec<MappingRule>,
-    /// 当前激活的层（按优先级排序）
+    /// Currently active layers (sorted by priority)
     active_layers: Vec<Layer>,
-    /// 当前按住激活的层
+    /// Layers activated by holding
     hold_layers: Vec<String>,
 }
 
@@ -73,35 +73,35 @@ impl LayerStack {
         Self::default()
     }
 
-    /// 设置基础层映射
+    /// Set base layer mappings
     pub fn set_base_layer(&mut self, mappings: Vec<MappingRule>) {
         self.base_layer = mappings;
     }
 
-    /// 激活一个层
+    /// Activate a layer
     pub fn activate_layer(&mut self, layer: Layer) {
-        // 如果层已经激活，先移除再添加（移到栈顶）
+        // If layer already active, remove first then add (move to top of stack)
         self.active_layers.retain(|l| l.name != layer.name);
         self.active_layers.push(layer);
     }
 
-    /// 停用指定层
+    /// Deactivate specified layer
     pub fn deactivate_layer(&mut self, name: &str) {
         self.active_layers.retain(|l| l.name != name);
         self.hold_layers.retain(|n| n != name);
     }
 
-    /// 标记层为按住激活
+    /// Mark layer as hold-activated
     pub fn hold_layer(&mut self, name: &str) {
         if !self.hold_layers.contains(&name.to_string()) {
             self.hold_layers.push(name.to_string());
         }
     }
 
-    /// 释放按住激活的层
+    /// Release hold-activated layer
     pub fn release_layer(&mut self, name: &str) {
         self.hold_layers.retain(|n| n != name);
-        // 如果是 Hold 模式的层，释放时停用
+        // If Hold mode layer, deactivate on release
         self.active_layers.retain(|l| {
             if l.name == name && l.mode == LayerMode::Hold {
                 return false;
@@ -110,7 +110,7 @@ impl LayerStack {
         });
     }
 
-    /// 切换层的激活状态（用于 Toggle 模式）
+    /// Toggle layer activation state (for Toggle mode)
     pub fn toggle_layer(&mut self, layer: Layer) {
         let is_active = self.active_layers.iter().any(|l| l.name == layer.name);
         if is_active {
@@ -120,14 +120,14 @@ impl LayerStack {
         }
     }
 
-    /// 获取所有当前可用的映射规则（按优先级：后激活的层优先）
+    /// Get all currently available mapping rules (priority: later activated layers first)
     pub fn get_all_mappings(&self) -> Vec<MappingRule> {
         let mut result = Vec::new();
 
-        // 先添加基础层
+        // Add base layer first
         result.extend(self.base_layer.clone());
 
-        // 再添加激活的层（后面的层会覆盖前面的）
+        // Then add active layers (later layers override earlier ones)
         for layer in &self.active_layers {
             result.extend(layer.mappings.clone());
         }
@@ -135,19 +135,19 @@ impl LayerStack {
         result
     }
 
-    /// 检查层是否激活
+    /// Check if layer is active
     #[allow(dead_code)]
     pub fn is_layer_active(&self, name: &str) -> bool {
         self.active_layers.iter().any(|l| l.name == name)
     }
 
-    /// 获取当前激活的层列表
+    /// Get list of currently active layers
     #[allow(dead_code)]
     pub fn get_active_layers(&self) -> &[Layer] {
         &self.active_layers
     }
 
-    /// 清空所有激活的层
+    /// Clear all active layers
     #[allow(dead_code)]
     pub fn clear_active_layers(&mut self) {
         self.active_layers.clear();
@@ -164,22 +164,22 @@ mod tests {
     fn test_layer_stack() {
         let mut stack = LayerStack::new();
 
-        // 创建测试层
+        // Create test layer
         let mut layer1 = Layer::new("navigate", 0x3A, 0x14);
         layer1.add_mapping(
             Trigger::key(0x23, 0x48),                  // H
             Action::key(KeyAction::click(0x4B, 0x25)), // Left
         );
 
-        // 激活层
+        // Activate layer
         stack.activate_layer(layer1.clone());
         assert!(stack.is_layer_active("navigate"));
 
-        // 获取映射
+        // Get mappings
         let mappings = stack.get_all_mappings();
         assert_eq!(mappings.len(), 1);
 
-        // 停用层
+        // Deactivate layer
         stack.deactivate_layer("navigate");
         assert!(!stack.is_layer_active("navigate"));
     }
@@ -189,11 +189,11 @@ mod tests {
         let mut stack = LayerStack::new();
         let layer = Layer::new("test", 0x3A, 0x14).with_mode(LayerMode::Toggle);
 
-        // 切换激活
+        // Toggle activation
         stack.toggle_layer(layer.clone());
         assert!(stack.is_layer_active("test"));
 
-        // 再次切换，停用
+        // Toggle again to deactivate
         stack.toggle_layer(layer);
         assert!(!stack.is_layer_active("test"));
     }

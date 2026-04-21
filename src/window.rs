@@ -15,7 +15,7 @@ use crate::platform::windows::tray::{
     WM_APP_TRAY_NOTIFY,
 };
 
-/// 应用程序命令
+/// Application commands
 #[derive(Debug, Clone, Copy)]
 pub enum AppCommand {
     ToggleActive,
@@ -24,7 +24,7 @@ pub enum AppCommand {
     Exit,
 }
 
-/// 消息窗口结构
+/// Message window structure
 pub struct MessageWindow {
     hwnd: HWND,
     tray_icon: Arc<Mutex<TrayIcon>>,
@@ -33,7 +33,7 @@ pub struct MessageWindow {
 }
 
 impl MessageWindow {
-    /// 创建带自定义图标路径的消息窗口
+    /// Create message window with custom icon path
     pub fn with_icon_path(icon_path: Option<String>) -> Result<Arc<Self>> {
         let hwnd = Self::create_window()?;
 
@@ -44,7 +44,7 @@ impl MessageWindow {
             command_callback: Arc::new(Mutex::new(None)),
         });
 
-        // 将 Arc 的原始指针存储在窗口数据中（安全：Arc 使用堆分配，不会移动）
+        // Store raw pointer of Arc in window data (safe: Arc uses heap allocation, won't move)
         unsafe {
             let ptr = Arc::into_raw(Arc::clone(&window)) as isize;
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, ptr);
@@ -53,7 +53,7 @@ impl MessageWindow {
         Ok(window)
     }
 
-    /// 创建 Windows 窗口
+    /// Create Windows window
     fn create_window() -> Result<HWND> {
         unsafe {
             let class_name = windows::core::w!("WakemMessageWindow");

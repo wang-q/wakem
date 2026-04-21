@@ -4,7 +4,7 @@ use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration};
 use tracing::debug;
 
-/// IPC 客户端（基于 TCP）
+/// IPC client (based on TCP)
 pub struct IpcClient {
     stream: Option<TcpStream>,
     address: String,
@@ -12,7 +12,7 @@ pub struct IpcClient {
 }
 
 impl IpcClient {
-    /// 创建新的客户端
+    /// Create new client
     pub fn new(address: impl Into<String>) -> Self {
         Self {
             stream: None,
@@ -21,17 +21,17 @@ impl IpcClient {
         }
     }
 
-    /// 设置认证密钥
+    /// Set authentication key
     pub fn with_auth_key(mut self, auth_key: impl Into<String>) -> Self {
         self.auth_key = Some(auth_key.into());
         self
     }
 
-    /// 连接到服务端
+    /// Connect to server
     pub async fn connect(&mut self) -> Result<()> {
         debug!("Connecting to server at {}", self.address);
 
-        // 连接超时 5 秒
+        // Connection timeout 5 seconds
         let mut stream =
             timeout(Duration::from_secs(5), TcpStream::connect(&self.address))
                 .await
@@ -39,7 +39,7 @@ impl IpcClient {
 
         debug!("Connection established");
 
-        // 如果配置了认证密钥，执行认证
+        // If authentication key is configured, perform authentication
         if let Some(ref key) = self.auth_key {
             if !perform_authentication(&mut stream, key).await? {
                 return Err(IpcError::ConnectionRefused);
@@ -63,7 +63,7 @@ impl IpcClient {
         read_message(stream).await
     }
 
-    /// Send message并等待响应
+    /// Send message and wait for response
     pub async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         self.send(message).await?;
         timeout(Duration::from_secs(5), self.receive()).await?
@@ -76,19 +76,19 @@ impl Default for IpcClient {
     }
 }
 
-/// 执行挑战-响应认证
+/// Perform challenge-response authentication
 async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Result<bool> {
-    // 读取挑战
+    // Read challenge
     let mut challenge = [0u8; auth::CHALLENGE_SIZE];
 
     timeout(Duration::from_secs(5), stream.read_exact(&mut challenge))
         .await
         .map_err(|_| IpcError::Timeout)??;
 
-    // 计算响应
+    // Compute response
     let response = auth::compute_response(auth_key, &challenge);
 
-    // 发送响应
+    // Send response
     timeout(Duration::from_secs(5), stream.write_all(&response))
         .await
         .map_err(|_| IpcError::Timeout)??;
