@@ -2,7 +2,9 @@ use super::{
     auth, read_message, security, send_message, ConnectionLimiter, IpcError, Message,
     Result,
 };
-use crate::constants::{AUTH_OPERATION_TIMEOUT_SECS, IPC_CHANNEL_CAPACITY, IPC_IDLE_TIMEOUT_SECS};
+use crate::constants::{
+    AUTH_OPERATION_TIMEOUT_SECS, IPC_CHANNEL_CAPACITY, IPC_IDLE_TIMEOUT_SECS,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -191,15 +193,21 @@ async fn perform_authentication_with_timeout(
     let challenge = auth::generate_challenge();
 
     // Send challenge to client (with timeout)
-    timeout(Duration::from_secs(AUTH_OPERATION_TIMEOUT_SECS), stream.write_all(&challenge))
-        .await
-        .map_err(|_| IpcError::Timeout)??;
+    timeout(
+        Duration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
+        stream.write_all(&challenge),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
 
     // Read response (with timeout)
     let mut response = [0u8; auth::RESPONSE_SIZE];
-    timeout(Duration::from_secs(AUTH_OPERATION_TIMEOUT_SECS), stream.read_exact(&mut response))
-        .await
-        .map_err(|_| IpcError::Timeout)??;
+    timeout(
+        Duration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
+        stream.read_exact(&mut response),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
 
     // Verify response
     Ok(auth::verify_response(auth_key, &challenge, &response))

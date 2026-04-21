@@ -808,7 +808,8 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     info!("Server listening on {}", bind_address);
 
     // Create input event channel (using tokio::sync::mpsc for efficient async processing)
-    let (input_tx, mut input_rx) = tokio::sync::mpsc::channel::<InputEvent>(INPUT_CHANNEL_CAPACITY);
+    let (input_tx, mut input_rx) =
+        tokio::sync::mpsc::channel::<InputEvent>(INPUT_CHANNEL_CAPACITY);
 
     // Collect all std thread JoinHandles for graceful shutdown
     let mut thread_handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
@@ -938,8 +939,9 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     // Start window event listener (for auto-applying presets)
     let mut window_event_rx = {
-        let (tx, rx) =
-            tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(WINDOW_EVENT_CHANNEL_CAPACITY);
+        let (tx, rx) = tokio::sync::mpsc::channel::<crate::platform::windows::WindowEvent>(
+            WINDOW_EVENT_CHANNEL_CAPACITY,
+        );
 
         let window_bridge_handle = std::thread::spawn(move || {
             let (std_tx, std_rx) =
@@ -1088,7 +1090,10 @@ impl ServerState {
             crate::platform::windows::WindowEvent::WindowCreated(hwnd)
             | crate::platform::windows::WindowEvent::WindowActivated(hwnd) => {
                 // Delay applying preset to ensure window is fully created
-                tokio::time::sleep(tokio::time::Duration::from_millis(WINDOW_PRESET_APPLY_DELAY_MS)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    WINDOW_PRESET_APPLY_DELAY_MS,
+                ))
+                .await;
 
                 let preset_manager = self.window_preset_manager.read().await;
                 match preset_manager.apply_preset_for_window(hwnd) {

@@ -33,10 +33,12 @@ impl IpcClient {
         debug!("Connecting to server at {}", self.address);
 
         // Connection timeout
-        let mut stream =
-            timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), TcpStream::connect(&self.address))
-                .await
-                .map_err(|_| IpcError::Timeout)??;
+        let mut stream = timeout(
+            Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
+            TcpStream::connect(&self.address),
+        )
+        .await
+        .map_err(|_| IpcError::Timeout)??;
 
         debug!("Connection established");
 
@@ -67,7 +69,11 @@ impl IpcClient {
     /// Send message and wait for response
     pub async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         self.send(message).await?;
-        timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), self.receive()).await?
+        timeout(
+            Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
+            self.receive(),
+        )
+        .await?
     }
 }
 
@@ -82,17 +88,23 @@ async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Resul
     // Read challenge
     let mut challenge = [0u8; auth::CHALLENGE_SIZE];
 
-    timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), stream.read_exact(&mut challenge))
-        .await
-        .map_err(|_| IpcError::Timeout)??;
+    timeout(
+        Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
+        stream.read_exact(&mut challenge),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
 
     // Compute response
     let response = auth::compute_response(auth_key, &challenge);
 
     // Send response
-    timeout(Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS), stream.write_all(&response))
-        .await
-        .map_err(|_| IpcError::Timeout)??;
+    timeout(
+        Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
+        stream.write_all(&response),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
 
     Ok(true)
 }
