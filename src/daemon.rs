@@ -830,37 +830,51 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     let input_tx_bridge = input_tx.clone();
     let input_shutdown_flag = Arc::new(AtomicBool::new(false));
     let input_shutdown_flag_clone = input_shutdown_flag.clone();
+    let raw_input_shutdown_flag = Arc::new(AtomicBool::new(false));
+    let raw_input_shutdown_flag_clone = raw_input_shutdown_flag.clone();
+
     let input_bridge_handle = std::thread::spawn(move || {
         let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
         let tx_clone = input_tx_bridge;
         let shutdown_flag = input_shutdown_flag_clone;
+        let raw_input_shutdown = raw_input_shutdown_flag_clone;
+        let raw_input_shutdown_for_bridge = raw_input_shutdown.clone();
 
         let raw_input_handle =
             std::thread::spawn(move || match RawInputDevice::new(std_tx) {
                 Ok(mut device) => {
                     info!("Raw Input device initialized");
-                    if let Err(e) = device.run() {
-                        error!("Raw Input error: {}", e);
+                    // Run until shutdown signal
+                    while !raw_input_shutdown.load(Ordering::SeqCst) {
+                        if let Err(e) = device.run_once() {
+                            error!("Raw Input error: {}", e);
+                            break;
+                        }
                     }
+                    info!("Raw Input thread shutting down");
                 }
                 Err(e) => {
                     error!("Failed to create Raw Input device: {}", e);
                 }
             });
 
-        // Wait for Raw Input thread to finish (if it exits early)
-        let _ = raw_input_handle.join();
-
         // Bridge: receive from std channel and send to tokio channel
-        // Use try_recv with timeout to allow checking shutdown flag
+        // Use try_recv to allow checking shutdown flag
         loop {
             if shutdown_flag.load(Ordering::SeqCst) {
+                // Signal Raw Input thread to stop
+                raw_input_shutdown_for_bridge.store(true, Ordering::SeqCst);
+                // Wait for Raw Input thread to finish
+                let _ = raw_input_handle.join();
                 break;
             }
             match std_rx.try_recv() {
                 Ok(event) => {
                     if tx_clone.blocking_send(event).is_err() {
-                        break; // Channel closed, exit
+                        // Channel closed, signal Raw Input to stop and exit
+                        raw_input_shutdown_for_bridge.store(true, Ordering::SeqCst);
+                        let _ = raw_input_handle.join();
+                        break;
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -868,7 +882,9 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
                     std::thread::sleep(std::time::Duration::from_millis(10));
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    // Sender dropped, exit
+                    // Sender dropped, signal Raw Input to stop and exit
+                    raw_input_shutdown_for_bridge.store(true, Ordering::SeqCst);
+                    let _ = raw_input_handle.join();
                     break;
                 }
             }

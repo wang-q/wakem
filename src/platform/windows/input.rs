@@ -141,6 +141,32 @@ impl RawInputDevice {
         Ok(())
     }
 
+    /// Run one iteration of the message loop (non-blocking)
+    /// Returns Ok(true) if should continue, Ok(false) if WM_QUIT received
+    pub fn run_once(&mut self) -> Result<bool> {
+        if !self.running {
+            self.running = true;
+        }
+
+        unsafe {
+            let mut msg: MSG = std::mem::zeroed();
+
+            // Use PeekMessageW for non-blocking check
+            use windows::Win32::UI::WindowsAndMessaging::{
+                PeekMessageW, PM_REMOVE, WM_QUIT,
+            };
+
+            if PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).into() {
+                if msg.message == WM_QUIT {
+                    return Ok(false);
+                }
+                DispatchMessageW(&msg);
+            }
+        }
+
+        Ok(true)
+    }
+
     /// Stop message loop
     pub fn stop(&mut self) {
         self.running = false;
