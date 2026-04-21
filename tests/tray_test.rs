@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tray_tests {
-    use wakem::platform::windows::{
-        tray::{IDM_EXIT, IDM_OPEN_CONFIG, IDM_RELOAD, IDM_TOGGLE_ACTIVE},
-        tray_api::*,
+    use wakem::platform::windows::tray::{
+        MenuAction, MockTrayApi, TrayApi, TrayManager, IDM_EXIT, IDM_OPEN_CONFIG,
+        IDM_RELOAD, IDM_TOGGLE_ACTIVE,
     };
 
     // ==================== MockTrayApi 测试 ====================
@@ -75,7 +75,7 @@ mod tray_tests {
         let result2 = api.show_menu().await.unwrap();
         assert_eq!(result2, IDM_EXIT);
 
-        // 没有更多预设选择时返回 0
+        // No more preset selections returns 0
         let result3 = api.show_menu().await.unwrap();
         assert_eq!(result3, 0);
     }
@@ -84,14 +84,14 @@ mod tray_tests {
     async fn test_mock_tray_api_active_state() {
         let api = MockTrayApi::new();
 
-        // 默认激活
+        // Default active
         assert!(api.is_active().await);
 
-        // 设置为非激活
+        // Set inactive
         api.set_active(false).await.unwrap();
         assert!(!api.is_active().await);
 
-        // 重新激活
+        // Reactivate
         api.set_active(true).await.unwrap();
         assert!(api.is_active().await);
     }
@@ -182,7 +182,7 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_show_context_menu_none() {
         let api = MockTrayApi::new();
-        api.set_menu_selections(vec![9999]); // 未知 ID
+        api.set_menu_selections(vec![9999]); // Unknown ID
 
         let manager = TrayManager::new(api);
         let action = manager.show_context_menu().await.unwrap();
@@ -193,7 +193,7 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_show_context_menu_cancelled() {
         let api = MockTrayApi::new();
-        api.set_menu_selections(vec![0]); // 0 表示取消
+        api.set_menu_selections(vec![0]); // 0 means cancelled
 
         let manager = TrayManager::new(api);
         let action = manager.show_context_menu().await.unwrap();
@@ -206,15 +206,15 @@ mod tray_tests {
         let api = MockTrayApi::new();
         let manager = TrayManager::new(api);
 
-        // 初始状态为激活
+        // Initial state is active
         assert!(manager.is_active().await);
 
-        // 切换为非激活
+        // Toggle to inactive
         let new_state = manager.toggle_active().await.unwrap();
         assert!(!new_state);
         assert!(!manager.is_active().await);
 
-        // 切换回激活
+        // Toggle back to active
         let new_state = manager.toggle_active().await.unwrap();
         assert!(new_state);
         assert!(manager.is_active().await);
@@ -222,39 +222,39 @@ mod tray_tests {
 
     #[tokio::test]
     async fn test_tray_manager_workflow() {
-        // 模拟完整的托盘图标工作流程
+        // Simulate complete tray icon workflow
         let api = MockTrayApi::new();
         api.set_menu_selections(vec![IDM_TOGGLE_ACTIVE, IDM_RELOAD, IDM_EXIT]);
 
         let manager = TrayManager::new(api);
 
-        // 初始化
+        // Initialize
         manager.init(12345).await.unwrap();
         assert!(manager.is_active().await);
 
-        // 显示通知
+        // Show notification
         manager
             .notify("Wakem", "Application started")
             .await
             .unwrap();
 
-        // 用户点击"切换激活"
+        // User clicks "Toggle Active"
         let action1 = manager.show_context_menu().await.unwrap();
         assert_eq!(action1, MenuAction::ToggleActive);
 
-        // 切换状态
+        // Toggle state
         let active = manager.toggle_active().await.unwrap();
         assert!(!active);
 
-        // 用户点击"重新加载"
+        // User clicks "Reload"
         let action2 = manager.show_context_menu().await.unwrap();
         assert_eq!(action2, MenuAction::Reload);
 
-        // 用户点击"退出"
+        // User clicks "Exit"
         let action3 = manager.show_context_menu().await.unwrap();
         assert_eq!(action3, MenuAction::Exit);
 
-        // 清理
+        // Cleanup
         manager.cleanup().await.unwrap();
     }
 
@@ -280,7 +280,7 @@ mod tray_tests {
     fn test_menu_action_copy() {
         let action = MenuAction::Exit;
         let copied = action;
-        assert_eq!(action, copied); // Copy trait 允许这样做
+        assert_eq!(action, copied); // Copy trait allows this
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod tray_tests {
         assert_ne!(MenuAction::Exit, MenuAction::OpenConfig);
     }
 
-    // ==================== 菜单 ID 常量测试 ====================
+    // ==================== Menu ID Constants Test ====================
 
     #[test]
     fn test_menu_ids() {
@@ -301,7 +301,7 @@ mod tray_tests {
         assert_eq!(IDM_EXIT, 103);
     }
 
-    // ==================== 边界情况测试 ====================
+    // ==================== Edge Case Tests ====================
 
     #[tokio::test]
     async fn test_mock_tray_api_empty_notifications() {
@@ -334,15 +334,15 @@ mod tray_tests {
         let api = MockTrayApi::new();
         api.set_menu_selections(vec![IDM_TOGGLE_ACTIVE, IDM_RELOAD]);
 
-        // 第一次菜单
+        // First menu
         let result1 = api.show_menu().await.unwrap();
         assert_eq!(result1, IDM_TOGGLE_ACTIVE);
 
-        // 第二次菜单
+        // Second menu
         let result2 = api.show_menu().await.unwrap();
         assert_eq!(result2, IDM_RELOAD);
 
-        // 重置菜单选择
+        // Reset menu selections
         api.set_menu_selections(vec![IDM_EXIT]);
         let result3 = api.show_menu().await.unwrap();
         assert_eq!(result3, IDM_EXIT);

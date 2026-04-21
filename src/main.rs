@@ -15,13 +15,15 @@ mod platform;
 mod runtime;
 mod shutdown;
 mod types;
-mod window;
 
 use cli::{Cli, Commands};
 use client::DaemonClient;
 use config::Config;
 use constants::IPC_CHANNEL_CAPACITY;
-use window::AppCommand;
+
+// Platform-specific imports
+#[cfg(target_os = "windows")]
+use platform::windows::{run_tray_message_loop, stop_tray, AppCommand};
 
 /// Simple daemon command executor macro to reduce boilerplate for parameterless methods
 macro_rules! simple_daemon_command {
@@ -201,7 +203,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
     // Spawn the tray message loop in a dedicated thread
     // (using std::thread instead of spawn_blocking for better control)
     let tray_handle = std::thread::spawn(move || {
-        window::run_tray_message_loop(move |cmd| {
+        run_tray_message_loop(move |cmd| {
             let _ = cmd_tx_for_callback.try_send(cmd);
         })
     });
@@ -296,7 +298,7 @@ async fn run_tray(instance_id: u32) -> Result<()> {
 
     // Stop the tray message loop (if not already stopped)
     if should_exit {
-        window::stop_tray();
+        stop_tray();
     }
 
     // Wait for tray thread to complete (with timeout to avoid hanging)

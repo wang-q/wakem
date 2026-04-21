@@ -7,7 +7,6 @@ pub mod launcher;
 pub mod output;
 pub mod output_device;
 pub mod tray;
-pub mod tray_api;
 pub mod window_api;
 pub mod window_event_hook;
 pub mod window_manager;
@@ -22,9 +21,9 @@ pub use input_device::{
 pub use launcher::Launcher;
 pub use output::OutputDevice as LegacyOutputDevice;
 pub use output_device::{OutputDevice, OutputEvent, SendInputDevice};
-pub use tray::TrayIcon;
-pub use tray_api::{
-    MenuAction, RealTrayApi, TrayApi, TrayIcon as TrayIconAlias, TrayManager,
+pub use tray::{
+    run_tray_message_loop, stop_tray, AppCommand, MenuAction, MockTrayApi, RealTrayApi,
+    TrayApi, TrayIcon, TrayManager,
 };
 pub use window_api::{
     MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi, WindowOperation, WindowState,
@@ -35,8 +34,6 @@ pub use window_api::{
 pub use input_device::MockInputDevice;
 #[cfg(test)]
 pub use output_device::MockOutputDevice;
-#[cfg(test)]
-pub use tray_api::MockTrayApi;
 #[cfg(test)]
 pub use window_api::MockWindowApi;
 
