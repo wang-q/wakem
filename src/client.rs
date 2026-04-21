@@ -78,7 +78,7 @@ impl DaemonClient {
         }
     }
 
-    /// Reload配置
+    /// Reload configuration
     pub async fn reload_config(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::ReloadConfig).await?;
 
@@ -94,7 +94,7 @@ impl DaemonClient {
         }
     }
 
-    /// 保存配置到文件
+    /// Save configuration to file
     pub async fn save_config(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::SaveConfig).await?;
 
@@ -110,7 +110,7 @@ impl DaemonClient {
         }
     }
 
-    /// Send message并等待响应
+    /// Send message and wait for response
     async fn send_receive(&mut self, message: &Message) -> Result<Message> {
         let client = self
             .client
@@ -123,7 +123,7 @@ impl DaemonClient {
         }
     }
 
-    /// Start recording宏
+    /// Start recording macro
     pub async fn start_macro_recording(&mut self, name: &str) -> Result<()> {
         let response = self
             .send_receive(&Message::StartMacroRecording {
@@ -138,7 +138,7 @@ impl DaemonClient {
         }
     }
 
-    /// Stop recording宏
+    /// Stop recording macro
     pub async fn stop_macro_recording(&mut self) -> Result<(String, usize)> {
         let response = self.send_receive(&Message::StopMacroRecording).await?;
 
@@ -151,7 +151,7 @@ impl DaemonClient {
         }
     }
 
-    /// 播放宏
+    /// Play macro
     pub async fn play_macro(&mut self, name: &str) -> Result<()> {
         let response = self
             .send_receive(&Message::PlayMacro {
@@ -166,7 +166,7 @@ impl DaemonClient {
         }
     }
 
-    /// 获取宏列表
+    /// Get list of macros
     pub async fn get_macros(&mut self) -> Result<Vec<String>> {
         let response = self.send_receive(&Message::GetMacros).await?;
 
@@ -176,7 +176,7 @@ impl DaemonClient {
         }
     }
 
-    /// 删除宏
+    /// Delete macro
     pub async fn delete_macro(&mut self, name: &str) -> Result<()> {
         let response = self
             .send_receive(&Message::DeleteMacro {
@@ -191,7 +191,7 @@ impl DaemonClient {
         }
     }
 
-    /// 绑定宏到触发键
+    /// Bind macro to trigger key
     pub async fn bind_macro(&mut self, macro_name: &str, trigger: &str) -> Result<()> {
         let response = self
             .send_receive(&Message::BindMacro {
@@ -207,7 +207,7 @@ impl DaemonClient {
         }
     }
 
-    /// 注册消息窗口句柄
+    /// Register message window handle
     pub async fn register_message_window(&mut self, hwnd: usize) -> Result<()> {
         let response = self
             .send_receive(&Message::RegisterMessageWindow { hwnd })

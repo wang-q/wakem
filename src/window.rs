@@ -93,7 +93,7 @@ impl MessageWindow {
         }
     }
 
-    /// 初始化托盘图标
+    /// Initialize tray icon
     pub fn init_tray(&self) -> Result<()> {
         let mut tray = self.tray_icon.lock().unwrap();
         tray.register(self.hwnd)?;
@@ -101,7 +101,7 @@ impl MessageWindow {
         Ok(())
     }
 
-    /// 设置命令回调
+    /// Set command callback
     pub fn set_command_callback<F>(&self, callback: F)
     where
         F: Fn(AppCommand) + Send + 'static,
@@ -110,7 +110,7 @@ impl MessageWindow {
         *cb = Some(Box::new(callback));
     }
 
-    /// Send command（从窗口过程调用）
+    /// Send command (called from window procedure)
     fn send_command(&self, cmd: AppCommand) {
         let cb = self.command_callback.lock().unwrap();
         if let Some(ref callback) = *cb {
@@ -118,7 +118,7 @@ impl MessageWindow {
         }
     }
 
-    /// 运行消息循环
+    /// Run message loop
     pub fn run(&self) -> Result<()> {
         info!("Starting message loop");
 
@@ -135,7 +135,7 @@ impl MessageWindow {
         Ok(())
     }
 
-    /// 停止消息循环
+    /// Stop message loop
     pub fn stop(&self) {
         let mut running = self.running.lock().unwrap();
         *running = false;
@@ -145,22 +145,22 @@ impl MessageWindow {
         }
     }
 
-    /// 获取窗口句柄
+    /// Get window handle
     pub fn hwnd(&self) -> HWND {
         self.hwnd
     }
 
-    /// 从窗口句柄获取实例引用（安全地重建 Arc）
+    /// Get instance reference from window handle (safely reconstruct Arc)
     unsafe fn get_instance(hwnd: HWND) -> Option<Arc<Self>> {
         let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
         if ptr == 0 {
             return None;
         }
-        // 从原始指针安全地重建 Arc
+        // Safely reconstruct Arc from raw pointer
         Some(Arc::from_raw(ptr as *const Self))
     }
 
-    /// 窗口过程
+    /// Window procedure
     unsafe extern "system" fn window_proc(
         hwnd: HWND,
         msg: u32,
@@ -178,11 +178,11 @@ impl MessageWindow {
                 LRESULT(0)
             }
             WM_APP_TRAY_NOTIFY => {
-                // 托盘图标消息
+                // Tray icon message
                 Self::handle_tray_notify(hwnd, lparam)
             }
             WM_COMMAND => {
-                // 菜单命令
+                // Menu command
                 let id = wparam.0 as u32;
                 Self::handle_menu_command(hwnd, id);
                 LRESULT(0)
@@ -191,7 +191,7 @@ impl MessageWindow {
         }
     }
 
-    /// 处理托盘图标消息
+    /// Handle tray icon message
     unsafe fn handle_tray_notify(hwnd: HWND, lparam: LPARAM) -> LRESULT {
         use windows::Win32::UI::WindowsAndMessaging::{
             WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_RBUTTONUP,
@@ -200,7 +200,7 @@ impl MessageWindow {
         let msg = lparam.0 as u32;
         match msg {
             WM_RBUTTONUP => {
-                // 右键点击，显示菜单
+                // Right-click to show menu
                 debug!("Tray icon right-clicked");
 
                 if let Some(instance) = Self::get_instance(hwnd) {
@@ -208,7 +208,7 @@ impl MessageWindow {
                     match tray.show_menu() {
                         Ok(cmd_id) => {
                             if cmd_id != 0 {
-                                // 发送 WM_COMMAND 消息来处理菜单选择
+                                // Send WM_COMMAND message to handle menu selection
                                 let _ = PostMessageW(
                                     hwnd,
                                     WM_COMMAND,
@@ -224,14 +224,14 @@ impl MessageWindow {
                 }
             }
             WM_LBUTTONDBLCLK => {
-                // 左键双击，切换启用状态
+                // Double-click to toggle active state
                 debug!("Tray icon double-clicked");
                 if let Some(instance) = Self::get_instance(hwnd) {
                     instance.send_command(AppCommand::ToggleActive);
                 }
             }
             WM_LBUTTONUP => {
-                // 左键单击
+                // Left-click
                 debug!("Tray icon clicked");
             }
             _ => {}
@@ -240,7 +240,7 @@ impl MessageWindow {
         LRESULT(0)
     }
 
-    /// 处理菜单命令
+    /// Handle menu command
     unsafe fn handle_menu_command(hwnd: HWND, id: u32) {
         if let Some(instance) = Self::get_instance(hwnd) {
             match id {
@@ -269,7 +269,7 @@ impl MessageWindow {
 impl Drop for MessageWindow {
     fn drop(&mut self) {
         debug!("MessageWindow dropping");
-        // 清理托盘图标
+        // Clean up tray icon
         if let Ok(mut tray) = self.tray_icon.lock() {
             if let Err(e) = tray.unregister() {
                 debug!("Failed to unregister tray icon: {}", e);
@@ -278,6 +278,6 @@ impl Drop for MessageWindow {
     }
 }
 
-// 确保 MessageWindow 是线程安全的
+// Ensure MessageWindow is thread-safe
 unsafe impl Send for MessageWindow {}
 unsafe impl Sync for MessageWindow {}

@@ -79,12 +79,12 @@ impl IpcServer {
                         continue;
                     }
 
-                    // 检查速率限制（安全层2：防暴力破解）
+                    // Check rate limit (Security layer 2: prevent brute force)
                     {
                         let mut limiter = self.rate_limiter.write().await;
                         if !limiter.check_rate_limit(addr.ip()) {
                             warn!("Rate limit exceeded for IP: {}", addr);
-                            // 记录安全告警
+                            // Log security alert
                             error!(
                                 "Security alert: Possible brute force attack from {}",
                                 addr
@@ -93,11 +93,11 @@ impl IpcServer {
                         }
                     }
 
-                    // 克隆必要的数据（Arc<RwLock> 的 clone 很便宜）
+                    // Clone necessary data (Arc<RwLock> clone is cheap)
                     let auth_key = self.auth_key.clone();
                     let message_tx = self.message_tx.clone();
 
-                    // 处理连接
+                    // Handle connection
                     tokio::spawn(async move {
                         if let Err(e) =
                             handle_connection(stream, addr, auth_key, message_tx).await
@@ -115,14 +115,14 @@ impl IpcServer {
     }
 }
 
-/// 处理单个连接
+/// Handle a single connection
 async fn handle_connection(
     mut stream: TcpStream,
     addr: SocketAddr,
     auth_key: Option<Arc<RwLock<String>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
 ) -> Result<()> {
-    // 如果配置了认证密钥，执行挑战-响应认证（动态读取最新密钥）
+    // If auth key is configured, perform challenge-response authentication (dynamically read latest key)
     if let Some(key_arc) = auth_key {
         let key = key_arc.read().await;
         if !key.is_empty() {
@@ -134,17 +134,17 @@ async fn handle_connection(
         }
     }
 
-    // 创建响应通道
+    // Create response channel
     let (response_tx, mut response_rx) = mpsc::channel(100);
 
-    // 消息处理循环
+    // Message processing loop
     loop {
         tokio::select! {
-            // 读取客户端消息
+            // Read client message
             result = read_message(&mut stream) => {
                 match result {
                     Ok(message) => {
-                        // 发送给主处理循环
+                        // Send to main processing loop
                         if message_tx.send((message, response_tx.clone())).await.is_err() {
                             break;
                         }
@@ -152,14 +152,14 @@ async fn handle_connection(
                     Err(IpcError::Io(e))
                         if e.kind() == std::io::ErrorKind::UnexpectedEof =>
                     {
-                        // 客户端断开连接
+                        // Client disconnected
                         break;
                     }
                     Err(e) => return Err(e),
                 }
             }
 
-            // 发送响应给客户端
+            // Send response to client
             Some(response) = response_rx.recv() => {
                 if let Err(e) = send_message(&mut stream, &response).await {
                     debug!("Failed to send response: {}", e);
@@ -167,7 +167,7 @@ async fn handle_connection(
                 }
             }
 
-            // 超时检查（2分钟空闲超时，平衡资源使用和用户体验）
+            // Timeout check (2 minutes idle timeout, balancing resource usage and user experience)
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(120)) => {
                 debug!("Connection timeout for {}", addr);
                 break;
@@ -179,28 +179,28 @@ async fn handle_connection(
     Ok(())
 }
 
-/// 执行挑战-响应认证（带超时控制）
+/// Perform challenge-response authentication (with timeout)
 async fn perform_authentication_with_timeout(
     stream: &mut TcpStream,
     auth_key: &str,
 ) -> Result<bool> {
     use tokio::time::{timeout, Duration};
 
-    // 生成挑战
+    // Generate challenge
     let challenge = auth::generate_challenge();
 
-    // 发送挑战给客户端（带5秒超时）
+    // Send challenge to client (with 5 second timeout)
     timeout(Duration::from_secs(5), stream.write_all(&challenge))
         .await
         .map_err(|_| IpcError::Timeout)??;
 
-    // 读取响应（带5秒超时）
+    // Read response (with 5 second timeout)
     let mut response = [0u8; auth::RESPONSE_SIZE];
     timeout(Duration::from_secs(5), stream.read_exact(&mut response))
         .await
         .map_err(|_| IpcError::Timeout)??;
 
-    // 验证响应
+    // Verify response
     Ok(auth::verify_response(auth_key, &challenge, &response))
 }
 

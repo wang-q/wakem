@@ -600,11 +600,11 @@ impl KeyMapper {
         use crate::config::parse_key;
         use crate::types::KeyAction;
 
-        // 解析源键
+        // Parse source key
         let from_key = parse_key(from)?;
 
-        // 解析目标动作
-        // 先尝试解析为键位
+        // Parse target action
+        // First try to parse as key
         if let Ok(to_key) = parse_key(to) {
             return Ok((
                 from_key.0,

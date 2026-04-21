@@ -36,7 +36,7 @@ pub use window_api::{
     MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi, WindowOperation, WindowState,
 };
 
-// Mock 实现仅在测试时导出
+// Mock implementations are only exported during tests
 #[cfg(test)]
 pub use input_device::MockInputDevice;
 #[cfg(test)]

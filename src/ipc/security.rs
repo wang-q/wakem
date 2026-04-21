@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-/// 检查 IP 地址是否为内网地址（RFC 1918）
+/// Check if IP address is private (RFC 1918)
 pub fn is_private_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
@@ -17,14 +17,14 @@ pub fn is_private_ip(ip: IpAddr) -> bool {
                 || (o[0] == 169 && o[1] == 254)
         }
         IpAddr::V6(_) => {
-            // IPv6 暂不处理，默认拒绝
+            // IPv6 not handled yet, deny by default
             false
         }
     }
 }
 
-/// 检查 IP 地址是否允许连接
-/// 只允许内网地址
+/// Check if IP address is allowed to connect
+/// Only private IP addresses are allowed
 pub fn is_allowed_ip(ip: IpAddr) -> bool {
     is_private_ip(ip)
 }

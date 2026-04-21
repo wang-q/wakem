@@ -13,7 +13,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use super::WindowFrame;
 
-/// 显示器信息
+/// Monitor information
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct MonitorInfo {
@@ -23,7 +23,7 @@ pub struct MonitorInfo {
     pub height: i32,
 }
 
-/// 显示器工作区信息
+/// Monitor work area information
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
 pub struct MonitorWorkArea {
@@ -33,7 +33,7 @@ pub struct MonitorWorkArea {
     pub height: i32,
 }
 
-/// 窗口操作日志
+/// Window operation log
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum WindowOperation {
@@ -82,7 +82,7 @@ pub enum WindowOperation {
     },
 }
 
-/// 窗口状态
+/// Window state
 #[derive(Debug, Clone, Copy)]
 pub struct WindowState {
     pub minimized: bool,

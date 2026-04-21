@@ -23,7 +23,7 @@ thread_local! {
     static CURRENT_SENDER: RefCell<Option<Sender<InputEvent>>> = const { RefCell::new(None) };
 }
 
-/// Raw Input 设备管理器
+/// Raw Input device manager
 pub struct RawInputDevice {
     hwnd: HWND,
     #[allow(dead_code)]
@@ -34,16 +34,16 @@ pub struct RawInputDevice {
 }
 
 impl RawInputDevice {
-    /// 创建并初始化 Raw Input 设备
+    /// Create and initialize Raw Input device
     pub fn new(event_sender: Sender<InputEvent>) -> Result<Self> {
-        // 设置线程本地存储的发送器
+        // Set thread-local sender
         CURRENT_SENDER.with(|s| {
             *s.borrow_mut() = Some(event_sender.clone());
         });
 
         let hwnd = Self::create_message_window()?;
 
-        // 注册 Raw Input 设备
+        // Register Raw Input devices
         Self::register_devices(hwnd)?;
 
         Ok(Self {
@@ -54,7 +54,7 @@ impl RawInputDevice {
         })
     }
 
-    /// 创建消息窗口（用于接收 Raw Input 消息）
+    /// Create message window (for receiving Raw Input messages)
     fn create_message_window() -> Result<HWND> {
         unsafe {
             let class_name = windows::core::w!("WakemRawInputWindow");
@@ -95,7 +95,7 @@ impl RawInputDevice {
         }
     }
 
-    /// 注册 Raw Input 设备
+    /// Register Raw Input devices
     fn register_devices(hwnd: HWND) -> Result<()> {
         let devices = [
             RAWINPUTDEVICE {
@@ -123,7 +123,7 @@ impl RawInputDevice {
         Ok(())
     }
 
-    /// 运行消息循环
+    /// Run message loop
     pub fn run(&mut self) -> Result<()> {
         debug!("Starting Raw Input message loop");
         self.running = true;
@@ -140,7 +140,7 @@ impl RawInputDevice {
         Ok(())
     }
 
-    /// 停止消息循环
+    /// Stop message loop
     pub fn stop(&mut self) {
         self.running = false;
         let _ = unsafe {
@@ -153,7 +153,7 @@ impl RawInputDevice {
         };
     }
 
-    /// 窗口过程
+    /// Window procedure
     unsafe extern "system" fn window_proc(
         hwnd: HWND,
         msg: u32,
@@ -170,7 +170,7 @@ impl RawInputDevice {
                 LRESULT(0)
             }
             WM_INPUT => {
-                // 处理 Raw Input
+                // Process Raw Input
                 Self::handle_raw_input(lparam);
                 LRESULT(0)
             }
@@ -178,7 +178,7 @@ impl RawInputDevice {
         }
     }
 
-    /// 处理 Raw Input 消息
+    /// Handle Raw Input message
     unsafe fn handle_raw_input(lparam: LPARAM) {
         let mut raw_data: [u8; 1024] = [0; 1024];
         let mut size: u32 = 1024;
@@ -204,16 +204,16 @@ impl RawInputDevice {
         if device_type == RIM_TYPEKEYBOARD.0 {
             let keyboard = &raw.data.keyboard;
 
-            // 忽略重复按键和虚拟按键
+            // Ignore repeated keys and virtual keys
             if keyboard.Flags & 0x01 != 0 {
-                // 这是虚拟按键，忽略
+                // This is a virtual key, ignore
                 return;
             }
 
             let scan_code = if keyboard.MakeCode != 0 {
                 keyboard.MakeCode
             } else {
-                // 从虚拟键码映射
+                // Map from virtual key code
                 keyboard.VKey
             };
 
@@ -232,7 +232,7 @@ impl RawInputDevice {
                 state
             );
 
-            // 发送事件
+            // Send event
             CURRENT_SENDER.with(|s| {
                 if let Some(ref sender) = *s.borrow() {
                     let _ = sender.send(InputEvent::Key(event));
@@ -242,9 +242,9 @@ impl RawInputDevice {
             let mouse = &raw.data.mouse;
             let mouse_inner = mouse.Anonymous.Anonymous;
 
-            // 处理鼠标事件
+            // Process mouse events
             if mouse_inner.usButtonFlags != 0 {
-                // 按钮事件
+                // Button event
                 let button = if mouse_inner.usButtonFlags & 0x0001 != 0
                     || mouse_inner.usButtonFlags & 0x0002 != 0
                 {
@@ -292,7 +292,7 @@ impl RawInputDevice {
                         mouse.lLastY
                     );
 
-                    // 发送事件
+                    // Send event
                     CURRENT_SENDER.with(|s| {
                         if let Some(ref sender) = *s.borrow() {
                             let _ = sender.send(InputEvent::Mouse(event));
@@ -301,7 +301,7 @@ impl RawInputDevice {
                 }
             }
 
-            // 处理滚轮
+            // Process wheel
             if mouse_inner.usButtonFlags & 0x0400 != 0 {
                 let delta = mouse_inner.usButtonData as i16 as i32;
                 let event = MouseEvent::new(
@@ -312,7 +312,7 @@ impl RawInputDevice {
 
                 trace!("Mouse wheel: delta={}", delta);
 
-                // 发送事件
+                // Send event
                 CURRENT_SENDER.with(|s| {
                     if let Some(ref sender) = *s.borrow() {
                         let _ = sender.send(InputEvent::Mouse(event));
@@ -322,7 +322,7 @@ impl RawInputDevice {
         }
     }
 
-    /// 更新修饰键状态
+    /// Update modifier key state
     #[allow(dead_code)]
     fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
         if let Some((modifier, _)) =
@@ -332,7 +332,7 @@ impl RawInputDevice {
         }
     }
 
-    /// 获取当前修饰键状态
+    /// Get current modifier key state
     #[allow(dead_code)]
     pub fn get_modifier_state(&self) -> &ModifierState {
         &self.modifier_state
@@ -342,7 +342,7 @@ impl RawInputDevice {
 impl Drop for RawInputDevice {
     fn drop(&mut self) {
         self.stop();
-        // 清理线程本地存储
+        // Clean up thread-local storage
         CURRENT_SENDER.with(|s| {
             *s.borrow_mut() = None;
         });
