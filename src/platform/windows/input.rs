@@ -6,11 +6,11 @@ use crate::types::{
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_MENU,
-    VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_SHIFT,
+    GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU,
+    VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
 };
 use windows::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, RIDEV_INPUTSINK, RIDEV_NOLEGACY,
@@ -233,8 +233,9 @@ impl RawInputDevice {
         {
             modifiers.alt = true;
         }
-        if GetAsyncKeyState(0x5B) < 0 || GetAsyncKeyState(0x5C) < 0 {
-            // VK_LWIN (0x5B) or VK_RWIN (0x5C)
+        if GetAsyncKeyState(VK_LWIN.0 as i32) < 0
+            || GetAsyncKeyState(VK_RWIN.0 as i32) < 0
+        {
             modifiers.meta = true;
         }
 
@@ -292,12 +293,9 @@ impl RawInputDevice {
             let event =
                 KeyEvent::new(scan_code, keyboard.VKey, state).with_modifiers(modifiers);
 
-            trace!(
+            info!(
                 "Keyboard: scan_code={:04X}, vk={:04X}, state={:?}, modifiers={:?}",
-                scan_code,
-                keyboard.VKey,
-                state,
-                modifiers
+                scan_code, keyboard.VKey, state, modifiers
             );
 
             // Send event

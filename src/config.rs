@@ -687,7 +687,9 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
 /// Create Hyper key action
 /// When the Hyper key (e.g., CapsLock) is held, it simulates holding the modifier keys
 /// This allows using CapsLock+C to trigger Ctrl+Alt+Win+C shortcuts
-fn create_hyper_key_action(modifiers: &crate::types::ModifierState) -> crate::types::Action {
+fn create_hyper_key_action(
+    modifiers: &crate::types::ModifierState,
+) -> crate::types::Action {
     use crate::types::{Action, KeyAction};
 
     let mut press_actions = Vec::new();
@@ -714,6 +716,8 @@ fn create_hyper_key_action(modifiers: &crate::types::ModifierState) -> crate::ty
     // Combine press and release into a sequence that will be split by the mapper
     // The mapper will execute press_actions on key down and release_actions on key up
     let mut all_actions = press_actions;
+    // Add a small delay after pressing modifiers to ensure system recognizes them
+    all_actions.push(Action::Delay { milliseconds: 10 });
     all_actions.push(Action::None); // Marker to split press and release actions
     all_actions.extend(release_actions);
 

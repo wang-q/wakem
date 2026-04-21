@@ -51,6 +51,10 @@ pub struct ServerState {
     message_window_hwnd: Arc<RwLock<Option<HWND>>>,
     /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
+    /// Virtual modifier state for Hyper key support
+    /// This tracks modifiers injected by Hyper key (CapsLock) since GetAsyncKeyState
+    /// cannot reliably detect injected key states
+    virtual_modifiers: Arc<RwLock<ModifierState>>,
 }
 
 impl ServerState {
@@ -72,6 +76,7 @@ impl ServerState {
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
+            virtual_modifiers: Arc::new(RwLock::new(ModifierState::new())),
         }
     }
 
@@ -282,6 +287,13 @@ impl ServerState {
             }
         }
 
+        // Check if this is CapsLock (Hyper key) and update virtual modifiers directly
+        // This must happen before merge_virtual_modifiers
+        let is_hyper_key = self.check_and_update_hyper_key(&event).await;
+
+        // Merge virtual modifiers into the event for Hyper key support
+        let event = self.merge_virtual_modifiers(event).await;
+
         // First try to process through layer manager (optimization: reduce write lock hold time)
         let (handled, action) = {
             let mut layer_manager = self.layer_manager.write().await;
@@ -309,6 +321,56 @@ impl ServerState {
             if let Err(e) = self.execute_action(action).await {
                 error!("Failed to execute action: {}", e);
             }
+        }
+    }
+
+    /// Check if this is CapsLock (Hyper key) and update virtual modifiers
+    /// Returns true if this is a Hyper key event
+    async fn check_and_update_hyper_key(&self, event: &InputEvent) -> bool {
+        const CAPSLOCK_SCAN_CODE: u16 = 0x3A;
+        const CAPSLOCK_VIRTUAL_KEY: u16 = 0x14;
+
+        if let InputEvent::Key(key_event) = event {
+            if key_event.scan_code == CAPSLOCK_SCAN_CODE
+                && key_event.virtual_key == CAPSLOCK_VIRTUAL_KEY
+            {
+                let mut virtual_mods = self.virtual_modifiers.write().await;
+                match key_event.state {
+                    crate::types::KeyState::Pressed => {
+                        // CapsLock pressed - activate virtual modifiers
+                        virtual_mods.ctrl = true;
+                        virtual_mods.alt = true;
+                        virtual_mods.meta = true;
+                        debug!(
+                            "CapsLock (Hyper key) pressed, virtual modifiers activated"
+                        );
+                    }
+                    crate::types::KeyState::Released => {
+                        // CapsLock released - clear virtual modifiers
+                        *virtual_mods = ModifierState::new();
+                        debug!(
+                            "CapsLock (Hyper key) released, virtual modifiers cleared"
+                        );
+                    }
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Merge virtual modifiers into key event for Hyper key support
+    async fn merge_virtual_modifiers(&self, event: InputEvent) -> InputEvent {
+        if let InputEvent::Key(mut key_event) = event {
+            let virtual_mods = *self.virtual_modifiers.read().await;
+            // Merge virtual modifiers with physical modifiers
+            key_event.modifiers.shift |= virtual_mods.shift;
+            key_event.modifiers.ctrl |= virtual_mods.ctrl;
+            key_event.modifiers.alt |= virtual_mods.alt;
+            key_event.modifiers.meta |= virtual_mods.meta;
+            InputEvent::Key(key_event)
+        } else {
+            event
         }
     }
 

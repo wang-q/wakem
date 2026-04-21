@@ -273,7 +273,8 @@ impl KeyMapper {
             // Handle Hyper key sequence: split into press (on key down) and release (on key up) parts
             (Action::Sequence(actions), _) if actions.len() > 1 => {
                 // Check if this is a Hyper key sequence (contains None marker)
-                let noop_position = actions.iter().position(|a| matches!(a, Action::None));
+                let noop_position =
+                    actions.iter().position(|a| matches!(a, Action::None));
 
                 if let Some(pos) = noop_position {
                     match event.state {
