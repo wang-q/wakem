@@ -82,8 +82,19 @@ objc = { version = "0.2" }
 accessibility = { version = "0.2" }
 
 [dev-dependencies]
-# 属性测试
+# Property testing
 proptest = "1.4"
+
+# Benchmarking
+criterion = "0.5"
+
+[[bench]]
+name = "macos_bench"
+harness = false
+
+[profile.bench]
+opt-level = 3
+debug = true
 
 [profile.release]
 lto = true
