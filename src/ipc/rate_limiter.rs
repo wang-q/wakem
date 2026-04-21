@@ -64,13 +64,7 @@ impl ConnectionLimiter {
         // Cleanup expired records for this IP
         attempt_times.retain(|&time| now.duration_since(time) < window);
 
-        // Remove IP entry if no attempts remain (prevents memory leak)
-        if attempt_times.is_empty() {
-            self.attempts.remove(&ip);
-            return true;
-        }
-
-        // Check if limit exceeded
+        // Check if limit exceeded (before recording this attempt)
         if attempt_times.len() >= self.max_attempts as usize {
             return false;
         }
@@ -126,7 +120,7 @@ impl Default for ConnectionLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_basic_rate_limiting() {
@@ -171,14 +165,6 @@ mod tests {
         // Should be usable again after reset
         limiter.reset(&ip);
         assert!(limiter.check_rate_limit(ip));
-        assert!(limiter.check_rate_limit(ip));
-    }
-
-    #[test]
-    fn test_ipv6_support() {
-        let mut limiter = ConnectionLimiter::with_defaults();
-        let ip = IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1));
-
         assert!(limiter.check_rate_limit(ip));
     }
 

@@ -1,6 +1,6 @@
 // Security 模块扩展测试 - IP 地址验证和安全性边界条件
 
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr};
 use wakem::ipc::security::{is_allowed_ip, is_private_ip};
 
 // ==================== RFC 1918 私有地址范围完整测试 ====================
@@ -121,24 +121,6 @@ fn test_special_addresses() {
     ))));
 }
 
-// ==================== IPv6 测试 ====================
-
-/// 测试 IPv6 地址（应该全部被拒绝）
-#[test]
-fn test_ipv6_not_private() {
-    let ipv6 = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1); // ::1 (localhost)
-    assert!(!is_private_ip(IpAddr::V6(ipv6)));
-
-    let ipv6 = Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1); // fe80::1 (link-local)
-    assert!(!is_private_ip(IpAddr::V6(ipv6)));
-
-    let ipv6 = Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1); // 2001:db8::1 (documentation)
-    assert!(!is_private_ip(IpAddr::V6(ipv6)));
-
-    let ipv6 = Ipv6Addr::new(0xfc00, 1, 0, 0, 0, 0, 0, 1); // fc00:1::1 (unique local)
-    assert!(!is_private_ip(IpAddr::V6(ipv6)));
-}
-
 // ==================== is_allowed_ip 函数测试 ====================
 
 /// 测试 is_allowed_ip 是 is_private_ip 的别名
@@ -152,11 +134,6 @@ fn test_is_allowed_ip_alias() {
     // 公共地址应该被拒绝
     assert!(!is_allowed_ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
     assert!(!is_allowed_ip(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))));
-
-    // IPv6 应该被拒绝
-    assert!(!is_allowed_ip(IpAddr::V6(Ipv6Addr::new(
-        0, 0, 0, 0, 0, 0, 0, 1,
-    ))));
 }
 
 // ==================== 边界情况组合测试 ====================

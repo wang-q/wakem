@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 
 /// Check if IP address is private (RFC 1918) or loopback
+/// Only IPv4 addresses are supported; IPv6 addresses are rejected
 pub fn is_private_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
@@ -16,19 +17,15 @@ pub fn is_private_ip(ip: IpAddr) -> bool {
                 // 169.254.0.0/16 (link-local)
                 || (o[0] == 169 && o[1] == 254)
         }
-        IpAddr::V6(v6) => {
-            // Allow IPv6 loopback (::1) and link-local addresses (fe80::/10)
-            let segments = v6.segments();
-            // ::1 (loopback)
-            segments == [0, 0, 0, 0, 0, 0, 0, 1]
-                // fe80::/10 (link-local)
-                || (segments[0] & 0xffc0) == 0xfe80
+        IpAddr::V6(_) => {
+            // IPv6 is not supported, reject all IPv6 addresses
+            false
         }
     }
 }
 
 /// Check if IP address is allowed to connect
-/// Only private IP addresses are allowed
+/// Only private IPv4 addresses are allowed
 pub fn is_allowed_ip(ip: IpAddr) -> bool {
     is_private_ip(ip)
 }
@@ -36,7 +33,7 @@ pub fn is_allowed_ip(ip: IpAddr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_private_ip_10() {
@@ -71,36 +68,5 @@ mod tests {
         assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
         assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))));
         assert!(!is_private_ip(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1))));
-    }
-
-    #[test]
-    fn test_ipv6_loopback() {
-        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(
-            0, 0, 0, 0, 0, 0, 0, 1
-        ))));
-        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::LOCALHOST)));
-    }
-
-    #[test]
-    fn test_ipv6_link_local() {
-        // fe80::/10
-        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(
-            0xfe80, 0, 0, 0, 0, 0, 0, 1
-        ))));
-        assert!(is_private_ip(IpAddr::V6(Ipv6Addr::new(
-            0xfebf, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff
-        ))));
-    }
-
-    #[test]
-    fn test_ipv6_public() {
-        // 2001::/16 (Global unicast)
-        assert!(!is_private_ip(IpAddr::V6(Ipv6Addr::new(
-            0x2001, 0, 0, 0, 0, 0, 0, 1
-        ))));
-        // 2606::/32 (Cloudflare)
-        assert!(!is_private_ip(IpAddr::V6(Ipv6Addr::new(
-            0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 1
-        ))));
     }
 }

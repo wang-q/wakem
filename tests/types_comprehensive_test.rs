@@ -269,19 +269,17 @@ fn test_trigger_matches_with_modifiers() {
     modifiers.ctrl = true;
     let trigger = Trigger::key_with_modifiers(0x1E, 0x41, modifiers);
 
-    // 带有 Ctrl 的 A 键事件
+    // 带有 Ctrl 的 A 键事件 - 应该匹配
     let mut event_modifiers = ModifierState::default();
     event_modifiers.ctrl = true;
     let event = InputEvent::Key(
         KeyEvent::new(0x1E, 0x41, KeyState::Pressed).with_modifiers(event_modifiers),
     );
-    // 注意：Trigger::matches 当前不检查修饰键（modifiers 字段被忽略）
-    // 所以这个测试只验证按键码匹配
     assert!(trigger.matches(&event));
 
-    // 不带修饰键的 A 键事件也会匹配（因为修饰键不被检查）
+    // 不带修饰键的 A 键事件 - 不应该匹配（因为修饰键必须匹配）
     let event2 = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
-    assert!(trigger.matches(&event2));
+    assert!(!trigger.matches(&event2));
 }
 
 /// 测试鼠标按钮触发器
