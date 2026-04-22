@@ -2,6 +2,7 @@
 //!
 //! Provides window preset functionality for saving, loading, and automatically
 //! applying window layouts based on configuration rules.
+#![cfg(target_os = "macos")]
 
 use crate::config::wildcard_match;
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};

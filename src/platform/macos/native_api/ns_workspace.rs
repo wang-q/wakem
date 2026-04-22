@@ -3,6 +3,7 @@
 //! Fast access to foreground application metadata using Cocoa frameworks.
 //!
 //! Performance: < 0.5ms for all operations (vs 30ms+ with AppleScript)
+#![cfg(target_os = "macos")]
 
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
 

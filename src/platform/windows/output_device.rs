@@ -2,6 +2,7 @@
 //!
 //! This module uses Windows SendInput for simulated input events.
 //! Shared logic (char mapping, text input, key combos) is in [output_helpers].
+#![cfg(target_os = "windows")]
 
 use crate::platform::output_helpers::char_to_vk;
 use crate::platform::traits::OutputDeviceTrait;

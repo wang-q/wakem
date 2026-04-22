@@ -2,6 +2,7 @@
 //!
 //! This module uses Core Graphics to send simulated input events.
 //! Shared logic (char mapping, text input, key combos) is in [output_helpers].
+#![cfg(target_os = "macos")]
 
 use crate::platform::traits::OutputDeviceTrait;
 use crate::types::{MouseButton, SystemAction};

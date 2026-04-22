@@ -6,6 +6,7 @@
 //! - Cocoa (NSWorkspace): Application queries
 //!
 //! Performance: All operations complete in < 10ms (typically < 5ms)
+#![cfg(target_os = "macos")]
 
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
 use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo};

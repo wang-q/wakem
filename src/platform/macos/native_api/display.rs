@@ -3,6 +3,7 @@
 //! Provides native brightness control using IODisplay API for direct hardware communication.
 //!
 //! Performance: < 5ms
+#![cfg(target_os = "macos")]
 
 use std::ffi::{c_char, c_void};
 use tracing::{debug, trace};

@@ -4,6 +4,7 @@
 //! and Accessibility APIs. This is the macOS equivalent of Windows WinEventHook.
 //!
 //! Performance: < 2ms per poll (vs 100-200ms with AppleScript)
+#![cfg(target_os = "macos")]
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};

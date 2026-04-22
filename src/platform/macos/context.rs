@@ -4,6 +4,7 @@
 //! process name, window title, and executable path.
 //!
 //! Performance: < 5ms for get_current() (vs 180ms with AppleScript)
+#![cfg(target_os = "macos")]
 
 use crate::config::wildcard_match;
 use crate::platform::macos::native_api::{cg_window, ns_workspace};

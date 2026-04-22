@@ -4,6 +4,7 @@
 //! Uses AudioObjectGetPropertyData / AudioObjectSetPropertyData.
 //!
 //! Performance: < 1ms (vs 50-100ms with osascript)
+#![cfg(target_os = "macos")]
 
 use std::ffi::c_void;
 use tracing::{debug, trace};

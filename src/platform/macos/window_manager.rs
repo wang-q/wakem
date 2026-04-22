@@ -2,6 +2,7 @@
 //!
 //! Provides comprehensive window management operations on macOS,
 //! including half-screen, centering, ratio control, and multi-monitor support.
+#![cfg(target_os = "macos")]
 
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
 use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTrait};

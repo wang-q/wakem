@@ -1,6 +1,7 @@
 //! macOS program launcher
 //!
 //! This module is cross-platform compatible using std::process::Command.
+#![cfg(target_os = "macos")]
 
 use crate::types::LaunchAction;
 use anyhow::Result;

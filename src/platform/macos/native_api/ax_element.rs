@@ -8,6 +8,7 @@
 //! # Features
 //!
 //! - Create AXUIElement for applications by PID
+#![cfg(target_os = "macos")]
 //! - Get main/focused window elements
 //! - Set/get window position and size (frame)
 //! - Minimize, maximize, restore, close windows

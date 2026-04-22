@@ -6,6 +6,7 @@
 //! - `MockInputDevice` - Test mock for unit testing without real hardware
 //! - `InputDeviceConfig` - Configuration for input device behavior
 //! - `InputDeviceFactory` - Factory for creating pre-configured devices
+#![cfg(target_os = "macos")]
 
 use crate::platform::macos::input::CGEventTapDevice;
 use crate::platform::traits::InputDeviceTrait;

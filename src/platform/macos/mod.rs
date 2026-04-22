@@ -2,6 +2,7 @@
 //!
 //! This module provides macOS-specific implementations of the platform traits
 //! using Core Graphics, Cocoa, and Accessibility APIs.
+#![cfg(target_os = "macos")]
 
 pub mod context;
 pub mod input;
