@@ -51,29 +51,16 @@ impl RealTrayApi {
         }
     }
 
-    /// Show notification using osascript
-    fn show_notification_osascript(
+    /// Show notification using native NSUserNotificationCenter API
+    /// Falls back to osascript if native API fails
+    fn show_notification_native(
         &self,
         title: &str,
         message: &str,
     ) -> Result<(), String> {
-        use std::process::Command;
-        let script = format!(
-            r#"display notification "{}" with title "{}" sound name "default""#,
-            message.replace('"', "\\\""),
-            title.replace('"', "\\\"")
-        );
+        use crate::platform::macos::native_api::notification::show_notification_with_fallback;
 
-        let result = Command::new("osascript").arg("-e").arg(script).output();
-
-        match result {
-            Ok(output) if output.status.success() => {
-                debug!("Notification shown: {} - {}", title, message);
-                Ok(())
-            }
-            Err(e) => Err(format!("Failed to show notification: {}", e)),
-            _ => Err("osascript failed".to_string()),
-        }
+        show_notification_with_fallback(title, message)
     }
 }
 
@@ -100,7 +87,7 @@ impl TrayApi for RealTrayApi {
     }
 
     async fn show_notification(&self, title: &str, message: &str) -> Result<(), String> {
-        self.show_notification_osascript(title, message)
+        self.show_notification_native(title, message)
     }
 
     async fn show_menu(&self) -> Result<MenuAction, String> {

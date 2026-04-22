@@ -817,21 +817,20 @@ impl ServerState {
     /// Show tray notification (macOS version)
     #[cfg(target_os = "macos")]
     pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        // Use AppleScript to show notification on macOS
-        let script = format!(
-            r#"display notification "{}" with title "{}""#,
-            message.replace('"', "\\\""),
-            title.replace('"', "\\\"")
-        );
+        // Use native NSUserNotificationCenter API (with osascript fallback)
+        use crate::platform::macos::native_api::notification::show_notification_with_fallback;
 
-        std::process::Command::new("osascript")
-            .arg("-e")
-            .arg(&script)
-            .spawn()
-            .ok();
-
-        info!("Notification shown: {} - {}", title, message);
-        Ok(())
+        match show_notification_with_fallback(title, message) {
+            Ok(()) => {
+                info!("Notification shown: {} - {}", title, message);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Failed to show notification: {}", e);
+                // Still return Ok to not break the flow, but log the error
+                Ok(())
+            }
+        }
     }
 
     /// Show notification using tray icon (internal method)

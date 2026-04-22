@@ -18,7 +18,9 @@ pub mod ax_element;
 pub mod cg_window;
 mod coordinate;
 pub mod core_audio;
+pub mod notification;
 pub mod ns_workspace;
 
 // Re-export common types and functions for convenience
 pub use coordinate::{cg_to_windows, windows_to_cg};
+pub use notification::{show_notification, show_notification_with_fallback};
