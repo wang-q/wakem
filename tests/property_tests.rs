@@ -91,7 +91,7 @@ mod property_tests {
         #[test]
         fn question_mark_matches_single_char(c in "\\PC") {
             let single_char = c.to_string();
-            
+
             // Only test characters that don't change length when lowercased
             // (e.g., İ U+0130 → i̇ is a known Unicode normalization edge case)
             if single_char.len() == single_char.to_lowercase().len() {

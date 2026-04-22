@@ -25,13 +25,13 @@ cargo install --path .
 **Windows:**
 
 ```powershell
-cp examples/minimal.toml $env:USERPROFILE\.wakem.toml
+cp examples/window_manager.toml $env:USERPROFILE\.wakem.toml
 ```
 
 **macOS:**
 
 ```bash
-cp examples/minimal.toml ~/.wakem.toml
+cp examples/window_manager.toml ~/.wakem.toml
 ```
 
 ### 3. 启动服务

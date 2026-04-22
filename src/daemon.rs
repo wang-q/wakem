@@ -151,6 +151,18 @@ impl ServerState {
         context_mappings_count = config.keyboard.context_mappings.len(),
     ))]
     pub async fn load_config(&self, config: Config) -> Result<()> {
+        // Debug: Log config details
+        debug!(
+            window_shortcuts_count = config.window.shortcuts.len(),
+            launch_count = config.launch.len(),
+            "Config details"
+        );
+        if !config.window.shortcuts.is_empty() {
+            for (key, value) in &config.window.shortcuts {
+                debug!(shortcut_key = %key, shortcut_value = %value, "Window shortcut");
+            }
+        }
+
         // 1. Update auth key (stored separately from config)
         {
             let mut key = self.auth_key.write().await;
@@ -519,6 +531,7 @@ impl ServerState {
     /// - Consecutive Key/Mouse/System actions share the same output_device lock
     /// - Window/Launch actions use separate locks to avoid blocking other operations for too long
     async fn execute_action(&self, action: Action) -> Result<()> {
+        debug!(action_type = ?action, "Executing action");
         match action {
             Action::Key(key_action) => {
                 let output = self.output_device.lock().await;
@@ -529,8 +542,17 @@ impl ServerState {
                 output.send_mouse_action(&mouse_action)?;
             }
             Action::Window(window_action) => {
+                info!(?window_action, "Executing window action");
                 let mut mapper = self.mapper.write().await;
+                #[cfg(target_os = "macos")]
+                {
+                    debug!(
+                        has_window_manager = mapper.window_manager.is_some(),
+                        "Checking window manager availability"
+                    );
+                }
                 mapper.execute_action(&Action::Window(window_action))?;
+                info!("Window action executed successfully");
             }
             Action::Launch(launch_action) => {
                 let launcher = self.launcher.lock().await;

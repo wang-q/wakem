@@ -3,10 +3,13 @@ use crate::types::{
     Trigger,
 };
 use std::collections::HashMap;
-use tracing::{debug, trace};
+use tracing::{debug, error, info, trace};
 
 #[cfg(target_os = "windows")]
 use crate::platform::windows::window_manager::RealWindowManager;
+
+#[cfg(target_os = "macos")]
+use crate::platform::macos::window_manager::RealMacosWindowManager;
 
 /// Context-aware mapping rule
 ///
@@ -99,7 +102,11 @@ pub struct KeyMapper {
 
     /// Window manager (for executing window management actions)
     #[cfg(target_os = "windows")]
-    window_manager: Option<RealWindowManager>,
+    pub(crate) window_manager: Option<RealWindowManager>,
+
+    /// Window manager (for executing window management actions) - macOS
+    #[cfg(target_os = "macos")]
+    pub(crate) window_manager: Option<RealMacosWindowManager>,
 
     /// Tray icon (for displaying notifications)
     #[cfg(target_os = "windows")]
@@ -127,6 +134,8 @@ impl KeyMapper {
             enabled: true,
             #[cfg(target_os = "windows")]
             window_manager: None,
+            #[cfg(target_os = "macos")]
+            window_manager: None,
             #[cfg(target_os = "windows")]
             tray_icon: None,
             #[cfg(target_os = "windows")]
@@ -152,14 +161,13 @@ impl KeyMapper {
 
     /// Create a mapping engine with window manager (macOS version)
     #[cfg(target_os = "macos")]
-    pub fn with_window_manager(
-        _window_manager: crate::platform::macos::RealMacosWindowManager,
-    ) -> Self {
+    pub fn with_window_manager(window_manager: RealMacosWindowManager) -> Self {
         Self {
             mappings: HashMap::new(),
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
+            window_manager: Some(window_manager),
         }
     }
 
@@ -576,13 +584,184 @@ impl KeyMapper {
         Ok(())
     }
 
-    /// Execute action (macOS stub version)
+    /// Execute window management action (macOS implementation)
+    #[cfg(target_os = "macos")]
+    fn execute_window_action_internal(
+        wm: &RealMacosWindowManager,
+        action: &crate::types::WindowAction,
+    ) -> anyhow::Result<()> {
+        use crate::types::{Edge, MonitorDirection, WindowAction};
+
+        info!(?action, "execute_window_action_internal called");
+        match action {
+            WindowAction::Center => {
+                wm.get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
+                    .map(|_| wm.move_to_center(1))??;
+            }
+            WindowAction::MoveToEdge(edge) => {
+                use crate::platform::macos::window_manager::MonitorDirection as MacosMonitorDirection;
+                let macos_direction = match edge {
+                    Edge::Left => MacosMonitorDirection::Left,
+                    Edge::Right => MacosMonitorDirection::Right,
+                    Edge::Top => MacosMonitorDirection::Up,
+                    Edge::Bottom => MacosMonitorDirection::Down,
+                };
+                wm.get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
+                    .map(|_| wm.move_to_edge(1, macos_direction))??;
+            }
+            WindowAction::HalfScreen(edge) => {
+                wm.get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
+                    .map(|_| wm.set_half_screen(1, *edge))??;
+            }
+            WindowAction::LoopWidth(_) => {
+                wm.get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
+                    .map(|_| wm.loop_width(1))??;
+            }
+            WindowAction::LoopHeight(_) => {
+                wm.get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
+                    .map(|_| wm.loop_height(1))??;
+            }
+            WindowAction::FixedRatio { ratio, .. } => {
+                // Convert f64 ratio to u32 fraction (e.g., 1.333 -> 4/3)
+                let (ratio_w, ratio_h) = if *ratio >= 1.0 {
+                    ((*ratio * 100.0) as u32, 100u32)
+                } else {
+                    (100u32, (ratio.recip() * 100.0) as u32)
+                };
+                wm.get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
+                    .map(|_| wm.set_fixed_ratio(1, ratio_w, ratio_h))??;
+            }
+            WindowAction::NativeRatio { .. } => {
+                wm.get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
+                    .map(|_| wm.set_native_ratio(1))??;
+            }
+            WindowAction::SwitchToNextWindow => {
+                wm.switch_to_next_window_of_same_process(1)?;
+            }
+            WindowAction::MoveToMonitor(direction) => {
+                let _monitor_index = match direction {
+                    MonitorDirection::Next | MonitorDirection::Index(_) => 1,
+                    MonitorDirection::Prev => 0,
+                };
+                let _ = wm
+                    .get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
+                debug!("Move to monitor {} requested", _monitor_index);
+            }
+            WindowAction::Move { x, y } => {
+                let info = wm
+                    .get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))??;
+                use crate::platform::macos::window_manager::MacosWindowFrame;
+                let new_frame = MacosWindowFrame::new(*x, *y, info.width, info.height);
+                wm.set_window_frame(1, &new_frame)?;
+            }
+            WindowAction::Resize { width, height } => {
+                let info = wm
+                    .get_foreground_window_info()
+                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))??;
+                use crate::platform::macos::window_manager::MacosWindowFrame;
+                let new_frame = MacosWindowFrame::new(info.x, info.y, *width, *height);
+                wm.set_window_frame(1, &new_frame)?;
+            }
+            WindowAction::Minimize => {
+                use crate::platform::macos::window_api::MacosWindowApi;
+                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
+                    MacosWindowApi::minimize_window(wm.api(), window)?;
+                }
+            }
+            WindowAction::Maximize => {
+                use crate::platform::macos::window_api::MacosWindowApi;
+                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
+                    MacosWindowApi::maximize_window(wm.api(), window)?;
+                }
+            }
+            WindowAction::Restore => {
+                use crate::platform::macos::window_api::MacosWindowApi;
+                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
+                    MacosWindowApi::restore_window(wm.api(), window)?;
+                }
+            }
+            WindowAction::Close => {
+                use crate::platform::macos::window_api::MacosWindowApi;
+                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
+                    MacosWindowApi::close_window(wm.api(), window)?;
+                }
+            }
+            WindowAction::ToggleTopmost => {
+                wm.toggle_topmost(1)?;
+            }
+            WindowAction::ShowDebugInfo => match wm.get_foreground_window_info() {
+                Some(Ok(info)) => {
+                    let debug_info = format!(
+                        "Window Debug Info:\n\
+                             Position: ({}, {})\n\
+                             Size: {}x{}\n\
+                             Process: {}\n",
+                        info.x, info.y, info.width, info.height, info.process_name
+                    );
+                    info!("Window debug info:\n{}", debug_info);
+                    if let Err(e) = crate::platform::macos::native_api::notification::show_notification(
+                            "wakem - Debug Info",
+                            &debug_info,
+                        ) {
+                            debug!("Failed to show notification: {}", e);
+                        }
+                }
+                Some(Err(e)) => {
+                    debug!("Failed to get debug info: {}", e);
+                }
+                None => {
+                    debug!("No foreground window for debug info");
+                }
+            },
+            WindowAction::ShowNotification { title, message } => {
+                if let Err(e) =
+                    crate::platform::macos::native_api::notification::show_notification(
+                        title, message,
+                    )
+                {
+                    debug!("Failed to show notification: {}", e);
+                }
+            }
+            WindowAction::SavePreset { name } => {
+                debug!("SavePreset not yet implemented on macOS: {}", name);
+            }
+            WindowAction::LoadPreset { name } => {
+                debug!("LoadPreset not yet implemented on macOS: {}", name);
+            }
+            WindowAction::ApplyPreset => {
+                debug!("ApplyPreset not yet implemented on macOS");
+            }
+            WindowAction::None => {}
+        }
+
+        Ok(())
+    }
+
+    /// Execute action (macOS version)
     #[cfg(target_os = "macos")]
     pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
+        debug!(?action, "Mapper execute_action called (macOS)");
         match action {
             Action::Window(window_action) => {
-                // macOS window management not yet fully implemented
-                debug!("Window action on macOS: {:?}", window_action);
+                info!(?window_action, "Processing window action in mapper");
+                if let Some(ref wm) = self.window_manager {
+                    info!("WindowManager found, executing window action");
+                    match Self::execute_window_action_internal(wm, window_action) {
+                        Ok(()) => info!("Window action executed successfully"),
+                        Err(e) => error!(error = %e, "Failed to execute window action"),
+                    }
+                } else {
+                    error!("WindowManager not available, skipping window action. This means with_window_manager() was not called during initialization.");
+                }
             }
             Action::Key(_)
             | Action::Mouse(_)
