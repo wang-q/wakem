@@ -47,6 +47,9 @@ rand = "0.8"
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 
+# Keyboard code mapping (cross-platform)
+keyboard-codes = { version = "0.3", features = ["serde", "phf"] }
+
 # Async trait
 async-trait = "0.1"
 

@@ -5,6 +5,8 @@ use std::path::Path;
 use std::sync::Mutex;
 use tracing::debug;
 
+use keyboard_codes::{Key, KeyCodeMapper, Platform};
+
 use crate::constants::{
     DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
     WILDCARD_MAX_INPUT_SIZE,
@@ -917,7 +919,18 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 /// Parse key name to scan code and virtual key code
 /// Uses match expression for O(1) lookup without heap allocation
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
-    match name.to_lowercase().as_str() {
+    let name_lower = name.to_lowercase();
+
+    // Try keyboard-codes first (supports standard key names)
+    if let Ok(key) = name_lower.parse::<Key>() {
+        let win_code = key.to_code(Platform::Windows) as u16;
+        if win_code != 0 || !name_lower.is_empty() {
+            return Ok((win_code, win_code));
+        }
+    }
+
+    // Fallback to legacy hardcoded mappings for backward compatibility
+    match name_lower.as_str() {
         // Special keys
         "capslock" | "caps" => Ok((0x3A, 0x14)),
         "backspace" => Ok((0x0E, 0x08)),
