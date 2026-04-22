@@ -41,8 +41,7 @@ fn bench_layer_stack_operations(c: &mut Criterion) {
         b.iter(|| {
             let mut stack = LayerStack::new();
             for i in 0..10u16 {
-                let layer =
-                    Layer::new(&format!("layer_{}", i), 0x3A + i, 0x14 + i);
+                let layer = Layer::new(&format!("layer_{}", i), 0x3A + i, 0x14 + i);
                 stack.activate_layer(layer);
                 if i % 3 == 0 {
                     stack.deactivate_layer(&format!("layer_{}", i));
