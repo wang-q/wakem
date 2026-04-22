@@ -1,81 +1,81 @@
 # wakem window management dedicated configuration
 # Inspired by mrw project's window management features
-# Hyper key = Ctrl + Alt + Win (referencing init.ahk #!^)
+# Hyper key = Ctrl + Alt + Meta (cross-platform, works on Windows/macOS/Linux)
 
 # Custom tray icon path (optional)
 # If not specified, will auto-detect assets/icon.ico in program directory
 # icon_path = "assets/icon.ico"
 
 [keyboard]
-# Map CapsLock to Hyper key (Ctrl+Alt+Win) for convenient window management
+# Map CapsLock to Hyper key (Ctrl+Alt+Meta) for convenient window management
 # This allows centering windows with just CapsLock + C instead of three modifiers
 [keyboard.remap]
-CapsLock = "Ctrl+Alt+Win"
+CapsLock = "Ctrl+Alt+Meta"
 
-# Window management shortcuts (Hyper key style: Ctrl + Alt + Win)
+# Window management shortcuts (Hyper key style: Ctrl + Alt + Meta)
 [window.shortcuts]
 # ========== Window Centering ==========
 # Multiple keys mapped to same function (referencing mrw)
-"Ctrl+Alt+Win+C" = "Center"
-"Ctrl+Alt+Win+Shift+C" = "Center"
-"Ctrl+Alt+Win+Delete" = "Center"
-"Ctrl+Alt+Win+Shift+Delete" = "Center"
-"Ctrl+Alt+Win+ForwardDelete" = "Center"
-"Ctrl+Alt+Win+Shift+ForwardDelete" = "Center"
+"Ctrl+Alt+Meta+C" = "Center"
+"Ctrl+Alt+Meta+Shift+C" = "Center"
+"Ctrl+Alt+Meta+Delete" = "Center"
+"Ctrl+Alt+Meta+Shift+Delete" = "Center"
+"Ctrl+Alt+Meta+ForwardDelete" = "Center"
+"Ctrl+Alt+Meta+Shift+ForwardDelete" = "Center"
 
 # ========== Move to Edges ==========
-"Ctrl+Alt+Win+Home" = "MoveToEdge(Left)"
-"Ctrl+Alt+Win+Shift+Home" = "MoveToEdge(Left)"
-"Ctrl+Alt+Win+End" = "MoveToEdge(Right)"
-"Ctrl+Alt+Win+Shift+End" = "MoveToEdge(Right)"
-"Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)"
-"Ctrl+Alt+Win+Shift+PageUp" = "MoveToEdge(Top)"
-"Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)"
-"Ctrl+Alt+Win+Shift+PageDown" = "MoveToEdge(Bottom)"
+"Ctrl+Alt+Meta+Home" = "MoveToEdge(Left)"
+"Ctrl+Alt+Meta+Shift+Home" = "MoveToEdge(Left)"
+"Ctrl+Alt+Meta+End" = "MoveToEdge(Right)"
+"Ctrl+Alt+Meta+Shift+End" = "MoveToEdge(Right)"
+"Ctrl+Alt+Meta+PageUp" = "MoveToEdge(Top)"
+"Ctrl+Alt+Meta+Shift+PageUp" = "MoveToEdge(Top)"
+"Ctrl+Alt+Meta+PageDown" = "MoveToEdge(Bottom)"
+"Ctrl+Alt+Meta+Shift+PageDown" = "MoveToEdge(Bottom)"
 
 # ========== Half Screen Display ==========
-"Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)"
-"Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)"
-"Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)"
-"Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)"
+"Ctrl+Alt+Meta+Shift+Left" = "HalfScreen(Left)"
+"Ctrl+Alt+Meta+Shift+Right" = "HalfScreen(Right)"
+"Ctrl+Alt+Meta+Shift+Up" = "HalfScreen(Top)"
+"Ctrl+Alt+Meta+Shift+Down" = "HalfScreen(Bottom)"
 
 # ========== Loop Resize ==========
 # Width loop: 3/4 -> 3/5 -> 1/2 -> 2/5 -> 1/4
-"Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
-"Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
+"Ctrl+Alt+Meta+Left" = "LoopWidth(Left)"
+"Ctrl+Alt+Meta+Right" = "LoopWidth(Right)"
 # Height loop: 3/4 -> 1/2 -> 1/4
-"Ctrl+Alt+Win+Up" = "LoopHeight(Top)"
-"Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)"
+"Ctrl+Alt+Meta+Up" = "LoopHeight(Top)"
+"Ctrl+Alt+Meta+Down" = "LoopHeight(Bottom)"
 
 # ========== Fixed Ratio Window ==========
 # 4:3 ratio, loop zoom: 100% -> 90% -> 70% -> 50%
-"Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)"
+"Ctrl+Alt+Meta+M" = "FixedRatio(1.333, 0)"
 # Native ratio (based on screen ratio)
-"Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)"
-"Ctrl+Alt+Win+Enter" = "FixedRatio(1.333, 0)"
-"Ctrl+Alt+Win+Shift+Enter" = "NativeRatio(0)"
+"Ctrl+Alt+Meta+Shift+M" = "NativeRatio(0)"
+"Ctrl+Alt+Meta+Enter" = "FixedRatio(1.333, 0)"
+"Ctrl+Alt+Meta+Shift+Enter" = "NativeRatio(0)"
 
 # ========== Same Process Window Switching ==========
 "Alt+Grave" = "SwitchToNextWindow"
 
 # ========== Move Across Monitors ==========
-"Ctrl+Alt+Win+J" = "MoveToMonitor(Next)"
-"Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)"
+"Ctrl+Alt+Meta+J" = "MoveToMonitor(Next)"
+"Ctrl+Alt+Meta+K" = "MoveToMonitor(Prev)"
 
 # ========== Debug Functions ==========
 # Hyper+W: Show current window debug info (similar to mrw's MsgBox(GetDebugInfo()))
-"Ctrl+Alt+Win+W" = "ShowDebugInfo"
+"Ctrl+Alt+Meta+W" = "ShowDebugInfo"
 # Hyper+Shift+W: Show test notification (similar to mrw's TrayTip)
-"Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)"
+"Ctrl+Alt+Meta+Shift+W" = "ShowNotification(wakem, Hello World!)"
 
 # ========== Quick Launch Programs ==========
 # Supports command line launch with arguments
 [launch]
 # Launch Windows Terminal
-"Ctrl+Alt+Win+T" = "wt.exe"
+"Ctrl+Alt+Meta+T" = "wt.exe"
 # Launch Notepad and open specific file
-"Ctrl+Alt+Win+N" = "notepad.exe"
+"Ctrl+Alt+Meta+N" = "notepad.exe"
 # Open File Explorer to D: drive
-"Ctrl+Alt+Win+E" = "explorer.exe D:\\"
+"Ctrl+Alt+Meta+E" = "explorer.exe D:\\"
 # Launch Calculator
-"Ctrl+Alt+Win+Equals" = "calc.exe"
+"Ctrl+Alt+Meta+Equals" = "calc.exe"

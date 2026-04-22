@@ -24,8 +24,8 @@ pub use input_device::{
 pub use launcher::Launcher;
 pub use output_device::MacosOutputDevice;
 pub use tray::{
-    run_tray_loop, stop_tray, AppCommand, MenuAction, RealTrayApi, TrayApi, TrayIcon,
-    TrayManager,
+    run_tray_message_loop, set_global_command_callback, stop_tray, AppCommand,
+    MenuAction, RealTrayApi, TrayApi, TrayIcon, TrayManager,
 };
 pub use window_api::{
     MacosWindowApi, MonitorWorkArea, RealMacosWindowApi, WindowOperation, WindowState,

@@ -22,15 +22,16 @@ cargo install --path .
 
 复制示例配置到用户目录：
 
+**Windows:**
+
 ```powershell
 cp examples/minimal.toml $env:USERPROFILE\.wakem.toml
 ```
 
-最小配置示例 (`.wakem.toml`):
+**macOS:**
 
-```toml
-[keyboard.remap]
-CapsLock = "Backspace"
+```bash
+cp examples/minimal.toml ~/.wakem.toml
 ```
 
 ### 3. 启动服务
@@ -196,44 +197,6 @@ L = "Right"
 ```
 
 更多配置示例请参考 [完整配置参考](docs/config.md)。
-
-## 项目结构
-
-```
-wakem/
-├── src/
-│   ├── main.rs              # 统一入口（CLI 定义）
-│   ├── client.rs            # 守护进程客户端
-│   ├── daemon.rs            # 守护进程逻辑
-│   ├── config.rs            # 配置解析和验证
-│   ├── types/               # 类型定义
-│   │   ├── action.rs        # 动作定义（Key/Mouse/Window/Launch/System）
-│   │   ├── input.rs         # 输入事件定义
-│   │   ├── layer.rs         # 层管理
-│   │   ├── macros.rs        # 宏录制和管理
-│   │   └── mapping.rs       # 映射规则
-│   ├── ipc/                 # IPC 通信（TCP）
-│   │   ├── client.rs        # TCP 客户端
-│   │   ├── server.rs        # TCP 服务端
-│   │   ├── auth.rs          # 挑战-响应认证
-│   │   ├── security.rs      # IP 安全检查
-│   │   └── discovery.rs     # 实例发现
-│   ├── platform/windows/    # Windows 平台实现
-│   │   ├── input.rs         # Raw Input 输入捕获
-│   │   ├── output.rs        # SendInput 输出发送
-│   │   ├── window_manager.rs # 窗口管理操作
-│   │   ├── window_preset.rs # 窗口预设管理
-│   │   ├── context.rs       # 窗口上下文获取
-│   │   ├── launcher.rs      # 程序启动器
-│   │   └── tray.rs          # 系统托盘
-│   └── runtime/             # 运行时逻辑
-│       ├── mapper.rs        # 映射引擎
-│       ├── layer_manager.rs # 层管理器
-│       └── macro_player.rs  # 宏回放
-├── examples/                # 示例配置
-├── tests/                   # 集成测试
-└── docs/                    # 文档
-```
 
 ## 参考项目
 

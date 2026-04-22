@@ -7,8 +7,7 @@ use tracing::{debug, error, info, warn};
 use crate::config::Config;
 use crate::constants::{
     INPUT_BATCH_SIZE_LIMIT, INPUT_BATCH_TIMEOUT_MICROS, INPUT_CHANNEL_CAPACITY,
-    IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_EVENT_CHANNEL_CAPACITY,
-    WINDOW_PRESET_APPLY_DELAY_MS,
+    IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::OutputDeviceTrait;
@@ -37,16 +36,19 @@ use crate::platform::macos::input_device::{InputDevice, InputDeviceConfig};
 // Platform-specific imports for production code (macOS)
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
-    Launcher, MacosInputDevice as RawInputDevice, MacosOutputDevice as OutputDevice,
-    RealMacosWindowApi, RealMacosWindowManager as WindowManager,
+    set_global_command_callback, AppCommand as TrayAppCommand, Launcher,
+    MacosInputDevice as RawInputDevice, MacosOutputDevice as OutputDevice,
+    RealMacosWindowApi, RealMacosWindowManager as WindowManager, RealTrayApi,
+    TrayManager,
 };
 
 // Platform-specific imports for test code (macOS)
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
-    output_device::MockMacosOutputDevice as OutputDevice, Launcher,
-    MacosInputDevice as RawInputDevice, RealMacosWindowApi,
-    RealMacosWindowManager as WindowManager,
+    output_device::MockMacosOutputDevice as OutputDevice, set_global_command_callback,
+    AppCommand as TrayAppCommand, Launcher, MacosInputDevice as RawInputDevice,
+    RealMacosWindowApi, RealMacosWindowManager as WindowManager, RealTrayApi,
+    TrayManager,
 };
 
 #[cfg(target_os = "windows")]
@@ -74,6 +76,7 @@ pub struct ServerState {
     window_preset_manager: Arc<RwLock<WindowPresetManager>>,
     /// Window manager - macOS only
     #[cfg(target_os = "macos")]
+    #[allow(dead_code)]
     window_manager: Arc<RwLock<crate::platform::macos::RealMacosWindowManager>>,
     /// Whether mapping is enabled (frequently read, rarely written)
     active: Arc<RwLock<bool>>,
@@ -83,6 +86,7 @@ pub struct ServerState {
     macro_recorder: Arc<MacroRecorder>,
     /// Message window handle (for sending notifications)
     /// Stored as isize for Send/Sync safety (HWND is *mut c_void which is not Send)
+    #[allow(dead_code)]
     message_window_hwnd: Arc<RwLock<Option<isize>>>,
     /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
@@ -971,7 +975,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     let raw_input_shutdown_flag_clone = raw_input_shutdown_flag.clone();
 
     let input_bridge_handle = std::thread::spawn(move || {
-        let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
+        let (_std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
         let tx_clone = input_tx_bridge;
         let shutdown_flag = input_shutdown_flag_clone;
         let raw_input_shutdown = raw_input_shutdown_flag_clone;
@@ -1291,6 +1295,38 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         info!("Message handler task stopped");
     });
 
+    // Start Tray (macOS only)
+    // Following Windows design: use global callback instead of separate thread
+    #[cfg(target_os = "macos")]
+    {
+        let (mut tray_manager, _tray_command_receiver) =
+            TrayManager::<RealTrayApi>::new();
+        let tray_shutdown_flag = Arc::new(AtomicBool::new(false));
+
+        // Start tray manager
+        if let Err(e) = tray_manager.start().await {
+            warn!("Failed to start tray manager: {}", e);
+        } else {
+            info!("Tray manager started");
+
+            // Set global command callback - this follows Windows design pattern
+            // Menu clicks will invoke this callback directly on the main thread
+            let state_for_tray = state.clone();
+            set_global_command_callback(move |cmd| {
+                handle_tray_command(cmd, state_for_tray.clone());
+            });
+
+            // Spawn a simple task to handle shutdown
+            let mut tray_shutdown = shutdown_for_tasks.clone();
+            let tray_shutdown_flag_clone = tray_shutdown_flag.clone();
+            tokio::spawn(async move {
+                let _ = tray_shutdown.changed().await;
+                tray_shutdown_flag_clone.store(true, Ordering::SeqCst);
+                info!("Tray shutdown signal received");
+            });
+        }
+    }
+
     info!("Server is running (press Ctrl+C for graceful shutdown)");
 
     // Wait for exit signal (Ctrl+C)
@@ -1455,5 +1491,75 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
         _ => Message::Error {
             message: "Unknown message".to_string(),
         },
+    }
+}
+
+/// Handle tray command (macOS only)
+/// This is called synchronously from the menu callback on the main thread
+/// Following Windows design: handle command directly without async
+#[cfg(target_os = "macos")]
+fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
+    use tokio::runtime::Handle;
+
+    let handle = Handle::current();
+
+    match cmd {
+        TrayAppCommand::ToggleActive => {
+            info!("Tray: Toggle active command received");
+            handle.spawn(async move {
+                let current = *state.active.read().await;
+                let new_state = !current;
+                state.set_active(new_state).await;
+                info!("Tray: Toggled active state to {}", new_state);
+            });
+        }
+        TrayAppCommand::ReloadConfig => {
+            info!("Tray: Reload config command received");
+            handle.spawn(async move {
+                if let Err(e) = state.reload_config_from_file().await {
+                    error!("Tray: Failed to reload config: {}", e);
+                    let _ = state
+                        .show_notification(
+                            "wakem",
+                            &format!("Failed to reload config: {}", e),
+                        )
+                        .await;
+                } else {
+                    info!("Tray: Config reloaded successfully");
+                    let _ = state
+                        .show_notification("wakem", "Config reloaded successfully")
+                        .await;
+                }
+            });
+        }
+        TrayAppCommand::OpenConfigFolder => {
+            info!("Tray: Open config folder command received");
+            // Get config path synchronously using try_read
+            let config_path = state.config.try_read().ok().and_then(|config| {
+                crate::config::resolve_config_file_path(None, config.network.instance_id)
+            });
+
+            if let Some(path) = config_path {
+                let folder = if path.is_file() {
+                    path.parent().map(|p| p.to_path_buf()).unwrap_or(path)
+                } else {
+                    path
+                };
+
+                let launcher = Launcher::new();
+                if let Err(e) = launcher.open(&folder.to_string_lossy()) {
+                    error!("Tray: Failed to open config folder: {}", e);
+                } else {
+                    info!("Tray: Opened config folder: {:?}", folder);
+                }
+            } else {
+                warn!("Tray: Config path not found");
+            }
+        }
+        TrayAppCommand::Exit => {
+            info!("Tray: Exit command received");
+            // Note: Exit is handled by main shutdown mechanism
+            // We could trigger shutdown here if needed
+        }
     }
 }
