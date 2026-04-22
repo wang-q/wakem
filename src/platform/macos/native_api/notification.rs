@@ -1,7 +1,7 @@
 //! Native macOS notification API using NSUserNotificationCenter
 //!
-//! Replaces osascript display notification with direct Cocoa API calls.
-//! Performance: < 5ms (vs 50-100ms with osascript)
+//! Uses direct Cocoa API calls for displaying system notifications.
+//! Performance: < 5ms
 
 // Allow deprecated warnings for cocoa/objc crates
 // These crates are deprecated in favor of objc2, but we're using them
@@ -11,12 +11,11 @@
 use cocoa::base::{id, nil};
 use cocoa::foundation::{NSAutoreleasePool, NSString};
 use objc::{class, msg_send, sel, sel_impl};
-use tracing::{debug, error, warn};
+use tracing::debug;
 
 /// Show notification using NSUserNotificationCenter
 ///
-/// This function uses the native Cocoa API to display a system notification,
-/// which is significantly faster than spawning an osascript process.
+/// This function uses the native Cocoa API to display a system notification.
 ///
 /// # Arguments
 /// * `title` - The notification title
@@ -27,7 +26,7 @@ use tracing::{debug, error, warn};
 /// * `Err(String)` if there was an error
 ///
 /// # Performance
-/// Typically completes in < 5ms compared to 50-100ms for osascript.
+/// Typically completes in < 5ms.
 #[allow(clippy::deprecated_clippy_cfg_attr)]
 #[cfg_attr(clippy, allow(unexpected_cfgs))]
 pub fn show_notification(title: &str, message: &str) -> Result<(), String> {
@@ -78,89 +77,11 @@ pub fn show_notification(title: &str, message: &str) -> Result<(), String> {
     }
 }
 
-/// Show notification with fallback to osascript
-///
-/// First attempts to use the native NSUserNotificationCenter API.
-/// If that fails, falls back to osascript for compatibility.
-///
-/// # Arguments
-/// * `title` - The notification title
-/// * `message` - The notification body text
-///
-/// # Returns
-/// * `Ok(())` if either method succeeds
-/// * `Err(String)` if both methods fail
-pub fn show_notification_with_fallback(
-    title: &str,
-    message: &str,
-) -> Result<(), String> {
-    // Try native API first
-    match show_notification(title, message) {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            warn!(
-                "Native notification failed ({}), falling back to osascript",
-                e
-            );
-            show_notification_osascript(title, message)
-        }
-    }
-}
-
-/// Show notification using osascript (fallback method)
-///
-/// This is the legacy implementation that spawns an osascript process.
-/// It's slower but works in all scenarios.
-fn show_notification_osascript(title: &str, message: &str) -> Result<(), String> {
-    use std::process::Command;
-
-    let script = format!(
-        r#"display notification "{}" with title "{}" sound name "default""#,
-        message.replace('"', "\\\""),
-        title.replace('"', "\\\"")
-    );
-
-    match Command::new("osascript").arg("-e").arg(script).output() {
-        Ok(output) if output.status.success() => {
-            debug!("Notification shown via osascript: {} - {}", title, message);
-            Ok(())
-        }
-        Err(e) => {
-            error!("Failed to show notification via osascript: {}", e);
-            Err(format!("Failed to show notification: {}", e))
-        }
-        _ => {
-            error!("osascript failed to display notification");
-            Err("osascript failed".to_string())
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_notification_module_creation() {
         // Just verify the module compiles
         assert!(true);
-    }
-
-    #[test]
-    fn test_show_notification_osascript_escaping() {
-        // Test that quotes are properly escaped
-        let title = r#"Test "Quote""#;
-        let message = r#"Message with "quotes""#;
-
-        // This should not panic and should properly escape the quotes
-        let script = format!(
-            r#"display notification "{}" with title "{}" sound name "default""#,
-            message.replace('"', "\\\""),
-            title.replace('"', "\\\"")
-        );
-
-        // Verify the escaping worked
-        assert!(script.contains("\\\"Quote\\\""));
-        assert!(script.contains("\\\"quotes\\\""));
     }
 }

@@ -52,15 +52,14 @@ impl RealTrayApi {
     }
 
     /// Show notification using native NSUserNotificationCenter API
-    /// Falls back to osascript if native API fails
     fn show_notification_native(
         &self,
         title: &str,
         message: &str,
     ) -> Result<(), String> {
-        use crate::platform::macos::native_api::notification::show_notification_with_fallback;
+        use crate::platform::macos::native_api::notification::show_notification;
 
-        show_notification_with_fallback(title, message)
+        show_notification(title, message)
     }
 }
 
