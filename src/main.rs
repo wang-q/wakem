@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{error, info};
@@ -24,6 +25,9 @@ use constants::IPC_CHANNEL_CAPACITY;
 // Platform-specific imports
 #[cfg(target_os = "windows")]
 use platform::windows::{run_tray_message_loop, stop_tray, AppCommand};
+
+#[cfg(target_os = "macos")]
+use platform::macos::{run_tray_event_loop, AppCommand};
 
 /// Simple daemon command executor macro to reduce boilerplate for parameterless methods
 macro_rules! simple_daemon_command {
@@ -326,10 +330,167 @@ async fn run_tray(instance_id: u32) -> Result<()> {
     Ok(())
 }
 
-/// Run system tray (macOS stub)
+/// Run system tray (macOS)
+/// On macOS, NSApplication must run on the main thread, so we spawn tokio in a background thread
 #[cfg(target_os = "macos")]
-async fn run_tray(_instance_id: u32) -> Result<()> {
-    info!("Tray not implemented on macOS");
+async fn run_tray(instance_id: u32) -> Result<()> {
+    use platform::macos::run_tray_event_loop;
+    use std::thread;
+    use std::time::Duration;
+
+    info!("wakem client starting (instance {})...", instance_id);
+
+    // Create channels for communication between tray and tokio
+    let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
+    let cmd_tx_for_tray = cmd_tx.clone();
+
+    // Spawn tokio runtime in a background thread
+    let tokio_handle = thread::spawn(move || {
+        run_tokio_for_tray(cmd_rx, instance_id);
+    });
+
+    // Give tokio a moment to start
+    thread::sleep(Duration::from_millis(500));
+
+    // Run tray on the main thread (required by macOS)
+    info!("Starting tray on main thread...");
+    if let Err(e) = run_tray_event_loop(move |cmd| {
+        let _ = cmd_tx_for_tray.send(cmd);
+    }) {
+        error!("Tray error: {}", e);
+    }
+
+    // Wait for tokio thread to finish
+    let _ = tokio_handle.join();
+
+    info!("wakem client shutdown complete");
+    Ok(())
+}
+
+/// Run tokio runtime in background thread for macOS tray
+#[cfg(target_os = "macos")]
+fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+
+    rt.block_on(async {
+        info!("Tokio runtime started in background thread");
+
+        // Connect to daemon
+        let mut client_option: Option<DaemonClient> = None;
+        let mut client = DaemonClient::new();
+
+        match client.connect_to_instance(instance_id).await {
+            Ok(_) => {
+                info!("Connected to wakemd instance {}", instance_id);
+
+                match client.get_status().await {
+                    Ok((active, loaded)) => {
+                        info!(
+                            "Daemon status: active={}, config_loaded={}",
+                            active, loaded
+                        );
+                    }
+                    Err(e) => {
+                        error!("Failed to get status: {}", e);
+                    }
+                }
+
+                client_option = Some(client);
+            }
+            Err(e) => {
+                error!("Failed to connect to daemon: {}", e);
+                error!(
+                    "Please make sure wakemd --instance {} is running",
+                    instance_id
+                );
+            }
+        }
+
+        // Handle commands from tray
+        while let Ok(cmd) = cmd_rx.recv() {
+            match cmd {
+                AppCommand::ToggleActive => {
+                    info!("Toggle active command received");
+                    if let Some(ref mut client) = client_option {
+                        match client.get_status().await {
+                            Ok((current_active, _)) => {
+                                let new_active = !current_active;
+                                match client.set_active(new_active).await {
+                                    Ok(_) => {
+                                        info!(
+                                            "Daemon active state changed to: {}",
+                                            new_active
+                                        );
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to set active state: {}", e);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to get status: {}", e);
+                            }
+                        }
+                    }
+                }
+                AppCommand::ReloadConfig => {
+                    info!("Reload config command received");
+                    if let Some(ref mut client) = client_option {
+                        match client.reload_config().await {
+                            Ok(_) => {
+                                info!("Configuration reloaded successfully");
+                            }
+                            Err(e) => {
+                                error!("Failed to reload config: {}", e);
+                            }
+                        }
+                    }
+                }
+                AppCommand::OpenConfigFolder => {
+                    info!("Open config folder command received");
+                    if let Err(e) = open_config_folder_macos().await {
+                        error!("Failed to open config folder: {}", e);
+                    }
+                }
+                AppCommand::Exit => {
+                    info!("Exit command received");
+                    // Terminate the app
+                    unsafe {
+                        use cocoa::appkit::NSApplication;
+                        use cocoa::base::nil;
+                        use objc::runtime::Class;
+                        use objc::{msg_send, sel, sel_impl};
+
+                        let app_class = Class::get("NSApplication").unwrap();
+                        let app: *mut objc::runtime::Object =
+                            msg_send![app_class, sharedApplication];
+                        if app != nil {
+                            let _: () = msg_send![app, terminate: nil];
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        info!("Tokio runtime shutting down");
+    });
+}
+
+/// Open config folder (macOS)
+#[cfg(target_os = "macos")]
+async fn open_config_folder_macos() -> Result<()> {
+    use std::process::Command;
+
+    let config_path = config::resolve_config_file_path(None, 0)
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| {
+            std::env::var("HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_default()
+        });
+
+    Command::new("open").arg(config_path).spawn()?;
     Ok(())
 }
 

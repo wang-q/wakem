@@ -36,19 +36,17 @@ use crate::platform::macos::input_device::{InputDevice, InputDeviceConfig};
 // Platform-specific imports for production code (macOS)
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
-    set_global_command_callback, AppCommand as TrayAppCommand, Launcher,
-    MacosInputDevice as RawInputDevice, MacosOutputDevice as OutputDevice,
-    RealMacosWindowApi, RealMacosWindowManager as WindowManager, RealTrayApi,
-    TrayManager,
+    AppCommand as TrayAppCommand, Launcher, MacosInputDevice as RawInputDevice,
+    MacosOutputDevice as OutputDevice, RealMacosWindowApi,
+    RealMacosWindowManager as WindowManager,
 };
 
 // Platform-specific imports for test code (macOS)
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
-    output_device::MockMacosOutputDevice as OutputDevice, set_global_command_callback,
-    AppCommand as TrayAppCommand, Launcher, MacosInputDevice as RawInputDevice,
-    RealMacosWindowApi, RealMacosWindowManager as WindowManager, RealTrayApi,
-    TrayManager,
+    output_device::MockMacosOutputDevice as OutputDevice, AppCommand as TrayAppCommand,
+    Launcher, MacosInputDevice as RawInputDevice, RealMacosWindowApi,
+    RealMacosWindowManager as WindowManager,
 };
 
 #[cfg(target_os = "windows")]
@@ -1295,36 +1293,11 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         info!("Message handler task stopped");
     });
 
-    // Start Tray (macOS only)
-    // Following Windows design: use global callback instead of separate thread
+    // Tray is handled by the client on macOS, not the daemon
+    // This is because macOS requires tray to be created on the main thread
     #[cfg(target_os = "macos")]
     {
-        let (mut tray_manager, _tray_command_receiver) =
-            TrayManager::<RealTrayApi>::new();
-        let tray_shutdown_flag = Arc::new(AtomicBool::new(false));
-
-        // Start tray manager
-        if let Err(e) = tray_manager.start().await {
-            warn!("Failed to start tray manager: {}", e);
-        } else {
-            info!("Tray manager started");
-
-            // Set global command callback - this follows Windows design pattern
-            // Menu clicks will invoke this callback directly on the main thread
-            let state_for_tray = state.clone();
-            set_global_command_callback(move |cmd| {
-                handle_tray_command(cmd, state_for_tray.clone());
-            });
-
-            // Spawn a simple task to handle shutdown
-            let mut tray_shutdown = shutdown_for_tasks.clone();
-            let tray_shutdown_flag_clone = tray_shutdown_flag.clone();
-            tokio::spawn(async move {
-                let _ = tray_shutdown.changed().await;
-                tray_shutdown_flag_clone.store(true, Ordering::SeqCst);
-                info!("Tray shutdown signal received");
-            });
-        }
+        info!("Tray is managed by wakem client on macOS");
     }
 
     info!("Server is running (press Ctrl+C for graceful shutdown)");
