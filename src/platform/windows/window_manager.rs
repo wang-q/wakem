@@ -4,8 +4,10 @@
 use anyhow::Result;
 use tracing::debug;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT};
+use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowRect, IsIconic,
+    BringWindowToTop, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId,
+    IsIconic, SetForegroundWindow, ShowWindow, GW_OWNER, SW_RESTORE,
 };
 use windows_core::BOOL;
 
@@ -568,7 +570,10 @@ impl RealWindowManager {
         Ok(0)
     }
 
-    /// Switch to next window of same process (Alt+` function)
+    /// Switch to next window of same application (Alt+` function)
+    ///
+    /// Uses process image name (e.g., "explorer.exe") instead of PID because
+    /// Windows Explorer and some other apps run each window in a separate process.
     pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         unsafe {
             let current_hwnd = GetForegroundWindow();
@@ -576,37 +581,47 @@ impl RealWindowManager {
                 return Err(anyhow::anyhow!("No foreground window"));
             }
 
-            // Get current window's process ID
             let current_pid = self.get_window_process_id(current_hwnd)?;
-            debug!("Current window PID: {}", current_pid);
+            let process_name = self.get_process_name_by_pid(current_pid)?;
 
-            // Get all visible windows of this process
-            let windows = self.get_process_visible_windows(current_pid);
+            debug!(
+                "[SwitchWindow] PID={}, process={}",
+                current_pid, process_name
+            );
+
+            let windows = self.get_app_visible_windows(&process_name);
+            debug!(
+                "[SwitchWindow] Found {} windows for '{}'",
+                windows.len(),
+                process_name
+            );
+
             if windows.len() < 2 {
-                debug!("Only one window in process, nothing to switch");
+                debug!(
+                    "[SwitchWindow] Only {} window(s), need >= 2. Skipping.",
+                    windows.len()
+                );
                 return Ok(());
             }
 
-            // Sort by Z-Order (from front to back)
             let sorted_windows = self.sort_windows_by_zorder(windows);
 
-            // Find current window index
             let current_index = sorted_windows
                 .iter()
                 .position(|&hwnd| hwnd == current_hwnd)
                 .unwrap_or(0);
 
-            // Switch to next window
             let next_index = (current_index + 1) % sorted_windows.len();
             let next_hwnd = sorted_windows[next_index];
 
             debug!(
-                "Switching from {:?} to {:?} (index {} -> {})",
-                current_hwnd, next_hwnd, current_index, next_index
+                "[SwitchWindow] Switching index {} -> {} (total {})",
+                current_index,
+                next_index,
+                sorted_windows.len()
             );
 
             self.activate_window(next_hwnd)?;
-
             Ok(())
         }
     }
@@ -626,40 +641,127 @@ impl RealWindowManager {
         Ok(pid)
     }
 
-    /// Get all visible windows of specified process
-    fn get_process_visible_windows(&self, target_pid: u32) -> Vec<HWND> {
-        use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
+    /// Get process image name by PID (e.g., "explorer.exe", "Code.exe")
+    unsafe fn get_process_name_by_pid(&self, pid: u32) -> Result<String> {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+        };
 
-        struct EnumData {
-            target_pid: u32,
+        let handle =
+            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
+                .map_err(|e| anyhow::anyhow!("Failed to open process {}: {}", pid, e))?;
+
+        let mut buffer = [0u16; 260];
+        let len = GetModuleBaseNameW(handle, None, &mut buffer);
+
+        CloseHandle(handle).ok();
+
+        if len == 0 {
+            return Err(anyhow::anyhow!(
+                "Failed to get process name for PID {}",
+                pid
+            ));
+        }
+
+        Ok(String::from_utf16_lossy(&buffer[..len as usize]))
+    }
+
+    /// Get all visible windows belonging to the same application (by process name)
+    ///
+    /// Filters out:
+    /// - Invisible windows
+    /// - Owned/child popup windows (GW_OWNER check)
+    /// - Windows with empty titles
+    /// - System shell windows ("Program Manager" / Progman class)
+    fn get_app_visible_windows(&self, target_process_name: &str) -> Vec<HWND> {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::{
+            EnumWindows, GetClassNameW, GetWindow, GetWindowTextW, IsWindowVisible,
+        };
+
+        struct EnumData<'a> {
+            target_process_name: &'a str,
             windows: Vec<HWND>,
         }
 
         unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
             let data = &mut *(lparam.0 as *mut EnumData);
 
-            // Check if window is visible
             if !IsWindowVisible(hwnd).as_bool() {
-                return BOOL(1); // Continue enumeration
+                return BOOL(1);
             }
 
-            // Get window process ID
+            let owner = GetWindow(hwnd, GW_OWNER).unwrap_or_default();
+            if !owner.0.is_null() {
+                return BOOL(1);
+            }
+
+            let mut title = [0u16; 256];
+            let len = GetWindowTextW(hwnd, &mut title);
+            if len == 0 {
+                return BOOL(1);
+            }
+            let title_str = String::from_utf16_lossy(&title[..len as usize]);
+
+            if title_str == "Program Manager" {
+                return BOOL(1);
+            }
+
+            let mut class_name = [0u16; 256];
+            let class_len = GetClassNameW(hwnd, &mut class_name);
+            let class_str = String::from_utf16_lossy(&class_name[..class_len as usize]);
+
+            if class_str == "Progman"
+                || class_str == "WorkerW"
+                || class_str == "Shell_TrayWnd"
+            {
+                return BOOL(1);
+            }
+
             let mut pid: u32 = 0;
             windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
                 hwnd,
                 Some(&mut pid),
             );
-
-            if pid == data.target_pid {
-                data.windows.push(hwnd);
+            if pid == 0 {
+                return BOOL(1);
             }
 
-            BOOL(1) // Continue enumeration
+            let handle = match OpenProcess(
+                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                false,
+                pid,
+            ) {
+                Ok(h) => h,
+                Err(_) => return BOOL(1),
+            };
+
+            let mut name_buf = [0u16; 260];
+            let name_len = GetModuleBaseNameW(handle, None, &mut name_buf);
+            CloseHandle(handle).ok();
+
+            if name_len == 0 {
+                return BOOL(1);
+            }
+
+            let proc_name = String::from_utf16_lossy(&name_buf[..name_len as usize]);
+            if !proc_name.eq_ignore_ascii_case(data.target_process_name) {
+                return BOOL(1);
+            }
+
+            data.windows.push(hwnd);
+            BOOL(1)
         }
 
         unsafe {
             let mut data = EnumData {
-                target_pid,
+                target_process_name,
                 windows: Vec::new(),
             };
 
@@ -709,26 +811,44 @@ impl RealWindowManager {
     }
 
     /// Activate window (switch to foreground)
+    ///
+    /// Uses AttachThreadInput workaround to bypass Windows' restriction that
+    /// only the foreground process can call SetForegroundWindow successfully.
+    /// Without this, a background daemon process like wakem would have its
+    /// SetForegroundWindow calls silently ignored or rejected by the OS.
     unsafe fn activate_window(&self, hwnd: HWND) -> Result<()> {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            BringWindowToTop, SetForegroundWindow, ShowWindow, SW_RESTORE,
-        };
+        let foreground_hwnd = GetForegroundWindow();
+        let foreground_thread = GetWindowThreadProcessId(foreground_hwnd, None);
+        let current_thread = GetCurrentThreadId();
 
-        // If window is minimized, restore it first
-        if IsIconic(hwnd).as_bool() {
-            ShowWindow(hwnd, SW_RESTORE)
+        let attached = foreground_thread != current_thread && foreground_thread != 0;
+        if attached {
+            AttachThreadInput(foreground_thread, current_thread, true)
                 .ok()
-                .map_err(|e| anyhow::anyhow!("Failed to restore window: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to attach thread input: {}", e))?;
         }
 
-        // Switch to foreground
-        let _ = BringWindowToTop(hwnd);
+        let result = (|| -> Result<()> {
+            if IsIconic(hwnd).as_bool() {
+                ShowWindow(hwnd, SW_RESTORE)
+                    .ok()
+                    .map_err(|e| anyhow::anyhow!("Failed to restore window: {}", e))?;
+            }
 
-        SetForegroundWindow(hwnd)
-            .ok()
-            .map_err(|e| anyhow::anyhow!("Failed to set foreground window: {}", e))?;
+            let _ = BringWindowToTop(hwnd);
 
-        Ok(())
+            SetForegroundWindow(hwnd).ok().map_err(|e| {
+                anyhow::anyhow!("Failed to set foreground window: {}", e)
+            })?;
+
+            Ok(())
+        })();
+
+        if attached {
+            let _ = AttachThreadInput(foreground_thread, current_thread, false);
+        }
+
+        result
     }
 }
 

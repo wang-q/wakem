@@ -394,7 +394,8 @@ impl ServerState {
         if let InputEvent::Key(ref key_event) = event {
             if key_event.state == KeyState::Released {
                 let hyper_map = self.hyper_key_map.read().await;
-                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key)) {
+                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
+                {
                     return;
                 }
             }
