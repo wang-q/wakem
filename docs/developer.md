@@ -4,6 +4,10 @@
 
 > 项目概览、架构设计、代码规范等内容请参阅 [AGENTS.md](../AGENTS.md)。
 
+```bash
+pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/null; sleep 1; echo "已清理"
+```
+
 ## 开发计划
 
 ### Phase 1: Windows 基础架构 ✅ 已完成

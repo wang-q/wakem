@@ -97,10 +97,6 @@ proptest = "1.4"
 # Benchmarking
 criterion = "0.5"
 
-[[bin]]
-name = "wakem-tray"
-path = "src/main_macos.rs"
-
 [[bench]]
 name = "macos_bench"
 harness = false

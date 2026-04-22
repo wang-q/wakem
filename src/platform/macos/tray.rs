@@ -2,6 +2,7 @@
 //!
 //! This module provides a complete system tray implementation including:
 //! - Tray icon management (register, unregister, notifications)
+//! - Context menu with Enable/Disable, Reload Config, Open Config Folder, Exit
 //! - NSApplication event loop for handling tray events
 //! - Async API trait for integration with async code
 #![cfg(target_os = "macos")]
@@ -13,11 +14,12 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use anyhow::{anyhow, Result};
 use tracing::{debug, error, info, warn};
 
-use cocoa::appkit::{NSApplication, NSStatusBar, NSStatusItem};
+use cocoa::appkit::{NSApplication, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem};
 use cocoa::base::{id, nil, NO, YES};
 use cocoa::foundation::{NSAutoreleasePool, NSString};
-use objc::runtime::Class;
-use objc::{msg_send, sel, sel_impl};
+use objc::declare::ClassDecl;
+use objc::runtime::{Class, Object, Protocol, Sel};
+use objc::{class, msg_send, sel, sel_impl};
 
 /// Application commands sent from tray menu
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +52,114 @@ pub trait TrayApi: Send + Sync {
     async fn hide(&self) -> Result<()>;
     async fn set_active_status(&self, active: bool) -> Result<()>;
     fn is_registered(&self) -> bool;
+}
+
+/// Global callback storage for menu actions
+thread_local! {
+    static GLOBAL_CALLBACK: RefCell<Option<Box<dyn Fn(AppCommand) + Send + 'static>>> = RefCell::new(None);
+}
+
+/// Set the global callback for menu actions
+fn set_global_callback<F>(callback: F)
+where
+    F: Fn(AppCommand) + Send + 'static,
+{
+    GLOBAL_CALLBACK.with(|cb| {
+        *cb.borrow_mut() = Some(Box::new(callback));
+    });
+}
+
+/// Call the global callback with a command
+fn call_global_callback(cmd: AppCommand) {
+    GLOBAL_CALLBACK.with(|cb| {
+        if let Some(ref callback) = *cb.borrow() {
+            callback(cmd);
+        }
+    });
+}
+
+/// Menu item tag constants
+const MENU_TAG_TOGGLE: i64 = 100;
+const MENU_TAG_RELOAD: i64 = 101;
+const MENU_TAG_OPEN_CONFIG: i64 = 102;
+const MENU_TAG_EXIT: i64 = 103;
+
+/// Create a custom Objective-C class for handling menu actions
+fn create_menu_target_class() -> &'static Class {
+    unsafe {
+        let mut decl = ClassDecl::new("WakemMenuTarget", class!(NSObject))
+            .expect("Failed to create WakemMenuTarget class");
+
+        // Add the handleMenuItem: method to the class
+        decl.add_method(
+            sel!(handleMenuItem:),
+            handle_menu_item as extern "C" fn(&Object, Sel, id),
+        );
+
+        decl.register()
+    }
+}
+
+/// Handle menu item selection - called from Objective-C
+extern "C" fn handle_menu_item(_this: &Object, _sel: Sel, sender: id) {
+    unsafe {
+        let tag: i64 = msg_send![sender, tag];
+        let cmd = match tag {
+            MENU_TAG_TOGGLE => AppCommand::ToggleActive,
+            MENU_TAG_RELOAD => AppCommand::ReloadConfig,
+            MENU_TAG_OPEN_CONFIG => AppCommand::OpenConfigFolder,
+            MENU_TAG_EXIT => AppCommand::Exit,
+            _ => return,
+        };
+        call_global_callback(cmd);
+    }
+}
+
+/// Create a menu item with title, tag and target/action
+unsafe fn create_menu_item(title: &str, tag: i64, target: id) -> id {
+    let title_ns = NSString::alloc(nil).init_str(title);
+    let item: id = msg_send![class!(NSMenuItem), alloc];
+    let item: id = msg_send![item, initWithTitle:title_ns action:sel!(handleMenuItem:) keyEquivalent:NSString::alloc(nil).init_str("")];
+    let _: () = msg_send![item, setTag: tag];
+    let _: () = msg_send![item, setTarget: target];
+    let _: () = msg_send![item, setEnabled: YES];
+    item
+}
+
+/// Create the context menu
+unsafe fn create_context_menu(target: id) -> id {
+    let menu: id = msg_send![class!(NSMenu), alloc];
+    let menu: id = msg_send![menu, initWithTitle: NSString::alloc(nil).init_str("")];
+
+    // Disable auto-enable so items stay enabled
+    let _: () = msg_send![menu, setAutoenablesItems: NO];
+
+    // Enable/Disable
+    let toggle_item = create_menu_item("Enable/Disable", MENU_TAG_TOGGLE, target);
+    let _: () = msg_send![menu, addItem: toggle_item];
+
+    // Separator
+    let separator: id = msg_send![class!(NSMenuItem), separatorItem];
+    let _: () = msg_send![menu, addItem: separator];
+
+    // Reload Config
+    let reload_item = create_menu_item("Reload Config", MENU_TAG_RELOAD, target);
+    let _: () = msg_send![menu, addItem: reload_item];
+
+    // Open Config Folder
+    let open_config_item =
+        create_menu_item("Open Config Folder", MENU_TAG_OPEN_CONFIG, target);
+    let _: () = msg_send![menu, addItem: open_config_item];
+
+    // Separator
+    let separator2: id = msg_send![class!(NSMenuItem), separatorItem];
+    let _: () = msg_send![menu, addItem: separator2];
+
+    // Exit
+    let exit_item = create_menu_item("Exit", MENU_TAG_EXIT, target);
+    let _: () = msg_send![menu, addItem: exit_item];
+
+    menu
 }
 
 /// Real macOS tray API using native Cocoa
@@ -92,11 +202,18 @@ impl RealTrayApi {
         Ok(())
     }
 
-    /// Create the actual tray icon
+    /// Create the actual tray icon with menu
     /// This must be called on the main thread before run_tray_event_loop
     pub fn create_tray_icon(&self) -> Result<()> {
         unsafe {
             let _pool = NSAutoreleasePool::new(nil);
+
+            // Create custom class for handling menu actions
+            let target_class = create_menu_target_class();
+
+            // Create an instance of our custom class as the target
+            let target: id = msg_send![target_class, alloc];
+            let target: id = msg_send![target, init];
 
             let status_bar = NSStatusBar::systemStatusBar(nil);
             if status_bar == nil {
@@ -115,10 +232,16 @@ impl RealTrayApi {
 
             let _: () = msg_send![status_item, setHighlightMode: YES];
 
+            // Create the menu with our custom target
+            let menu = create_context_menu(target);
+
+            // Attach menu to status item
+            let _: () = msg_send![status_item, setMenu: menu];
+
             *self.status_item.borrow_mut() = Some(status_item);
         }
 
-        info!("Tray icon created");
+        info!("Tray icon created with menu");
         Ok(())
     }
 
@@ -345,11 +468,14 @@ pub type MockTrayManager = TrayManager<MockTrayApi>;
 
 /// Run the tray event loop
 /// This function initializes NSApplication, creates the tray, and runs the event loop
-pub fn run_tray_event_loop<F>(_callback: F) -> Result<()>
+pub fn run_tray_event_loop<F>(callback: F) -> Result<()>
 where
     F: Fn(AppCommand) + Send + 'static,
 {
     info!("Starting tray event loop (macOS native)");
+
+    // Set up the global callback for menu actions
+    set_global_callback(callback);
 
     unsafe {
         let _pool = NSAutoreleasePool::new(nil);
