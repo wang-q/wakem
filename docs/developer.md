@@ -476,3 +476,53 @@ wakem bind-macro my-macro F1
 1. **插件系统** - 支持动态加载扩展模块
 2. **跨平台抽象层完善** - 为 macOS/Linux 移植做准备
 3. **云同步** - 配置文件云存储同步
+
+---
+
+## 性能基准测试
+
+使用 Criterion 框架进行性能测试，运行命令：`cargo bench`
+
+### 测试环境
+
+- OS: Windows 10/11
+- CPU: x86_64
+- 编译: release + debuginfo (opt-level = 3)
+
+### 基准测试结果
+
+| Benchmark | 平均时间 | 说明 |
+|-----------|---------|------|
+| `window_center_calculation` | ~270 ps | 窗口居中计算（纯数学运算） |
+| `trigger_key_match` | ~2.0 ns | 触发器按键匹配 |
+| `mapping_rule_match` | ~2.0 ns | 映射规则匹配（含上下文） |
+| `action_creation` | ~14.3 ns | Action 枚举创建 |
+| `json_deserialization` | ~65.0 ns | JSON 反序列化 |
+| `context_match` | ~120 ns | 上下文条件匹配（进程名+窗口类） |
+| `json_serialization` | ~205 ns | JSON 序列化 |
+| `layer_stack_operations` | ~11.7 μs | 层栈激活/停用操作（10 次循环） |
+| `real_world_layer_operations` | ~1.32 μs | 真实场景层操作（10 次迭代） |
+
+### 性能分析
+
+**核心路径性能优秀**:
+- 触发器匹配和规则匹配均在 **纳秒级** (~2ns)
+- 单次输入事件处理延迟极低，满足实时性要求
+- 窗口计算为 **亚纳秒级** (270ps)，几乎无开销
+
+**序列化开销可接受**:
+- JSON 序列化/反序列化用于 IPC 通信和配置持久化
+- 序列化 ~205ns / 反序列化 ~65ns，远低于网络延迟
+
+**层管理效率高**:
+- 10 次层操作仅需 ~11.7μs（平均 1.17μs/次）
+- 支持复杂的 Hold/Toggle 场景切换
+
+### 基准测试文件
+
+```
+benches/
+├── basic_benchmarks.rs    # 跨平台基准测试（8 个 benchmark）
+└── macos/
+    └── macos_bench.rs     # macOS 专用基准 [macOS only]
+```

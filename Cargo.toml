@@ -98,8 +98,13 @@ proptest = "1.4"
 criterion = "0.5"
 
 [[bench]]
+name = "basic_benchmarks"
+harness = false
+
+[target.'cfg(target_os = "macos")'.bench]
 name = "macos_bench"
 harness = false
+path = "benches/macos/macos_bench.rs"
 
 [profile.bench]
 opt-level = 3

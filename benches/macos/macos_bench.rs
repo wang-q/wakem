@@ -8,6 +8,7 @@
 //! - Core Graphics native API performance
 //! - osascript process startup overhead
 
+#[cfg(target_os = "macos")]
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::process::Command;
 use std::time::Instant;
@@ -128,6 +129,7 @@ fn bench_monitor_info_comparison(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(target_os = "macos")]
 criterion_group!(
     macos_benches,
     bench_applescript_get_window_info,
@@ -137,4 +139,5 @@ criterion_group!(
     bench_monitor_info_comparison,
 );
 
+#[cfg(target_os = "macos")]
 criterion_main!(macos_benches);
