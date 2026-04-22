@@ -17,6 +17,7 @@
 pub mod ax_element;
 pub mod cg_window;
 mod coordinate;
+pub mod core_audio;
 pub mod ns_workspace;
 
 // Re-export common types and functions for convenience

@@ -373,19 +373,27 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
         &self,
         _window: WindowId,
     ) -> Result<()> {
-        // Use Cmd+~ keyboard shortcut via AppleScript
-        use std::process::Command;
-        let script = r#"tell application "System Events"
-            key code 42 using command down
-        end tell"#;
+        // Use CGEvent to send Cmd+~ keyboard shortcut directly
+        // Keycode 50 is the grave/tilde key (`~)
+        use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
-        Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .output()
-            .ok();
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+            .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
 
-        debug!("Switched to next window of same process");
+        // Create key down event for `~ (keycode 50)
+        let key_down = CGEvent::new_keyboard_event(source.clone(), 50, true)
+            .map_err(|e| anyhow::anyhow!("Failed to create key down event: {:?}", e))?;
+        key_down.set_flags(CGEventFlags::CGEventFlagCommand);
+        key_down.post(CGEventTapLocation::HID);
+
+        // Create key up event
+        let key_up = CGEvent::new_keyboard_event(source, 50, false)
+            .map_err(|e| anyhow::anyhow!("Failed to create key up event: {:?}", e))?;
+        key_up.set_flags(CGEventFlags::CGEventFlagCommand);
+        key_up.post(CGEventTapLocation::HID);
+
+        debug!("Switched to next window of same process (using CGEvent)");
         Ok(())
     }
 

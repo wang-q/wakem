@@ -288,26 +288,48 @@ impl OutputDeviceTrait for MacosOutputDevice {
     }
 
     fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        use crate::platform::macos::native_api::core_audio;
         use std::process::Command;
 
         match action {
             SystemAction::VolumeUp => {
-                let _ = Command::new("osascript")
-                    .arg("-e")
-                    .arg("set volume output volume (output volume of (get volume settings) + 10)")
-                    .output();
+                // Use Core Audio API (0.1 = 10% increase)
+                if let Err(e) = core_audio::volume_up(0.1) {
+                    debug!(
+                        "Core Audio volume_up failed: {}, falling back to osascript",
+                        e
+                    );
+                    let _ = Command::new("osascript")
+                        .arg("-e")
+                        .arg("set volume output volume (output volume of (get volume settings) + 10)")
+                        .output();
+                }
             }
             SystemAction::VolumeDown => {
-                let _ = Command::new("osascript")
-                    .arg("-e")
-                    .arg("set volume output volume (output volume of (get volume settings) - 10)")
-                    .output();
+                // Use Core Audio API (0.1 = 10% decrease)
+                if let Err(e) = core_audio::volume_down(0.1) {
+                    debug!(
+                        "Core Audio volume_down failed: {}, falling back to osascript",
+                        e
+                    );
+                    let _ = Command::new("osascript")
+                        .arg("-e")
+                        .arg("set volume output volume (output volume of (get volume settings) - 10)")
+                        .output();
+                }
             }
             SystemAction::VolumeMute => {
-                let _ = Command::new("osascript")
-                    .arg("-e")
-                    .arg("set volume with output muted")
-                    .output();
+                // Use Core Audio API
+                if let Err(e) = core_audio::toggle_mute() {
+                    debug!(
+                        "Core Audio toggle_mute failed: {}, falling back to osascript",
+                        e
+                    );
+                    let _ = Command::new("osascript")
+                        .arg("-e")
+                        .arg("set volume with output muted")
+                        .output();
+                }
             }
             SystemAction::BrightnessUp => {
                 let _ = Command::new("brightness").arg("+10").output();
