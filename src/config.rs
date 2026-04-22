@@ -204,6 +204,33 @@ impl Config {
         rules
     }
 
+    /// Extract hyper key mappings from keyboard remap configuration
+    /// Returns a map of (scan_code, virtual_key) -> ModifierState for each key
+    /// that is remapped to a modifier combination (e.g., CapsLock = "Ctrl+Alt+Meta")
+    pub fn get_hyper_key_mappings(
+        &self,
+    ) -> std::collections::HashMap<(u16, u16), crate::types::ModifierState> {
+        use std::collections::HashMap;
+
+        let mut map = HashMap::new();
+        for (key_str, target_str) in &self.keyboard.remap {
+            if target_str.contains('+') && !target_str.contains("->") {
+                if let Ok((sc, vk)) = parse_key(key_str) {
+                    if let Ok(modifiers) = parse_modifier_combo(target_str) {
+                        map.insert((sc, vk), modifiers);
+                        debug!(
+                            scan_code = sc,
+                            virtual_key = vk,
+                            ?modifiers,
+                            "Found hyper key mapping"
+                        );
+                    }
+                }
+            }
+        }
+        map
+    }
+
     /// Parse layer mapping rules
     fn parse_layer_mappings(
         &self,

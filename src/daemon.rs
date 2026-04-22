@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::config::Config;
 use crate::constants::{
@@ -14,7 +14,9 @@ use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::OutputDeviceTrait;
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
-use crate::types::{macros::MacroRecorder, Action, InputEvent, Macro, ModifierState};
+use crate::types::{
+    macros::MacroRecorder, Action, InputEvent, KeyState, Macro, ModifierState,
+};
 
 use crate::runtime::{KeyMapper, LayerManager};
 
@@ -90,9 +92,12 @@ pub struct ServerState {
     /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
     /// Virtual modifier state for Hyper key support
-    /// This tracks modifiers injected by Hyper key (CapsLock) since GetAsyncKeyState
+    /// This tracks modifiers injected by hyper keys since GetAsyncKeyState
     /// cannot reliably detect injected key states
     virtual_modifiers: Arc<RwLock<ModifierState>>,
+    /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
+    /// Dynamically extracted from remap rules where target is a modifier combo
+    hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
 }
 
 impl ServerState {
@@ -116,6 +121,7 @@ impl ServerState {
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
             virtual_modifiers: Arc::new(RwLock::new(ModifierState::new())),
+            hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
         }
     }
 
@@ -139,6 +145,7 @@ impl ServerState {
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
             virtual_modifiers: Arc::new(RwLock::new(ModifierState::new())),
+            hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
         }
     }
 
@@ -179,6 +186,17 @@ impl ServerState {
             debug!(
                 context_mappings_count = config.keyboard.context_mappings.len(),
                 "Loaded context mappings"
+            );
+        }
+
+        // 2.5. Extract hyper key mappings from remap config
+        {
+            let hyper_map = config.get_hyper_key_mappings();
+            let mut hyper_key_map = self.hyper_key_map.write().await;
+            *hyper_key_map = hyper_map;
+            debug!(
+                hyper_key_count = hyper_key_map.len(),
+                "Loaded hyper key mappings"
             );
         }
 
@@ -369,6 +387,19 @@ impl ServerState {
         // Merge virtual modifiers into the event for Hyper key support
         let event = self.merge_virtual_modifiers(event).await;
 
+        // Filter out key release events for non-hyper keys
+        // This replaces the old RI_KEY_BREAK filter in input.rs which dropped ALL key-up events.
+        // We need hyper-key releases to pass through (to clear virtual_modifiers),
+        // but must block other releases to prevent double-triggering of shortcut actions.
+        if let InputEvent::Key(ref key_event) = event {
+            if key_event.state == KeyState::Released {
+                let hyper_map = self.hyper_key_map.read().await;
+                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key)) {
+                    return;
+                }
+            }
+        }
+
         // First try to process through layer manager (optimization: reduce write lock hold time)
         let (handled, action) = {
             let mut layer_manager = self.layer_manager.write().await;
@@ -417,32 +448,36 @@ impl ServerState {
         }
     }
 
-    /// Check if this is CapsLock (Hyper key) and update virtual modifiers
-    /// Returns true if this is a Hyper key event
+    /// Check if this is a hyper key and update virtual modifiers
+    /// A hyper key is any key remapped to a modifier combination (e.g., CapsLock -> Ctrl+Alt+Meta)
+    /// Returns true if this is a hyper key event
     async fn check_and_update_hyper_key(&self, event: &InputEvent) -> bool {
-        const CAPSLOCK_SCAN_CODE: u16 = 0x3A;
-        const CAPSLOCK_VIRTUAL_KEY: u16 = 0x14;
-
         if let InputEvent::Key(key_event) = event {
-            if key_event.scan_code == CAPSLOCK_SCAN_CODE
-                && key_event.virtual_key == CAPSLOCK_VIRTUAL_KEY
+            let hyper_key_map = self.hyper_key_map.read().await;
+            if let Some(&modifiers) =
+                hyper_key_map.get(&(key_event.scan_code, key_event.virtual_key))
             {
+                drop(hyper_key_map);
                 let mut virtual_mods = self.virtual_modifiers.write().await;
                 match key_event.state {
                     crate::types::KeyState::Pressed => {
-                        // CapsLock pressed - activate virtual modifiers
-                        virtual_mods.ctrl = true;
-                        virtual_mods.alt = true;
-                        virtual_mods.meta = true;
+                        virtual_mods.shift |= modifiers.shift;
+                        virtual_mods.ctrl |= modifiers.ctrl;
+                        virtual_mods.alt |= modifiers.alt;
+                        virtual_mods.meta |= modifiers.meta;
                         debug!(
-                            "CapsLock (Hyper key) pressed, virtual modifiers activated"
+                            scan_code = key_event.scan_code,
+                            vk = key_event.virtual_key,
+                            ?modifiers,
+                            "Hyper key pressed, virtual modifiers activated"
                         );
                     }
                     crate::types::KeyState::Released => {
-                        // CapsLock released - clear virtual modifiers
                         *virtual_mods = ModifierState::new();
                         debug!(
-                            "CapsLock (Hyper key) released, virtual modifiers cleared"
+                            scan_code = key_event.scan_code,
+                            vk = key_event.virtual_key,
+                            "Hyper key released, virtual modifiers cleared"
                         );
                     }
                 }
@@ -452,16 +487,23 @@ impl ServerState {
         false
     }
 
-    /// Merge virtual modifiers into key event for Hyper key support
-    async fn merge_virtual_modifiers(&self, event: InputEvent) -> InputEvent {
-        if let InputEvent::Key(mut key_event) = event {
+    /// Merge virtual modifiers into key event for hyper key support
+    /// Skips the hyper key itself so it can match its own remap rule with original modifiers
+    async fn merge_virtual_modifiers(&self, mut event: InputEvent) -> InputEvent {
+        if let InputEvent::Key(ref mut key_event) = event {
+            let hyper_key_map = self.hyper_key_map.read().await;
+            if hyper_key_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
+            {
+                return event;
+            }
+            drop(hyper_key_map);
+
             let virtual_mods = *self.virtual_modifiers.read().await;
-            // Merge virtual modifiers with physical modifiers
             key_event.modifiers.shift |= virtual_mods.shift;
             key_event.modifiers.ctrl |= virtual_mods.ctrl;
             key_event.modifiers.alt |= virtual_mods.alt;
             key_event.modifiers.meta |= virtual_mods.meta;
-            InputEvent::Key(key_event)
+            InputEvent::Key(key_event.clone())
         } else {
             event
         }

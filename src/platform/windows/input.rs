@@ -269,12 +269,6 @@ impl RawInputDevice {
         if device_type == RIM_TYPEKEYBOARD.0 {
             let keyboard = &raw.data.keyboard;
 
-            // Ignore repeated keys and virtual keys
-            if keyboard.Flags & 0x01 != 0 {
-                // This is a virtual key, ignore
-                return;
-            }
-
             let scan_code = if keyboard.MakeCode != 0 {
                 keyboard.MakeCode
             } else {
