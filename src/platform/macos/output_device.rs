@@ -407,34 +407,35 @@ pub enum MockOutputEvent {
 }
 
 #[cfg(test)]
-use std::cell::RefCell;
+use std::sync::Mutex;
 
 /// Mock output device for macOS testing
 ///
 /// Records all calls without sending real input events via CGEvent.
+/// Uses Mutex instead of RefCell to be Send + Sync safe for tokio::spawn.
 #[cfg(test)]
 pub struct MockMacosOutputDevice {
-    events: RefCell<Vec<MockOutputEvent>>,
+    events: Mutex<Vec<MockOutputEvent>>,
 }
 
 #[cfg(test)]
 impl MockMacosOutputDevice {
     pub fn new() -> Self {
         Self {
-            events: RefCell::new(Vec::new()),
+            events: Mutex::new(Vec::new()),
         }
     }
 
     pub fn recorded_events(&self) -> Vec<MockOutputEvent> {
-        self.events.borrow().clone()
+        self.events.lock().unwrap().clone()
     }
 
     pub fn clear(&self) {
-        self.events.borrow_mut().clear();
+        self.events.lock().unwrap().clear();
     }
 
     pub fn event_count(&self) -> usize {
-        self.events.borrow().len()
+        self.events.lock().unwrap().len()
     }
 }
 
@@ -449,7 +450,7 @@ impl Default for MockMacosOutputDevice {
 impl Clone for MockMacosOutputDevice {
     fn clone(&self) -> Self {
         Self {
-            events: RefCell::new(Vec::new()),
+            events: Mutex::new(Vec::new()),
         }
     }
 }
@@ -483,7 +484,7 @@ impl OutputDeviceTrait for MockMacosOutputDevice {
     }
 
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
-        self.events.borrow_mut().push(MockOutputEvent::Key {
+        self.events.lock().unwrap().push(MockOutputEvent::Key {
             scan_code,
             virtual_key,
             release,
@@ -511,28 +512,32 @@ impl OutputDeviceTrait for MockMacosOutputDevice {
 
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
         self.events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::MouseMove { x, y, relative });
         Ok(())
     }
 
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
         self.events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::MouseButton { button, release });
         Ok(())
     }
 
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
         self.events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::MouseWheel { delta, horizontal });
         Ok(())
     }
 
     fn send_system_action(&self, action: &crate::types::SystemAction) -> Result<()> {
         self.events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::SystemAction(action.clone()));
         Ok(())
     }

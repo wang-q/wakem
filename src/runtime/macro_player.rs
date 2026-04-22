@@ -6,11 +6,17 @@ use tracing::{debug, info};
 use crate::platform::traits::OutputDeviceTrait;
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(test)))]
 use crate::platform::windows::LegacyOutputDevice as OutputDevice;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "windows", test))]
+use crate::platform::windows::MockOutputDevice as OutputDevice;
+
+#[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::MacosOutputDevice as OutputDevice;
+
+#[cfg(all(target_os = "macos", test))]
+use crate::platform::macos::output_device::MockMacosOutputDevice as OutputDevice;
 
 pub struct MacroPlayer;
 

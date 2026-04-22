@@ -18,18 +18,35 @@ use crate::types::{macros::MacroRecorder, Action, InputEvent, Macro, ModifierSta
 
 use crate::runtime::{KeyMapper, LayerManager};
 
-#[cfg(target_os = "windows")]
+// Platform-specific imports for production code
+#[cfg(all(target_os = "windows", not(test)))]
 use crate::platform::windows::{
     Launcher, LegacyOutputDevice as OutputDevice,
     LegacyRawInputDevice as RawInputDevice, WindowManager, WindowPresetManager,
 };
 
+#[cfg(all(target_os = "windows", test))]
+use crate::platform::windows::{
+    Launcher, LegacyRawInputDevice as RawInputDevice, MockOutputDevice as OutputDevice,
+    WindowManager, WindowPresetManager,
+};
+
 #[cfg(target_os = "macos")]
 use crate::platform::macos::input_device::{InputDevice, InputDeviceConfig};
-#[cfg(target_os = "macos")]
+
+// Platform-specific imports for production code (macOS)
+#[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
     Launcher, MacosInputDevice as RawInputDevice, MacosOutputDevice as OutputDevice,
     RealMacosWindowApi, RealMacosWindowManager as WindowManager,
+};
+
+// Platform-specific imports for test code (macOS)
+#[cfg(all(target_os = "macos", test))]
+use crate::platform::macos::{
+    output_device::MockMacosOutputDevice as OutputDevice, Launcher,
+    MacosInputDevice as RawInputDevice, RealMacosWindowApi,
+    RealMacosWindowManager as WindowManager,
 };
 
 #[cfg(target_os = "windows")]
