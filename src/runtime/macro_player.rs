@@ -1,5 +1,6 @@
 //! Macro player
 
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
 
@@ -53,71 +54,60 @@ impl MacroPlayer {
         Ok(())
     }
 
-    /// Ensure modifier state matches recording (uses spawn_blocking to avoid blocking Tokio runtime)
+    /// Ensure modifier state matches recording
     async fn ensure_modifiers(
         output: &OutputDevice,
         target: &ModifierState,
     ) -> anyhow::Result<()> {
-        let output_copy = output.clone();
-        let target_copy = *target;
-
-        tokio::task::spawn_blocking(move || {
-            if target_copy.ctrl {
-                output_copy.send_key_action(&KeyAction::Press {
-                    scan_code: 0x1D,
-                    virtual_key: 0x11,
-                })?;
-            }
-            if target_copy.shift {
-                output_copy.send_key_action(&KeyAction::Press {
-                    scan_code: 0x2A,
-                    virtual_key: 0x10,
-                })?;
-            }
-            if target_copy.alt {
-                output_copy.send_key_action(&KeyAction::Press {
-                    scan_code: 0x38,
-                    virtual_key: 0x12,
-                })?;
-            }
-            if target_copy.meta {
-                output_copy.send_key_action(&KeyAction::Press {
-                    scan_code: 0x5B,
-                    virtual_key: 0x5B,
-                })?;
-            }
-
-            Ok::<(), anyhow::Error>(())
-        })
-        .await?
-    }
-
-    /// Release all modifiers (uses spawn_blocking to avoid blocking Tokio runtime)
-    async fn release_all_modifiers(output: &OutputDevice) -> anyhow::Result<()> {
-        let output_copy = output.clone();
-
-        tokio::task::spawn_blocking(move || {
-            // Release order: opposite of press
-            output_copy.send_key_action(&KeyAction::Release {
-                scan_code: 0x5B,
-                virtual_key: 0x5B,
-            })?; // Meta
-            output_copy.send_key_action(&KeyAction::Release {
-                scan_code: 0x38,
-                virtual_key: 0x12,
-            })?; // Alt
-            output_copy.send_key_action(&KeyAction::Release {
-                scan_code: 0x2A,
-                virtual_key: 0x10,
-            })?; // Shift
-            output_copy.send_key_action(&KeyAction::Release {
+        if target.ctrl {
+            output.send_key_action(&KeyAction::Press {
                 scan_code: 0x1D,
                 virtual_key: 0x11,
-            })?; // Ctrl
+            })?;
+        }
+        if target.shift {
+            output.send_key_action(&KeyAction::Press {
+                scan_code: 0x2A,
+                virtual_key: 0x10,
+            })?;
+        }
+        if target.alt {
+            output.send_key_action(&KeyAction::Press {
+                scan_code: 0x38,
+                virtual_key: 0x12,
+            })?;
+        }
+        if target.meta {
+            output.send_key_action(&KeyAction::Press {
+                scan_code: 0x5B,
+                virtual_key: 0x5B,
+            })?;
+        }
 
-            Ok::<(), anyhow::Error>(())
-        })
-        .await?
+        Ok(())
+    }
+
+    /// Release all modifiers
+    async fn release_all_modifiers(output: &OutputDevice) -> anyhow::Result<()> {
+        // Release order: opposite of press
+        output.send_key_action(&KeyAction::Release {
+            scan_code: 0x5B,
+            virtual_key: 0x5B,
+        })?; // Meta
+        output.send_key_action(&KeyAction::Release {
+            scan_code: 0x38,
+            virtual_key: 0x12,
+        })?; // Alt
+        output.send_key_action(&KeyAction::Release {
+            scan_code: 0x2A,
+            virtual_key: 0x10,
+        })?; // Shift
+        output.send_key_action(&KeyAction::Release {
+            scan_code: 0x1D,
+            virtual_key: 0x11,
+        })?; // Ctrl
+
+        Ok(())
     }
 
     /// Execute single action

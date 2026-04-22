@@ -21,7 +21,7 @@ pub use input_device::{
 };
 pub use launcher::Launcher;
 pub use output::OutputDevice as LegacyOutputDevice;
-pub use output_device::{OutputDevice, OutputEvent, SendInputDevice};
+pub use output_device::{OutputDevice, SendInputDevice};
 pub use tray::{
     run_tray_message_loop, stop_tray, AppCommand, MenuAction, MockTrayApi, RealTrayApi,
     TrayApi, TrayIcon, TrayManager,

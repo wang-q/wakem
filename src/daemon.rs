@@ -7,7 +7,8 @@ use tracing::{debug, error, info, warn};
 use crate::config::Config;
 use crate::constants::{
     INPUT_BATCH_SIZE_LIMIT, INPUT_BATCH_TIMEOUT_MICROS, INPUT_CHANNEL_CAPACITY,
-    IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS,
+    IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_EVENT_CHANNEL_CAPACITY,
+    WINDOW_PRESET_APPLY_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::OutputDeviceTrait;
@@ -387,7 +388,19 @@ impl ServerState {
         let action = {
             let mapper = self.mapper.read().await;
             #[cfg(target_os = "windows")]
-            let context = crate::platform::windows::WindowContext::get_current();
+            let context: Option<crate::platform::traits::WindowContext> =
+                crate::platform::windows::WindowContext::get_current().map(|ctx| {
+                    crate::platform::traits::WindowContext {
+                        process_name: ctx.process_name,
+                        window_class: ctx.window_class,
+                        window_title: ctx.window_title,
+                        executable_path: if ctx.executable_path.is_empty() {
+                            None
+                        } else {
+                            Some(ctx.executable_path)
+                        },
+                    }
+                });
             #[cfg(target_os = "macos")]
             let context: Option<crate::platform::traits::WindowContext> =
                 crate::platform::macos::WindowContext::get_current();
@@ -995,7 +1008,7 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
     let raw_input_shutdown_flag_clone = raw_input_shutdown_flag.clone();
 
     let input_bridge_handle = std::thread::spawn(move || {
-        let (_std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
+        let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
         let tx_clone = input_tx_bridge;
         let shutdown_flag = input_shutdown_flag_clone;
         let raw_input_shutdown = raw_input_shutdown_flag_clone;

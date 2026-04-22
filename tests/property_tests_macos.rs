@@ -3,7 +3,7 @@
 //! Verifies key invariants and properties of macOS platform implementations
 //! using property-based testing to discover edge cases.
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod macos_property_tests {
     use proptest::prelude::*;
     use wakem::platform::macos::input::{

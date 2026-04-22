@@ -6,7 +6,7 @@
 //! Note: These tests use public APIs only. For tests requiring internal Mock types,
 //! see the unit tests in each module's `#[cfg(test)]` sections.
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod macos_integration_tests {
     use wakem::platform::macos::context::WindowContext;
     use wakem::platform::macos::input::{

@@ -9,6 +9,16 @@ use crate::platform::traits::OutputDeviceTrait;
 use crate::types::{KeyAction, ModifierState, MouseAction, MouseButton, SystemAction};
 use anyhow::Result;
 use tracing::{debug, warn};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    SendInput, INPUT, INPUT_KEYBOARD, INPUT_MOUSE, KEYEVENTF_EXTENDEDKEY,
+    KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_HWHEEL,
+    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
+    MOUSEEVENTF_WHEEL, VIRTUAL_KEY,
+};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    VK_VOLUME_DOWN, VK_VOLUME_MUTE, VK_VOLUME_UP,
+};
 
 /// Local OutputDevice trait for SendInput-based implementation
 pub trait OutputDevice: Send + Sync {
@@ -76,39 +86,34 @@ impl SendInputDevice {
 
 impl OutputDevice for SendInputDevice {
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
-        let mut input =
-            unsafe { std::mem::zeroed::<windows_sys::Win32::UI::Input::INPUT>() };
-        input.type_ = windows_sys::Win32::UI::Input::INPUT_KEYBOARD;
-
-        let ki = unsafe { &mut input.u.ki_mut() };
-
-        // Set extended flag for certain keys
-        let is_extended =
-            matches!(scan_code, 0x36 | 0x2A | 0x1D | 0x38 | 0x5B | 0x5C | 0x5D);
-
-        ki.wVk = virtual_key;
-        ki.wScan = scan_code;
-        ki.dwFlags = if release {
-            windows_sys::Win32::UI::Input::KEYEVENTF_KEYUP
-        } else {
-            0
-        } | if is_extended {
-            windows_sys::Win32::UI::Input::KEYEVENTF_EXTENDEDKEY
-        } else {
-            0
-        };
-        ki.time = 0;
-        ki.dwExtraInfo = 0;
-
-        let result = unsafe {
-            windows_sys::Win32::UI::Input::SendInput(
-                1,
-                &input,
-                std::mem::size_of::<windows_sys::Win32::UI::Input::INPUT>() as i32,
-            )
+        let mut input = INPUT {
+            r#type: INPUT_KEYBOARD,
+            ..Default::default()
         };
 
-        if result != 1 {
+        unsafe {
+            input.Anonymous.ki.wVk = VIRTUAL_KEY(virtual_key);
+            input.Anonymous.ki.wScan = scan_code;
+            input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
+
+            if release {
+                input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
+            }
+
+            // Set extended flag for certain keys
+            let is_extended =
+                matches!(scan_code, 0x36 | 0x2A | 0x1D | 0x38 | 0x5B | 0x5C | 0x5D);
+            if is_extended {
+                input.Anonymous.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+            }
+
+            input.Anonymous.ki.time = 0;
+            input.Anonymous.ki.dwExtraInfo = 0;
+        }
+
+        let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
+
+        if result == 0 {
             warn!("SendInput failed for key event");
         }
 
@@ -120,32 +125,27 @@ impl OutputDevice for SendInputDevice {
     }
 
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
-        let mut input =
-            unsafe { std::mem::zeroed::<windows_sys::Win32::UI::Input::INPUT>() };
-        input.type_ = windows_sys::Win32::UI::Input::INPUT_MOUSE;
-
-        let mi = unsafe { &mut input.u.mi_mut() };
-        mi.dx = x;
-        mi.dy = y;
-        mi.mouseData = 0;
-        mi.dwFlags = if relative {
-            windows_sys::Win32::UI::Input::MOUSEEVENTF_MOVE
-        } else {
-            windows_sys::Win32::UI::Input::MOUSEEVENTF_MOVE
-                | windows_sys::Win32::UI::Input::MOUSEEVENTF_ABSOLUTE
-        };
-        mi.time = 0;
-        mi.dwExtraInfo = 0;
-
-        let result = unsafe {
-            windows_sys::Win32::UI::Input::SendInput(
-                1,
-                &input,
-                std::mem::size_of::<windows_sys::Win32::UI::Input::INPUT>() as i32,
-            )
+        let mut input = INPUT {
+            r#type: INPUT_MOUSE,
+            ..Default::default()
         };
 
-        if result != 1 {
+        unsafe {
+            input.Anonymous.mi.dx = x;
+            input.Anonymous.mi.dy = y;
+            input.Anonymous.mi.dwFlags = MOUSEEVENTF_MOVE;
+
+            if !relative {
+                input.Anonymous.mi.dwFlags |= MOUSEEVENTF_ABSOLUTE;
+            }
+
+            input.Anonymous.mi.time = 0;
+            input.Anonymous.mi.dwExtraInfo = 0;
+        }
+
+        let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
+
+        if result == 0 {
             warn!("SendInput failed for mouse move");
         }
 
@@ -154,44 +154,26 @@ impl OutputDevice for SendInputDevice {
     }
 
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
-        let mut input =
-            unsafe { std::mem::zeroed::<windows_sys::Win32::UI::Input::INPUT>() };
-        input.type_ = windows_sys::Win32::UI::Input::INPUT_MOUSE;
-
-        let mi = unsafe { &mut input.u.mi_mut() };
-        mi.mouseData = 0;
-        mi.time = 0;
-        mi.dwExtraInfo = 0;
-
-        match (button, release) {
-            (MouseButton::Left, false) => {
-                mi.dwFlags = windows_sys::Win32::UI::Input::MOUSEEVENTF_LEFTDOWN;
-            }
-            (MouseButton::Left, true) => {
-                mi.dwFlags = windows_sys::Win32::UI::Input::MOUSEEVENTF_LEFTUP;
-            }
-            (MouseButton::Right, false) => {
-                mi.dwFlags = windows_sys::Win32::UI::Input::MOUSEEVENTF_RIGHTDOWN;
-            }
-            (MouseButton::Right, true) => {
-                mi.dwFlags = windows_sys::Win32::UI::Input::MOUSEEVENTF_RIGHTUP;
-            }
-            (MouseButton::Middle, false) => {
-                mi.dwFlags = windows_sys::Win32::UI::Input::MOUSEEVENTF_MIDDLEDOWN;
-            }
-            (MouseButton::Middle, true) => {
-                mi.dwFlags = windows_sys::Win32::UI::Input::MOUSEEVENTF_MIDDLEUP;
-            }
-            _ => {}
-        }
-
-        let result = unsafe {
-            windows_sys::Win32::UI::Input::SendInput(
-                1,
-                &input,
-                std::mem::size_of::<windows_sys::Win32::UI::Input::INPUT>() as i32,
-            )
+        let mut input = INPUT {
+            r#type: INPUT_MOUSE,
+            ..Default::default()
         };
+
+        input.Anonymous.mi.mouseData = 0;
+        input.Anonymous.mi.time = 0;
+        input.Anonymous.mi.dwExtraInfo = 0;
+
+        input.Anonymous.mi.dwFlags = match (button, release) {
+            (MouseButton::Left, false) => MOUSEEVENTF_LEFTDOWN,
+            (MouseButton::Left, true) => MOUSEEVENTF_LEFTUP,
+            (MouseButton::Right, false) => MOUSEEVENTF_RIGHTDOWN,
+            (MouseButton::Right, true) => MOUSEEVENTF_RIGHTUP,
+            (MouseButton::Middle, false) => MOUSEEVENTF_MIDDLEDOWN,
+            (MouseButton::Middle, true) => MOUSEEVENTF_MIDDLEUP,
+            _ => return Ok(()),
+        };
+
+        let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
 
         if result != 1 {
             warn!("SendInput failed for mouse button");
@@ -202,29 +184,23 @@ impl OutputDevice for SendInputDevice {
     }
 
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
-        let mut input =
-            unsafe { std::mem::zeroed::<windows_sys::Win32::UI::Input::INPUT>() };
-        input.type_ = windows_sys::Win32::UI::Input::INPUT_MOUSE;
+        let mut input = INPUT {
+            r#type: INPUT_MOUSE,
+            ..Default::default()
+        };
 
-        let mi = unsafe { &mut input.u.mi_mut() };
-        mi.dx = 0;
-        mi.dy = 0;
-        mi.mouseData = delta as u32;
-        mi.dwFlags = if horizontal {
-            windows_sys::Win32::UI::Input::MOUSEEVENTF_HWHEEL
+        input.Anonymous.mi.dx = 0;
+        input.Anonymous.mi.dy = 0;
+        input.Anonymous.mi.mouseData = delta as u32;
+        input.Anonymous.mi.dwFlags = if horizontal {
+            MOUSEEVENTF_HWHEEL
         } else {
-            windows_sys::Win32::UI::Input::MOUSEEVENTF_WHEEL
+            MOUSEEVENTF_WHEEL
         };
-        mi.time = 0;
-        mi.dwExtraInfo = 0;
+        input.Anonymous.mi.time = 0;
+        input.Anonymous.mi.dwExtraInfo = 0;
 
-        let result = unsafe {
-            windows_sys::Win32::UI::Input::SendInput(
-                1,
-                &input,
-                std::mem::size_of::<windows_sys::Win32::UI::Input::INPUT>() as i32,
-            )
-        };
+        let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
 
         if result != 1 {
             warn!("SendInput failed for mouse wheel");
@@ -337,34 +313,34 @@ pub enum MockOutputEvent {
 }
 
 #[cfg(test)]
-use std::cell::RefCell;
+use std::sync::Mutex;
 
 /// Mock output device implementing the local OutputDevice trait
 ///
 /// Records all calls without sending real input events.
 #[cfg(test)]
 pub struct MockOutputDevice {
-    events: RefCell<Vec<MockOutputEvent>>,
+    events: Mutex<Vec<MockOutputEvent>>,
 }
 
 #[cfg(test)]
 impl MockOutputDevice {
     pub fn new() -> Self {
         Self {
-            events: RefCell::new(Vec::new()),
+            events: Mutex::new(Vec::new()),
         }
     }
 
     pub fn recorded_events(&self) -> Vec<MockOutputEvent> {
-        self.events.borrow().clone()
+        self.events.lock().unwrap().clone()
     }
 
     pub fn clear(&self) {
-        self.events.borrow_mut().clear();
+        self.events.lock().unwrap().clear();
     }
 
     pub fn event_count(&self) -> usize {
-        self.events.borrow().len()
+        self.events.lock().unwrap().len()
     }
 }
 
@@ -376,9 +352,34 @@ impl Default for MockOutputDevice {
 }
 
 #[cfg(test)]
-impl OutputDevice for MockOutputDevice {
+impl OutputDeviceTrait for MockOutputDevice {
+    fn send_key_action(&self, action: &KeyAction) -> Result<()> {
+        match action {
+            KeyAction::Press {
+                scan_code,
+                virtual_key,
+            } => self.send_key(*scan_code, *virtual_key, false),
+            KeyAction::Release {
+                scan_code,
+                virtual_key,
+            } => self.send_key(*scan_code, *virtual_key, true),
+            KeyAction::Click {
+                scan_code,
+                virtual_key,
+            } => {
+                self.send_key(*scan_code, *virtual_key, false)?;
+                self.send_key(*scan_code, *virtual_key, true)
+            }
+            KeyAction::TypeText(text) => self.send_text(text),
+            KeyAction::Combo { modifiers, key } => {
+                self.send_combo(modifiers, key.0, key.1)
+            }
+            KeyAction::None => Ok(()),
+        }
+    }
+
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
-        self.events.borrow_mut().push(MockOutputEvent::Key {
+        self.events.lock().unwrap().push(MockOutputEvent::Key {
             scan_code,
             virtual_key,
             release,
@@ -386,24 +387,52 @@ impl OutputDevice for MockOutputDevice {
         Ok(())
     }
 
+    fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
+        match action {
+            MouseAction::Move { x, y, relative } => {
+                self.send_mouse_move(*x, *y, *relative)
+            }
+            MouseAction::ButtonDown { button } => self.send_mouse_button(*button, false),
+            MouseAction::ButtonUp { button } => self.send_mouse_button(*button, true),
+            MouseAction::ButtonClick { button } => {
+                self.send_mouse_button(*button, false)?;
+                self.send_mouse_button(*button, true)
+            }
+            MouseAction::Wheel { delta } => self.send_mouse_wheel(*delta, false),
+            MouseAction::HWheel { delta } => self.send_mouse_wheel(*delta, true),
+            MouseAction::None => Ok(()),
+        }
+    }
+
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
         self.events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::MouseMove { x, y, relative });
         Ok(())
     }
 
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
         self.events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::MouseButton { button, release });
         Ok(())
     }
 
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
         self.events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::MouseWheel { delta, horizontal });
+        Ok(())
+    }
+
+    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        self.events
+            .lock()
+            .unwrap()
+            .push(MockOutputEvent::SystemAction(action.clone()));
         Ok(())
     }
 }
@@ -520,7 +549,8 @@ impl OutputDeviceTrait for MockWindowsOutputDevice {
     fn send_system_action(&self, action: &SystemAction) -> Result<()> {
         self.inner
             .events
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push(MockOutputEvent::SystemAction(action.clone()));
         Ok(())
     }
@@ -576,7 +606,7 @@ mod mock_tests {
         };
         device.send_combo(&modifiers, 0x1D, 0x41).unwrap();
         let events = device.recorded_events();
-        assert_eq!(events.len(), 6); // ctrl down, a down+up, ctrl up
+        assert_eq!(events.len(), 4); // ctrl down, a down, a up, ctrl up
     }
 
     #[test]
@@ -589,7 +619,7 @@ mod mock_tests {
         };
         device.send_combo(&modifiers, 0, 0x42).unwrap();
         let events = device.recorded_events();
-        assert_eq!(events.len(), 8); // shift down, alt down, b down+up, alt up, shift up
+        assert_eq!(events.len(), 6); // shift down, alt down, b down, b up, alt up, shift up
     }
 
     // --- MockWindowsOutputDevice: send_key_action ---
@@ -764,7 +794,9 @@ mod mock_tests {
     #[test]
     fn test_mock_send_system_action_mute() {
         let device = MockWindowsOutputDevice::new();
-        device.send_system_action(&SystemAction::Mute).unwrap();
+        device
+            .send_system_action(&SystemAction::VolumeMute)
+            .unwrap();
         assert_eq!(device.event_count(), 1);
     }
 
@@ -929,58 +961,65 @@ impl OutputDeviceTrait for WindowsOutputDevice {
 
         #[cfg(target_os = "windows")]
         {
-            use windows_sys::Win32::UI::Input::*;
-
             match action {
                 SystemAction::VolumeUp => {
-                    let mut input = unsafe { std::mem::zeroed::<INPUT>() };
-                    input.type_ = INPUT_KEYBOARD;
-                    let ki = unsafe { &mut input.u.ki_mut() };
-                    ki.wVk = VK_VOLUME_UP as u16;
-                    ki.wScan = 0;
-                    ki.dwFlags = 0;
-                    ki.time = 0;
-                    ki.dwExtraInfo = 0;
+                    let mut input = INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        ..Default::default()
+                    };
+                    input.Anonymous.ki.wVk = VK_VOLUME_UP;
+                    input.Anonymous.ki.wScan = 0;
+                    input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
+                    input.Anonymous.ki.time = 0;
+                    input.Anonymous.ki.dwExtraInfo = 0;
                     unsafe {
-                        SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+                        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
                     }
-                    ki.dwFlags = KEYEVENTF_KEYUP;
                     unsafe {
-                        SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+                        input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
+                    }
+                    unsafe {
+                        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
                     }
                 }
                 SystemAction::VolumeDown => {
-                    let mut input = unsafe { std::mem::zeroed::<INPUT>() };
-                    input.type_ = INPUT_KEYBOARD;
-                    let ki = unsafe { &mut input.u.ki_mut() };
-                    ki.wVk = VK_VOLUME_DOWN as u16;
-                    ki.wScan = 0;
-                    ki.dwFlags = 0;
-                    ki.time = 0;
-                    ki.dwExtraInfo = 0;
+                    let mut input = INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        ..Default::default()
+                    };
+                    input.Anonymous.ki.wVk = VK_VOLUME_DOWN;
+                    input.Anonymous.ki.wScan = 0;
+                    input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
+                    input.Anonymous.ki.time = 0;
+                    input.Anonymous.ki.dwExtraInfo = 0;
                     unsafe {
-                        SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+                        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
                     }
-                    ki.dwFlags = KEYEVENTF_KEYUP;
                     unsafe {
-                        SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+                        input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
+                    }
+                    unsafe {
+                        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
                     }
                 }
-                SystemAction::Mute => {
-                    let mut input = unsafe { std::mem::zeroed::<INPUT>() };
-                    input.type_ = INPUT_KEYBOARD;
-                    let ki = unsafe { &mut input.u.ki_mut() };
-                    ki.wVk = VK_VOLUME_MUTE as u16;
-                    ki.wScan = 0;
-                    ki.dwFlags = 0;
-                    ki.time = 0;
-                    ki.dwExtraInfo = 0;
+                SystemAction::VolumeMute => {
+                    let mut input = INPUT {
+                        r#type: INPUT_KEYBOARD,
+                        ..Default::default()
+                    };
+                    input.Anonymous.ki.wVk = VK_VOLUME_MUTE;
+                    input.Anonymous.ki.wScan = 0;
+                    input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
+                    input.Anonymous.ki.time = 0;
+                    input.Anonymous.ki.dwExtraInfo = 0;
                     unsafe {
-                        SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+                        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
                     }
-                    ki.dwFlags = KEYEVENTF_KEYUP;
                     unsafe {
-                        SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+                        input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
+                    }
+                    unsafe {
+                        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
                     }
                 }
                 _ => {
