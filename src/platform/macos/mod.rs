@@ -40,6 +40,8 @@ pub use window_preset::MacosWindowPresetManager;
 #[cfg(test)]
 pub use input_device::MockInputDevice;
 #[cfg(test)]
+pub use output_device::MockMacosOutputDevice;
+#[cfg(test)]
 pub use tray::MockTrayApi;
 #[cfg(test)]
 pub use window_api::MockMacosWindowApi;

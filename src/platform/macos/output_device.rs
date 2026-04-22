@@ -369,7 +369,7 @@ impl OutputDeviceTrait for MacosOutputDevice {
 
 #[cfg(test)]
 mod tests {
-    use crate::platform::macos::output_device::MacosOutputDevice;
+    use crate::platform::macos::output_device::MockMacosOutputDevice;
     use crate::platform::output_helpers::char_to_vk;
 
     // Re-import types for the impl block below
@@ -418,13 +418,13 @@ mod tests {
 
     #[test]
     fn test_macos_output_device_creation() {
-        let device = MacosOutputDevice::new();
+        let device = MockMacosOutputDevice::new();
         let _cloned = device.clone();
     }
 
     #[test]
     fn test_macos_output_device_default() {
-        let _device = MacosOutputDevice::default();
+        let _device = MockMacosOutputDevice::default();
     }
 }
 

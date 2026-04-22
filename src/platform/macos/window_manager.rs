@@ -368,6 +368,7 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
     }
 
     /// Switch to the next window of the same process (Cmd+~ equivalent on macOS)
+    #[cfg(not(test))]
     pub fn switch_to_next_window_of_same_process(
         &self,
         _window: WindowId,
@@ -385,6 +386,16 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
             .ok();
 
         debug!("Switched to next window of same process");
+        Ok(())
+    }
+
+    /// Switch to the next window of the same process (test mode - no-op)
+    #[cfg(test)]
+    pub fn switch_to_next_window_of_same_process(
+        &self,
+        _window: WindowId,
+    ) -> Result<()> {
+        debug!("[TEST MODE] switch_to_next_window_of_same_process called");
         Ok(())
     }
 

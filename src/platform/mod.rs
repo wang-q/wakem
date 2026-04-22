@@ -67,17 +67,29 @@ pub type PlatformWindowManager = windows::WindowManager<windows::RealWindowApi>;
 #[cfg(target_os = "windows")]
 pub type PlatformTrayIcon = windows::TrayIcon;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", not(test)))]
 pub type PlatformInputDevice = macos::MacosInputDevice;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", test))]
+pub type PlatformInputDevice = macos::input_device::MockInputDevice;
+
+#[cfg(all(target_os = "macos", not(test)))]
 pub type PlatformOutputDevice = macos::MacosOutputDevice;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", test))]
+pub type PlatformOutputDevice = macos::output_device::MockMacosOutputDevice;
+
+#[cfg(all(target_os = "macos", not(test)))]
 pub type PlatformWindowManager = macos::MacosWindowManager<macos::RealMacosWindowApi>;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", test))]
+pub type PlatformWindowManager = macos::MacosWindowManager<macos::MockMacosWindowApi>;
+
+#[cfg(all(target_os = "macos", not(test)))]
 pub type PlatformTrayIcon = macos::TrayIcon<macos::RealTrayApi>;
+
+#[cfg(all(target_os = "macos", test))]
+pub type PlatformTrayIcon = macos::TrayIcon<macos::MockTrayApi>;
 
 /// Get the current platform name
 pub fn platform_name() -> &'static str {
