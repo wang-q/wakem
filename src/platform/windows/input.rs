@@ -155,7 +155,6 @@ impl RawInputDevice {
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
 
-            // Use PeekMessageW for non-blocking check
             use windows::Win32::UI::WindowsAndMessaging::{
                 PeekMessageW, PM_REMOVE, WM_QUIT,
             };
@@ -165,10 +164,12 @@ impl RawInputDevice {
                     return Ok(false);
                 }
                 DispatchMessageW(&msg);
+                Ok(true)
+            } else {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                Ok(true)
             }
         }
-
-        Ok(true)
     }
 
     /// Stop message loop

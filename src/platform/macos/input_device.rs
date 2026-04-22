@@ -61,6 +61,7 @@ pub struct MacosInputDevice {
     modifier_state: ModifierState,
     running: bool,
     tap: Option<CGEventTapDevice>,
+    pending_event: std::cell::RefCell<Option<InputEvent>>,
 }
 
 impl MacosInputDevice {
@@ -75,6 +76,7 @@ impl MacosInputDevice {
             modifier_state: ModifierState::default(),
             running: false,
             tap: None,
+            pending_event: std::cell::RefCell::new(None),
         })
     }
 
@@ -89,6 +91,7 @@ impl MacosInputDevice {
             modifier_state: ModifierState::default(),
             running: false,
             tap: None,
+            pending_event: std::cell::RefCell::new(None),
         })
     }
 
@@ -159,6 +162,21 @@ impl InputDevice for MacosInputDevice {
             return None;
         }
 
+        let pending = {
+            let mut borrowed = self.pending_event.borrow_mut();
+            borrowed.take()
+        };
+
+        if let Some(event) = pending {
+            if let InputEvent::Key(key_event) = &event {
+                self.update_modifier_state(
+                    key_event.virtual_key,
+                    key_event.state == KeyState::Pressed,
+                );
+            }
+            return Some(event);
+        }
+
         match self.event_receiver.try_recv() {
             Ok(event) => {
                 if let InputEvent::Key(key_event) = &event {
@@ -188,7 +206,20 @@ impl InputDevice for MacosInputDevice {
         if !self.running {
             self.running = true;
         }
-        Ok(true)
+
+        match self
+            .event_receiver
+            .recv_timeout(std::time::Duration::from_millis(100))
+        {
+            Ok(event) => {
+                *self.pending_event.borrow_mut() = Some(event);
+                Ok(true)
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(false),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                Err("Channel disconnected".to_string())
+            }
+        }
     }
 }
 
@@ -240,7 +271,7 @@ impl InputDevice for MacosInputDevice {
         if !self.running {
             self.running = true;
         }
-        Ok(true)
+        Ok(false)
     }
 }
 
