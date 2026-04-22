@@ -675,7 +675,7 @@ impl RealWindowManager {
     /// - Owned/child popup windows (GW_OWNER check)
     /// - Windows with empty titles
     /// - System shell windows ("Program Manager" / Progman class)
-    fn get_app_visible_windows(&self, target_process_name: &str) -> Vec<HWND> {
+    pub fn get_app_visible_windows(&self, target_process_name: &str) -> Vec<HWND> {
         use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
         use windows::Win32::System::Threading::{

@@ -537,3 +537,41 @@ benches/
 └── macos/
     └── macos_bench.rs     # macOS 专用基准 [macOS only]
 ```
+
+---
+
+## 真实集成测试
+
+> 位置: `tests/windows_integration.rs` | 仅 Windows 平台
+
+与 `tests/` 目录下的其他 mock 测试不同，真实集成测试会在**桌面启动真实窗口**并验证实际行为。
+
+所有测试默认 `#[ignore]`，不会影响常规 `cargo test`。
+
+### 运行方式
+
+```bash
+# 运行全部真实集成测试
+cargo test --test windows_integration -- --ignored --test-threads=1
+
+# 单个测试
+cargo test --test windows_integration test_explorer_multi_process_window_enumeration -- --ignored --test-threads=1
+```
+
+### 测试用例列表
+
+| 测试名 | 说明 | 副作用 |
+|--------|------|--------|
+| `test_switch_between_two_notepad_windows` | 启动 2 个 Notepad，执行 2 次切换，验证前台窗口变化 | 打开/关闭 Notepad |
+| `test_get_app_visible_windows_finds_notepad` | 启动 Notepad，验证窗口枚举能找到它 | 打开/关闭 Notepad |
+| `test_explorer_multi_process_window_enumeration` | 枚举 explorer.exe 窗口，验证不含 Program Manager 等系统窗口 | 无 |
+| `test_single_window_does_not_panic` | 只有 1 个窗口时切换应静默返回 Ok | 打开/关闭 Notepad |
+| `test_switch_cycles_through_three_windows` | 3 个 Notepad 连续切换 4 次，验证循环正确性 | 打开/关闭 Notepad |
+
+### 设计要点
+
+- 使用 `PlatformWindowManager` (即 `WindowManager<RealWindowApi>`) 调用真实 Windows API
+- 通过 `Command::new("notepad.exe").spawn()` 启动真实进程
+- `wait_for` 辅助函数轮询等待窗口出现（最长 5 秒超时）
+- 每个测试结束后自动 `taskkill /IM notepad.exe /F` 清理
+- `#[cfg(target_os = "windows")]` 条件编译，非 Windows 平台提供空占位测试
