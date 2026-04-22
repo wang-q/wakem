@@ -4,9 +4,7 @@
 //! including half-screen, centering, ratio control, and multi-monitor support.
 
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
-use crate::platform::traits::{
-    MonitorInfo, WindowApiTrait, WindowId, WindowInfo, WindowManagerTrait,
-};
+use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTrait};
 use crate::types::Edge;
 use anyhow::Result;
 use tracing::debug;
@@ -216,7 +214,7 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
 
     /// Set window to half screen (left/right/top/bottom)
     pub fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()> {
-        let info = self.api.get_window_info(window)?;
+        let _info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
         let monitor = monitors
             .first()

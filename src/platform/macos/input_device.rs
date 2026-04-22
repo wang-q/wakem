@@ -13,9 +13,6 @@ use crate::types::{InputEvent, KeyState, ModifierState};
 #[cfg(test)]
 use crate::types::{KeyEvent, MouseButton, MouseEvent, MouseEventType};
 use anyhow::Result;
-use std::cell::RefCell;
-#[cfg(test)]
-use std::collections::VecDeque;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use tracing::debug;
 
@@ -57,6 +54,7 @@ impl Default for InputDeviceConfig {
 
 /// Real macOS input device implementation using CGEventTap
 pub struct MacosInputDevice {
+    #[allow(dead_code)]
     config: InputDeviceConfig,
     event_receiver: Receiver<InputEvent>,
     event_sender: Sender<InputEvent>,
@@ -195,10 +193,10 @@ impl InputDevice for MacosInputDevice {
 /// Mock input device for testing
 #[cfg(test)]
 pub struct MockInputDevice {
-    events: RefCell<VecDeque<InputEvent>>,
-    running: RefCell<bool>,
-    modifier_state: RefCell<ModifierState>,
-    captured_events: RefCell<Vec<InputEvent>>,
+    events: std::cell::RefCell<std::collections::VecDeque<InputEvent>>,
+    running: std::cell::RefCell<bool>,
+    modifier_state: std::cell::RefCell<ModifierState>,
+    captured_events: std::cell::RefCell<Vec<InputEvent>>,
 }
 
 #[cfg(test)]
@@ -206,10 +204,10 @@ impl MockInputDevice {
     /// Create a new mock input device
     pub fn new() -> Self {
         Self {
-            events: RefCell::new(VecDeque::new()),
-            running: RefCell::new(false),
-            modifier_state: RefCell::new(ModifierState::default()),
-            captured_events: RefCell::new(Vec::new()),
+            events: std::cell::RefCell::new(std::collections::VecDeque::new()),
+            running: std::cell::RefCell::new(false),
+            modifier_state: std::cell::RefCell::new(ModifierState::default()),
+            captured_events: std::cell::RefCell::new(Vec::new()),
         }
     }
 
@@ -396,8 +394,7 @@ impl InputDeviceTrait for MacosInputDevice {
 mod tests {
     use super::*;
     use crate::platform::macos::input::keycode_to_virtual_key;
-    use crate::types::{KeyEvent, MouseButton, MouseEvent, MouseEventType};
-    use std::collections::VecDeque;
+    use crate::types::{KeyEvent, MouseButton, MouseEventType};
 
     #[test]
     fn test_mock_input_device_creation() {

@@ -19,8 +19,7 @@ use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 
 use crate::types::{
-    InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
-    MouseEventType,
+    InputEvent, KeyEvent, KeyState, MouseButton, MouseEvent, MouseEventType,
 };
 use anyhow::{bail, Result};
 use keyboard_codes::{Key, KeyCodeMapper, Platform};
@@ -99,6 +98,7 @@ extern "C" {
 
     fn CGEventTapEnable(tap: *mut c_void, enable: bool);
 
+    #[allow(dead_code)]
     fn CGEventRelease(event: *const c_void);
 
     // Event query functions
@@ -140,7 +140,7 @@ extern "C" {
 
 thread_local! {
     static EVENT_SENDER: std::cell::RefCell<Option<Sender<InputEvent>>> =
-        std::cell::RefCell::new(None);
+        const { std::cell::RefCell::new(None) };
 }
 
 /// Set the event sender for the current thread's callback

@@ -5,7 +5,7 @@
 
 use crate::config::wildcard_match;
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
-use crate::platform::traits::{WindowId, WindowInfo, WindowManagerTrait};
+use crate::platform::traits::WindowInfo;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

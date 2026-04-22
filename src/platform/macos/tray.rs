@@ -3,7 +3,9 @@
 //! Provides NSStatusBar-based tray icon with menu and notification support.
 //! This is the macOS equivalent of Windows system tray.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 /// Application commands sent from tray menu
@@ -36,40 +38,30 @@ pub trait TrayApi: Send + Sync {
 }
 
 /// Real macOS tray API using NSStatusBar
-pub struct RealTrayApi;
+pub struct RealTrayApi {
+    registered: AtomicBool,
+    visible: AtomicBool,
+}
 
 impl RealTrayApi {
     pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for RealTrayApi {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait::async_trait]
-impl TrayApi for RealTrayApi {
-    async fn register(&self) -> Result<(), String> {
-        // On macOS, NSStatusBar registration happens at creation time
-        // This is a placeholder for future Cocoa/objc integration
-        debug!("RealTrayApi registered on macOS");
-        Ok(())
+        Self {
+            registered: AtomicBool::new(false),
+            visible: AtomicBool::new(true),
+        }
     }
 
-    async fn unregister(&self) -> Result<(), String> {
-        debug!("RealTrayApi unregistered");
-        Ok(())
-    }
-
-    async fn show_notification(&self, title: &str, message: &str) -> Result<(), String> {
+    /// Show notification using osascript
+    fn show_notification_osascript(
+        &self,
+        title: &str,
+        message: &str,
+    ) -> Result<(), String> {
         use std::process::Command;
         let script = format!(
             r#"display notification "{}" with title "{}" sound name "default""#,
-            message.replace("\"", "\\\""),
-            title.replace("\"", "\\\"")
+            message.replace('"', "\\\""),
+            title.replace('"', "\\\"")
         );
 
         let result = Command::new("osascript").arg("-e").arg(script).output();
@@ -83,9 +75,36 @@ impl TrayApi for RealTrayApi {
             _ => Err("osascript failed".to_string()),
         }
     }
+}
+
+impl Default for RealTrayApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl TrayApi for RealTrayApi {
+    async fn register(&self) -> Result<(), String> {
+        // On macOS, NSStatusBar registration would require Cocoa/objc integration
+        // For now, mark as registered and use osascript for notifications
+        self.registered.store(true, Ordering::SeqCst);
+        debug!("RealTrayApi registered on macOS");
+        Ok(())
+    }
+
+    async fn unregister(&self) -> Result<(), String> {
+        self.registered.store(false, Ordering::SeqCst);
+        debug!("RealTrayApi unregistered");
+        Ok(())
+    }
+
+    async fn show_notification(&self, title: &str, message: &str) -> Result<(), String> {
+        self.show_notification_osascript(title, message)
+    }
 
     async fn show_menu(&self) -> Result<MenuAction, String> {
-        // In real implementation, this would use NSMenu with NSStatusItem
+        // In a full implementation, this would use NSMenu with NSStatusItem
         // For now, return None as menu requires event loop integration
         Ok(MenuAction::None)
     }
@@ -96,11 +115,13 @@ impl TrayApi for RealTrayApi {
     }
 
     async fn show(&self) -> Result<(), String> {
+        self.visible.store(true, Ordering::SeqCst);
         debug!("Tray shown");
         Ok(())
     }
 
     async fn hide(&self) -> Result<(), String> {
+        self.visible.store(false, Ordering::SeqCst);
         debug!("Tray hidden");
         Ok(())
     }
@@ -349,18 +370,18 @@ pub type MockTrayManager = TrayManager<MockTrayApi>;
 /// Run the tray loop (blocking, for main thread)
 pub async fn run_tray_loop(
     command_receiver: Receiver<AppCommand>,
-    shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    shutdown_flag: Arc<AtomicBool>,
 ) -> Result<(), String> {
     info!("Starting tray loop");
 
-    while !shutdown_flag.load(std::sync::atomic::Ordering::SeqCst) {
+    while !shutdown_flag.load(Ordering::SeqCst) {
         match command_receiver.try_recv() {
             Ok(cmd) => {
                 debug!("Received tray command: {:?}", cmd);
                 match cmd {
                     AppCommand::Exit => {
                         info!("Exit command received from tray");
-                        shutdown_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                        shutdown_flag.store(true, Ordering::SeqCst);
                         break;
                     }
                     AppCommand::Enable => {
@@ -388,8 +409,8 @@ pub async fn run_tray_loop(
 }
 
 /// Stop the tray loop
-pub fn stop_tray(shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>) {
-    shutdown_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+pub fn stop_tray(shutdown_flag: Arc<AtomicBool>) {
+    shutdown_flag.store(true, Ordering::SeqCst);
     debug!("Stop signal sent to tray loop");
 }
 
@@ -401,6 +422,18 @@ mod tests {
     async fn test_real_tray_api_creation() {
         let api = RealTrayApi::new();
         drop(api);
+    }
+
+    #[tokio::test]
+    async fn test_real_tray_api_lifecycle() {
+        let api = RealTrayApi::new();
+        assert!(!api.registered.load(Ordering::SeqCst));
+
+        api.register().await.unwrap();
+        assert!(api.registered.load(Ordering::SeqCst));
+
+        api.unregister().await.unwrap();
+        assert!(!api.registered.load(Ordering::SeqCst));
     }
 
     #[test]
@@ -536,8 +569,8 @@ mod tests {
 
     #[test]
     fn test_stop_tray() {
-        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = Arc::new(AtomicBool::new(false));
         stop_tray(flag.clone());
-        assert!(flag.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(flag.load(Ordering::SeqCst));
     }
 }
