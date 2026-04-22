@@ -130,6 +130,8 @@ impl MacosInputDevice {
     }
 }
 
+// Non-test implementation: may start CGEventTap if accessibility permissions are granted
+#[cfg(not(test))]
 impl InputDevice for MacosInputDevice {
     fn register(&mut self) -> Result<()> {
         debug!("Registering MacosInputDevice");
@@ -180,6 +182,58 @@ impl InputDevice for MacosInputDevice {
         if let Some(ref mut tap) = self.tap {
             tap.stop();
         }
+    }
+
+    fn run_once(&mut self) -> Result<bool, String> {
+        if !self.running {
+            self.running = true;
+        }
+        Ok(true)
+    }
+}
+
+// Test implementation: never start CGEventTap to avoid interfering with the test environment
+#[cfg(test)]
+impl InputDevice for MacosInputDevice {
+    fn register(&mut self) -> Result<()> {
+        debug!("[TEST MODE] Registering MacosInputDevice (CGEventTap disabled)");
+        self.running = true;
+        // Never start CGEventTap in test mode to prevent keyboard event interference
+        Ok(())
+    }
+
+    fn unregister(&mut self) {
+        debug!("[TEST MODE] Unregistering MacosInputDevice");
+        self.running = false;
+        // No tap to stop in test mode
+    }
+
+    fn poll_event(&mut self) -> Option<InputEvent> {
+        if !self.running {
+            return None;
+        }
+
+        match self.event_receiver.try_recv() {
+            Ok(event) => {
+                if let InputEvent::Key(key_event) = &event {
+                    self.update_modifier_state(
+                        key_event.virtual_key,
+                        key_event.state == KeyState::Pressed,
+                    );
+                }
+                Some(event)
+            }
+            Err(_) => None,
+        }
+    }
+
+    fn is_running(&self) -> bool {
+        self.running
+    }
+
+    fn stop(&mut self) {
+        self.running = false;
+        // No tap to stop in test mode
     }
 
     fn run_once(&mut self) -> Result<bool, String> {

@@ -858,6 +858,8 @@ impl WindowsOutputDevice {
     }
 }
 
+// Non-test implementation: sends real events to the system
+#[cfg(not(test))]
 impl OutputDeviceTrait for WindowsOutputDevice {
     fn send_key_action(&self, action: &KeyAction) -> Result<()> {
         match action {
@@ -986,6 +988,57 @@ impl OutputDeviceTrait for WindowsOutputDevice {
             }
         }
 
+        Ok(())
+    }
+}
+
+// Test implementation: no-op to prevent interfering with the test environment
+#[cfg(test)]
+impl OutputDeviceTrait for WindowsOutputDevice {
+    fn send_key_action(&self, action: &KeyAction) -> Result<()> {
+        debug!("[TEST MODE] Mock key action: {:?}", action);
+        Ok(())
+    }
+
+    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
+        debug!(
+            "[TEST MODE] Mock key event: scan={:#04X}, vk={:#04X}, release={}",
+            scan_code, virtual_key, release
+        );
+        Ok(())
+    }
+
+    fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
+        debug!("[TEST MODE] Mock mouse action: {:?}", action);
+        Ok(())
+    }
+
+    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
+        debug!(
+            "[TEST MODE] Mock mouse move: x={}, y={}, relative={}",
+            x, y, relative
+        );
+        Ok(())
+    }
+
+    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
+        debug!(
+            "[TEST MODE] Mock mouse button: {:?}, release={}",
+            button, release
+        );
+        Ok(())
+    }
+
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
+        debug!(
+            "[TEST MODE] Mock mouse wheel: delta={}, horizontal={}",
+            delta, horizontal
+        );
+        Ok(())
+    }
+
+    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        debug!("[TEST MODE] Mock system action: {:?}", action);
         Ok(())
     }
 }

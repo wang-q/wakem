@@ -6,9 +6,6 @@
 use crate::platform::traits::OutputDeviceTrait;
 use crate::types::{MouseButton, SystemAction};
 use anyhow::Result;
-use core_graphics::event::{CGEvent, CGEventType, CGMouseButton};
-use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-use core_graphics::geometry::CGPoint;
 use tracing::debug;
 
 /// macOS output device using CGEvent
@@ -17,17 +14,6 @@ pub struct MacosOutputDevice;
 impl MacosOutputDevice {
     pub fn new() -> Self {
         Self
-    }
-
-    /// Get current mouse position
-    fn get_mouse_position(&self) -> Result<CGPoint> {
-        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-            .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
-
-        let event = CGEvent::new(source)
-            .map_err(|e| anyhow::anyhow!("Failed to create event: {:?}", e))?;
-
-        Ok(event.location())
     }
 
     /// Convert Windows-style virtual key to macOS CGKeyCode
@@ -113,23 +99,6 @@ impl MacosOutputDevice {
             _ => virtual_key,
         }
     }
-
-    fn send_key_raw(&self, virtual_key: u16, release: bool) -> Result<()> {
-        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-            .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
-
-        let keycode = Self::virtual_key_to_cg_keycode(virtual_key);
-        let event = CGEvent::new_keyboard_event(source, keycode, !release)
-            .map_err(|e| anyhow::anyhow!("Failed to create keyboard event: {:?}", e))?;
-
-        event.post(core_graphics::event::CGEventTapLocation::HID);
-        debug!(
-            "Sent key event: vk={:#04X}, keycode={}, release={}",
-            virtual_key, keycode, release
-        );
-
-        Ok(())
-    }
 }
 
 impl Default for MacosOutputDevice {
@@ -144,12 +113,36 @@ impl Clone for MacosOutputDevice {
     }
 }
 
+// Non-test implementation: sends real events to the system
+#[cfg(not(test))]
 impl OutputDeviceTrait for MacosOutputDevice {
     fn send_key(&self, _scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
-        self.send_key_raw(virtual_key, release)
+        use core_graphics::event::{CGEvent, CGEventTapLocation};
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+            .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
+
+        let keycode = Self::virtual_key_to_cg_keycode(virtual_key);
+        let event = CGEvent::new_keyboard_event(source, keycode, !release)
+            .map_err(|e| anyhow::anyhow!("Failed to create keyboard event: {:?}", e))?;
+
+        event.post(CGEventTapLocation::HID);
+        debug!(
+            "Sent key event: vk={:#04X}, keycode={}, release={}",
+            virtual_key, keycode, release
+        );
+
+        Ok(())
     }
 
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
+        use core_graphics::event::{
+            CGEvent, CGEventTapLocation, CGEventType, CGMouseButton,
+        };
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+        use core_graphics::geometry::CGPoint;
+
         let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
             .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
 
@@ -167,7 +160,7 @@ impl OutputDeviceTrait for MacosOutputDevice {
             )
             .map_err(|e| anyhow::anyhow!("Failed to create mouse event: {:?}", e))?;
 
-            event.post(core_graphics::event::CGEventTapLocation::HID);
+            event.post(CGEventTapLocation::HID);
         } else {
             let point = CGPoint::new(x as f64, y as f64);
             let event = CGEvent::new_mouse_event(
@@ -178,7 +171,7 @@ impl OutputDeviceTrait for MacosOutputDevice {
             )
             .map_err(|e| anyhow::anyhow!("Failed to create mouse event: {:?}", e))?;
 
-            event.post(core_graphics::event::CGEventTapLocation::HID);
+            event.post(CGEventTapLocation::HID);
         }
 
         debug!("Sent mouse move: x={}, y={}, relative={}", x, y, relative);
@@ -186,6 +179,11 @@ impl OutputDeviceTrait for MacosOutputDevice {
     }
 
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
+        use core_graphics::event::{
+            CGEvent, CGEventTapLocation, CGEventType, CGMouseButton,
+        };
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
         let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
             .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
 
@@ -212,19 +210,24 @@ impl OutputDeviceTrait for MacosOutputDevice {
         let event = CGEvent::new_mouse_event(source, event_type, point, cg_button)
             .map_err(|e| anyhow::anyhow!("Failed to create mouse event: {:?}", e))?;
 
-        event.post(core_graphics::event::CGEventTapLocation::HID);
+        event.post(CGEventTapLocation::HID);
         debug!("Sent mouse button: {:?}, release={}", button, release);
         Ok(())
     }
 
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
-        use core_graphics::event::CGEventType;
+        use core_graphics::event::{
+            CGEvent, CGEventTapLocation, CGEventType, CGMouseButton,
+        };
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
         let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
             .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
 
         // Get current mouse position for scroll event
-        let point = self.get_mouse_position()?;
+        let current = CGEvent::new(source.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to create event: {:?}", e))?;
+        let point = current.location();
 
         // On macOS, scroll events are created using mouse events with scroll types
         // CGEventType::ScrollWheel for vertical, we use NSEvent for horizontal
@@ -235,7 +238,7 @@ impl OutputDeviceTrait for MacosOutputDevice {
                 .map_err(|e| {
                     anyhow::anyhow!("Failed to create shift down event: {:?}", e)
                 })?;
-            shift_event.post(core_graphics::event::CGEventTapLocation::HID);
+            shift_event.post(CGEventTapLocation::HID);
 
             // Then scroll
             let scroll_event = CGEvent::new_mouse_event(
@@ -249,14 +252,14 @@ impl OutputDeviceTrait for MacosOutputDevice {
                 core_graphics::event::EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_1,
                 delta as i64,
             );
-            scroll_event.post(core_graphics::event::CGEventTapLocation::HID);
+            scroll_event.post(CGEventTapLocation::HID);
 
             // Release Shift
             let shift_up = CGEvent::new_keyboard_event(source.clone(), 0x38, false)
                 .map_err(|e| {
                     anyhow::anyhow!("Failed to create shift up event: {:?}", e)
                 })?;
-            shift_up.post(core_graphics::event::CGEventTapLocation::HID);
+            shift_up.post(CGEventTapLocation::HID);
 
             debug!("Sent horizontal mouse wheel: delta={}", delta);
             return Ok(());
@@ -276,7 +279,7 @@ impl OutputDeviceTrait for MacosOutputDevice {
             delta as i64,
         );
 
-        event.post(core_graphics::event::CGEventTapLocation::HID);
+        event.post(CGEventTapLocation::HID);
         debug!(
             "Sent mouse wheel: delta={}, horizontal={}",
             delta, horizontal
@@ -319,15 +322,58 @@ impl OutputDeviceTrait for MacosOutputDevice {
     }
 }
 
+// Test implementation: no-op to prevent interfering with the test environment
+#[cfg(test)]
+impl OutputDeviceTrait for MacosOutputDevice {
+    fn send_key(&self, _scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
+        // Ensure this is never called in production - this is a safety check
+        if std::env::var("WAKEM_ALLOW_REAL_OUTPUT").is_ok() {
+            panic!("Real output attempted in test mode! Set WAKEM_ALLOW_REAL_OUTPUT to allow.");
+        }
+        debug!(
+            "[TEST MODE] Mock key event: vk={:#04X}, release={}",
+            virtual_key, release
+        );
+        Ok(())
+    }
+
+    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
+        debug!(
+            "[TEST MODE] Mock mouse move: x={}, y={}, relative={}",
+            x, y, relative
+        );
+        Ok(())
+    }
+
+    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
+        debug!(
+            "[TEST MODE] Mock mouse button: {:?}, release={}",
+            button, release
+        );
+        Ok(())
+    }
+
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
+        debug!(
+            "[TEST MODE] Mock mouse wheel: delta={}, horizontal={}",
+            delta, horizontal
+        );
+        Ok(())
+    }
+
+    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        debug!("[TEST MODE] Mock system action: {:?}", action);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::platform::macos::output_device::MacosOutputDevice;
     use crate::platform::output_helpers::char_to_vk;
-    use crate::types::{KeyAction, MouseAction, MouseButton};
-    use std::cell::RefCell;
 
     // Re-import types for the impl block below
-    use crate::types::{ModifierState, SystemAction};
+    use crate::types::SystemAction;
 
     // --- char_to_vk tests (shared logic) ---
 

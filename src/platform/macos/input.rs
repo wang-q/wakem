@@ -187,6 +187,11 @@ extern "C" fn event_tap_callback(
     _info: *const c_void,
     _type_: u64,
 ) -> *const c_void {
+    // In test mode, don't process any events to avoid interfering with the test environment
+    if cfg!(test) {
+        return event;
+    }
+
     if let Some(ref sender) = get_sender() {
         let input_event = convert_cg_event(event);
 
