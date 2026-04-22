@@ -150,6 +150,26 @@ wakem delete-macro my-macro  # 删除宏
 * 显示窗口信息. <kbd>Hyper</kbd>+<kbd>W</kbd>
 * 显示测试通知. <kbd>HyperShift</kbd>+<kbd>W</kbd>
 
+## 构建
+
+```bash
+# 开发构建
+cargo build
+
+# 发布构建
+cargo build --release
+
+# 运行测试 (171 tests)
+cargo test
+
+# 运行性能基准测试
+cargo bench
+
+# 代码质量检查
+cargo fmt
+cargo clippy -- -D warnings
+```
+
 ## 文档
 
 - [配置指南](docs/config.md) - 完整的键盘、窗口管理、鼠标等配置说明

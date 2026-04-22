@@ -99,35 +99,56 @@ src/
     ├── macros.rs        # 宏相关类型（MacroStep/MacroRecorder）
     └── time_source.rs   # 时间源抽象（用于测试）
 
-tests/                   # 测试目录
-├── integration_tests.rs      # 跨平台集成测试
-├── integration_tests_macos.rs # macOS 特定集成测试
-├── daemon_test.rs           # 守护进程测试
-├── platform_test.rs         # 平台抽象层测试
-├── runtime_test.rs          # 运行时测试
-├── runtime_comprehensive_test.rs # 运行时综合测试
-├── types_test.rs            # 类型系统测试
-├── types_comprehensive_test.rs   # 类型系统综合测试
-├── config_parser_test.rs    # 配置解析测试
-├── config_edge_cases_test.rs    # 配置边界情况测试
-├── config_comprehensive_test.rs # 配置综合测试
-├── window_manager_test.rs   # 窗口管理器测试
-├── window_calc_test.rs      # 窗口计算测试
-├── layer_test.rs            # 层系统测试
-├── layer_manager_test.rs    # 层管理器测试
-├── mapping_test.rs          # 映射规则测试
-├── input_test.rs            # 输入处理测试
-├── action_test.rs           # 动作类型测试
-├── ipc_test.rs              # IPC 通信测试
-├── security_test.rs         # 安全机制测试
-├── client_test.rs           # 客户端测试
-├── cli_test.rs              # CLI 测试
-├── edge_cases_test.rs       # 边界情况测试
-├── benchmark_test.rs        # 性能基准测试
-├── property_tests.rs        # 属性测试（跨平台）
-├── property_tests_macos.rs  # macOS 属性测试
-├── tray_test.rs             # 系统托盘测试
-└── integration_test.rs      # 额外集成测试
+tests/                   # 测试目录（1 层子目录结构）
+├── types/                  # 类型系统测试 (6 files)
+│   ├── basic.rs           # 基础类型创建和匹配
+│   ├── comprehensive.rs   # 完整边界条件覆盖
+│   ├── action.rs          # Action 类型变体
+│   ├── input_event.rs     # KeyEvent/MouseEvent
+│   ├── mapping_rule.rs    # MappingRule 触发器
+│   └── layer.rs           # Layer/LayerMode
+│
+├── runtime/                # 运行时逻辑测试 (3 files)
+│   ├── mapper.rs          # KeyMapper 映射引擎
+│   ├── mapper_full.rs     # KeyMapper 深度测试
+│   └── layer_manager.rs   # LayerManager 层管理
+│
+├── config/                 # 配置系统测试 (3 files)
+│   ├── parser.rs          # 配置解析基础
+│   ├── comprehensive.rs    # 配置完整场景
+│   └── edge_cases.rs      # 配置边界条件
+│
+├── core/                   # 核心功能测试 (5 files)
+│   ├── daemon.rs          # ServerState 守护进程逻辑
+│   ├── cli.rs             # CLI 参数解析
+│   ├── client.rs          # DaemonClient 通信层
+│   ├── ipc.rs             # IPC 消息序列化
+│   └── security.rs        # 安全策略（IP 白名单等）
+│
+├── window/                 # 窗口管理测试 (2 files)
+│   ├── calc.rs            # 窗口位置/大小计算算法
+│   └── manager.rs         # 窗口管理器逻辑
+│
+├── integration/            # 集成测试 (3 files)
+│   ├── core.rs            # Config + Runtime + Types 集成
+│   ├── edge_cases.rs      # 跨模块边界情况
+│   └── ipc.rs             # IPC 集成测试
+│
+├── property/               # 属性测试 (proptest) (4 files)
+│   ├── config.rs          # 通配符匹配、键名解析
+│   ├── config.regressions # proptest 回归种子
+│   ├── macos_keycode.rs   # macOS 键码映射 [macOS only]
+│   └── macos_keycode.regressions  # macOS 回归种子 [macOS only]
+│
+├── platform/               # 平台特定测试 (3 files)
+│   ├── windows_tray.rs    # Windows 系统托盘 [Windows only]
+│   ├── windows_specific.rs # MonitorInfo, WindowFrame [Windows only]
+│   └── macos_integration.rs # macOS 集成测试 [macOS only]
+
+benches/                  # 性能基准测试 (cargo bench)
+├── basic_benchmarks.rs    # 跨平台基准测试（8 个 benchmark）
+└── macos/
+    └── macos_bench.rs     # macOS 专用基准 [macOS only]
 
 examples/                # 配置示例
 ├── minimal.toml         # 最小配置示例
@@ -162,8 +183,13 @@ cargo test
 # 仅运行单元测试
 cargo test --lib
 
-# 运行特定测试
-cargo test --test integration_tests
+# 运行特定测试（按目录）
+cargo test --test types::basic
+cargo test --test core::daemon
+
+# 运行性能基准测试
+cargo bench
+cargo bench --bench basic_benchmarks  # 仅跨平台基准 [macOS: cargo bench --bench macos_bench]
 ```
 
 ### 代码质量检查
@@ -240,12 +266,31 @@ cargo clippy -- -D warnings
 
 ## 测试规范
 
-项目采用**多层次测试策略**：
+项目采用**多层次测试策略**，按功能域组织在 1 层子目录中：
 
 - **单元测试**: 所有核心功能必须在源文件底部的 `#[cfg(test)]` 模块中编写单元测试
-- **集成测试**: 跨模块交互在 `tests/integration_tests.rs` 和 `tests/integration_tests_macos.rs` 中测试
-- **属性测试**: 使用 proptest 在 `tests/property_tests.rs` 中发现边缘情况
+- **集成测试**: 跨模块交互在 `tests/integration/` 目录中测试
+- **属性测试**: 使用 proptest 在 `tests/property/` 中发现边缘情况
 - **Mock 测试**: 平台相关功能提供 Mock 实现，便于单元测试
+- **性能基准**: 使用 Criterion 在 `benches/` 中进行专业基准测试
+
+### 测试目录结构
+
+```
+tests/
+├── types/          # 类型系统 (basic, comprehensive, action, input_event, mapping_rule, layer)
+├── runtime/        # 运行时逻辑 (mapper, mapper_full, layer_manager)
+├── config/         # 配置系统 (parser, comprehensive, edge_cases)
+├── core/           # 核心功能 (daemon, cli, client, ipc, security)
+├── window/         # 窗口管理 (calc, manager)
+├── integration/    # 集成测试 (core, edge_cases, ipc)
+├── property/       # 属性测试 (config, macos_keycode) [proptest]
+└── platform/       # 平台特定 (windows_*, macos_*)
+
+benches/
+├── basic_benchmarks.rs  # 跨平台基准
+└── macos/macos_bench.rs # macOS 基准
+```
 
 ## 架构设计要点
 

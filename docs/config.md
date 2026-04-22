@@ -26,7 +26,7 @@ wakem 使用以下目录结构（遵循 XDG Base Directory 规范的 Windows 适
 
 > `%APPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Roaming`，`%LOCALAPPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Local`
 
-> 注：目前 wakem 仅支持 Windows 平台，macOS 和 Linux 支持正在开发中。
+> 注：wakem 当前主要支持 **Windows** 平台（完整功能），**macOS** 平台正在积极开发中（基础架构已完成），Linux (wayland) 支持计划后续迁移。
 
 ## 快捷键符号
 

@@ -68,7 +68,18 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 - [x] 智能过滤单独修饰键事件
 - [x] 宏绑定到快捷键触发
 
-### Phase 7: macOS 移植 ⏳ 待实现
+### Phase 7: macOS 移植 🔄 进行中
+
+- [x] 平台抽象层设计 (traits.rs)
+- [x] macOS 输入设备 (CGEvent)
+- [x] macOS 输出设备 (CGEvent)
+- [x] macOS 窗口管理器
+- [x] macOS 窗口预设
+- [x] macOS 系统托盘
+- [x] macOS 应用启动器
+- [x] macOS 原生 API 封装 (native_api/)
+- [ ] macOS 集成测试完善
+- [ ] macOS 文档完善
 
 ### Phase 8: Linux 移植 ⏳ 待实现
 
