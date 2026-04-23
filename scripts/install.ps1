@@ -67,6 +67,26 @@ function Test-Admin {
     return $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Test-ProcessRunning {
+    param(
+        [string]$ExePath
+    )
+    $running = Get-Process | Where-Object { $_.Path -eq $ExePath }
+    return $running
+}
+
+function Wait-ProcessClosed {
+    param(
+        [string]$ExePath,
+        [string]$ProcessName
+    )
+    while ((Test-ProcessRunning -ExePath $ExePath)) {
+        Write-Warning "$ProcessName is currently running at '$ExePath'"
+        Write-Host "Please close $ProcessName and press Enter to continue..." -ForegroundColor Yellow
+        Read-Host | Out-Null
+    }
+}
+
 function Install-Wakem {
     Write-Host "Installing wakem..."
     Write-Host ""
@@ -76,6 +96,11 @@ function Install-Wakem {
         Write-Error "Executable not found: $BuildExe"
         Write-Host "Please build the project first: cargo build --release"
         exit 1
+    }
+
+    # If a previous installation is running, wait for it to close before overwriting
+    if (Test-Path $InstalledExe) {
+        Wait-ProcessClosed -ExePath $InstalledExe -ProcessName $AppName
     }
 
     # Create installation directory
@@ -174,8 +199,17 @@ N = "PageDown"
     Write-Host "  $ShortcutPath"
     Write-Host "  -> wakem will auto-start on next login (user session)"
     Write-Host ""
-    Write-Host "To start now:"
-    Write-Host "  & $InstalledExe"
+
+    # Offer to launch after installation
+    if ($Host.UI.RawUI.KeyAvailable) {
+        $ans = Read-Host -Prompt "Start wakem now? (y/n)"
+        if ($ans -eq "y") {
+            Start-Process -FilePath $InstalledExe -WorkingDirectory $ConfigDir
+            Write-Host "Started wakem" -ForegroundColor Green
+            exit 0
+        }
+    }
+    Write-Host "To start manually: & $InstalledExe"
 }
 
 function Uninstall-Wakem {
@@ -203,11 +237,16 @@ function Uninstall-Wakem {
         }
     }
 
-    # Stop running processes
-    $processes = Get-Process -Name "wakem" -ErrorAction SilentlyContinue
+    # If wakem is running from install dir, wait for user to close it
+    if (Test-Path $InstalledExe) {
+        Wait-ProcessClosed -ExePath $InstalledExe -ProcessName $AppName
+    }
+
+    # Stop any remaining processes (e.g., launched from other paths)
+    $processes = Get-Process -Name $AppName -ErrorAction SilentlyContinue
     if ($processes) {
         $processes | Stop-Process -Force
-        Write-Host "Stopped running processes" -ForegroundColor Green
+        Write-Host "Stopped remaining processes" -ForegroundColor Green
     }
 
     # Remove installation directory
