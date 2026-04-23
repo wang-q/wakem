@@ -25,6 +25,43 @@ use platform::windows::{run_tray_message_loop, AppCommand};
 #[cfg(target_os = "macos")]
 use platform::macos::{run_tray_event_loop, AppCommand};
 
+/// Check if the command requires console output (for Windows GUI subsystem)
+/// Returns true for commands that need to print results or show logs
+fn requires_console_output(command: &Option<Commands>) -> bool {
+    match command {
+        // These commands need console output for user feedback
+        Some(Commands::Status) |
+        Some(Commands::Reload) |
+        Some(Commands::Save) |
+        Some(Commands::Enable) |
+        Some(Commands::Disable) |
+        Some(Commands::Config) |
+        Some(Commands::Instances) |
+        Some(Commands::Record { .. }) |
+        Some(Commands::StopRecord) |
+        Some(Commands::Play { .. }) |
+        Some(Commands::Macros) |
+        Some(Commands::BindMacro { .. }) |
+        Some(Commands::DeleteMacro { .. }) |
+        Some(Commands::Daemon { .. }) |  // Daemon needs console for logs
+        Some(Commands::Tray) => true,     // Tray needs console for logs
+
+        // Only default (no command) runs as pure GUI without console
+        None => false,
+    }
+}
+
+/// Allocate console on Windows if needed (for GUI subsystem binaries)
+#[cfg(target_os = "windows")]
+fn ensure_console_for_cli() {
+    use windows::Win32::System::Console::AllocConsole;
+
+    unsafe {
+        // Allocate a new console window for CLI output
+        let _ = AllocConsole();
+    }
+}
+
 /// Initialize logging system with support for reading log level from config file
 fn init_logging(cli: &Cli) {
     let log_level = if let Some(config_path) =
@@ -48,6 +85,12 @@ fn init_logging(cli: &Cli) {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // For Windows GUI subsystem: allocate console if CLI command needs output
+    #[cfg(target_os = "windows")]
+    if requires_console_output(&cli.command) {
+        ensure_console_for_cli();
+    }
 
     // Initialize logging (using log level from config or default info)
     init_logging(&cli);

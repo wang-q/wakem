@@ -38,6 +38,7 @@ cp examples/window_manager.toml ~/.wakem.toml
 
 ```bash
 # One-click start (recommended) - starts both background service and system tray
+# On Windows: runs as GUI application (no console window)
 wakem
 
 # Or start separately (advanced users)
@@ -47,8 +48,11 @@ wakem tray      # Then start system tray (assumes background service is running)
 
 **Notes:**
 - Running `wakem` directly will automatically start both the background service and system tray
+- **Windows**: wakem runs as a GUI application (system tray), no console window appears by default
 - If the background service is already running, only the system tray will be started
 - When the system tray is closed, the background service it started will be automatically stopped
+- CLI commands (e.g., `wakem status`, `wakem daemon`, `wakem tray`) will automatically open a console window for output/logs
+- Use `wakem` (no arguments) for pure GUI mode without console (e.g., for desktop shortcuts)
 
 ### 4. Client Commands
 
