@@ -527,9 +527,8 @@ impl ServerState {
             if Self::check_modifier_match(&volume_config.modifier, &modifiers) {
                 if delta > 0 {
                     return Some(Action::System(crate::types::SystemAction::VolumeUp));
-                } else {
-                    return Some(Action::System(crate::types::SystemAction::VolumeDown));
                 }
+                return Some(Action::System(crate::types::SystemAction::VolumeDown));
             }
         }
 
@@ -540,11 +539,8 @@ impl ServerState {
                     return Some(Action::System(
                         crate::types::SystemAction::BrightnessUp,
                     ));
-                } else {
-                    return Some(Action::System(
-                        crate::types::SystemAction::BrightnessDown,
-                    ));
                 }
+                return Some(Action::System(crate::types::SystemAction::BrightnessDown));
             }
         }
 

@@ -43,7 +43,7 @@ impl DaemonClient {
         .await
         {
             Ok(result) => {
-                result.map_err(|e| anyhow::anyhow!("Connection failed: {}", e))?;
+                result.map_err(|e| anyhow::anyhow!("Connection failed: {e}"))?;
                 self.client = Some(client);
                 info!("Connected to daemon");
                 Ok(())
@@ -78,7 +78,7 @@ impl DaemonClient {
         match response {
             Message::StatusResponse { .. } => Ok(()),
             Message::Error { message } => {
-                Err(anyhow::anyhow!("Server error: {}", message))
+                Err(anyhow::anyhow!("Server error: {message}"))
             }
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
@@ -94,7 +94,7 @@ impl DaemonClient {
                 Ok(())
             }
             Message::ConfigError { error } => {
-                Err(anyhow::anyhow!("Config error: {}", error))
+                Err(anyhow::anyhow!("Config error: {error}"))
             }
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
@@ -110,7 +110,7 @@ impl DaemonClient {
                 Ok(())
             }
             Message::ConfigError { error } => {
-                Err(anyhow::anyhow!("Config error: {}", error))
+                Err(anyhow::anyhow!("Config error: {error}"))
             }
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
@@ -144,7 +144,7 @@ impl DaemonClient {
 
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -157,7 +157,7 @@ impl DaemonClient {
             Message::MacroRecordingResult { name, action_count } => {
                 Ok((name, action_count))
             }
-            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -172,7 +172,7 @@ impl DaemonClient {
 
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -197,7 +197,7 @@ impl DaemonClient {
 
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -213,7 +213,7 @@ impl DaemonClient {
 
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -227,7 +227,7 @@ impl DaemonClient {
 
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
@@ -238,7 +238,7 @@ impl DaemonClient {
 
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
