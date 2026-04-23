@@ -23,11 +23,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, CreateWindowExW,
     DefWindowProcW, DestroyMenu, DispatchMessageW, GetCursorPos, GetMessageW,
     LoadCursorW, LookupIconIdFromDirectoryEx, PostMessageW, PostQuitMessage,
-    RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage, CS_HREDRAW,
-    CS_VREDRAW, CW_USEDEFAULT, HMENU, IDC_ARROW, LR_DEFAULTCOLOR, MF_SEPARATOR,
-    MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, WINDOW_STYLE,
-    WM_COMMAND, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
-    WS_EX_TOPMOST,
+    PostThreadMessageW, RegisterClassW, SetForegroundWindow, TrackPopupMenu,
+    TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, HMENU, IDC_ARROW,
+    LR_DEFAULTCOLOR, MF_SEPARATOR, MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
+    TPM_RIGHTBUTTON, WINDOW_STYLE, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY, WM_QUIT,
+    WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
 };
 
 /// Embedded icon resource
@@ -70,6 +70,7 @@ type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
 static mut TRAY_ICON: Option<TrayIconData> = None;
 static mut CMD_CALLBACK: Option<CommandCallback> = None;
 static mut TRAY_HWND: Option<HWND> = None;
+static mut MAIN_THREAD_ID: Option<u32> = None;
 
 /// Tray icon data structure
 struct TrayIconData {
@@ -260,6 +261,10 @@ where
         // Store window handle for later use
         TRAY_HWND = Some(hwnd);
 
+        // Store main thread ID for stop_tray()
+        MAIN_THREAD_ID =
+            Some(unsafe { windows::Win32::System::Threading::GetCurrentThreadId() });
+
         // Create and register tray icon
         TRAY_ICON = Some(TrayIconData::create());
         if let Some(ref mut tray) = TRAY_ICON {
@@ -293,10 +298,22 @@ where
 /// Post a quit message to stop the message loop
 pub fn stop_tray() {
     unsafe {
+        // Send WM_CLOSE to the window first (graceful shutdown)
         if let Some(hwnd) = TRAY_HWND {
             let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
                 Some(hwnd),
-                WM_DESTROY,
+                windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
+                WPARAM(0),
+                LPARAM(0),
+            );
+        }
+
+        // Post WM_QUIT directly to the main thread's message queue
+        // This ensures GetMessageW returns 0 and the message loop exits
+        if let Some(thread_id) = MAIN_THREAD_ID {
+            let _ = windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW(
+                thread_id,
+                windows::Win32::UI::WindowsAndMessaging::WM_QUIT,
                 WPARAM(0),
                 LPARAM(0),
             );

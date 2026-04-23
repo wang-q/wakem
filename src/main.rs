@@ -278,6 +278,10 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
                         }
                     }
 
+                    // Stop the tray message loop
+                    // This sends WM_DESTROY to the tray window, causing run_tray_message_loop to return
+                    platform::windows::stop_tray();
+
                     break;
                 }
             }
