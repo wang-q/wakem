@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::config::Config;
 use crate::constants::{
@@ -978,6 +978,7 @@ impl ServerState {
     }
 
     /// Check if shutdown has been requested
+    #[allow(dead_code)]
     pub fn is_shutdown_requested(&self) -> bool {
         self.shutdown_flag.load(Ordering::SeqCst)
     }

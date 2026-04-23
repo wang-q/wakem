@@ -3,6 +3,7 @@
 //! This module defines the cross-platform interfaces that can be implemented
 //! by each platform-specific module (Windows, macOS, Linux).
 
+#[allow(unused_imports)]
 use crate::platform::output_helpers::char_to_vk;
 use crate::types::{
     InputEvent, KeyAction, ModifierState, MouseAction, MouseButton, SystemAction,
@@ -10,6 +11,7 @@ use crate::types::{
 use anyhow::Result;
 
 /// Input device trait - for capturing keyboard and mouse events
+#[allow(dead_code)]
 pub trait InputDeviceTrait: Send {
     /// Register the device and start capturing events
     fn register(&mut self) -> Result<()>;
@@ -28,6 +30,7 @@ pub trait InputDeviceTrait: Send {
 }
 
 /// Output device trait - for sending simulated input events
+#[allow(dead_code)]
 pub trait OutputDeviceTrait: Send {
     /// Send a key action
     fn send_key_action(&self, action: &KeyAction) -> Result<()> {
@@ -142,9 +145,11 @@ pub trait OutputDeviceTrait: Send {
 }
 
 /// Window identifier type (platform-specific)
+#[allow(dead_code)]
 pub type WindowId = usize;
 
 /// Window information
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct WindowInfo {
     pub id: WindowId,
@@ -158,6 +163,7 @@ pub struct WindowInfo {
 }
 
 /// Monitor information
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct MonitorInfo {
     pub x: i32,
@@ -167,6 +173,7 @@ pub struct MonitorInfo {
 }
 
 /// Window API trait - low-level window operations
+#[allow(dead_code)]
 pub trait WindowApiTrait: Send + Sync {
     /// Get the currently focused window
     fn get_foreground_window(&self) -> Option<WindowId>;
@@ -216,6 +223,7 @@ pub trait WindowApiTrait: Send + Sync {
 }
 
 /// Window manager trait - high-level window operations
+#[allow(dead_code)]
 pub trait WindowManagerTrait: Send + Sync {
     /// Get the currently focused window
     fn get_foreground_window(&self) -> Option<WindowId>;
@@ -265,6 +273,7 @@ pub trait WindowManagerTrait: Send + Sync {
 }
 
 /// Tray icon trait - for system tray integration
+#[allow(dead_code)]
 pub trait TrayIconTrait: Send {
     /// Show the tray icon
     fn show(&mut self) -> Result<()>;
@@ -290,11 +299,13 @@ pub struct WindowContext {
 
 impl WindowContext {
     /// Create an empty context
+    #[allow(dead_code)]
     pub fn empty() -> Self {
         Self::default()
     }
 
     /// Check if context matches the given conditions
+    #[allow(dead_code)]
     pub fn matches(
         &self,
         process: Option<&str>,

@@ -134,14 +134,11 @@ unsafe extern "system" fn win_event_callback(
     let len = GetWindowTextW(hwnd, &mut title_buffer);
     let title = String::from_utf16_lossy(&title_buffer[..len as usize]);
 
-    match event {
-        EVENT_SYSTEM_FOREGROUND => {
-            debug!("Window activated: {} ({:?})", title, hwnd);
-            if let Some(sender) = get_global_sender() {
-                let _ = sender.send(WindowEvent::WindowActivated(hwnd.0 as isize));
-            }
+    if event == EVENT_SYSTEM_FOREGROUND {
+        debug!("Window activated: {} ({:?})", title, hwnd);
+        if let Some(sender) = get_global_sender() {
+            let _ = sender.send(WindowEvent::WindowActivated(hwnd.0 as isize));
         }
-        _ => {}
     }
 }
 

@@ -7,7 +7,7 @@ use std::cell::RefCell;
 #[allow(unused_imports)]
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, RECT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowRect,
@@ -84,22 +84,12 @@ pub enum WindowOperation {
 }
 
 /// Window state
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[allow(dead_code)]
 pub struct WindowState {
     pub minimized: bool,
     pub maximized: bool,
     pub topmost: bool,
-}
-
-impl Default for WindowState {
-    fn default() -> Self {
-        Self {
-            minimized: false,
-            maximized: false,
-            topmost: false,
-        }
-    }
 }
 
 /// Windows API abstract interface
@@ -587,6 +577,7 @@ impl WindowApi for RealWindowApi {
 
 // ==================== Helper structures and callbacks for new methods ====================
 
+#[allow(dead_code)]
 struct EnumContext<'a> {
     title_regex: Option<regex::Regex>,
     class_regex: Option<regex::Regex>,
@@ -594,6 +585,7 @@ struct EnumContext<'a> {
     results: &'a mut Vec<HWND>,
 }
 
+#[allow(dead_code)]
 unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let context = &mut *(lparam.0 as *mut EnumContext);
 
@@ -635,6 +627,7 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
     BOOL(1) // Continue enumeration
 }
 
+#[allow(dead_code)]
 unsafe extern "system" fn enum_child_windows_callback(
     hwnd: HWND,
     lparam: LPARAM,

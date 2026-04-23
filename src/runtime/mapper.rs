@@ -3,7 +3,7 @@ use crate::types::{
     Trigger,
 };
 use std::collections::HashMap;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, trace};
 
 #[cfg(target_os = "windows")]
 use crate::platform::windows::window_manager::RealWindowManager;

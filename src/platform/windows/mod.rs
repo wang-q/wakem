@@ -1,5 +1,4 @@
 //! Windows platform implementation
-#![cfg(target_os = "windows")]
 
 pub mod context;
 pub mod input;
@@ -15,15 +14,19 @@ pub mod window_preset;
 // Re-export types for backward compatibility
 pub use context::WindowContext;
 pub use input::RawInputDevice as LegacyRawInputDevice;
+#[allow(unused_imports)]
 pub use input_device::{
     InputDevice, InputDeviceConfig, InputDeviceFactory, RawInputDevice,
 };
 pub use launcher::Launcher;
+#[allow(unused_imports)]
 pub use output_device::{OutputDevice, SendInputDevice, WindowsOutputDevice};
+#[allow(unused_imports)]
 pub use tray::{
     run_tray_message_loop, stop_tray, AppCommand, MenuAction, MockTrayApi, RealTrayApi,
     TrayApi, TrayIcon, TrayManager,
 };
+#[allow(unused_imports)]
 pub use window_api::{
     MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi, WindowOperation, WindowState,
 };

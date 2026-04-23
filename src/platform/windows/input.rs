@@ -129,6 +129,7 @@ impl RawInputDevice {
     }
 
     /// Run message loop
+    #[allow(dead_code)]
     pub fn run(&mut self) -> Result<()> {
         debug!("Starting Raw Input message loop");
         self.running = true;

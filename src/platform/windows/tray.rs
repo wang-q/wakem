@@ -23,11 +23,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, CreateWindowExW,
     DefWindowProcW, DestroyMenu, DispatchMessageW, GetCursorPos, GetMessageW,
     LoadCursorW, LookupIconIdFromDirectoryEx, PostMessageW, PostQuitMessage,
-    PostThreadMessageW, RegisterClassW, SetForegroundWindow, TrackPopupMenu,
-    TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, HMENU, IDC_ARROW,
-    LR_DEFAULTCOLOR, MF_SEPARATOR, MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-    TPM_RIGHTBUTTON, WINDOW_STYLE, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY, WM_QUIT,
-    WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage, CS_HREDRAW,
+    CS_VREDRAW, CW_USEDEFAULT, HMENU, IDC_ARROW, LR_DEFAULTCOLOR, MF_SEPARATOR,
+    MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, WINDOW_STYLE,
+    WM_COMMAND, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST,
 };
 
 /// Embedded icon resource
@@ -54,6 +54,7 @@ pub enum AppCommand {
 }
 
 /// Menu action
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
     None,
@@ -262,8 +263,7 @@ where
         TRAY_HWND = Some(hwnd);
 
         // Store main thread ID for stop_tray()
-        MAIN_THREAD_ID =
-            Some(unsafe { windows::Win32::System::Threading::GetCurrentThreadId() });
+        MAIN_THREAD_ID = Some(windows::Win32::System::Threading::GetCurrentThreadId());
 
         // Create and register tray icon
         TRAY_ICON = Some(TrayIconData::create());
@@ -372,6 +372,7 @@ impl TrayIcon {
     }
 
     /// Register tray icon
+    #[allow(dead_code)]
     pub fn register(&mut self, hwnd: HWND) -> Result<()> {
         self.data.hWnd = hwnd;
         unsafe {
@@ -382,6 +383,7 @@ impl TrayIcon {
     }
 
     /// Unregister tray icon
+    #[allow(dead_code)]
     pub fn unregister(&mut self) -> Result<()> {
         unsafe {
             Shell_NotifyIconW(NIM_DELETE, &self.data)
@@ -419,6 +421,7 @@ impl TrayIcon {
     }
 
     /// Show context menu
+    #[allow(dead_code)]
     pub fn show_menu(&mut self) -> Result<u32> {
         unsafe {
             SetForegroundWindow(self.data.hWnd)
@@ -452,6 +455,7 @@ impl TrayIcon {
     }
 
     /// Create context menu
+    #[allow(dead_code)]
     fn create_menu(&mut self) -> Result<HMENU> {
         unsafe {
             let hmenu = CreatePopupMenu()
@@ -511,6 +515,7 @@ impl Drop for TrayIcon {
 }
 
 /// Tray icon operation trait - used to abstract Windows API calls for easier testing
+#[allow(dead_code)]
 #[async_trait]
 pub trait TrayApi: Send + Sync {
     /// Register tray icon
@@ -542,10 +547,12 @@ pub trait TrayApi: Send + Sync {
 }
 
 /// Real tray icon API implementation
+#[allow(dead_code)]
 pub struct RealTrayApi {
     inner: Arc<Mutex<TrayIconInner>>,
 }
 
+#[allow(dead_code)]
 struct TrayIconInner {
     tray_icon: TrayIcon,
     hwnd: HWND,
@@ -563,6 +570,7 @@ impl Default for RealTrayApi {
 }
 
 impl RealTrayApi {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(TrayIconInner {
@@ -624,10 +632,12 @@ impl TrayApi for RealTrayApi {
 }
 
 /// Mock tray icon API implementation - for testing
+#[allow(dead_code)]
 pub struct MockTrayApi {
     state: Arc<Mutex<MockTrayState>>,
 }
 
+#[allow(dead_code)]
 #[derive(Default)]
 struct MockTrayState {
     registered: bool,
@@ -645,6 +655,7 @@ impl Default for MockTrayApi {
 }
 
 impl MockTrayApi {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(MockTrayState {
@@ -727,31 +738,37 @@ impl TrayApi for MockTrayApi {
 }
 
 /// Tray icon manager
+#[allow(dead_code)]
 pub struct TrayManager<T: TrayApi> {
     pub api: T,
 }
 
 impl<T: TrayApi> TrayManager<T> {
+    #[allow(dead_code)]
     pub fn new(api: T) -> Self {
         Self { api }
     }
 
     /// Initialize tray icon
+    #[allow(dead_code)]
     pub async fn init(&self, hwnd: isize) -> Result<()> {
         self.api.register(hwnd).await
     }
 
     /// Cleanup tray icon
+    #[allow(dead_code)]
     pub async fn cleanup(&self) -> Result<()> {
         self.api.unregister().await
     }
 
     /// Show notification
+    #[allow(dead_code)]
     pub async fn notify(&self, title: &str, message: &str) -> Result<()> {
         self.api.show_notification(title, message).await
     }
 
     /// Show menu and handle selection
+    #[allow(dead_code)]
     pub async fn show_context_menu(&self) -> Result<MenuAction> {
         let selection = self.api.show_menu().await?;
         Ok(match selection {
@@ -764,6 +781,7 @@ impl<T: TrayApi> TrayManager<T> {
     }
 
     /// Toggle active status
+    #[allow(dead_code)]
     pub async fn toggle_active(&self) -> Result<bool> {
         let current = self.api.is_active().await;
         let new_state = !current;
@@ -772,6 +790,7 @@ impl<T: TrayApi> TrayManager<T> {
     }
 
     /// Get active status
+    #[allow(dead_code)]
     pub async fn is_active(&self) -> bool {
         self.api.is_active().await
     }

@@ -1,6 +1,6 @@
 # wakem - Window Adjust, Keyboard Enhance, and Mouse
 
-A cross-platform window management, keyboard enhancement, and mouse enhancement tool. Inspired by the excellent designs of [mrw](https://github.com/wang-q/mrw), [keymapper](https://github.com/houmain/keymapper), and [AutoHotkey](https://www.autohotkey.com/).
+A cross-platform window/keyboard/mouse enhancer.
 
 ## Quick Start
 

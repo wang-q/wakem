@@ -9,15 +9,20 @@
 //! The module uses conditional compilation to select the appropriate
 //! platform-specific implementation.
 
+#[allow(dead_code)]
 pub mod mock;
 pub mod output_helpers;
+#[allow(dead_code)]
 pub mod traits;
 
 // Re-export mock implementations for testing
+#[allow(unused_imports)]
 pub use mock::MockInputDevice;
+#[allow(unused_imports)]
 pub use output_helpers::char_to_vk;
 
 // Re-export specific items from traits
+#[allow(unused_imports)]
 pub use traits::{
     InputDeviceTrait, MonitorInfo, OutputDeviceTrait, TrayIconTrait, WindowApiTrait,
     WindowContext, WindowId, WindowInfo, WindowManagerTrait,
@@ -32,6 +37,7 @@ pub mod macos;
 
 // Re-export platform-specific types (only on respective platforms)
 #[cfg(target_os = "windows")]
+#[allow(unused_imports)]
 pub use windows::{
     // Launcher
     Launcher,
@@ -56,15 +62,19 @@ pub use windows::{
 
 // Platform-specific type aliases
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub type PlatformInputDevice = windows::RawInputDevice;
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub type PlatformOutputDevice = windows::SendInputDevice;
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub type PlatformWindowManager = windows::WindowManager<windows::RealWindowApi>;
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 pub type PlatformTrayIcon = windows::TrayIcon;
 
 #[cfg(all(target_os = "macos", not(test)))]
@@ -92,6 +102,7 @@ pub type PlatformTrayIcon = macos::TrayIcon<macos::RealTrayApi>;
 pub type PlatformTrayIcon = macos::TrayIcon<macos::MockTrayApi>;
 
 /// Get the current platform name
+#[allow(dead_code)]
 pub fn platform_name() -> &'static str {
     #[cfg(target_os = "windows")]
     return "windows";
@@ -104,7 +115,9 @@ pub fn platform_name() -> &'static str {
 }
 
 /// Check if running on Windows
+#[allow(dead_code)]
 pub const IS_WINDOWS: bool = cfg!(target_os = "windows");
 
 /// Check if running on macOS
+#[allow(dead_code)]
 pub const IS_MACOS: bool = cfg!(target_os = "macos");

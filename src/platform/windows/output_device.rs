@@ -289,6 +289,7 @@ mod tests {
 }
 
 /// Recorded output event for mock verification
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum MockOutputEvent {
     Key {

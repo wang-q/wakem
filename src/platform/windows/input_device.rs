@@ -1,10 +1,7 @@
 //! Windows input device implementation
 #![cfg(target_os = "windows")]
 
-use crate::types::{
-    InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
-    MouseEventType,
-};
+use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 #[allow(unused_imports)]
 use std::cell::RefCell;
@@ -75,6 +72,7 @@ impl RawInputDevice {
     }
 
     /// Update modifier key state
+    #[allow(dead_code)]
     fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
         if let Some((modifier, _)) =
             ModifierState::from_virtual_key(virtual_key, pressed)
