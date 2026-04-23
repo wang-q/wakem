@@ -1135,115 +1135,16 @@ impl ConfigPathCache {
         }
     }
 
-    /// Internal path resolution logic
-    #[cfg(target_os = "windows")]
+    /// Internal path resolution logic (unified across all platforms)
     fn resolve_config_path_internal(instance_id: u32) -> Option<std::path::PathBuf> {
-        let home = std::env::var("USERPROFILE").ok()?;
-        let home_path = std::path::PathBuf::from(home);
-
-        let config_filename = if instance_id == 0 {
-            ".wakem.toml".to_string()
+        let config_dir = dirs::config_dir()?;
+        let wakem_dir = config_dir.join("wakem");
+        let filename = if instance_id == 0 {
+            "config.toml".to_string()
         } else {
-            format!(".wakem-instance{}.toml", instance_id)
+            format!("config-instance{}.toml", instance_id)
         };
-
-        // Priority 1: Check %USERPROFILE%\.wakem.toml or .wakem-instanceN.toml
-        let config_file = home_path.join(&config_filename);
-        if config_file.exists() {
-            return Some(config_file);
-        }
-
-        // Priority 2: Check %APPDATA%\wakem\config.toml or config-instanceN.toml
-        let app_data = std::env::var("APPDATA").ok()?;
-        let config_dir = std::path::PathBuf::from(app_data).join("wakem");
-        let config_file = if instance_id == 0 {
-            config_dir.join("config.toml")
-        } else {
-            config_dir.join(format!("config-instance{}.toml", instance_id))
-        };
-        if config_file.exists() {
-            return Some(config_file);
-        }
-
-        // Return default path (even if it doesn't exist)
-        Some(home_path.join(config_filename))
-    }
-
-    /// Internal path resolution logic for macOS
-    #[cfg(target_os = "macos")]
-    fn resolve_config_path_internal(instance_id: u32) -> Option<std::path::PathBuf> {
-        let home = std::env::var("HOME").ok()?;
-        let home_path = std::path::PathBuf::from(home);
-
-        let config_filename = if instance_id == 0 {
-            ".wakem.toml".to_string()
-        } else {
-            format!(".wakem-instance{}.toml", instance_id)
-        };
-
-        // Priority 1: ~/.wakem.toml (for backward compatibility with Windows)
-        let config_file = home_path.join(&config_filename);
-        if config_file.exists() {
-            return Some(config_file);
-        }
-
-        // Priority 2: ~/.config/wakem/config.toml (XDG standard)
-        let xdg_config = home_path.join(".config/wakem");
-        let config_file = if instance_id == 0 {
-            xdg_config.join("config.toml")
-        } else {
-            xdg_config.join(format!("config-instance{}.toml", instance_id))
-        };
-        if config_file.exists() {
-            return Some(config_file);
-        }
-
-        // Priority 3: ~/Library/Application Support/wakem/config.toml (macOS standard)
-        let app_support = home_path.join("Library/Application Support/wakem");
-        let config_file = if instance_id == 0 {
-            app_support.join("config.toml")
-        } else {
-            app_support.join(format!("config-instance{}.toml", instance_id))
-        };
-        if config_file.exists() {
-            return Some(config_file);
-        }
-
-        // Return default path (even if it doesn't exist)
-        Some(home_path.join(config_filename))
-    }
-
-    /// Internal path resolution logic for other platforms (Linux)
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    fn resolve_config_path_internal(instance_id: u32) -> Option<std::path::PathBuf> {
-        let home = std::env::var("HOME").ok()?;
-        let home_path = std::path::PathBuf::from(home);
-
-        let config_filename = if instance_id == 0 {
-            ".wakem.toml".to_string()
-        } else {
-            format!(".wakem-instance{}.toml", instance_id)
-        };
-
-        // Priority 1: ~/.wakem.toml
-        let config_file = home_path.join(&config_filename);
-        if config_file.exists() {
-            return Some(config_file);
-        }
-
-        // Priority 2: ~/.config/wakem/config.toml (XDG standard)
-        let xdg_config = home_path.join(".config/wakem");
-        let config_file = if instance_id == 0 {
-            xdg_config.join("config.toml")
-        } else {
-            xdg_config.join(format!("config-instance{}.toml", instance_id))
-        };
-        if config_file.exists() {
-            return Some(config_file);
-        }
-
-        // Return default path
-        Some(home_path.join(config_filename))
+        Some(wakem_dir.join(filename))
     }
 }
 

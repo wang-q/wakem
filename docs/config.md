@@ -1,73 +1,67 @@
-# wakem 配置指南
+# wakem Configuration Guide
 
-本文档包含 wakem 的完整配置说明。
+This document contains the complete configuration documentation for wakem.
 
-## 配置文件位置
+## Configuration File Location
 
 ### Windows
 
-wakem 使用以下目录结构（遵循 XDG Base Directory 规范的 Windows 适配）：
+wakem uses the following directory structure (following XDG Base Directory specification adapted for Windows):
 
-| 类型 | 路径 | 说明 |
+| Type | Path | Description |
 |------|------|------|
-| 程序 | `%LOCALAPPDATA%\Programs\wakem\` | 可执行文件安装位置 |
-| 配置 | `%APPDATA%\wakem\` | 配置文件目录 |
-| 数据 | `%LOCALAPPDATA%\wakem\` | 日志等数据文件 |
-| 启动项 | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\` | 开机启动快捷方式 |
+| Program | `%LOCALAPPDATA%\Programs\wakem\` | Executable installation directory |
+| Config | `%APPDATA%\wakem\` | Configuration file directory |
+| Data | `%LOCALAPPDATA%\wakem\` | Log files and other data |
+| Startup | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\` | Startup shortcut |
 
-配置文件按以下优先级查找（找到即停止）：
+Configuration file location:
 
-| 优先级 | 路径（实例 0） | 路径（实例 N） | 说明 |
-|:------:|----------------|----------------|------|
-| 1 | `%USERPROFILE%\.wakem.toml` | `%USERPROFILE%\.wakem-instanceN.toml` | 用户主目录下的单文件配置 |
-| 2 | `%APPDATA%\wakem\config.toml` | `%APPDATA%\wakem\config-instanceN.toml` | 配置目录（推荐） |
+| Path (Instance 0) | Path (Instance N) | Description |
+|-------------------|-------------------|-------------|
+| `%APPDATA%\wakem\config.toml` | `%APPDATA%\wakem\config-instanceN.toml` | Config directory (XDG-style) |
 
-**推荐**：使用 `%APPDATA%\wakem\config.toml`，遵循 Windows 标准配置目录规范。
-
-> `%APPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Roaming`，`%LOCALAPPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Local`
+> `%APPDATA%` typically points to `C:\Users\<Username>\AppData\Roaming`, and `%LOCALAPPDATA%` typically points to `C:\Users\<Username>\AppData\Local`.
 
 ### macOS
 
-| 优先级 | 路径（实例 0） | 路径（实例 N） | 说明 |
-|:------:|----------------|----------------|------|
-| 1 | `~/.wakem.toml` | `~/.wakem-instanceN.toml` | 用户主目录（向后兼容） |
-| 2 | `~/.config/wakem/config.toml` | `~/.config/wakem/config-instanceN.toml` | XDG 标准目录（推荐） |
-| 3 | `~/Library/Application Support/wakem/config.toml` | `~/Library/Application Support/wakem/config-instanceN.toml` | macOS 标准目录 |
+| Path (Instance 0) | Path (Instance N) | Description |
+|-------------------|-------------------|-------------|
+| `~/Library/Application Support/wakem/config.toml` | `~/Library/Application Support/wakem/config-instanceN.toml` | macOS standard directory |
 
 ### Linux (Wayland)
 
-| 优先级 | 路径（实例 0） | 路径（实例 N） | 说明 |
-|:------:|----------------|----------------|------|
-| 1 | `~/.wakem.toml` | `~/.wakem-instanceN.toml` | 用户主目录（向后兼容） |
-| 2 | `~/.config/wakem/config.toml` | `~/.config/wakem/config-instanceN.toml` | XDG 标准目录（推荐） |
+| Path (Instance 0) | Path (Instance N) | Description |
+|-------------------|-------------------|-------------|
+| `~/.config/wakem/config.toml` | `~/.config/wakem/config-instanceN.toml` | XDG standard directory |
 
-> 注：wakem 当前主要支持 **Windows** 平台（完整功能），**macOS** 平台正在积极开发中（基础架构已完成），Linux (wayland) 支持计划后续迁移。
+> Note: wakem currently primarily supports **Windows** platform (full feature set), **macOS** platform is under active development (infrastructure complete), Linux (Wayland) support is planned for future migration.
 
-## 快捷键符号
+## Key Symbols
 
-| 符号 | 按键 |
-|:----:|:----:|
+| Symbol | Key Combination |
+|:------:|:---------------:|
 | <kbd>Hyper</kbd> | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Meta</kbd> |
 | <kbd>HyperShift</kbd> | <kbd>Hyper</kbd>+<kbd>Shift</kbd> |
 
-## 基本配置
+## Basic Configuration
 
 ```toml
-# 基本设置
-log_level = "info"        # 日志级别: trace, debug, info, warn, warning, error
-tray_icon = true          # 是否显示系统托盘图标
-auto_reload = true        # 是否自动重新加载配置
-icon_path = "assets/icon.ico"  # 自定义托盘图标路径（可选）
+# Basic settings
+log_level = "info"        # Log level: trace, debug, info, warn, warning, error
+tray_icon = true          # Show system tray icon
+auto_reload = true        # Auto-reload configuration on changes
+icon_path = "assets/icon.ico"  # Custom tray icon path (optional)
 
-# 键盘重映射（HashMap 格式：源按键 = 目标按键）
+# Keyboard remapping (HashMap format: source key = target key)
 [keyboard.remap]
 CapsLock = "Backspace"
 RightAlt = "Ctrl"
 
-# 导航层 - 按住 CapsLock 时（HashMap 格式）
+# Navigation layer - activated when holding CapsLock (HashMap format)
 [keyboard.layers.navigation]
 activation_key = "CapsLock"
-mode = "Hold"  # Hold: 按住激活, Toggle: 切换激活
+mode = "Hold"  # Hold: activate while held, Toggle: toggle activation
 
 [keyboard.layers.navigation.mappings]
 H = "Left"
@@ -75,42 +69,42 @@ J = "Down"
 K = "Up"
 L = "Right"
 
-# 窗口管理快捷键（HashMap 格式）
+# Window management shortcuts (HashMap format)
 [window.shortcuts]
 "Ctrl+Alt+Win+C" = "Center"
 
-# 移动到边缘
+# Move to edge
 "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)"
 "Ctrl+Alt+Win+End" = "MoveToEdge(Right)"
 "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)"
 "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)"
 
-# 半屏显示
+# Half screen
 "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)"
 "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)"
 
-# 循环调整
+# Loop resize
 "Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
 "Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
 
-# 窗口切换
+# Window switching
 "Alt+Grave" = "SwitchToNextWindow"
 ```
 
-## 全局设置
+## Global Settings
 
-| 选项 | 类型 | 默认值 | 说明 |
-|-----|------|-------|------|
-| `log_level` | string | "info" | 日志级别（trace/debug/info/warn/warning/error） |
-| `tray_icon` | bool | true | 显示系统托盘图标 |
-| `auto_reload` | bool | true | 自动重新加载配置 |
-| `icon_path` | string | null | 自定义托盘图标路径（默认尝试加载程序目录下 assets/icon.ico） |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `log_level` | string | "info" | Log level (trace/debug/info/warn/warning/error) |
+| `tray_icon` | bool | true | Show system tray icon |
+| `auto_reload` | bool | true | Automatically reload configuration when changed |
+| `icon_path` | string | null | Custom tray icon path (defaults to assets/icon.ico in program directory) |
 
-## 键盘配置
+## Keyboard Configuration
 
-### 基础重映射
+### Basic Remapping
 
-格式: `源按键 = "目标按键"`
+Format: `source_key = "target_key"`
 
 ```toml
 [keyboard.remap]
@@ -118,45 +112,45 @@ CapsLock = "Backspace"
 RightAlt = "Ctrl"
 ```
 
-支持的目标类型：
-- **普通按键**: `"Backspace"`, `"Escape"`, `"Enter"` 等
-- **修饰键组合**: `"Ctrl+Alt+Meta"` （将 CapsLock 映射为 Hyper 键）
+Supported target types:
+- **Regular keys**: `"Backspace"`, `"Escape"`, `"Enter"`, etc.
+- **Modifier combinations**: `"Ctrl+Alt+Meta"` (map CapsLock as Hyper key)
 
-常见用途:
-- **CapsLock 改为 Backspace**: 更符合人体工程学
-- **CapsLock 改为 Ctrl+Alt+Meta**: 将 CapsLock 变成 Hyper 键
-- **RightAlt 改为 Ctrl**: 方便单手操作
+Common use cases:
+- **CapsLock to Backspace**: More ergonomic typing
+- **CapsLock to Ctrl+Alt+Meta**: Turn CapsLock into a Hyper key
+- **RightAlt to Ctrl**: Convenient single-hand operation
 
-### 层系统
+### Layer System
 
-层允许你创建上下文相关的键位映射。
+Layers allow you to create context-sensitive key mappings.
 
 ```toml
-# 定义层（使用点分隔的表名）
-[keyboard.layers.层名称]
-activation_key = "激活键"
-mode = "Hold"  # Hold: 按住激活, Toggle: 切换激活
+# Define a layer (using dot-separated table names)
+[keyboard.layers.layer_name]
+activation_key = "activation_key"
+mode = "Hold"  # Hold: activate while held, Toggle: toggle on/off
 
-# 层内的映射
-[keyboard.layers.层名称.mappings]
+# Mappings within the layer
+[keyboard.layers.layer_name.mappings]
 H = "Left"
 J = "Down"
 ```
 
-**模式说明**:
-- `Hold`: 按住激活键时层激活，松开后恢复（默认）
-- `Toggle`: 按一次激活，再按一次关闭
+**Mode descriptions**:
+- `Hold`: Layer is active while the activation key is pressed; deactivates on release (default)
+- `Toggle`: Press once to activate, press again to deactivate
 
-层内可以映射到：
-- **普通按键**: `H = "Left"`
-- **组合键**: `W = "Ctrl+Right"` （下一个单词）
-- **窗口动作**: `Q = "Center"`
+Mappings within layers can target:
+- **Regular keys**: `H = "Left"`
+- **Combinations**: `W = "Ctrl+Right"` (next word)
+- **Window actions**: `Q = "Center"`
 
-> **验证规则**: `activation_key` 不能为空，否则配置校验会失败。
+> **Validation rule**: `activation_key` must not be empty, otherwise configuration validation will fail.
 
-### 上下文感知快捷键
+### Context-Aware Shortcuts
 
-上下文感知快捷键允许你为特定应用程序定义专属快捷键。
+Context-aware shortcuts allow you to define application-specific shortcuts.
 
 ```toml
 [[keyboard.context_mappings]]
@@ -167,72 +161,72 @@ mappings = { CapsLock = "Backspace", "Ctrl+H" = "ShowNotification(Browser, Histo
 context = { process_name = "code.exe" }
 mappings = { CapsLock = "Esc", "Ctrl+P" = "ShowNotification(VSCode, Quick Open)" }
 
-# 使用通配符匹配多个编辑器
+# Use wildcards to match multiple editors
 [[keyboard.context_mappings]]
 context = { process_name = "*edit*.exe" }
 mappings = { "Ctrl+S" = "ShowNotification(Editor, Save)" }
 
-# 窗口标题匹配（如 YouTube）
+# Window title matching (e.g., YouTube)
 [[keyboard.context_mappings]]
 context = { window_title = "*YouTube*" }
 mappings = { Space = "ShowNotification(YouTube, Play/Pause)" }
 
-# 可执行文件路径匹配
+# Executable path matching
 [[keyboard.context_mappings]]
 context = { executable_path = "C:\\Program Files\\JetBrains\\*" }
 mappings = { "Ctrl+Shift+A" = "ShowNotification(JetBrains, Find Action)" }
 ```
 
-### 上下文条件字段
+### Context Condition Fields
 
-| 字段 | 类型 | 说明 |
-|-----|------|------|
-| `process_name` | string | 进程名匹配，支持通配符 `*` 和 `?` |
-| `window_class` | string | 窗口类名匹配 |
-| `window_title` | string | 窗口标题匹配 |
-| `executable_path` | string | 可执行文件路径匹配 |
+| Field | Type | Description |
+|-------|------|-------------|
+| `process_name` | string | Process name matching, supports wildcards `*` and `?` |
+| `window_class` | string | Window class name matching |
+| `window_title` | string | Window title matching |
+| `executable_path` | string | Executable file path matching |
 
-**说明**：上下文规则优先级高于全局规则。通配符匹配已完整实现（支持 `*` 匹配任意字符序列和 `?` 匹配单个字符），且匹配大小写不敏感。连续的 `*` 会被合并处理。
+**Note**: Context rules take higher priority than global rules. Wildcard matching is fully implemented (supports `*` for matching any character sequence and `?` for matching a single character), and matching is case-insensitive. Consecutive `*` characters are merged during processing.
 
-## 窗口管理配置
+## Window Management Configuration
 
-### 窗口切换设置
+### Window Switching Settings
 
 ```toml
 [window.switch]
-ignore_minimal = true           # 是否忽略最小化的窗口（默认: true）
-only_current_desktop = true     # 是否仅在当前虚拟桌面切换（默认: true）
+ignore_minimal = true           # Whether to ignore minimized windows (default: true)
+only_current_desktop = true     # Whether to switch only within current virtual desktop (default: true)
 ```
 
-### 窗口管理动作
+### Window Management Actions
 
-| 动作 | 参数 | 说明 | 示例快捷键 |
-|-----|------|------|-----------|
-| `Center` | 无 | 窗口居中 | <kbd>Hyper</kbd>+<kbd>C</kbd> |
-| `MoveToEdge` | `Left/Right/Top/Bottom` | 移动到屏幕边缘 | <kbd>Hyper</kbd>+<kbd>Home/End/PgUp/PgDn</kbd> |
-| `HalfScreen` | `Left/Right/Top/Bottom` | 半屏显示 | <kbd>HyperShift</kbd>+<kbd>方向键</kbd> |
-| `LoopWidth` | `Left/Right/Center` | 循环调整宽度 | <kbd>Hyper</kbd>+<kbd>Left/Right</kbd> |
-| `LoopHeight` | `Top/Bottom/Center` | 循环调整高度 | <kbd>Hyper</kbd>+<kbd>Up/Down</kbd> |
-| `FixedRatio` | `ratio, scale_index` | 固定比例窗口 | <kbd>Hyper</kbd>+<kbd>M</kbd> |
-| `NativeRatio` | `scale_index` | 原生比例窗口 | <kbd>HyperShift</kbd>+<kbd>M</kbd> |
-| `SwitchToNextWindow` | 无 | 同进程窗口切换 | <kbd>Alt</kbd>+<kbd>`</kbd> |
-| `MoveToMonitor` | `Next/Prev/Index` | 跨显示器移动 | <kbd>Hyper</kbd>+<kbd>J/K</kbd> |
-| `Minimize` | 无 | 最小化窗口 | - |
-| `Maximize` | 无 | 最大化窗口 | - |
-| `Restore` | 无 | 还原窗口 | - |
-| `Close` | 无 | 关闭窗口 | - |
-| `ToggleTopmost` | 无 | 置顶/取消置顶 | - |
-| `Move` | `x, y` | 移动窗口到绝对坐标 | - |
-| `Resize` | `width, height` | 调整窗口大小 | - |
-| `ShowDebugInfo` | 无 | 显示窗口调试信息 | <kbd>Hyper</kbd>+<kbd>W</kbd> |
-| `ShowNotification` | `title, message` | 显示通知 | <kbd>HyperShift</kbd>+<kbd>W</kbd> |
-| `SavePreset` | `name` | 保存当前窗口为预设 | - |
-| `LoadPreset` | `name` | 加载指定预设到当前窗口 | - |
-| `ApplyPreset` | 无 | 为当前窗口应用匹配的预设 | - |
+| Action | Parameters | Description | Example Shortcut |
+|--------|-----------|-------------|------------------|
+| `Center` | None | Center the window | <kbd>Hyper</kbd>+<kbd>C</kbd> |
+| `MoveToEdge` | `Left/Right/Top/Bottom` | Move to screen edge | <kbd>Hyper</kbd>+<kbd>Home/End/PgUp/PgDn</kbd> |
+| `HalfScreen` | `Left/Right/Top/Bottom` | Half-screen display | <kbd>HyperShift</kbd>+<kbd>Arrow keys</kbd> |
+| `LoopWidth` | `Left/Right/Center` | Cycle width | <kbd>Hyper</kbd>+<kbd>Left/Right</kbd> |
+| `LoopHeight` | `Top/Bottom/Center` | Cycle height | <kbd>Hyper</kbd>+<kbd>Up/Down</kbd> |
+| `FixedRatio` | `ratio, scale_index` | Fixed aspect ratio window | <kbd>Hyper</kbd>+<kbd>M</kbd> |
+| `NativeRatio` | `scale_index` | Native aspect ratio window | <kbd>HyperShift</kbd>+<kbd>M</kbd> |
+| `SwitchToNextWindow` | None | Switch between windows of same process | <kbd>Alt</kbd>+<kbd>`</kbd> |
+| `MoveToMonitor` | `Next/Prev/Index` | Move across monitors | <kbd>Hyper</kbd>+<kbd>J/K</kbd> |
+| `Minimize` | None | Minimize window | - |
+| `Maximize` | None | Maximize window | - |
+| `Restore` | None | Restore window | - |
+| `Close` | None | Close window | - |
+| `ToggleTopmost` | None | Toggle always-on-top | - |
+| `Move` | `x, y` | Move window to absolute coordinates | - |
+| `Resize` | `width, height` | Resize window | - |
+| `ShowDebugInfo` | None | Show window debug info | <kbd>Hyper</kbd>+<kbd>W</kbd> |
+| `ShowNotification` | `title, message` | Show notification | <kbd>HyperShift</kbd>+<kbd>W</kbd> |
+| `SavePreset` | `name` | Save current window as preset | - |
+| `LoadPreset` | `name` | Load specified preset to current window | - |
+| `ApplyPreset` | None | Apply matched preset to current window | - |
 
-### 循环调整尺寸
+### Loop Resize
 
-**宽度循环** (3/4 → 3/5 → 1/2 → 2/5 → 1/4):
+**Width cycle** (3/4 → 3/5 → 1/2 → 2/5 → 1/4):
 
 ```toml
 [window.shortcuts]
@@ -240,7 +234,7 @@ only_current_desktop = true     # 是否仅在当前虚拟桌面切换（默认:
 "Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
 ```
 
-**高度循环** (3/4 → 1/2 → 1/4):
+**Height cycle** (3/4 → 1/2 → 1/4):
 
 ```toml
 [window.shortcuts]
@@ -248,53 +242,53 @@ only_current_desktop = true     # 是否仅在当前虚拟桌面切换（默认:
 "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)"
 ```
 
-### 固定比例窗口
+### Fixed Ratio Window
 
-保持特定宽高比，循环缩放:
+Maintain a specific aspect ratio with cyclic scaling:
 
 ```toml
 [window.shortcuts]
-# 4:3 比例，从 100% 开始
+# 4:3 ratio, starting at 100%
 "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)"
 
-# 原生比例（基于屏幕比例），从 90% 开始
+# Native ratio (based on screen ratio), starting at 90%
 "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)"
 ```
 
-**参数说明**:
-- `FixedRatio`: `ratio` 为宽高比（1.333 = 4:3），`scale_index` 为初始缩放索引
-- `NativeRatio`: `scale_index` 为初始缩放索引
+**Parameter descriptions**:
+- `FixedRatio`: `ratio` is the aspect ratio (1.333 = 4:3), `scale_index` is the initial scale index
+- `NativeRatio`: `scale_index` is the initial scale index
 
-连续按键循环: 100% → 90% → 70% → 50% → 100%
+Continuous key press cycles through: 100% → 90% → 70% → 50% → 100%
 
-### 跨显示器移动
+### Cross-Monitor Movement
 
-支持按方向或指定显示器索引移动窗口:
+Support moving windows by direction or to a specific monitor index:
 
 ```toml
 [window.shortcuts]
-# 移动到下一台显示器
+# Move to next monitor
 "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)"
-# 移动到上一台显示器
+# Move to previous monitor
 "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)"
-# 移动到指定索引的显示器（从 0 开始）
+# Move to specific monitor index (0-based)
 "Ctrl+Alt+Win+0" = "MoveToMonitor(0)"
 "Ctrl+Alt+Win+1" = "MoveToMonitor(1)"
 ```
 
-## 窗口预设配置
+## Window Preset Configuration
 
-窗口预设允许你保存和恢复特定应用程序的窗口布局。
+Window presets allow you to save and restore specific application window layouts.
 
-### 自动应用预设
+### Auto-Apply Presets
 
-当窗口创建或激活时，自动应用匹配的预设：
+When a window is created or activated, automatically apply the matching preset:
 
 ```toml
 [window]
-auto_apply_preset = true  # 是否自动应用预设（默认: true）
+auto_apply_preset = true  # Whether to auto-apply presets (default: true)
 
-# 定义窗口预设
+# Define window presets
 [[window.presets]]
 name = "browser"
 process_name = "chrome.exe"
@@ -312,49 +306,49 @@ y = 50
 width = 1400
 height = 900
 
-# 预设快捷键
+# Preset shortcuts
 [window.shortcuts]
 "Ctrl+Alt+S" = "SavePreset(main)"
 "Ctrl+Alt+L" = "LoadPreset(main)"
 "Ctrl+Alt+A" = "ApplyPreset"
 ```
 
-### 预设字段说明
+### Preset Field Descriptions
 
-| 字段 | 类型 | 必填 | 说明 |
-|-----|------|:----:|------|
-| `name` | string | 是 | 预设名称 |
-| `process_name` | string | 否 | 进程名匹配（支持通配符） |
-| `executable_path` | string | 否 | 可执行文件路径匹配（支持通配符） |
-| `title_pattern` | string | 否 | 窗口标题匹配模式（支持通配符） |
-| `x`, `y` | int | 是 | 窗口位置 |
-| `width`, `height` | int | 是 | 窗口大小 |
+| Field | Type | Required | Description |
+|-------|------|:--------:|-------------|
+| `name` | string | Yes | Preset name |
+| `process_name` | string | No | Process name matching (supports wildcards) |
+| `executable_path` | string | No | Executable path matching (supports wildcards) |
+| `title_pattern` | string | No | Window title pattern matching (supports wildcards) |
+| `x`, `y` | int | Yes | Window position |
+| `width`, `height` | int | Yes | Window size |
 
-> 至少需要指定一个匹配条件（`process_name`、`executable_path` 或 `title_pattern`）。
+> At least one matching condition must be specified (`process_name`, `executable_path`, or `title_pattern`).
 
-## 鼠标配置
+## Mouse Configuration
 
-### 按键重映射
+### Button Remapping
 
 ```toml
 [mouse.button_remap]
-# 格式: 源鼠标按键 = 目标鼠标按键
-# 支持: Left, Right, Middle, X1, X2
+# Format: source mouse button = target mouse button
+# Supported: Left, Right, Middle, X1, X2
 ```
 
-### 滚轮设置
+### Wheel Settings
 
 ```toml
 [mouse.wheel]
-speed = 3                      # 滚轮速度（默认: 3，必须为正数）
-invert = false                 # 反转滚轮方向
-acceleration = false           # 启用滚轮加速
-acceleration_multiplier = 2.0  # 加速倍数（默认: 2.0，范围: 0.1-10.0）
+speed = 3                      # Wheel speed (default: 3, must be positive)
+invert = false                 # Invert wheel direction
+acceleration = false           # Enable wheel acceleration
+acceleration_multiplier = 2.0  # Acceleration multiplier (default: 2.0, range: 0.1-10.0)
 ```
 
-### 水平滚动
+### Horizontal Scroll
 
-按住修饰键时，垂直滚轮变为水平滚动：
+Hold a modifier key to turn vertical scrolling into horizontal scrolling:
 
 ```toml
 [mouse.wheel.horizontal_scroll]
@@ -362,9 +356,9 @@ modifier = "Shift"
 step = 1
 ```
 
-### 音量控制
+### Volume Control
 
-按住修饰键时，滚轮调节系统音量：
+Hold a modifier key to adjust system volume with the scroll wheel:
 
 ```toml
 [mouse.wheel.volume_control]
@@ -372,9 +366,9 @@ modifier = "RightAlt"
 step = 2
 ```
 
-### 亮度控制
+### Brightness Control
 
-按住修饰键时，滚轮调节屏幕亮度：
+Hold a modifier key to adjust screen brightness with the scroll wheel:
 
 ```toml
 [mouse.wheel.brightness_control]
@@ -382,56 +376,59 @@ modifier = "RightCtrl"
 step = 5
 ```
 
-**支持的修饰键**:
+**Supported modifier keys**:
 - `Shift`, `LeftShift`, `RightShift`
 - `Ctrl`, `Control`, `LeftCtrl`, `RightCtrl`
 - `Alt`, `LeftAlt`, `RightAlt`
 - `Win`, `Meta`, `Command`
 
-## 网络通信配置
+## Network Communication Configuration
 
-启用网络通信以支持远程控制：
+Enable network communication for remote control support:
 
 ```toml
 [network]
 enabled = true
-bind_address = "127.0.0.1:57427"  # 或使用 instance_id 自动分配
-instance_id = 0                    # 实例 ID（范围: 0-255，决定端口号）
-auth_key = "your-secret-key-here"  # 认证密钥（如不提供会自动生成）
+bind_address = "127.0.0.1:57427"  # Or auto-assign based on instance_id
+instance_id = 0                    # Instance ID (range: 0-255, determines port number)
+auth_key = "your-secret-key-here"  # Authentication key (auto-generated if not provided)
 ```
 
-### 安全特性
+### Security Features
 
-- 自动拒绝外网连接（只允许 RFC 1918 内网地址）
-- 挑战-响应认证（HMAC-SHA256）
-- 密钥不在网络上传输
-- 启动时如未提供 auth_key 会自动生成随机密钥
+- Automatic rejection of external connections (only allows RFC 1918 private addresses)
+- Challenge-response authentication (HMAC-SHA256)
+- Key is never transmitted over the network
+- Random key auto-generated at startup if `auth_key` is not provided
 
-### 远程控制示例
+### Remote Control Examples
 
 ```bash
-# 在被控制的电脑上启动 wakemd（配置好 auth_key）
+# Start wakemd on the controlled machine (configure auth_key)
 wakem daemon
 
-# 在另一台电脑上查看远程状态
+# Check remote status from another machine
 wakem --host 192.168.1.100 --auth-key "your-secret-key-here" status
 
-# 重新加载远程配置
+# Reload remote configuration
 wakem --host 192.168.1.100 --auth-key "your-secret-key-here" reload
 
-# 启用/禁用远程映射
+# Enable/disable remote mappings
 wakem --host 192.168.1.100 --auth-key "your-secret-key-here" enable
 wakem --host 192.168.1.100 --auth-key "your-secret-key-here" disable
 ```
 
-## 多实例配置
+## Multi-Instance Configuration
 
-wakem 支持同时运行多个实例，每个实例有独立的配置和端口。
+wakem supports running multiple instances simultaneously, each with independent configuration and ports.
 
-### 实例配置
+### Instance Configuration
 
 ```toml
-# 实例0配置（默认）: ~/.wakem.toml
+# Instance 0 config (default):
+#   Windows: %APPDATA%\wakem\config.toml
+#   macOS: ~/Library/Application Support/wakem/config.toml
+#   Linux: ~/.config/wakem/config.toml
 [network]
 enabled = true
 instance_id = 0
@@ -439,59 +436,62 @@ auth_key = "instance0-secret"
 ```
 
 ```toml
-# 实例1配置: ~/.wakem-instance1.toml
+# Instance 1 config:
+#   Windows: %APPDATA%\wakem\config-instance1.toml
+#   macOS: ~/Library/Application Support/wakem/config-instance1.toml
+#   Linux: ~/.config/wakem/config-instance1.toml
 [network]
 enabled = true
 instance_id = 1
 auth_key = "instance1-secret"
 ```
 
-### 端口分配
+### Port Allocation
 
-- 实例0: 127.0.0.1:57427
-- 实例1: 127.0.0.1:57428
-- 实例2: 127.0.0.1:57429
-- ...（端口 = 57427 + instance_id，端口范围: 1024-65535）
+- Instance 0: 127.0.0.1:57427
+- Instance 1: 127.0.0.1:57428
+- Instance 2: 127.0.0.1:57429
+- ... (port = 57427 + instance_id, valid range: 1024-65535)
 
-### 使用示例
+### Usage Examples
 
 ```bash
-# 启动实例0（默认）
+# Start instance 0 (default)
 wakem daemon
 
-# 启动实例1
+# Start instance 1
 wakem daemon --instance 1
 
-# 查看运行中的实例
+# List running instances
 wakem instances
 
-# 连接到实例1
+# Connect to instance 1
 wakem --instance 1 status
 wakem --instance 1 reload
 
-# 启动实例1的托盘客户端
+# Start tray client for instance 1
 wakem --instance 1
 ```
 
-## 启动配置
+## Launcher Configuration
 
-快速启动程序配置支持带参数的命令：
+Quick launch configuration supports commands with arguments:
 
 ```toml
 [launch]
-# 格式: "触发键" = "命令"
-# 触发键可以是单个键名或完整的快捷键组合
+# Format: "trigger_key" = "command"
+# Trigger key can be a single key name or a full shortcut combination
 
-# 简单命令
+# Simple commands
 "Ctrl+Alt+T" = "wt.exe"
 
-# 带参数的命令（使用 Launcher::parse_command 解析）
+# Commands with arguments (parsed by Launcher::parse_command)
 "Ctrl+Alt+N" = "notepad.exe C:\\Users\\note.txt"
 "Ctrl+Alt+G" = "git.exe status"
 "Ctrl+Alt+E" = "explorer.exe D:\\"
 ```
 
-触发键也可以是单独的功能键：
+Trigger keys can also be standalone function keys:
 
 ```toml
 [launch]
@@ -499,37 +499,37 @@ F1 = "notepad.exe"
 F2 = "calc.exe"
 ```
 
-## 宏配置
+## Macro Configuration
 
-宏允许你录制一系列键盘和鼠标操作，然后通过快捷键触发。
+Macros allow you to record a sequence of keyboard and mouse operations, then trigger them via shortcuts.
 
-### 命令行操作
+### Command Line Operations
 
 ```bash
-# 录制宏
+# Record a macro
 wakem record my-macro
-# 执行要录制的操作...
-# 按 Ctrl+Shift+Esc 停止录制
+# Perform the actions you want to record...
+# Press Ctrl+Shift+Esc to stop recording
 
-# 播放宏
+# Play a macro
 wakem play my-macro
 
-# 绑定宏到快捷键
+# Bind a macro to a shortcut
 wakem bind-macro my-macro F1
 
-# 列出所有宏
+# List all macros
 wakem macros
 
-# 删除宏
+# Delete a macro
 wakem delete-macro my-macro
 ```
 
-### 配置文件定义宏
+### Define Macros in Config File
 
-你也可以直接在配置文件中定义宏（使用 MacroStep 格式）：
+You can also define macros directly in the configuration file (using MacroStep format):
 
 ```toml
-# 宏定义（使用 MacroStep 格式）
+# Macro definitions (using MacroStep format)
 [macros]
 "open-terminal" = [
     { delay_ms = 0, action = { Key = { Press = { scan_code = 91, virtual_key = 91 } } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 0 },
@@ -537,102 +537,102 @@ wakem delete-macro my-macro
     { delay_ms = 100, action = { Delay = { milliseconds = 100 } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 110 },
 ]
 
-# 宏触发键绑定
+# Macro trigger key bindings
 [macro_bindings]
 "F1" = "open-terminal"
 ```
 
-> **验证规则**: `macro_bindings` 中引用的宏名必须在 `[macros]` 中已定义，否则配置校验会失败。空的宏步骤列表不会报错，但会产生警告日志。
+> **Validation rule**: Macro names referenced in `macro_bindings` must already be defined in `[macros]`, otherwise configuration validation will fail. Empty macro step lists will not cause errors but will produce warning logs.
 >
-> **详细文档**: 完整的宏系统文档请参考 [macros.md](macros.md)，包括 MacroStep 格式详细说明、支持的宏动作类型、智能录制特性和按键扫描码参考。
+> **Detailed documentation**: For complete macro system documentation, refer to [macros.md](macros.md), including detailed MacroStep format descriptions, supported macro action types, smart recording features, and key scan code references.
 
-## 按键名称
+## Key Names
 
-### 字母键
+### Letter Keys
 `A` - `Z`
 
-### 数字键
+### Number Keys
 `0` - `9`
 
-### 功能键
+### Function Keys
 `F1` - `F12`
 
-### 小键盘（Numpad）
+### Numpad Keys
 `Numpad0` - `Numpad9`
 `NumpadDecimal`, `NumpadAdd`, `NumpadSubtract`, `NumpadMultiply`, `NumpadDivide`
 
-### 控制键
+### Control Keys
 - `CapsLock`, `Caps`
 - `Shift`, `LeftShift`, `RightShift`
 - `Ctrl`, `Control`, `LeftCtrl`, `RightCtrl`
 - `Alt`, `LeftAlt`, `RightAlt`
 - `Win`, `Meta`, `Command`, `LeftWin`, `RightWin`
 
-### 导航键
+### Navigation Keys
 - `Up`, `Down`, `Left`, `Right`
 - `Home`, `End`
 - `PageUp`, `PageDown`
 - `Insert`, `Ins`
 - `Delete`, `Del`, `ForwardDelete`, `ForwardDel`
 
-### 其他键
+### Other Keys
 - `Backspace`, `Back`
 - `Enter`, `Return`
 - `Tab`
 - `Escape`, `Esc`
 - `Space`
-- `Grave`, `Backtick` (` 键)
+- `Grave`, `Backtick` (` key)
 - `Comma` (`,`)
 - `Period` (`.`)
 - `Equals` (`=`)
 
-## 修饰键语法
+## Modifier Key Syntax
 
-在快捷键中使用修饰键:
+Using modifier keys in shortcuts:
 
 ```toml
-# 单修饰键
+# Single modifier
 "Ctrl+C"           # Ctrl + C
 "Alt+Tab"          # Alt + Tab
 "Win+E"            # Win + E
 
-# 多修饰键（Hyper 键）
+# Multiple modifiers (Hyper key)
 "Ctrl+Alt+Win+C"   # Hyper + C
 "Ctrl+Alt+Win+Shift+W"  # HyperShift + W
 
-# Meta / Command 作为 Win 的跨平台别名
-"Ctrl+Alt+Meta+C"  #等同于 Ctrl+Alt+Win+C（Windows 上 Meta = Win）
-"Ctrl+Alt+Command" # 同上
+# Meta / Command as cross-platform alias for Win
+"Ctrl+Alt+Meta+C"  # Equivalent to Ctrl+Alt+Win+C on Windows (Meta = Win)
+"Ctrl+Alt+Command" # Same as above
 ```
 
-**修饰键别名对照表**:
+**Modifier key alias reference table**:
 
-| 通用名称 | 别名 | 平台对应 |
-|---------|------|---------|
-| `Win` | `Meta`, `Command`, `Cmd` | Windows: Win键, macOS: Command键 |
-| `Ctrl` | `Control` | Control 键 |
-| `Alt` | - | Alt 键（Windows）/ Option 键（macOS） |
-| `Shift` | `LeftShift`, `RightShift` | Shift 键 |
+| Generic Name | Aliases | Platform Mapping |
+|-------------|---------|------------------|
+| `Win` | `Meta`, `Command`, `Cmd` | Windows: Win key, macOS: Command key |
+| `Ctrl` | `Control` | Control key |
+| `Alt` | - | Alt key (Windows) / Option key (macOS) |
+| `Shift` | `LeftShift`, `RightShift` | Shift key |
 
-> 注：修饰键名称在配置文件中**不区分大小写**，例如 `ctrl`、`CTRL`、`Ctrl` 均有效。
+> Note: Modifier key names are **case-insensitive** in configuration files, e.g., `ctrl`, `CTRL`, `Ctrl` are all valid.
 
-## 完整配置示例
+## Complete Configuration Example
 
 ```toml
-# wakem.toml - 完整配置示例
+# wakem.toml - Complete configuration example
 
-# 基本设置
+# Basic settings
 log_level = "info"
 tray_icon = true
 auto_reload = true
 icon_path = "assets/icon.ico"
 
-# 键盘重映射
+# Keyboard remapping
 [keyboard.remap]
 CapsLock = "Backspace"
 RightAlt = "Ctrl"
 
-# 导航层
+# Navigation layer
 [keyboard.layers.navigation]
 activation_key = "CapsLock"
 mode = "Hold"
@@ -645,51 +645,51 @@ L = "Right"
 W = "Ctrl+Right"
 B = "Ctrl+Left"
 
-# 窗口管理
+# Window management
 [window.shortcuts]
-# 窗口居中
+# Center window
 "Ctrl+Alt+Win+C" = "Center"
 "Ctrl+Alt+Win+Delete" = "Center"
 
-# 移动到边缘
+# Move to edge
 "Ctrl+Alt+Win+Home" = "MoveToEdge(Left)"
 "Ctrl+Alt+Win+End" = "MoveToEdge(Right)"
 "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)"
 "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)"
 
-# 半屏显示（支持四个方向）
+# Half-screen display (all four directions supported)
 "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)"
 "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)"
 "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)"
 "Ctrl+Alt+Win+Shift+Down" = "HalfScreen(Bottom)"
 
-# 循环调整
+# Cycle resize
 "Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
 "Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
 "Ctrl+Alt+Win+Up" = "LoopHeight(Top)"
 "Ctrl+Alt+Win+Down" = "LoopHeight(Bottom)"
 
-# 固定比例
+# Fixed ratio
 "Ctrl+Alt+Win+M" = "FixedRatio(1.333, 0)"
 "Ctrl+Alt+Win+Shift+M" = "NativeRatio(0)"
 
-# 窗口切换
+# Window switching
 "Alt+Grave" = "SwitchToNextWindow"
 
-# 跨显示器
+# Cross-monitor
 "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)"
 "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)"
 
-# 窗口状态控制
+# Window state control
 "Ctrl+Alt+Win+N" = "Minimize"
 "Ctrl+Alt+Win+X" = "Maximize"
 "Ctrl+Alt+Win+Q" = "Close"
 
-# 调试功能
+# Debug features
 "Ctrl+Alt+Win+W" = "ShowDebugInfo"
 "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)"
 
-# 快速启动
+# Quick launch
 [launch]
 "Ctrl+Alt+Win+T" = "wt.exe"
 "Ctrl+Alt+Win+N" = "notepad.exe"
@@ -697,50 +697,50 @@ B = "Ctrl+Left"
 "Ctrl+Alt+Win+Equals" = "calc.exe"
 ```
 
-## 配置验证规则
+## Configuration Validation Rules
 
-wakem 在加载配置时会进行以下校验，不符合规则的配置会导致启动失败：
+wakem performs the following validations when loading configuration. Invalid configurations will cause startup failure:
 
-| 规则 | 说明 |
-|------|------|
-| 日志级别 | 必须是 trace/debug/info/warn/warning/error 之一 |
-| instance_id | 范围 0-255 |
-| 端口号 | 由 instance_id 计算（57427 + instance_id），必须在 1024-65535 范围内 |
-| wheel.speed | 必须为正数 |
-| acceleration_multiplier | 范围 0.1-10.0 |
-| layer.activation_key | 不能为空字符串 |
-| macro_bindings | 引用的宏名必须在 `[macros]` 中存在 |
+| Rule | Description |
+|------|-------------|
+| Log level | Must be one of trace/debug/info/warn/warning/error |
+| instance_id | Range 0-255 |
+| Port number | Calculated from instance_id (57427 + instance_id), must be in range 1024-65535 |
+| wheel.speed | Must be a positive number |
+| acceleration_multiplier | Range 0.1-10.0 |
+| layer.activation_key | Must not be an empty string |
+| macro_bindings | Referenced macro names must exist in `[macros]` |
 
-## 故障排除
+## Troubleshooting
 
-### 配置不生效
+### Configuration Not Taking Effect
 
-1. 检查配置文件路径是否正确（使用 `wakem config` 打开配置文件夹）
-2. 确认 TOML 语法无误（可以使用在线 TOML 验证工具）
-3. 查看日志确认配置是否正确加载（设置 `log_level = "debug"`）
-4. 尝试手动重载配置: `wakem reload`
+1. Check that the configuration file path is correct (use `wakem config` to open the config folder)
+2. Confirm TOML syntax is correct (you can use online TOML validators)
+3. Check logs to confirm configuration loaded correctly (set `log_level = "debug"`)
+4. Try manually reloading configuration: `wakem reload`
 
-### 快捷键冲突
+### Shortcut Conflicts
 
-1. 检查是否有其他软件占用相同快捷键
-2. 尝试更换快捷键组合
-3. 使用更复杂的组合（如三键组合 Hyper）
+1. Check if other software is using the same shortcuts
+2. Try changing shortcut combinations
+3. Use more complex combinations (e.g., three-key combinations like Hyper)
 
-### 层不生效
+### Layers Not Working
 
-1. 检查激活键名称是否正确
-2. 确认没有其他软件占用该按键
-3. 查看日志确认层是否正确加载
+1. Check that the activation key name is correct
+2. Confirm no other software is using that key
+3. Check logs to confirm the layer loaded correctly
 
-### 窗口管理不生效
+### Window Management Not Working
 
-1. 检查窗口是否被其他软件锁定
-2. 确认窗口不是系统保护窗口（如任务管理器）
-3. 查看日志确认命令是否正确发送
-4. 某些窗口可能需要以管理员权限运行 wakem
+1. Check if the window is locked by other software
+2. Confirm the window is not a system-protected window (e.g., Task Manager)
+3. Check logs to confirm commands were sent correctly
+4. Some windows may require running wakem with administrator privileges
 
-### 通配符不匹配
+### Wildcard Matching Issues
 
-1. 确保使用正确的通配符语法：`*` 匹配任意字符序列，`?` 匹配单个字符
-2. 通配符匹配是大小写不敏感的
-3. 连续的 `*` 会被合并处理
+1. Ensure correct wildcard syntax: `*` matches any character sequence, `?` matches a single character
+2. Wildcard matching is case-insensitive
+3. Consecutive `*` characters are merged during processing

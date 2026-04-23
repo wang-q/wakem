@@ -20,18 +20,27 @@ cargo install --path .
 
 ### 2. Create Configuration File
 
-Copy the example configuration to your user directory:
+Copy the example configuration to your config directory:
 
 **Windows:**
 
 ```powershell
-cp examples/window_manager.toml $env:USERPROFILE\.wakem.toml
+New-Item -Path "$env:APPDATA\wakem" -ItemType Directory -Force
+cp examples/window_manager.toml $env:APPDATA\wakem\config.toml
 ```
 
 **macOS:**
 
 ```bash
-cp examples/window_manager.toml ~/.wakem.toml
+mkdir -p ~/Library/Application\ Support/wakem
+cp examples/window_manager.toml ~/Library/Application\ Support/wakem/config.toml
+```
+
+**Linux:**
+
+```bash
+mkdir -p ~/.config/wakem
+cp examples/window_manager.toml ~/.config/wakem/config.toml
 ```
 
 ### 3. Start Service
