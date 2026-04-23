@@ -23,8 +23,8 @@ use crate::runtime::{KeyMapper, LayerManager};
 // Platform-specific imports for production code
 #[cfg(all(target_os = "windows", not(test)))]
 use crate::platform::windows::{
-    Launcher, LegacyOutputDevice as OutputDevice,
-    LegacyRawInputDevice as RawInputDevice, WindowManager, WindowPresetManager,
+    Launcher, LegacyRawInputDevice as RawInputDevice, WindowManager,
+    WindowPresetManager, WindowsOutputDevice as OutputDevice,
 };
 
 #[cfg(all(target_os = "windows", test))]

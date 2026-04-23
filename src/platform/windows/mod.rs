@@ -5,7 +5,6 @@ pub mod context;
 pub mod input;
 pub mod input_device;
 pub mod launcher;
-pub mod output;
 pub mod output_device;
 pub mod tray;
 pub mod window_api;
@@ -20,8 +19,7 @@ pub use input_device::{
     InputDevice, InputDeviceConfig, InputDeviceFactory, RawInputDevice,
 };
 pub use launcher::Launcher;
-pub use output::OutputDevice as LegacyOutputDevice;
-pub use output_device::{OutputDevice, SendInputDevice};
+pub use output_device::{OutputDevice, SendInputDevice, WindowsOutputDevice};
 pub use tray::{
     run_tray_message_loop, stop_tray, AppCommand, MenuAction, MockTrayApi, RealTrayApi,
     TrayApi, TrayIcon, TrayManager,

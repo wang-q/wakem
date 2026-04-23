@@ -8,7 +8,7 @@ use crate::platform::traits::OutputDeviceTrait;
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
 #[cfg(all(target_os = "windows", not(test)))]
-use crate::platform::windows::LegacyOutputDevice as OutputDevice;
+use crate::platform::windows::WindowsOutputDevice as OutputDevice;
 
 #[cfg(all(target_os = "windows", test))]
 use crate::platform::windows::MockOutputDevice as OutputDevice;

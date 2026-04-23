@@ -385,22 +385,6 @@ impl RawInputDevice {
             }
         }
     }
-
-    /// Update modifier key state
-    #[allow(dead_code)]
-    fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
-        if let Some((modifier, _)) =
-            ModifierState::from_virtual_key(virtual_key, pressed)
-        {
-            self.modifier_state.merge(&modifier);
-        }
-    }
-
-    /// Get current modifier key state
-    #[allow(dead_code)]
-    pub fn get_modifier_state(&self) -> &ModifierState {
-        &self.modifier_state
-    }
 }
 
 impl Drop for RawInputDevice {

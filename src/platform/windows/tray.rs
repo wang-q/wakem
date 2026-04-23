@@ -358,11 +358,6 @@ impl TrayIcon {
         }
     }
 
-    /// Check if tray icon exists
-    pub fn exist(&mut self) -> bool {
-        unsafe { Shell_NotifyIconW(NIM_MODIFY, &self.data).as_bool() }
-    }
-
     /// Unregister tray icon
     pub fn unregister(&mut self) -> Result<()> {
         unsafe {
