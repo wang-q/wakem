@@ -296,40 +296,36 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
 #[cfg(target_os = "macos")]
 fn run_tray_sync(instance_id: u32, auto_start_daemon: bool) -> Result<()> {
     use platform::macos::run_tray_event_loop;
-    use std::time::Duration;
 
     info!("wakem starting (instance {})...", instance_id);
 
-    // Auto-start daemon if requested and not already running
-    let daemon_handle = if auto_start_daemon && !is_daemon_running(instance_id) {
-        info!("Daemon not running, auto-starting...");
+    // Create channels for communication between tray and tokio
+    let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
+    let cmd_tx_for_tray = cmd_tx.clone();
+
+    // Start tokio runtime in background thread immediately - don't wait!
+    let tokio_handle = thread::spawn(move || {
+        run_tokio_for_tray(cmd_rx, instance_id);
+    });
+
+    // Auto-start daemon in background if needed (completely independent)
+    let daemon_handle = if auto_start_daemon {
         Some(thread::spawn(move || {
-            if let Err(e) = run_daemon(instance_id) {
-                error!("Daemon exited with error: {}", e);
+            // Check and start daemon if needed
+            if !is_daemon_running(instance_id) {
+                info!("Daemon not running, auto-starting...");
+                if let Err(e) = run_daemon(instance_id) {
+                    error!("Daemon exited with error: {}", e);
+                }
+            } else {
+                info!("Daemon already running");
             }
         }))
     } else {
         None
     };
 
-    // Give daemon time to start if we just launched it
-    if daemon_handle.is_some() {
-        thread::sleep(Duration::from_millis(800));
-    }
-
-    // Create channels for communication between tray and tokio
-    let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
-    let cmd_tx_for_tray = cmd_tx.clone();
-
-    // Spawn tokio runtime in a background thread
-    let tokio_handle = thread::spawn(move || {
-        run_tokio_for_tray(cmd_rx, instance_id);
-    });
-
-    // Give tokio a moment to start
-    thread::sleep(Duration::from_millis(500));
-
-    // Run tray on the main thread (required by macOS)
+    // Run tray on the main thread immediately - no blocking before this!
     info!("Starting tray on main thread...");
     if let Err(e) = run_tray_event_loop(move |cmd| {
         let _ = cmd_tx_for_tray.send(cmd);
@@ -337,7 +333,8 @@ fn run_tray_sync(instance_id: u32, auto_start_daemon: bool) -> Result<()> {
         error!("Tray error: {}", e);
     }
 
-    // Wait for tokio thread to finish
+    // Cleanup: signal tokio to stop, wait for threads
+    let _ = cmd_tx.send(AppCommand::Exit); // Signal tokio to exit
     let _ = tokio_handle.join();
 
     // Wait for daemon thread if we started it
@@ -358,34 +355,50 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
     rt.block_on(async {
         info!("Tokio runtime started in background thread");
 
-        // Connect to daemon
+        // Connect to daemon with retry logic
         let mut client_option: Option<DaemonClient> = None;
         let mut client = DaemonClient::new();
+        let max_retries = 10; // Retry up to 10 times (5 seconds total)
+        let retry_delay = tokio::time::Duration::from_millis(500);
 
-        match client.connect_to_instance(instance_id).await {
-            Ok(_) => {
-                info!("Connected to wakemd instance {}", instance_id);
+        for attempt in 1..=max_retries {
+            match client.connect_to_instance(instance_id).await {
+                Ok(_) => {
+                    info!(
+                        "Connected to wakemd instance {} (attempt {}/{})",
+                        instance_id, attempt, max_retries
+                    );
 
-                match client.get_status().await {
-                    Ok((active, loaded)) => {
-                        info!(
-                            "Daemon status: active={}, config_loaded={}",
-                            active, loaded
+                    match client.get_status().await {
+                        Ok((active, loaded)) => {
+                            info!(
+                                "Daemon status: active={}, config_loaded={}",
+                                active, loaded
+                            );
+                        }
+                        Err(e) => {
+                            error!("Failed to get status: {}", e);
+                        }
+                    }
+
+                    client_option = Some(client);
+                    break;
+                }
+                Err(e) => {
+                    if attempt < max_retries {
+                        debug!(
+                            "Connection attempt {}/{} failed, retrying in {:?}...",
+                            attempt, max_retries, retry_delay
+                        );
+                        tokio::time::sleep(retry_delay).await;
+                    } else {
+                        error!("Failed to connect to daemon after {} attempts: {}", max_retries, e);
+                        error!(
+                            "Please make sure wakemd --instance {} is running",
+                            instance_id
                         );
                     }
-                    Err(e) => {
-                        error!("Failed to get status: {}", e);
-                    }
                 }
-
-                client_option = Some(client);
-            }
-            Err(e) => {
-                error!("Failed to connect to daemon: {}", e);
-                error!(
-                    "Please make sure wakemd --instance {} is running",
-                    instance_id
-                );
             }
         }
 
