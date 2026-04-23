@@ -1,3 +1,15 @@
+# Code Coverage
+#
+# NOTE: This workflow is currently DISABLED because:
+# - cargo tarpaulin requires Linux (uses ptrace system calls)
+# - wakem project currently only supports Windows and macOS
+# - Linux support is planned for future migration
+#
+# To re-enable this workflow:
+# 1. Add Linux platform support to src/platform/linux/
+# 2. Remove the `if: false` condition below
+# 3. Ensure all platform-specific types (OutputDevice, Launcher, etc.) have Linux implementations
+
 name: Code Coverage
 
 on: [push, pull_request]
@@ -8,6 +20,8 @@ env:
 jobs:
   check:
     name: codecov
+    # Temporarily disabled - see note above
+    if: false
     runs-on: ubuntu-latest
     container:
       image: xd009642/tarpaulin:develop-nightly
