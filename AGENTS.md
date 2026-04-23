@@ -140,10 +140,13 @@ tests/                   # 测试目录（1 层子目录结构）
 │   ├── macos_keycode.rs   # macOS 键码映射 [macOS only]
 │   └── macos_keycode.regressions  # macOS 回归种子 [macOS only]
 │
-├── platform/               # 平台特定测试 (3 files)
-│   ├── windows_tray.rs    # Windows 系统托盘 [Windows only]
-│   ├── windows_specific.rs # MonitorInfo, WindowFrame [Windows only]
-│   └── macos_integration.rs # macOS 集成测试 [macOS only]
+├── windows/                # Windows 平台特定测试 (3 files)
+│   ├── e2e.rs             # Windows 端到端测试（操作真实窗口，需手动运行）
+│   ├── tray.rs            # Windows 系统托盘
+│   └── specific.rs        # MonitorInfo, WindowFrame
+│
+└── macos/                  # macOS 平台特定测试 (1 file)
+    └── integration.rs     # macOS 集成测试
 
 benches/                  # 性能基准测试 (cargo bench)
 ├── basic_benchmarks.rs    # 跨平台基准测试（8 个 benchmark）
@@ -285,11 +288,13 @@ tests/
 ├── window/         # 窗口管理 (calc, manager)
 ├── integration/    # 集成测试 (core, edge_cases, ipc)
 ├── property/       # 属性测试 (config, macos_keycode) [proptest]
-└── platform/       # 平台特定 (windows_*, macos_*)
+├── windows/        # Windows 平台特定 (e2e, tray, specific)
+└── macos/          # macOS 平台特定 (integration)
 
 benches/
 ├── basic_benchmarks.rs  # 跨平台基准
-└── macos/macos_bench.rs # macOS 基准
+└── macos/
+    └── macos_bench.rs   # macOS 基准
 ```
 
 ## 架构设计要点
