@@ -392,7 +392,10 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
                         );
                         tokio::time::sleep(retry_delay).await;
                     } else {
-                        error!("Failed to connect to daemon after {} attempts: {}", max_retries, e);
+                        error!(
+                            "Failed to connect to daemon after {} attempts: {}",
+                            max_retries, e
+                        );
                         error!(
                             "Please make sure wakemd --instance {} is running",
                             instance_id

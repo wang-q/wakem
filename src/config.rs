@@ -1046,15 +1046,15 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         "f12" => Ok((0x58, 0x7B)),
 
         // Punctuation keys (US layout)
-        "comma" | "," => Ok((0x33, 0xBC)),       // VK_OEM_COMMA
-        "period" | "." => Ok((0x34, 0xBE)),       // VK_OEM_PERIOD
-        "semicolon" | ";" => Ok((0x27, 0xBA)),    // VK_OEM_1
-        "quote" | "'" | "apostrophe" => Ok((0x28, 0xDE)),  // VK_OEM_7
-        "bracketleft" | "[" => Ok((0x1A, 0xDB)),  // VK_OEM_4
+        "comma" | "," => Ok((0x33, 0xBC)), // VK_OEM_COMMA
+        "period" | "." => Ok((0x34, 0xBE)), // VK_OEM_PERIOD
+        "semicolon" | ";" => Ok((0x27, 0xBA)), // VK_OEM_1
+        "quote" | "'" | "apostrophe" => Ok((0x28, 0xDE)), // VK_OEM_7
+        "bracketleft" | "[" => Ok((0x1A, 0xDB)), // VK_OEM_4
         "bracketright" | "]" => Ok((0x1B, 0xDD)), // VK_OEM_6
-        "backslash" | "\\" => Ok((0x2B, 0xDC)),    // VK_OEM_5
-        "minus" | "-" => Ok((0x0C, 0xBD)),         // VK_OEM_MINUS
-        "equal" | "=" => Ok((0x0D, 0xBB)),         // VK_OEM_PLUS
+        "backslash" | "\\" => Ok((0x2B, 0xDC)), // VK_OEM_5
+        "minus" | "-" => Ok((0x0C, 0xBD)), // VK_OEM_MINUS
+        "equal" | "=" => Ok((0x0D, 0xBB)), // VK_OEM_PLUS
 
         // Numpad keys
         "numpad0" | "num0" => Ok((0x52, 0x60)),
