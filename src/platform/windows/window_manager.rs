@@ -410,14 +410,14 @@ impl<A: WindowApi> WindowManager<A> {
 
     /// Toggle topmost state
     pub fn toggle_topmost(&self, hwnd: HWND) -> Result<bool> {
-        // Get current state (by checking if operation succeeds)
-        let current = self.api.is_window(hwnd);
-        if !current {
+        // Check window is valid
+        if !self.api.is_window(hwnd) {
             return Err(anyhow::anyhow!("Invalid window handle"));
         }
 
-        // Toggle state - simplified here, should actually query current state
-        let new_state = true; // Assume setting to topmost
+        // Get current state and toggle
+        let current = self.api.is_topmost(hwnd);
+        let new_state = !current;
         self.api.set_topmost(hwnd, new_state)?;
         Ok(new_state)
     }
@@ -574,6 +574,7 @@ impl RealWindowManager {
     ///
     /// Uses process image name (e.g., "explorer.exe") instead of PID because
     /// Windows Explorer and some other apps run each window in a separate process.
+    /// Falls back to PID matching if process name cannot be obtained (e.g., access denied).
     pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         unsafe {
             let current_hwnd = GetForegroundWindow();
@@ -582,19 +583,26 @@ impl RealWindowManager {
             }
 
             let current_pid = self.get_window_process_id(current_hwnd)?;
-            let process_name = self.get_process_name_by_pid(current_pid)?;
 
-            debug!(
-                "[SwitchWindow] PID={}, process={}",
-                current_pid, process_name
-            );
+            // Try to get process name, fall back to PID matching if access denied
+            let windows = match self.get_process_name_by_pid(current_pid) {
+                Ok(process_name) => {
+                    debug!(
+                        "[SwitchWindow] PID={}, process={}",
+                        current_pid, process_name
+                    );
+                    self.get_app_visible_windows(&process_name)
+                }
+                Err(e) => {
+                    debug!(
+                        "[SwitchWindow] PID={}, failed to get process name ({}), falling back to PID matching",
+                        current_pid, e
+                    );
+                    self.get_process_visible_windows(current_pid)
+                }
+            };
 
-            let windows = self.get_app_visible_windows(&process_name);
-            debug!(
-                "[SwitchWindow] Found {} windows for '{}'",
-                windows.len(),
-                process_name
-            );
+            debug!("[SwitchWindow] Found {} windows", windows.len());
 
             if windows.len() < 2 {
                 debug!(
@@ -762,6 +770,62 @@ impl RealWindowManager {
         unsafe {
             let mut data = EnumData {
                 target_process_name,
+                windows: Vec::new(),
+            };
+
+            let _ =
+                EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
+
+            data.windows
+        }
+    }
+
+    /// Get all visible windows of specified process (by PID)
+    /// Used as fallback when process name cannot be obtained due to access restrictions
+    fn get_process_visible_windows(&self, target_pid: u32) -> Vec<HWND> {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            EnumWindows, GetWindow, GetWindowTextW, IsWindowVisible,
+        };
+
+        struct EnumData {
+            target_pid: u32,
+            windows: Vec<HWND>,
+        }
+
+        unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+            let data = &mut *(lparam.0 as *mut EnumData);
+
+            if !IsWindowVisible(hwnd).as_bool() {
+                return BOOL(1);
+            }
+
+            let owner = GetWindow(hwnd, GW_OWNER).unwrap_or_default();
+            if !owner.0.is_null() {
+                return BOOL(1);
+            }
+
+            let mut title = [0u16; 256];
+            let len = GetWindowTextW(hwnd, &mut title);
+            if len == 0 {
+                return BOOL(1);
+            }
+
+            let mut pid: u32 = 0;
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                hwnd,
+                Some(&mut pid),
+            );
+
+            if pid == data.target_pid {
+                data.windows.push(hwnd);
+            }
+
+            BOOL(1)
+        }
+
+        unsafe {
+            let mut data = EnumData {
+                target_pid,
                 windows: Vec::new(),
             };
 

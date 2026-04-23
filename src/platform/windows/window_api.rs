@@ -138,6 +138,8 @@ pub trait WindowApi {
     fn close_window(&self, hwnd: HWND) -> Result<()>;
     /// Set topmost status
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()>;
+    /// Check if window is topmost
+    fn is_topmost(&self, hwnd: HWND) -> bool;
     /// Ensure window is restored
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
 }
@@ -307,6 +309,23 @@ impl WindowApi for RealWindowApi {
             };
             let _ = SetWindowPos(hwnd, pos, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
             Ok(())
+        }
+    }
+
+    fn is_topmost(&self, hwnd: HWND) -> bool {
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::WS_EX_TOPMOST;
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetWindowLongW, IsWindow, GWL_EXSTYLE,
+            };
+
+            // Check if window is valid first
+            if !IsWindow(Some(hwnd)).as_bool() {
+                return false;
+            }
+
+            let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+            (ex_style as u32) & WS_EX_TOPMOST.0 != 0
         }
     }
 

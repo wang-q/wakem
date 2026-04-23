@@ -560,13 +560,57 @@ cargo test --test windows_integration test_explorer_multi_process_window_enumera
 
 ### 测试用例列表
 
-| 测试名 | 说明 | 副作用 |
-|--------|------|--------|
-| `test_switch_between_two_notepad_windows` | 启动 2 个 Notepad，执行 2 次切换，验证前台窗口变化 | 打开/关闭 Notepad |
-| `test_get_app_visible_windows_finds_notepad` | 启动 Notepad，验证窗口枚举能找到它 | 打开/关闭 Notepad |
-| `test_explorer_multi_process_window_enumeration` | 枚举 explorer.exe 窗口，验证不含 Program Manager 等系统窗口 | 无 |
-| `test_single_window_does_not_panic` | 只有 1 个窗口时切换应静默返回 Ok | 打开/关闭 Notepad |
-| `test_switch_cycles_through_three_windows` | 3 个 Notepad 连续切换 4 次，验证循环正确性 | 打开/关闭 Notepad |
+#### 窗口信息获取
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_get_foreground_window_info` | 获取前台窗口信息（标题、位置、大小、显示器工作区） |
+| `test_get_window_info_invalid_hwnd` | 传入无效句柄应返回错误 |
+| `test_get_debug_info` | 获取调试信息字符串 |
+
+#### 窗口位置与大小
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_move_to_center` | 窗口居中 |
+| `test_move_to_edge_left_right_top_bottom` | 窗口移动到四边缘 |
+| `test_set_half_screen_left_right` | 半屏显示（左/右） |
+| `test_loop_width_cycle` | 循环调整宽度（多种预设比例） |
+| `test_loop_height_cycle` | 循环调整高度（多种预设比例） |
+| `test_set_fixed_ratio_16_9_and_4_3` | 固定比例窗口（16:9、4:3、21:9、1:1） |
+| `test_set_window_frame_absolute` | 绝对坐标移动和调整大小 |
+
+#### 窗口状态控制
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_minimize_restore_window` | 最小化后还原 |
+| `test_maximize_restore_window` | 最大化后还原 |
+| `test_toggle_topmost` | 置顶/取消置顶切换 |
+| `test_close_window` | 关闭窗口 |
+
+#### 多显示器支持
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_move_to_monitor_next_prev` | 移动到下一个/上一个显示器 |
+
+#### 同进程窗口切换（Alt+`）
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_switch_between_two_notepad_windows` | 2 个 Notepad 窗口间切换 |
+| `test_switch_cycles_through_three_windows` | 3 个窗口循环切换验证 |
+| `test_single_window_does_not_panic` | 单窗口时切换不报错 |
+| `test_get_app_visible_windows_finds_notepad` | 窗口枚举能找到 Notepad |
+| `test_explorer_multi_process_window_enumeration` | Explorer 多进程窗口枚举（不含系统窗口） |
+
+### 待实现测试
+
+以下 API 尚未覆盖，欢迎补充：
+
+- `set_native_ratio()` - 原生比例窗口
+- `move_to_monitor(Index)` - 按索引移动显示器
 
 ### 设计要点
 
