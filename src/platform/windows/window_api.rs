@@ -6,13 +6,15 @@ use anyhow::Result;
 use std::cell::RefCell;
 #[allow(unused_imports)]
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowRect, GetWindowTextW, IsIconic, IsWindow, IsZoomed,
-    SetWindowPos, ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER,
-    SW_RESTORE,
+    EnumChildWindows, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowRect,
+    GetWindowTextW, IsIconic, IsWindow, IsWindowVisible, IsZoomed, SetWindowPos, ShowWindow,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
 };
+use windows_core::BOOL;
 
 use super::WindowFrame;
 
@@ -142,6 +144,65 @@ pub trait WindowApi {
     fn is_topmost(&self, hwnd: HWND) -> bool;
     /// Ensure window is restored
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
+
+    // ==================== New methods inspired by Win32::GuiTest ====================
+
+    /// Wait for a window matching the given criteria to appear
+    /// Returns the window handle if found within timeout, None otherwise
+    fn wait_for_window(
+        &self,
+        title_pattern: Option<&str>,
+        class_pattern: Option<&str>,
+        timeout: Duration,
+        poll_interval: Duration,
+    ) -> Option<HWND>;
+
+    /// Find windows matching the given criteria
+    /// Supports regex patterns for title and class name
+    fn find_windows(
+        &self,
+        title_pattern: Option<&str>,
+        class_pattern: Option<&str>,
+        visible_only: bool,
+    ) -> Vec<HWND>;
+
+    /// Get all child windows of a given parent window
+    fn get_child_windows(&self, parent: HWND) -> Vec<HWND>;
+
+    /// Get window class name
+    fn get_window_class_name(&self, hwnd: HWND) -> Option<String>;
+
+    /// Check if window is visible
+    fn is_window_visible(&self, hwnd: HWND) -> bool;
+
+    /// Get window text (content) - works for edit controls and similar
+    fn get_window_text(&self, hwnd: HWND) -> Option<String>;
+
+    /// Wait for window to become foreground/active
+    fn wait_for_foreground_window(&self, hwnd: HWND, timeout: Duration) -> bool;
+
+    // ==================== Mouse operations ====================
+
+    /// Get current cursor position
+    fn get_cursor_pos(&self) -> Option<(i32, i32)>;
+
+    /// Set cursor position (absolute coordinates)
+    fn set_cursor_pos(&self, x: i32, y: i32) -> Result<()>;
+
+    /// Send left mouse button down
+    fn send_lbutton_down(&self) -> Result<()>;
+
+    /// Send left mouse button up
+    fn send_lbutton_up(&self) -> Result<()>;
+
+    /// Send right mouse button down
+    fn send_rbutton_down(&self) -> Result<()>;
+
+    /// Send right mouse button up
+    fn send_rbutton_up(&self) -> Result<()>;
+
+    /// Click at absolute coordinates (move + click)
+    fn click_at(&self, x: i32, y: i32) -> Result<()>;
 }
 
 /// Real Windows API implementation
@@ -335,6 +396,249 @@ impl WindowApi for RealWindowApi {
         }
         Ok(())
     }
+
+    // ==================== New methods implementation ====================
+
+    fn wait_for_window(
+        &self,
+        title_pattern: Option<&str>,
+        class_pattern: Option<&str>,
+        timeout: Duration,
+        poll_interval: Duration,
+    ) -> Option<HWND> {
+        let start = Instant::now();
+
+        while start.elapsed() < timeout {
+            let windows = self.find_windows(title_pattern, class_pattern, true);
+            if let Some(&hwnd) = windows.first() {
+                return Some(hwnd);
+            }
+            std::thread::sleep(poll_interval);
+        }
+
+        None
+    }
+
+    fn find_windows(
+        &self,
+        title_pattern: Option<&str>,
+        class_pattern: Option<&str>,
+        visible_only: bool,
+    ) -> Vec<HWND> {
+        use regex::Regex;
+
+        let title_regex = title_pattern.and_then(|p| Regex::new(p).ok());
+        let class_regex = class_pattern.and_then(|p| Regex::new(p).ok());
+
+        let mut results = Vec::new();
+        let context = EnumContext {
+            title_regex,
+            class_regex,
+            visible_only,
+            results: &mut results,
+        };
+
+        unsafe {
+            let _ = EnumWindows(
+                Some(enum_windows_callback),
+                LPARAM(&context as *const _ as isize),
+            );
+        }
+
+        results
+    }
+
+    fn get_child_windows(&self, parent: HWND) -> Vec<HWND> {
+        let mut children = Vec::new();
+
+        unsafe {
+            let _ = EnumChildWindows(
+                Some(parent),
+                Some(enum_child_windows_callback),
+                LPARAM(&mut children as *mut _ as isize),
+            );
+        }
+
+        children
+    }
+
+    fn get_window_class_name(&self, hwnd: HWND) -> Option<String> {
+        unsafe {
+            let mut buffer = [0u16; 256];
+            let len = GetClassNameW(hwnd, &mut buffer);
+            if len == 0 {
+                None
+            } else {
+                Some(String::from_utf16_lossy(&buffer[..len as usize]))
+            }
+        }
+    }
+
+    fn is_window_visible(&self, hwnd: HWND) -> bool {
+        unsafe { IsWindowVisible(hwnd).as_bool() }
+    }
+
+    fn get_window_text(&self, hwnd: HWND) -> Option<String> {
+        // This uses the same implementation as get_window_title for now
+        // In the future, this could be enhanced to handle edit controls differently
+        self.get_window_title(hwnd)
+    }
+
+    fn wait_for_foreground_window(&self, hwnd: HWND, timeout: Duration) -> bool {
+        let start = Instant::now();
+
+        while start.elapsed() < timeout {
+            unsafe {
+                let fg = GetForegroundWindow();
+                if fg.0 == hwnd.0 {
+                    return true;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        false
+    }
+
+    fn get_cursor_pos(&self) -> Option<(i32, i32)> {
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+            let mut point = windows::Win32::Foundation::POINT::default();
+            if GetCursorPos(&mut point).is_ok() {
+                Some((point.x, point.y))
+            } else {
+                None
+            }
+        }
+    }
+
+    fn set_cursor_pos(&self, x: i32, y: i32) -> Result<()> {
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::SetCursorPos;
+            SetCursorPos(x, y)?;
+            Ok(())
+        }
+    }
+
+    fn send_lbutton_down(&self) -> Result<()> {
+        unsafe {
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                mouse_event, MOUSEEVENTF_LEFTDOWN,
+            };
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            Ok(())
+        }
+    }
+
+    fn send_lbutton_up(&self) -> Result<()> {
+        unsafe {
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                mouse_event, MOUSEEVENTF_LEFTUP,
+            };
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            Ok(())
+        }
+    }
+
+    fn send_rbutton_down(&self) -> Result<()> {
+        unsafe {
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                mouse_event, MOUSEEVENTF_RIGHTDOWN,
+            };
+            mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0);
+            Ok(())
+        }
+    }
+
+    fn send_rbutton_up(&self) -> Result<()> {
+        unsafe {
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                mouse_event, MOUSEEVENTF_RIGHTUP,
+            };
+            mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
+            Ok(())
+        }
+    }
+
+    fn click_at(&self, x: i32, y: i32) -> Result<()> {
+        // Save current position
+        let original_pos = self.get_cursor_pos();
+
+        // Move to target position
+        self.set_cursor_pos(x, y)?;
+
+        // Small delay to ensure cursor moved
+        std::thread::sleep(Duration::from_millis(50));
+
+        // Click
+        self.send_lbutton_down()?;
+        std::thread::sleep(Duration::from_millis(50));
+        self.send_lbutton_up()?;
+
+        // Restore original position if known
+        if let Some((orig_x, orig_y)) = original_pos {
+            std::thread::sleep(Duration::from_millis(50));
+            self.set_cursor_pos(orig_x, orig_y)?;
+        }
+
+        Ok(())
+    }
+}
+
+// ==================== Helper structures and callbacks for new methods ====================
+
+struct EnumContext<'a> {
+    title_regex: Option<regex::Regex>,
+    class_regex: Option<regex::Regex>,
+    visible_only: bool,
+    results: &'a mut Vec<HWND>,
+}
+
+unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let context = &mut *(lparam.0 as *mut EnumContext);
+
+    // Check visibility if required
+    if context.visible_only && !IsWindowVisible(hwnd).as_bool() {
+        return BOOL(1); // Continue enumeration
+    }
+
+    // Check title pattern
+    if let Some(ref regex) = context.title_regex {
+        let mut buffer = [0u16; 256];
+        let len = GetWindowTextW(hwnd, &mut buffer);
+        if len > 0 {
+            let title = String::from_utf16_lossy(&buffer[..len as usize]);
+            if !regex.is_match(&title) {
+                return BOOL(1); // Continue enumeration
+            }
+        } else {
+            return BOOL(1); // No title, skip
+        }
+    }
+
+    // Check class pattern
+    if let Some(ref regex) = context.class_regex {
+        let mut buffer = [0u16; 256];
+        let len = GetClassNameW(hwnd, &mut buffer);
+        if len > 0 {
+            let class_name = String::from_utf16_lossy(&buffer[..len as usize]);
+            if !regex.is_match(&class_name) {
+                return BOOL(1); // Continue enumeration
+            }
+        } else {
+            return BOOL(1); // No class name, skip
+        }
+    }
+
+    // Window matches all criteria
+    context.results.push(hwnd);
+    BOOL(1) // Continue enumeration
+}
+
+unsafe extern "system" fn enum_child_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let children = &mut *(lparam.0 as *mut Vec<HWND>);
+    children.push(hwnd);
+    BOOL(1) // Continue enumeration
 }
 
 /// Mock implementation for testing
@@ -516,6 +820,100 @@ impl WindowApi for MockWindowApi {
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
             self.restore_window(hwnd)?;
         }
+        Ok(())
+    }
+
+    fn wait_for_window(
+        &self,
+        _title_pattern: Option<&str>,
+        _class_pattern: Option<&str>,
+        _timeout: Duration,
+        _poll_interval: Duration,
+    ) -> Option<HWND> {
+        // Mock implementation: return the first available window if any
+        self.foreground_window.borrow().or_else(|| {
+            self.window_rects
+                .borrow()
+                .keys()
+                .next()
+                .map(|&key| HWND(key as *mut core::ffi::c_void))
+        })
+    }
+
+    fn find_windows(
+        &self,
+        _title_pattern: Option<&str>,
+        _class_pattern: Option<&str>,
+        _visible_only: bool,
+    ) -> Vec<HWND> {
+        // Mock implementation: return all known windows
+        self.window_rects
+            .borrow()
+            .keys()
+            .map(|&key| HWND(key as *mut core::ffi::c_void))
+            .collect()
+    }
+
+    fn get_child_windows(&self, _parent: HWND) -> Vec<HWND> {
+        // Mock implementation: return empty vector
+        Vec::new()
+    }
+
+    fn get_window_class_name(&self, _hwnd: HWND) -> Option<String> {
+        // Mock implementation: return a default class name
+        Some("MockWindowClass".to_string())
+    }
+
+    fn is_window_visible(&self, hwnd: HWND) -> bool {
+        // Mock implementation: visible if it exists in our collection
+        self.window_rects.borrow().contains_key(&(hwnd.0 as isize))
+    }
+
+    fn get_window_text(&self, hwnd: HWND) -> Option<String> {
+        // Delegate to get_window_title
+        self.get_window_title(hwnd)
+    }
+
+    fn wait_for_foreground_window(&self, hwnd: HWND, _timeout: Duration) -> bool {
+        // Mock implementation: check if it's the foreground window
+        self.foreground_window
+            .borrow()
+            .map(|fg| fg.0 == hwnd.0)
+            .unwrap_or(false)
+    }
+
+    fn get_cursor_pos(&self) -> Option<(i32, i32)> {
+        // Mock implementation: return a default position
+        Some((100, 100))
+    }
+
+    fn set_cursor_pos(&self, _x: i32, _y: i32) -> Result<()> {
+        // Mock implementation: always succeed
+        Ok(())
+    }
+
+    fn send_lbutton_down(&self) -> Result<()> {
+        // Mock implementation: always succeed
+        Ok(())
+    }
+
+    fn send_lbutton_up(&self) -> Result<()> {
+        // Mock implementation: always succeed
+        Ok(())
+    }
+
+    fn send_rbutton_down(&self) -> Result<()> {
+        // Mock implementation: always succeed
+        Ok(())
+    }
+
+    fn send_rbutton_up(&self) -> Result<()> {
+        // Mock implementation: always succeed
+        Ok(())
+    }
+
+    fn click_at(&self, _x: i32, _y: i32) -> Result<()> {
+        // Mock implementation: always succeed
         Ok(())
     }
 }

@@ -20,6 +20,7 @@ mod integration_tests {
     };
     use windows_core::BOOL;
 
+    use wakem::platform::windows::WindowApi;
     use wakem::platform::windows::WindowFrame;
     use wakem::platform::windows::WindowManager;
     use wakem::types::Edge;
@@ -36,8 +37,14 @@ mod integration_tests {
             .spawn()
             .expect("Failed to launch notepad.exe");
 
-        // Wait for window to appear
-        thread::sleep(Duration::from_millis(500));
+        // Wait for window to appear using the new API
+        let api = wakem::platform::windows::RealWindowApi::new();
+        let _ = api.wait_for_window(
+            Some(r"Notepad|Untitled"),
+            None,
+            Duration::from_secs(5),
+            Duration::from_millis(100),
+        );
 
         child.id()
     }
@@ -48,16 +55,32 @@ mod integration_tests {
         cleanup_test_windows();
         thread::sleep(Duration::from_millis(100));
 
+        let api = wakem::platform::windows::RealWindowApi::new();
         let mut pids = Vec::new();
-        for _ in 0..count {
+
+        for i in 0..count {
             if let Ok(child) = Command::new("notepad.exe").spawn() {
                 pids.push(child.id());
+
+                // Wait for the new window to appear
+                // We need to wait until we have (i+1) notepad windows
+                let start = std::time::Instant::now();
+                while start.elapsed() < Duration::from_secs(5) {
+                    let windows = api.find_windows(
+                        Some(r"Notepad|Untitled"),
+                        None,
+                        true,
+                    );
+                    if windows.len() >= i + 1 {
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(100));
+                }
+
                 thread::sleep(Duration::from_millis(300));
             }
         }
 
-        // Wait for all windows to appear
-        thread::sleep(Duration::from_millis(500));
         pids
     }
 
