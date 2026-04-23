@@ -26,20 +26,35 @@ wakem 使用以下目录结构（遵循 XDG Base Directory 规范的 Windows 适
 
 > `%APPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Roaming`，`%LOCALAPPDATA%` 通常指向 `C:\Users\<用户名>\AppData\Local`
 
+### macOS
+
+| 优先级 | 路径（实例 0） | 路径（实例 N） | 说明 |
+|:------:|----------------|----------------|------|
+| 1 | `~/.wakem.toml` | `~/.wakem-instanceN.toml` | 用户主目录（向后兼容） |
+| 2 | `~/.config/wakem/config.toml` | `~/.config/wakem/config-instanceN.toml` | XDG 标准目录（推荐） |
+| 3 | `~/Library/Application Support/wakem/config.toml` | `~/Library/Application Support/wakem/config-instanceN.toml` | macOS 标准目录 |
+
+### Linux (Wayland)
+
+| 优先级 | 路径（实例 0） | 路径（实例 N） | 说明 |
+|:------:|----------------|----------------|------|
+| 1 | `~/.wakem.toml` | `~/.wakem-instanceN.toml` | 用户主目录（向后兼容） |
+| 2 | `~/.config/wakem/config.toml` | `~/.config/wakem/config-instanceN.toml` | XDG 标准目录（推荐） |
+
 > 注：wakem 当前主要支持 **Windows** 平台（完整功能），**macOS** 平台正在积极开发中（基础架构已完成），Linux (wayland) 支持计划后续迁移。
 
 ## 快捷键符号
 
 | 符号 | 按键 |
 |:----:|:----:|
-| <kbd>Hyper</kbd> | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Win</kbd> |
+| <kbd>Hyper</kbd> | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Meta</kbd> |
 | <kbd>HyperShift</kbd> | <kbd>Hyper</kbd>+<kbd>Shift</kbd> |
 
 ## 基本配置
 
 ```toml
 # 基本设置
-log_level = "info"        # 日志级别: trace, debug, info, warn, error
+log_level = "info"        # 日志级别: trace, debug, info, warn, warning, error
 tray_icon = true          # 是否显示系统托盘图标
 auto_reload = true        # 是否自动重新加载配置
 icon_path = "assets/icon.ico"  # 自定义托盘图标路径（可选）
@@ -86,7 +101,7 @@ L = "Right"
 
 | 选项 | 类型 | 默认值 | 说明 |
 |-----|------|-------|------|
-| `log_level` | string | "info" | 日志级别（trace/debug/info/warn/error） |
+| `log_level` | string | "info" | 日志级别（trace/debug/info/warn/warning/error） |
 | `tray_icon` | bool | true | 显示系统托盘图标 |
 | `auto_reload` | bool | true | 自动重新加载配置 |
 | `icon_path` | string | null | 自定义托盘图标路径（默认尝试加载程序目录下 assets/icon.ico） |
@@ -105,11 +120,11 @@ RightAlt = "Ctrl"
 
 支持的目标类型：
 - **普通按键**: `"Backspace"`, `"Escape"`, `"Enter"` 等
-- **修饰键组合**: `"Ctrl+Alt+Win"` （将 CapsLock 映射为 Hyper 键）
+- **修饰键组合**: `"Ctrl+Alt+Meta"` （将 CapsLock 映射为 Hyper 键）
 
 常见用途:
 - **CapsLock 改为 Backspace**: 更符合人体工程学
-- **CapsLock 改为 Ctrl+Alt+Win**: 将 CapsLock 变成 Hyper 键
+- **CapsLock 改为 Ctrl+Alt+Meta**: 将 CapsLock 变成 Hyper 键
 - **RightAlt 改为 Ctrl**: 方便单手操作
 
 ### 层系统
@@ -129,13 +144,15 @@ J = "Down"
 ```
 
 **模式说明**:
-- `Hold`: 按住激活键时层激活，松开后恢复
+- `Hold`: 按住激活键时层激活，松开后恢复（默认）
 - `Toggle`: 按一次激活，再按一次关闭
 
 层内可以映射到：
 - **普通按键**: `H = "Left"`
 - **组合键**: `W = "Ctrl+Right"` （下一个单词）
 - **窗口动作**: `Q = "Center"`
+
+> **验证规则**: `activation_key` 不能为空，否则配置校验会失败。
 
 ### 上下文感知快捷键
 
@@ -175,9 +192,17 @@ mappings = { "Ctrl+Shift+A" = "ShowNotification(JetBrains, Find Action)" }
 | `window_title` | string | 窗口标题匹配 |
 | `executable_path` | string | 可执行文件路径匹配 |
 
-**说明**：上下文规则优先级高于全局规则。通配符匹配已完整实现（支持 `*` 匹配任意字符序列和 `?` 匹配单个字符）。
+**说明**：上下文规则优先级高于全局规则。通配符匹配已完整实现（支持 `*` 匹配任意字符序列和 `?` 匹配单个字符），且匹配大小写不敏感。连续的 `*` 会被合并处理。
 
 ## 窗口管理配置
+
+### 窗口切换设置
+
+```toml
+[window.switch]
+ignore_minimal = true           # 是否忽略最小化的窗口（默认: true）
+only_current_desktop = true     # 是否仅在当前虚拟桌面切换（默认: true）
+```
 
 ### 窗口管理动作
 
@@ -242,6 +267,21 @@ mappings = { "Ctrl+Shift+A" = "ShowNotification(JetBrains, Find Action)" }
 
 连续按键循环: 100% → 90% → 70% → 50% → 100%
 
+### 跨显示器移动
+
+支持按方向或指定显示器索引移动窗口:
+
+```toml
+[window.shortcuts]
+# 移动到下一台显示器
+"Ctrl+Alt+Win+J" = "MoveToMonitor(Next)"
+# 移动到上一台显示器
+"Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)"
+# 移动到指定索引的显示器（从 0 开始）
+"Ctrl+Alt+Win+0" = "MoveToMonitor(0)"
+"Ctrl+Alt+Win+1" = "MoveToMonitor(1)"
+```
+
 ## 窗口预设配置
 
 窗口预设允许你保存和恢复特定应用程序的窗口布局。
@@ -252,7 +292,7 @@ mappings = { "Ctrl+Shift+A" = "ShowNotification(JetBrains, Find Action)" }
 
 ```toml
 [window]
-auto_apply_preset = true  # 是否自动应用预设
+auto_apply_preset = true  # 是否自动应用预设（默认: true）
 
 # 定义窗口预设
 [[window.presets]]
@@ -292,6 +332,62 @@ height = 900
 
 > 至少需要指定一个匹配条件（`process_name`、`executable_path` 或 `title_pattern`）。
 
+## 鼠标配置
+
+### 按键重映射
+
+```toml
+[mouse.button_remap]
+# 格式: 源鼠标按键 = 目标鼠标按键
+# 支持: Left, Right, Middle, X1, X2
+```
+
+### 滚轮设置
+
+```toml
+[mouse.wheel]
+speed = 3                      # 滚轮速度（默认: 3，必须为正数）
+invert = false                 # 反转滚轮方向
+acceleration = false           # 启用滚轮加速
+acceleration_multiplier = 2.0  # 加速倍数（默认: 2.0，范围: 0.1-10.0）
+```
+
+### 水平滚动
+
+按住修饰键时，垂直滚轮变为水平滚动：
+
+```toml
+[mouse.wheel.horizontal_scroll]
+modifier = "Shift"
+step = 1
+```
+
+### 音量控制
+
+按住修饰键时，滚轮调节系统音量：
+
+```toml
+[mouse.wheel.volume_control]
+modifier = "RightAlt"
+step = 2
+```
+
+### 亮度控制
+
+按住修饰键时，滚轮调节屏幕亮度：
+
+```toml
+[mouse.wheel.brightness_control]
+modifier = "RightCtrl"
+step = 5
+```
+
+**支持的修饰键**:
+- `Shift`, `LeftShift`, `RightShift`
+- `Ctrl`, `Control`, `LeftCtrl`, `RightCtrl`
+- `Alt`, `LeftAlt`, `RightAlt`
+- `Win`, `Meta`, `Command`
+
 ## 网络通信配置
 
 启用网络通信以支持远程控制：
@@ -300,7 +396,7 @@ height = 900
 [network]
 enabled = true
 bind_address = "127.0.0.1:57427"  # 或使用 instance_id 自动分配
-instance_id = 0                    # 实例 ID（决定端口号）
+instance_id = 0                    # 实例 ID（范围: 0-255，决定端口号）
 auth_key = "your-secret-key-here"  # 认证密钥（如不提供会自动生成）
 ```
 
@@ -355,7 +451,7 @@ auth_key = "instance1-secret"
 - 实例0: 127.0.0.1:57427
 - 实例1: 127.0.0.1:57428
 - 实例2: 127.0.0.1:57429
-- ...（端口 = 57427 + instance_id）
+- ...（端口 = 57427 + instance_id，端口范围: 1024-65535）
 
 ### 使用示例
 
@@ -395,53 +491,13 @@ wakem --instance 1
 "Ctrl+Alt+E" = "explorer.exe D:\\"
 ```
 
-## 滚轮增强配置
-
-### 基本滚轮设置
+触发键也可以是单独的功能键：
 
 ```toml
-[mouse.wheel]
-speed = 3                      # 滚轮速度（默认: 3）
-invert = false                 # 反转滚轮方向
-acceleration = false           # 启用滚轮加速
-acceleration_multiplier = 2.0  # 加速倍数（默认: 2.0）
+[launch]
+F1 = "notepad.exe"
+F2 = "calc.exe"
 ```
-
-### 水平滚动
-
-按住修饰键时，垂直滚轮变为水平滚动：
-
-```toml
-[mouse.wheel.horizontal_scroll]
-modifier = "Shift"
-step = 1
-```
-
-### 音量控制
-
-按住修饰键时，滚轮调节系统音量：
-
-```toml
-[mouse.wheel.volume_control]
-modifier = "RightAlt"
-step = 2
-```
-
-### 亮度控制
-
-按住修饰键时，滚轮调节屏幕亮度：
-
-```toml
-[mouse.wheel.brightness_control]
-modifier = "RightCtrl"
-step = 5
-```
-
-**支持的修饰键**:
-- `Shift`, `LeftShift`, `RightShift`
-- `Ctrl`, `Control`, `LeftCtrl`, `RightCtrl`
-- `Alt`, `LeftAlt`, `RightAlt`
-- `Win`, `Meta`, `Command`
 
 ## 宏配置
 
@@ -486,6 +542,8 @@ wakem delete-macro my-macro
 "F1" = "open-terminal"
 ```
 
+> **验证规则**: `macro_bindings` 中引用的宏名必须在 `[macros]` 中已定义，否则配置校验会失败。空的宏步骤列表不会报错，但会产生警告日志。
+>
 > **详细文档**: 完整的宏系统文档请参考 [macros.md](macros.md)，包括 MacroStep 格式详细说明、支持的宏动作类型、智能录制特性和按键扫描码参考。
 
 ## 按键名称
@@ -499,6 +557,10 @@ wakem delete-macro my-macro
 ### 功能键
 `F1` - `F12`
 
+### 小键盘（Numpad）
+`Numpad0` - `Numpad9`
+`NumpadDecimal`, `NumpadAdd`, `NumpadSubtract`, `NumpadMultiply`, `NumpadDivide`
+
 ### 控制键
 - `CapsLock`, `Caps`
 - `Shift`, `LeftShift`, `RightShift`
@@ -510,7 +572,8 @@ wakem delete-macro my-macro
 - `Up`, `Down`, `Left`, `Right`
 - `Home`, `End`
 - `PageUp`, `PageDown`
-- `Insert`, `Delete`, `ForwardDelete`
+- `Insert`, `Ins`
+- `Delete`, `Del`, `ForwardDelete`, `ForwardDel`
 
 ### 其他键
 - `Backspace`, `Back`
@@ -519,9 +582,9 @@ wakem delete-macro my-macro
 - `Escape`, `Esc`
 - `Space`
 - `Grave`, `Backtick` (` 键)
-- `Comma` (,)
-- `Period` (.)
-- `Equals` (=)
+- `Comma` (`,`)
+- `Period` (`.`)
+- `Equals` (`=`)
 
 ## 修饰键语法
 
@@ -536,7 +599,22 @@ wakem delete-macro my-macro
 # 多修饰键（Hyper 键）
 "Ctrl+Alt+Win+C"   # Hyper + C
 "Ctrl+Alt+Win+Shift+W"  # HyperShift + W
+
+# Meta / Command 作为 Win 的跨平台别名
+"Ctrl+Alt+Meta+C"  #等同于 Ctrl+Alt+Win+C（Windows 上 Meta = Win）
+"Ctrl+Alt+Command" # 同上
 ```
+
+**修饰键别名对照表**:
+
+| 通用名称 | 别名 | 平台对应 |
+|---------|------|---------|
+| `Win` | `Meta`, `Command`, `Cmd` | Windows: Win键, macOS: Command键 |
+| `Ctrl` | `Control` | Control 键 |
+| `Alt` | - | Alt 键（Windows）/ Option 键（macOS） |
+| `Shift` | `LeftShift`, `RightShift` | Shift 键 |
+
+> 注：修饰键名称在配置文件中**不区分大小写**，例如 `ctrl`、`CTRL`、`Ctrl` 均有效。
 
 ## 完整配置示例
 
@@ -579,7 +657,7 @@ B = "Ctrl+Left"
 "Ctrl+Alt+Win+PageUp" = "MoveToEdge(Top)"
 "Ctrl+Alt+Win+PageDown" = "MoveToEdge(Bottom)"
 
-# 半屏显示
+# 半屏显示（支持四个方向）
 "Ctrl+Alt+Win+Shift+Left" = "HalfScreen(Left)"
 "Ctrl+Alt+Win+Shift+Right" = "HalfScreen(Right)"
 "Ctrl+Alt+Win+Shift+Up" = "HalfScreen(Top)"
@@ -602,6 +680,11 @@ B = "Ctrl+Left"
 "Ctrl+Alt+Win+J" = "MoveToMonitor(Next)"
 "Ctrl+Alt+Win+K" = "MoveToMonitor(Prev)"
 
+# 窗口状态控制
+"Ctrl+Alt+Win+N" = "Minimize"
+"Ctrl+Alt+Win+X" = "Maximize"
+"Ctrl+Alt+Win+Q" = "Close"
+
 # 调试功能
 "Ctrl+Alt+Win+W" = "ShowDebugInfo"
 "Ctrl+Alt+Win+Shift+W" = "ShowNotification(wakem, Hello World!)"
@@ -611,7 +694,22 @@ B = "Ctrl+Left"
 "Ctrl+Alt+Win+T" = "wt.exe"
 "Ctrl+Alt+Win+N" = "notepad.exe"
 "Ctrl+Alt+Win+E" = "explorer.exe D:\\"
+"Ctrl+Alt+Win+Equals" = "calc.exe"
 ```
+
+## 配置验证规则
+
+wakem 在加载配置时会进行以下校验，不符合规则的配置会导致启动失败：
+
+| 规则 | 说明 |
+|------|------|
+| 日志级别 | 必须是 trace/debug/info/warn/warning/error 之一 |
+| instance_id | 范围 0-255 |
+| 端口号 | 由 instance_id 计算（57427 + instance_id），必须在 1024-65535 范围内 |
+| wheel.speed | 必须为正数 |
+| acceleration_multiplier | 范围 0.1-10.0 |
+| layer.activation_key | 不能为空字符串 |
+| macro_bindings | 引用的宏名必须在 `[macros]` 中存在 |
 
 ## 故障排除
 

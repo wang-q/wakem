@@ -78,6 +78,10 @@ wakem delete-macro my-macro  # Delete macro
 
 ### 1. Window Management (Window Adjust)
 
+**Configuration**
+
+See [examples/window_manager.toml](examples/window_manager.toml) for key bindings configuration (defines Hyper key, shortcuts, etc.).
+
 |        Symbol         |                      Key                      |
 | :-------------------: | :-------------------------------------------: |
 |   <kbd>hyper</kbd>    | <kbd>ctrl</kbd>+<kbd>opt</kbd>+<kbd>cmd</kbd> |
@@ -174,48 +178,6 @@ cargo clippy -- -D warnings
 - [Configuration Guide](docs/config.md) - Complete keyboard, window management, mouse configuration instructions
 - [Developer Documentation](docs/developer.md) - Architecture explanation, development plans, and API reference
 - [Macro System Documentation](docs/macros.md) - Detailed macro recording and playback usage instructions
-
-## Configuration Example
-
-```toml
-# wakem.toml - Window management, keyboard enhancement configuration
-
-# Basic settings
-log_level = "info"
-tray_icon = true
-auto_reload = true
-icon_path = "assets/icon.ico"  # Optional
-
-# Keyboard remapping (HashMap format)
-[keyboard.remap]
-CapsLock = "Backspace"
-RightAlt = "Ctrl"
-
-# Navigation layer (HashMap format)
-[keyboard.layers.navigation]
-activation_key = "CapsLock"
-mode = "Hold"
-
-[keyboard.layers.navigation.mappings]
-H = "Left"
-J = "Down"
-K = "Up"
-L = "Right"
-
-# Window management (HashMap format)
-[window.shortcuts]
-"Ctrl+Alt+Win+C" = "Center"
-"Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
-"Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
-"Alt+Grave" = "SwitchToNextWindow"
-
-# Quick launch programs
-[launch]
-"Ctrl+Alt+Win+T" = "wt.exe"
-"Ctrl+Alt+Win+N" = "notepad.exe"
-```
-
-For more configuration examples, please refer to the [Complete Configuration Reference](docs/config.md).
 
 ## Reference Projects
 
