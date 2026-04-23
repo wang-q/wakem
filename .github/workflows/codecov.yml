@@ -1,13 +1,13 @@
 name: Code Coverage
 
-on: [ push, pull_request ]
+on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   check:
-    name: codecov pgr
+    name: codecov
     runs-on: ubuntu-latest
     container:
       image: xd009642/tarpaulin:develop-nightly
