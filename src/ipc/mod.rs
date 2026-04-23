@@ -45,6 +45,8 @@ pub enum Message {
     BindMacro { macro_name: String, trigger: String },
     /// Register message window handle (for sending notifications)
     RegisterMessageWindow { hwnd: usize },
+    /// Shutdown the daemon
+    Shutdown,
 
     // Server -> Client
     /// Status response

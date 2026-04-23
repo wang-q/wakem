@@ -98,6 +98,8 @@ pub struct ServerState {
     /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
     /// Dynamically extracted from remap rules where target is a modifier combo
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
+    /// Shutdown flag for graceful shutdown
+    shutdown_flag: Arc<AtomicBool>,
 }
 
 impl ServerState {
@@ -122,6 +124,7 @@ impl ServerState {
             auth_key: Arc::new(RwLock::new(String::new())),
             virtual_modifiers: Arc::new(RwLock::new(ModifierState::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            shutdown_flag: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -146,6 +149,7 @@ impl ServerState {
             auth_key: Arc::new(RwLock::new(String::new())),
             virtual_modifiers: Arc::new(RwLock::new(ModifierState::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            shutdown_flag: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -961,6 +965,22 @@ impl ServerState {
         info!("Notification shown: {} - {}", title, message);
         Ok(())
     }
+
+    /// Trigger graceful shutdown
+    pub async fn shutdown(&self) {
+        info!("Triggering graceful shutdown...");
+        self.shutdown_flag.store(true, Ordering::SeqCst);
+    }
+
+    /// Get shutdown flag
+    pub fn get_shutdown_flag(&self) -> Arc<AtomicBool> {
+        self.shutdown_flag.clone()
+    }
+
+    /// Check if shutdown has been requested
+    pub fn is_shutdown_requested(&self) -> bool {
+        self.shutdown_flag.load(Ordering::SeqCst)
+    }
 }
 
 impl Default for ServerState {
@@ -1380,11 +1400,26 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     info!("Server is running (press Ctrl+C for graceful shutdown)");
 
-    // Wait for exit signal (Ctrl+C)
-    tokio::signal::ctrl_c().await?;
+    // Get shutdown flag from state for external shutdown requests
+    let state_shutdown_flag = state.get_shutdown_flag();
+
+    // Wait for exit signal (Ctrl+C) or external shutdown request
+    loop {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                info!("Ctrl+C received, initiating graceful shutdown...");
+                break;
+            }
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+                if state_shutdown_flag.load(Ordering::SeqCst) {
+                    info!("External shutdown request received, initiating graceful shutdown...");
+                    break;
+                }
+            }
+        }
+    }
 
     // Trigger graceful shutdown
-    info!("Initiating graceful shutdown...");
     shutdown.shutdown().await;
 
     // Signal bridge threads to exit
@@ -1537,6 +1572,11 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
         Message::RegisterMessageWindow { hwnd } => {
             // Pass isize directly to avoid Send issues with HWND
             state.set_message_window_hwnd(hwnd as isize).await;
+            Message::Success
+        }
+        Message::Shutdown => {
+            info!("Shutdown command received, initiating graceful shutdown...");
+            state.shutdown().await;
             Message::Success
         }
         _ => Message::Error {

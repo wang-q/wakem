@@ -230,6 +230,17 @@ impl DaemonClient {
             _ => Err(anyhow::anyhow!("Unexpected response")),
         }
     }
+
+    /// Shutdown the daemon
+    pub async fn shutdown(&mut self) -> Result<()> {
+        let response = self.send_receive(&Message::Shutdown).await?;
+
+        match response {
+            Message::Success => Ok(()),
+            Message::Error { message } => Err(anyhow::anyhow!("{}", message)),
+            _ => Err(anyhow::anyhow!("Unexpected response")),
+        }
+    }
 }
 
 impl Default for DaemonClient {
