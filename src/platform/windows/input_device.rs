@@ -2,6 +2,8 @@
 #![cfg(target_os = "windows")]
 
 use crate::types::{InputEvent, KeyState, ModifierState};
+#[cfg(test)]
+use crate::types::{KeyEvent, MouseButton, MouseEvent, MouseEventType};
 use anyhow::Result;
 #[allow(unused_imports)]
 use std::cell::RefCell;
