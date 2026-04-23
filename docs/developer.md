@@ -1,6 +1,6 @@
 # wakem 开发文档
 
-本文档包含 wakem 的开发记录、架构演进、参考项目分析和扩展规划。
+本文档面向 wakem 开发者，包含架构设计、技术决策、扩展 API 和性能数据等内容。
 
 > 项目概览、架构设计、代码规范等内容请参阅 [AGENTS.md](../AGENTS.md)。
 
@@ -8,140 +8,11 @@
 pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/null; sleep 1; echo "已清理"
 ```
 
-## 开发计划
-
-### Phase 1: Windows 基础架构 ✅ 已完成
-
-- [x] 项目搭建
-- [x] 核心数据结构（输入事件、动作、映射规则）
-- [x] IPC 通信（TCP 协议 + JSON 序列化）
-- [x] 配置系统（TOML 格式 + HashMap 存储格式）
-- [x] Windows 输入捕获（Raw Input）
-- [x] Windows 输入发送（SendInput）
-- [x] 基础映射引擎
-
-### Phase 2: Windows 键盘增强 + 系统托盘 ✅ 已完成
-
-- [x] 键位重映射基础（支持修饰键组合映射如 CapsLock → Ctrl+Alt+Win）
-- [x] 快捷键层系统（Hold/Toggle 模式）
-- [x] 导航层配置
-- [x] 上下文感知（进程名/窗口标题/窗口类/可执行路径匹配）
-- [x] 快速启动（支持带参数的命令）
-- [x] 系统托盘客户端
-
-### Phase 3: Windows 窗口管理 ✅ 已完成
-
-- [x] 窗口信息获取
-- [x] 窗口操作基础（居中/移动/调整大小/最小化/最大化/关闭等）
-- [x] 窗口位置预设（借鉴 mrw，支持通配符匹配）
-- [x] 窗口切换基础（Alt+` 同进程切换）
-- [x] Action 系统集成（完整窗口动作集）
-
-### Phase 4: Windows 鼠标增强 ✅ 已完成
-
-- [x] 鼠标事件处理
-- [x] 滚轮增强（加速、反转、水平滚动、音量/亮度控制）
-
-> **注**: 不实现鼠标手势功能，使用场景有限且实现复杂
-
-### Phase 5: Windows 完善 ✅ 已完成
-
-- [x] 系统托盘（带通知功能）
-- [x] 输入捕获（Raw Input + std/tokio bridge）
-- [x] 配置热重载（通过 `wakem reload` 命令）
-- [x] 启动项管理（install.ps1 支持）
-- [x] 错误处理和日志（tracing crate）
-- [x] 安装和打包（install.ps1 脚本）
-- [x] 窗口预设功能（自动应用、保存/加载预设）
-- [x] 上下文感知快捷键（应用专属快捷键）
-- [x] 网络通信（TCP + 多实例支持 + 认证）
-
-### Phase 6: 宏系统 ✅ 已完成
-
-- [x] 宏录制功能（`MacroRecorder`）
-- [x] 宏回放功能（`MacroPlayer`）
-- [x] 与 Action 系统整合（复用 `Action` 枚举）
-- [x] 支持所有动作类型（Key/Mouse/Window/Launch/System/Delay）
-- [x] 延迟优化（自动合并短延迟，阈值 50ms）
-- [x] 宏配置持久化（保存到配置文件）
-- [x] 修饰键状态跟踪（`MacroStep` 结构）
-- [x] 智能过滤单独修饰键事件
-- [x] 宏绑定到快捷键触发
-
-### Phase 7: macOS 移植 🔄 进行中
-
-- [x] 平台抽象层设计 (traits.rs)
-- [x] macOS 输入设备 (CGEvent)
-- [x] macOS 输出设备 (CGEvent)
-- [x] macOS 窗口管理器
-- [x] macOS 窗口预设
-- [x] macOS 系统托盘
-- [x] macOS 应用启动器
-- [x] macOS 原生 API 封装 (native_api/)
-- [ ] macOS 集成测试完善
-- [ ] macOS 文档完善
-
-### Phase 8: Linux 移植 ⏳ 待实现
-
 ---
 
 ## 参考项目分析
 
-### 1. keymapper 架构分析
-
-**keymapper** 是一个跨平台的上下文感知键盘重映射工具，采用客户端-服务端架构。
-
-#### 核心架构
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         User Space                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │
-│  │  keymapper   │  │ keymapperctl │  │   Configuration      │  │
-│  │  (Client)    │  │  (Control)   │  │   (keymapper.conf)   │  │
-│  └──────┬───────┘  └──────┬───────┘  └──────────────────────┘  │
-│         │                 │                                      │
-│         └─────────────────┘                                      │
-│                   │                                              │
-│              IPC Socket                                          │
-│                   │                                              │
-│  ┌────────────────┴────────────────┐                            │
-│  │         keymapperd (Server)      │                            │
-│  │  ┌─────────────┐ ┌─────────────┐ │  <- Runtime Core           │
-│  │  │   Stage     │ │ MultiStage  │ │                            │
-│  │  │  (Mapping)  │ │ (Pipeline)  │ │                            │
-│  │  └─────────────┘ └─────────────┘ │                            │
-│  └────────────────┬────────────────┘                            │
-│                   │                                              │
-└───────────────────┼──────────────────────────────────────────────┘
-                    │
-┌───────────────────┼──────────────────────────────────────────────┐
-│                   │           Kernel Space                        │
-│  ┌────────────────┴────────────────┐                            │
-│  │     Input Device Drivers         │                            │
-│  │  ┌─────────┐ ┌─────────┐        │                            │
-│  │  │ Keyboard│ │  Mouse  │        │                            │
-│  │  └────┬────┘ └────┬────┘        │                            │
-│  └───────┼───────────┼─────────────┘                            │
-│          │           │                                           │
-│  ┌───────┴───────────┴───────┐                                  │
-│  │   Event Subsystem          │                                  │
-│  │  (evdev/RawInput/IOKit)    │                                  │
-│  └────────────────────────────┘                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-#### 可借鉴的设计
-
-1. **客户端-服务端架构** - 分离配置管理和底层输入处理
-2. **多阶段处理** - 支持多阶段按键映射管道
-3. **上下文感知** - 根据窗口标题、类名、进程路径动态切换映射
-4. **虚拟键系统** - 支持状态切换和层切换
-5. **跨平台抽象层** - 统一的设备接口和窗口检测接口
-
----
-
-### 2. AutoHotkey 架构分析
+### AutoHotkey 架构分析
 
 **AutoHotkey** 是 Windows 平台上最著名的自动化脚本语言和热键工具。
 
@@ -160,30 +31,6 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 3. **窗口搜索机制** - 多条件窗口搜索（标题、类名、PID、进程名）
 4. **线程中断控制** - `Critical` 和 `AllowInterruption` 机制
 5. **钩子状态管理** - 动态安装/卸载钩子，减少系统开销
-
----
-
-### 3. Window Switcher 架构分析
-
-**Window Switcher** 是一个用 Rust 编写的 Windows 窗口切换增强工具。
-
-#### 核心特点
-
-1. **应用切换** - Alt+Tab 切换不同应用程序
-2. **窗口切换** - Alt+` 在同一应用的多个窗口间切换
-3. **可视化界面** - 使用 GDI+ 绘制美观的切换界面
-4. **系统托盘** - 支持配置和开机启动
-5. **虚拟桌面支持** - 可选仅显示当前虚拟桌面的窗口
-6. **UWP 应用支持** - 正确显示 Windows Store 应用图标
-
-#### 可借鉴的设计
-
-1. **模块化工具函数** - utils 目录的良好组织
-2. **配置驱动** - INI 格式简单易用
-3. **图标缓存** - 使用 `HashMap<String, HICON>` 缓存图标
-4. **权限适配** - 根据是否管理员选择不同的启动方式
-5. **主题适配** - 检测系统主题色，自动切换深色/浅色界面
-6. **GDI+ 抗锯齿绘制** - 使用 `GdipSetSmoothingMode` 实现高质量界面
 
 ---
 
@@ -219,11 +66,9 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 
 ---
 
-## 功能实现状态
+## 功能概览
 
-### 已实现功能 ✅
-
-**窗口管理**
+### 窗口管理
 - 窗口居中 / 移动到边缘 / 半屏显示
 - 循环调整宽度/高度（多种比例）
 - 固定比例窗口 / 原生比例窗口
@@ -233,21 +78,21 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 - 显示调试信息 / 显示通知
 - 保存/加载/应用窗口预设
 
-**键盘增强**
+### 键盘增强
 - 键位重映射（包括修饰键组合映射：CapsLock → Hyper）
 - 快捷键层系统（Hold/Toggle 模式）
 - 导航层（Vim 风格 HJKL）
 - 应用快捷键（上下文感知）
 - 快速启动（支持带参数命令）
 
-**鼠标增强**
+### 鼠标增强
 - 鼠标事件捕获
 - 滚轮加速 / 反转 / 速度调节
 - 水平滚动（Shift + 滚轮）
 - 音量控制（RightAlt + 滚轮）
 - 亮度控制（RightCtrl + 滚轮）
 
-**系统功能**
+### 系统功能
 - 系统托盘（带通知功能）
 - 配置命令行重载 (`wakem reload`)
 - 配置保存到文件 (`wakem save`)
@@ -255,121 +100,12 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 - 多实例支持（`--instance N` 参数）
 - 实例发现和管理 (`wakem instances`)
 
-**高级功能**
+### 高级功能
 - 窗口预设（保存/恢复/自动应用布局）
 - 上下文感知快捷键（进程名/标题/类/路径匹配）
 - 网络通信（TCP + 远程控制 + 挑战-响应认证）
-- **通配符匹配已完整实现**（支持 `*` 和 `?`，大小写不敏感）
-- **宏录制回放系统** ✅ 已实现
-
-### 待实现功能 ⏳
-
-**跨平台移植**
-- macOS 支持
-- Linux 支持
-
----
-
-## 配置参考
-
-完整的配置说明请参考 [config.md](config.md)，主要更新：
-
-### 配置格式变更
-
-当前版本使用 **HashMap 格式**（点分隔表名）而非数组格式：
-
-```toml
-# 新格式（当前）- HashMap
-[keyboard.remap]
-CapsLock = "Backspace"
-
-[keyboard.layers.navigation]
-activation_key = "CapsLock"
-mode = "Hold"
-
-[keyboard.layers.navigation.mappings]
-H = "Left"
-```
-
-### 新增窗口动作
-
-| 动作 | 说明 |
-|-----|------|
-| `Restore` | 还原窗口 |
-| `ToggleTopmost` | 置顶/取消置顶 |
-| `Move { x, y }` | 移动到绝对坐标 |
-| `Resize { width, height }` | 调整大小 |
-| `SavePreset { name }` | 保存当前窗口为预设 |
-| `LoadPreset { name }` | 加载预设 |
-| `ApplyPreset` | 自动应用匹配的预设 |
-
-### 新增 CLI 命令
-
-| 命令 | 说明 |
-|-----|------|
-| `wakem save` | 保存当前配置到文件 |
-| `wakem instances` | 列出运行中的实例 |
-
----
-
-## 宏系统
-
-宏系统允许用户录制和回放键盘/鼠标操作序列。
-
-### 使用方式
-
-```bash
-# 录制宏
-wakem record my-macro
-# 执行操作...
-# 按 Ctrl+Shift+Esc 停止录制
-
-# 播放宏
-wakem play my-macro
-
-# 绑定宏到触发键
-wakem bind-macro my-macro F1
-```
-
-### 核心组件
-
-| 组件 | 文件 | 说明 |
-|------|------|------|
-| `MacroRecorder` | `src/types/macros.rs` | 录制输入事件，智能过滤修饰键 |
-| `MacroPlayer` | `src/runtime/macro_player.rs` | 回放宏动作，重建修饰键状态 |
-| `MacroStep` | `src/types/macros.rs` | 宏步骤结构（delay_ms, action, modifiers, timestamp） |
-| `Action` | `src/types/action.rs` | 统一的动作枚举 |
-
-### 架构说明
-
-```
-┌─────────────────────────────────────────┐
-│           MacroRecorder                 │
-│  - 使用 Action::from_input_event()      │
-│  - 使用 is_modifier() 过滤单独修饰键     │
-│  - 使用 merge() 跟踪修饰键状态           │
-│  - 录制为 Vec<MacroStep>                │
-└─────────────────┬───────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────┐
-│              MacroStep                  │
-│  ├─ delay_ms: u64                       │
-│  ├─ action: Action                      │
-│  ├─ modifiers: ModifierState            │
-│  └─ timestamp: Timestamp                │
-└─────────────────┬───────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────┐
-│           MacroPlayer                   │
-│  - 遍历 MacroStep                       │
-│  - 重建修饰键状态                        │
-│  - 执行延迟后调用对应处理器              │
-└─────────────────────────────────────────┘
-```
-
-> **详细文档**: 完整的宏系统文档请参考 [macros.md](macros.md)。
+- 通配符匹配（支持 `*` 和 `?`，大小写不敏感）
+- 宏录制回放系统（详见 [macros.md](macros.md)）
 
 ---
 
@@ -383,8 +119,8 @@ wakem bind-macro my-macro F1
 
 | 触发器类型 | 状态 | 说明 |
 |-----------|------|------|
-| `Key { ... }` | ✅ 已使用 | 键盘按键触发（支持扫描码/虚拟键码/修饰键） |
-| `MouseButton { ... }` | ✅ 已定义 | 鼠标按钮触发（可用于未来鼠标映射） |
+| `Key { ... }` | 已使用 | 键盘按键触发（支持扫描码/虚拟键码/修饰键） |
+| `MouseButton { ... }` | 已定义 | 鼠标按钮触发（可用于未来鼠标映射） |
 | `HotString { trigger }` | 预留 | 热字符串（文本扩展），类似 AutoHotkey 的 ::btw::be right back:: |
 | `Chord(Vec<Trigger>)` | 预留 | 组合触发（多个按键按顺序），如 `Ctrl,K,C` |
 | `Timer { interval_ms }` | 预留 | 定时触发器，用于定时执行任务 |
@@ -414,28 +150,28 @@ wakem bind-macro my-macro F1
 
 | 消息方向 | 消息 | 状态 | 说明 |
 |---------|------|------|------|
-| C→S | `SetConfig` | ✅ | 发送配置到服务端 |
-| C→S | `ReloadConfig` | ✅ | 重新加载配置 |
-| C→S | `SaveConfig` | ✅ | 保存配置到文件 |
-| C→S | `GetStatus` | ✅ | 获取当前状态 |
-| C→S | `SetActive` | ✅ | 启用/禁用映射 |
+| C→S | `SetConfig` | 已使用 | 发送配置到服务端 |
+| C→S | `ReloadConfig` | 已使用 | 重新加载配置 |
+| C→S | `SaveConfig` | 已使用 | 保存配置到文件 |
+| C→S | `GetStatus` | 已使用 | 获取当前状态 |
+| C→S | `SetActive` | 已使用 | 启用/禁用映射 |
 | C→S | `GetNextKeyInfo` | 预留 | 获取下一个按键信息（用于调试） |
-| C→S | `StartMacroRecording` | ✅ | 开始录制宏 |
-| C→S | `StopMacroRecording` | ✅ | 停止录制宏 |
-| C→S | `PlayMacro` | ✅ | 播放宏 |
-| C→S | `GetMacros` | ✅ | 获取宏列表 |
-| C→S | `DeleteMacro` | ✅ | 删除宏 |
-| C→S | `BindMacro` | ✅ | 绑定宏到触发键 |
-| C→S | `RegisterMessageWindow` | ✅ | 注册消息窗口句柄 |
-| S→C | `StatusResponse` | ✅ | 状态响应 |
-| S→C | `ConfigLoaded` | ✅ | 配置已加载 |
-| S→C | `ConfigError` | ✅ | 配置加载错误 |
+| C→S | `StartMacroRecording` | 已使用 | 开始录制宏 |
+| C→S | `StopMacroRecording` | 已使用 | 停止录制宏 |
+| C→S | `PlayMacro` | 已使用 | 播放宏 |
+| C→S | `GetMacros` | 已使用 | 获取宏列表 |
+| C→S | `DeleteMacro` | 已使用 | 删除宏 |
+| C→S | `BindMacro` | 已使用 | 绑定宏到触发键 |
+| C→S | `RegisterMessageWindow` | 已使用 | 注册消息窗口句柄 |
+| S→C | `StatusResponse` | 已使用 | 状态响应 |
+| S→C | `ConfigLoaded` | 已使用 | 配置已加载 |
+| S→C | `ConfigError` | 已使用 | 配置加载错误 |
 | S→C | `NextKeyInfo` | 预留 | 下一个按键信息 |
-| S→C | `Error` | ✅ | 错误响应 |
-| S→C | `MacroRecordingResult` | ✅ | 宏录制结果 |
-| S→C | `MacrosList` | ✅ | 宏列表响应 |
-| S→C | `Success` | ✅ | 成功响应 |
-| 双向 | `Ping/Pong` | ✅ | 心跳检测 |
+| S→C | `Error` | 已使用 | 错误响应 |
+| S→C | `MacroRecordingResult` | 已使用 | 宏录制结果 |
+| S→C | `MacrosList` | 已使用 | 宏列表响应 |
+| S→C | `Success` | 已使用 | 成功响应 |
+| 双向 | `Ping/Pong` | 已使用 | 心跳检测 |
 
 ### 5. 层管理 API
 
@@ -460,7 +196,7 @@ wakem bind-macro my-macro F1
 
 位置: `src/config.rs` → `wildcard_match()` 和 `WindowPreset::wildcard_match()`
 
-通配符匹配已**完整实现**：
+通配符匹配已完整实现：
 - `*` 匹配任意字符序列（连续 `*` 会被合并优化）
 - `?` 匹配单个字符
 - 大小写不敏感匹配
@@ -470,23 +206,9 @@ wakem bind-macro my-macro F1
 
 ## 扩展建议
 
-### 短期可实现的扩展
-
-1. **热字符串 (HotString)** - 实现文本扩展功能
-2. **鼠标按钮重映射** - 完成 `MouseConfig.button_remap` 功能
-3. **组合触发 (Chord)** - 实现顺序按键触发
-
-### 中期扩展
-
-1. **定时触发器** - 实现定时任务功能
-2. **脚本引擎** - 类似 AutoHotkey 的简单脚本语言
-3. **GUI 配置工具** - 图形化配置编辑器
-
-### 长期扩展
-
-1. **插件系统** - 支持动态加载扩展模块
-2. **跨平台抽象层完善** - 为 macOS/Linux 移植做准备
-3. **云同步** - 配置文件云存储同步
+- **鼠标按钮重映射** - 完成 `MouseConfig.button_remap` 功能
+- **组合触发 (Chord)** - 实现顺序按键触发
+- **跨平台抽象层完善** - 为 macOS/Linux 移植做准备
 
 ---
 
