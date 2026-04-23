@@ -16,7 +16,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
 };
 use windows::Win32::UI::Input::{
-    GetRawInputData, RegisterRawInputDevices, RIDEV_INPUTSINK, RIDEV_NOLEGACY,
+    GetRawInputData, RegisterRawInputDevices, RIDEV_INPUTSINK,
 };
 use windows::Win32::UI::Input::{
     RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
@@ -104,15 +104,15 @@ impl RawInputDevice {
     fn register_devices(hwnd: HWND) -> Result<()> {
         let devices = [
             RAWINPUTDEVICE {
-                usUsagePage: 0x01, // Generic Desktop
-                usUsage: 0x06,     // Keyboard
-                dwFlags: RIDEV_INPUTSINK | RIDEV_NOLEGACY,
+                usUsagePage: 0x01,        // Generic Desktop
+                usUsage: 0x06,            // Keyboard
+                dwFlags: RIDEV_INPUTSINK, // Don't use RIDEV_NOLEGACY to avoid interfering with tray menu
                 hwndTarget: hwnd,
             },
             RAWINPUTDEVICE {
-                usUsagePage: 0x01, // Generic Desktop
-                usUsage: 0x02,     // Mouse
-                dwFlags: RIDEV_INPUTSINK | RIDEV_NOLEGACY,
+                usUsagePage: 0x01,        // Generic Desktop
+                usUsage: 0x02,            // Mouse
+                dwFlags: RIDEV_INPUTSINK, // Don't use RIDEV_NOLEGACY to avoid interfering with tray menu
                 hwndTarget: hwnd,
             },
         ];

@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 mod cli;
 mod client;
@@ -92,7 +92,7 @@ fn run_daemon(instance_id: u32) -> Result<()> {
 /// Check if daemon is running
 fn is_daemon_running(instance_id: u32) -> bool {
     let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()
     {
         Ok(rt) => rt,
@@ -111,41 +111,41 @@ fn is_daemon_running(instance_id: u32) -> bool {
 fn run_tray_sync(instance_id: u32, auto_start_daemon: bool) -> Result<()> {
     info!("wakem starting (instance {})...", instance_id);
 
-    // Auto-start daemon if requested and not already running
-    let daemon_handle = if auto_start_daemon && !is_daemon_running(instance_id) {
-        info!("Daemon not running, auto-starting...");
+    // Create sync channel for communication between tray and tokio
+    let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
+    let cmd_tx_for_tray = cmd_tx.clone();
+
+    // Start tokio runtime in background thread immediately - don't wait!
+    let tokio_handle = thread::spawn(move || {
+        run_tokio_for_tray(cmd_rx, instance_id);
+    });
+
+    // Auto-start daemon in background if needed (completely independent)
+    let daemon_handle = if auto_start_daemon {
         Some(thread::spawn(move || {
-            if let Err(e) = run_daemon(instance_id) {
-                error!("Daemon exited with error: {}", e);
+            // Check and start daemon if needed
+            if !is_daemon_running(instance_id) {
+                info!("Daemon not running, auto-starting...");
+                if let Err(e) = run_daemon(instance_id) {
+                    error!("Daemon exited with error: {}", e);
+                }
+            } else {
+                info!("Daemon already running");
             }
         }))
     } else {
         None
     };
 
-    // Give daemon time to start if we just launched it
-    if daemon_handle.is_some() {
-        thread::sleep(std::time::Duration::from_millis(500));
-    }
-
-    // Create sync channel for communication between tray and tokio
-    let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
-    let cmd_tx_for_tray = cmd_tx.clone();
-
-    // Spawn tokio runtime in a background thread for tray IPC
-    let tokio_handle = thread::spawn(move || {
-        run_tokio_for_tray(cmd_rx, instance_id);
-    });
-
-    // Run tray message loop on main thread
+    // Run tray message loop on main thread immediately - no blocking before this!
     let tray_result = run_tray_message_loop(move |cmd| {
         let _ = cmd_tx_for_tray.send(cmd);
     });
 
-    // Wait for tokio thread to finish
+    // Cleanup: signal tokio to stop, wait for threads
+    let _ = cmd_tx.send(AppCommand::Exit); // Signal tokio to exit
     let _ = tokio_handle.join();
 
-    // Wait for daemon thread if we started it
     if let Some(handle) = daemon_handle {
         info!("Waiting for daemon to shutdown...");
         let _ = handle.join();
@@ -163,34 +163,53 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
     rt.block_on(async {
         info!("Tokio runtime started in background thread");
 
-        // Connect to daemon
+        // Connect to daemon with retry logic
         let mut client_option: Option<DaemonClient> = None;
         let mut client = DaemonClient::new();
+        let max_retries = 10; // Retry up to 10 times (5 seconds total)
+        let retry_delay = tokio::time::Duration::from_millis(500);
 
-        match client.connect_to_instance(instance_id).await {
-            Ok(_) => {
-                info!("Connected to wakemd instance {}", instance_id);
+        for attempt in 1..=max_retries {
+            match client.connect_to_instance(instance_id).await {
+                Ok(_) => {
+                    info!(
+                        "Connected to wakemd instance {} (attempt {}/{})",
+                        instance_id, attempt, max_retries
+                    );
 
-                match client.get_status().await {
-                    Ok((active, loaded)) => {
-                        info!(
-                            "Daemon status: active={}, config_loaded={}",
-                            active, loaded
+                    match client.get_status().await {
+                        Ok((active, loaded)) => {
+                            info!(
+                                "Daemon status: active={}, config_loaded={}",
+                                active, loaded
+                            );
+                        }
+                        Err(e) => {
+                            error!("Failed to get status: {}", e);
+                        }
+                    }
+
+                    client_option = Some(client);
+                    break;
+                }
+                Err(e) => {
+                    if attempt < max_retries {
+                        debug!(
+                            "Connection attempt {}/{} failed, retrying in {:?}...",
+                            attempt, max_retries, retry_delay
+                        );
+                        tokio::time::sleep(retry_delay).await;
+                    } else {
+                        error!(
+                            "Failed to connect to daemon after {} attempts: {}",
+                            max_retries, e
+                        );
+                        error!(
+                            "Please make sure wakemd --instance {} is running",
+                            instance_id
                         );
                     }
-                    Err(e) => {
-                        error!("Failed to get status: {}", e);
-                    }
                 }
-
-                client_option = Some(client);
-            }
-            Err(e) => {
-                error!("Failed to connect to daemon: {}", e);
-                error!(
-                    "Please make sure wakemd --instance {} is running",
-                    instance_id
-                );
             }
         }
 

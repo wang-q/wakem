@@ -22,11 +22,12 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, CreateWindowExW,
     DefWindowProcW, DestroyMenu, DispatchMessageW, GetCursorPos, GetMessageW,
-    LoadCursorW, LookupIconIdFromDirectoryEx, PostQuitMessage, RegisterClassW,
-    SetForegroundWindow, TrackPopupMenu, TranslateMessage, CS_HREDRAW, CS_VREDRAW,
-    CW_USEDEFAULT, HMENU, IDC_ARROW, LR_DEFAULTCOLOR, MF_SEPARATOR, MF_STRING, MSG,
-    TPM_BOTTOMALIGN, TPM_LEFTALIGN, WINDOW_STYLE, WM_COMMAND, WM_CREATE, WM_DESTROY,
-    WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    LoadCursorW, LookupIconIdFromDirectoryEx, PostMessageW, PostQuitMessage,
+    RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage, CS_HREDRAW,
+    CS_VREDRAW, CW_USEDEFAULT, HMENU, IDC_ARROW, LR_DEFAULTCOLOR, MF_SEPARATOR,
+    MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, WINDOW_STYLE,
+    WM_COMMAND, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST,
 };
 
 /// Embedded icon resource
@@ -140,15 +141,20 @@ impl TrayIconData {
             let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
             let _ = AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Exit"));
 
+            // Display menu - do NOT use TPM_RETURNCMD as it prevents WM_COMMAND from being sent
             let _ = TrackPopupMenu(
                 hmenu,
-                TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+                TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RIGHTBUTTON,
                 cursor.x,
                 cursor.y,
                 None,
                 hwnd,
                 None,
             );
+
+            // Required workaround for tray menu to work correctly on Windows
+            // See: https://support.microsoft.com/en-us/kb/135788
+            let _ = PostMessageW(Some(hwnd), 0u32, WPARAM(0), LPARAM(0));
 
             let _ = DestroyMenu(hmenu);
         }

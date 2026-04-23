@@ -1,26 +1,26 @@
 # wakem - Window Adjust, Keyboard Enhance, and Mouse
 
-一个跨平台的窗口管理、键盘增强、鼠标增强工具。借鉴 [mrw](https://github.com/wang-q/mrw)、[keymapper](https://github.com/houmain/keymapper) 和 [AutoHotkey](https://www.autohotkey.com/) 的优秀设计。
+A cross-platform window management, keyboard enhancement, and mouse enhancement tool. Inspired by the excellent designs of [mrw](https://github.com/wang-q/mrw), [keymapper](https://github.com/houmain/keymapper), and [AutoHotkey](https://www.autohotkey.com/).
 
-## 快速开始
+## Quick Start
 
-### 1. 安装
+### 1. Installation
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone https://github.com/wang-q/wakem.git
 cd wakem
 
-# 构建
+# Build
 cargo build --release
 
-# 安装（可选）
+# Install (optional)
 cargo install --path .
 ```
 
-### 2. 创建配置文件
+### 2. Create Configuration File
 
-复制示例配置到用户目录：
+Copy the example configuration to your user directory:
 
 **Windows:**
 
@@ -34,50 +34,49 @@ cp examples/window_manager.toml $env:USERPROFILE\.wakem.toml
 cp examples/window_manager.toml ~/.wakem.toml
 ```
 
-### 3. 启动服务
+### 3. Start Service
 
 ```bash
-# 启动守护进程（后台服务，用于窗口管理和宏录制等功能）
-wakem daemon
-
-# 运行系统托盘客户端（默认命令，仅提供图形界面）
+# One-click start (recommended) - starts both background service and system tray
 wakem
-# 或
-wakem tray
+
+# Or start separately (advanced users)
+wakem daemon    # Start background service first
+wakem tray      # Then start system tray (assumes background service is running)
 ```
 
-**注意**：
-- 守护进程 (`wakem daemon`) 是后台服务，处理键盘映射、窗口管理等功能
-- 系统托盘客户端 (`wakem tray`) 提供图形界面，需要守护进程已在运行
-- 建议先启动守护进程，再启动托盘客户端以获得完整功能
+**Notes:**
+- Running `wakem` directly will automatically start both the background service and system tray
+- If the background service is already running, only the system tray will be started
+- When the system tray is closed, the background service it started will be automatically stopped
 
-### 4. 客户端命令
+### 4. Client Commands
 
 ```bash
-# 全局选项
---instance, -i    指定实例ID（默认: 0，用于多实例管理）
+# Global options
+--instance, -i    Specify instance ID (default: 0, for multi-instance management)
 
-# 基础命令
-wakem status          # 查看服务状态
-wakem reload          # 重载配置
-wakem save            # 保存当前配置到文件
-wakem enable          # 启用映射
-wakem disable         # 禁用映射
-wakem config          # 打开配置文件夹
-wakem instances       # 列出运行中的实例
+# Basic commands
+wakem status          # View service status
+wakem reload          # Reload configuration
+wakem save            # Save current configuration to file
+wakem enable          # Enable mapping
+wakem disable         # Disable mapping
+wakem config          # Open configuration folder
+wakem instances       # List running instances
 
-# 宏命令
-wakem record my-macro        # 开始录制宏（按 Ctrl+Shift+Esc 停止）
-wakem stop-record            # 停止录制宏
-wakem play my-macro          # 播放宏
-wakem macros                 # 列出所有宏
-wakem bind-macro my-macro F1 # 绑定宏到快捷键
-wakem delete-macro my-macro  # 删除宏
+# Macro commands
+wakem record my-macro        # Start recording macro (press Ctrl+Shift+Esc to stop)
+wakem stop-record            # Stop recording macro
+wakem play my-macro          # Play macro
+wakem macros                 # List all macros
+wakem bind-macro my-macro F1 # Bind macro to hotkey
+wakem delete-macro my-macro  # Delete macro
 ```
 
-## 功能特性
+## Features
 
-### 1. 窗口管理 (Window Adjust)
+### 1. Window Management (Window Adjust)
 
 |        Symbol         |                      Key                      |
 | :-------------------: | :-------------------------------------------: |
@@ -85,114 +84,114 @@ wakem delete-macro my-macro  # 删除宏
 |                       | <kbd>ctrl</kbd>+<kbd>win</kbd>+<kbd>alt</kbd> |
 | <kbd>hyperShift</kbd> |       <kbd>hyper</kbd>+<kbd>shift</kbd>       |
 
-**移动**
+**Movement**
 
-* 窗口居中. <kbd>Hyper</kbd>+<kbd>C</kbd>/<kbd>Delete</kbd>/<kbd>ForwardDelete</kbd>
+* Center window. <kbd>Hyper</kbd>+<kbd>C</kbd>/<kbd>Delete</kbd>/<kbd>ForwardDelete</kbd>
 
-* 移动到边缘
-    * 左边缘 - <kbd>Hyper</kbd>+<kbd>Home</kbd>
-    * 右边缘 - <kbd>Hyper</kbd>+<kbd>End</kbd>
-    * 上边缘 - <kbd>Hyper</kbd>+<kbd>PageUp</kbd>
-    * 下边缘 - <kbd>Hyper</kbd>+<kbd>PageDown</kbd>
+* Move to edges
+    * Left edge - <kbd>Hyper</kbd>+<kbd>Home</kbd>
+    * Right edge - <kbd>Hyper</kbd>+<kbd>End</kbd>
+    * Top edge - <kbd>Hyper</kbd>+<kbd>PageUp</kbd>
+    * Bottom edge - <kbd>Hyper</kbd>+<kbd>PageDown</kbd>
 
-* 跨显示器移动. <kbd>Hyper</kbd>+<kbd>J</kbd>/<kbd>K</kbd>
+* Move across monitors. <kbd>Hyper</kbd>+<kbd>J</kbd>/<kbd>K</kbd>
 
-**调整大小**
+**Resize**
 
-* 固定比例窗口
-    * 原生比例窗口（循环缩放: 0.9, 0.7, 0.5）. <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
-    * 4:3 比例窗口（循环缩放: 1.0, 0.9, 0.7, 0.5）. <kbd>Hyper</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
+* Fixed aspect ratio windows
+    * Native aspect ratio (cycle zoom: 0.9, 0.7, 0.5). <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
+    * 4:3 aspect ratio (cycle zoom: 1.0, 0.9, 0.7, 0.5). <kbd>Hyper</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
 
-* 宽度调整
-    * 循环比例: 3/4 → 3/5 → 1/2 → 2/5 → 1/4. <kbd>Hyper</kbd>+<kbd>Left</kbd>/<kbd>Right</kbd>
-    * 垂直半屏. <kbd>HyperShift</kbd>+<kbd>Left</kbd>/<kbd>Right</kbd>
+* Width adjustment
+    * Cycle ratios: 3/4 → 3/5 → 1/2 → 2/5 → 1/4. <kbd>Hyper</kbd>+<kbd>Left</kbd>/<kbd>Right</kbd>
+    * Vertical half-screen. <kbd>HyperShift</kbd>+<kbd>Left</kbd>/<kbd>Right</kbd>
 
-* 高度调整
-    * 循环比例: 3/4 → 1/2 → 1/4. <kbd>Hyper</kbd>+<kbd>Up</kbd>/<kbd>Down</kbd>
-    * 水平半屏. <kbd>HyperShift</kbd>+<kbd>Up</kbd>/<kbd>Down</kbd>
+* Height adjustment
+    * Cycle ratios: 3/4 → 1/2 → 1/4. <kbd>Hyper</kbd>+<kbd>Up</kbd>/<kbd>Down</kbd>
+    * Horizontal half-screen. <kbd>HyperShift</kbd>+<kbd>Up</kbd>/<kbd>Down</kbd>
 
-**其他**
+**Other**
 
-* 同应用窗口切换. <kbd>Alt</kbd>+<kbd>`</kbd>
-* 窗口置顶/透明 - 配置自定义快捷键
+* Switch between same-app windows. <kbd>Alt</kbd>+<kbd>`</kbd>
+* Window always-on-top/transparency - configure custom hotkeys
 
-### 2. 键盘增强 (Keyboard Enhance)
+### 2. Keyboard Enhancement (Keyboard Enhance)
 
-- **键位重映射** - CapsLock 改 Backspace/Esc、交换 Ctrl/Alt、CapsLock 改为 Hyper 键等
-- **快捷键层系统** - Hold（按住激活）/ Toggle（切换激活）两种模式
-- **方向键层** - CapsLock + H/J/K/L 作为方向键（Vim 风格）
-- **应用快捷键** - 为特定应用程序定义专属快捷键（上下文感知）
-- **快速启动** - 快捷键启动常用程序（支持带参数的命令）
+- **Key remapping** - CapsLock to Backspace/Esc, swap Ctrl/Alt, CapsLock as Hyper key, etc.
+- **Shortcut layer system** - Hold (press and hold to activate) / Toggle (toggle activation) modes
+- **Arrow key layer** - CapsLock + H/J/K/L as arrow keys (Vim style)
+- **Application shortcuts** - Define exclusive shortcuts for specific applications (context-aware)
+- **Quick launch** - Hotkeys to launch commonly used programs (supports commands with parameters)
 
-### 3. 鼠标增强 (Mouse Enhance)
+### 3. Mouse Enhancement (Mouse Enhance)
 
-- **滚轮加速** - 根据滚动速度自动增加滚动距离
-- **水平滚动** - 按住修饰键时垂直滚轮变为水平滚动
-- **音量控制** - 按住修饰键时滚轮调节系统音量
-- **亮度控制** - 按住修饰键时滚轮调节屏幕亮度
-- **滚轮反转** - 可选反转滚轮方向
+- **Wheel acceleration** - Automatically increase scroll distance based on scroll speed
+- **Horizontal scroll** - Vertical wheel becomes horizontal when holding modifier key
+- **Volume control** - Wheel adjusts system volume when holding modifier key
+- **Brightness control** - Wheel adjusts screen brightness when holding modifier key
+- **Wheel inversion** - Optionally invert wheel direction
 
-### 4. 宏录制回放 (Macro)
+### 4. Macro Recording & Playback (Macro)
 
-- **录制宏** - 录制键盘/鼠标操作序列，智能过滤单独修饰键
-- **播放宏** - 通过快捷键或命令行触发录制的宏
-- **宏管理** - 查看、绑定、删除宏，配置文件持久化存储
-- **修饰键状态跟踪** - 录制时自动记录和重建修饰键状态
+- **Record macros** - Record keyboard/mouse action sequences, intelligently filtering standalone modifier keys
+- **Play macros** - Trigger recorded macros via hotkeys or command line
+- **Macro management** - View, bind, delete macros, with persistent configuration file storage
+- **Modifier key state tracking** - Automatically records and reconstructs modifier key states during recording
 
-### 5. 多实例支持
+### 5. Multi-Instance Support
 
-- 同时运行多个 wakem 实例，每个实例独立配置和端口
-- 通过 `--instance N` 参数指定实例
-- 自动端口分配：实例0 = 57427，实例1 = 57428，...
+- Run multiple wakem instances simultaneously, each with independent configuration and ports
+- Specify instance via `--instance N` parameter
+- Automatic port allocation: instance0 = 57427, instance1 = 57428, ...
 
-### 6. 调试功能
+### 6. Debug Features
 
-* 显示窗口信息. <kbd>Hyper</kbd>+<kbd>W</kbd>
-* 显示测试通知. <kbd>HyperShift</kbd>+<kbd>W</kbd>
+* Display window info. <kbd>Hyper</kbd>+<kbd>W</kbd>
+* Display test notification. <kbd>HyperShift</kbd>+<kbd>W</kbd>
 
-## 构建
+## Build
 
 ```bash
-# 开发构建
+# Development build
 cargo build
 
-# 发布构建
+# Release build
 cargo build --release
 
-# 运行测试 (171 tests)
+# Run tests (171 tests)
 cargo test
 
-# 运行性能基准测试
+# Run benchmarks
 cargo bench
 
-# 代码质量检查
+# Code quality checks
 cargo fmt
 cargo clippy -- -D warnings
 ```
 
-## 文档
+## Documentation
 
-- [配置指南](docs/config.md) - 完整的键盘、窗口管理、鼠标等配置说明
-- [开发文档](docs/developer.md) - 架构说明、开发计划和 API 参考
-- [宏系统文档](docs/macros.md) - 宏录制回放的详细使用说明
+- [Configuration Guide](docs/config.md) - Complete keyboard, window management, mouse configuration instructions
+- [Developer Documentation](docs/developer.md) - Architecture explanation, development plans, and API reference
+- [Macro System Documentation](docs/macros.md) - Detailed macro recording and playback usage instructions
 
-## 配置文件示例
+## Configuration Example
 
 ```toml
-# wakem.toml - 窗口管理、键盘增强配置
+# wakem.toml - Window management, keyboard enhancement configuration
 
-# 基本设置
+# Basic settings
 log_level = "info"
 tray_icon = true
 auto_reload = true
-icon_path = "assets/icon.ico"  # 可选
+icon_path = "assets/icon.ico"  # Optional
 
-# 键盘重映射（HashMap 格式）
+# Keyboard remapping (HashMap format)
 [keyboard.remap]
 CapsLock = "Backspace"
 RightAlt = "Ctrl"
 
-# 导航层（HashMap 格式）
+# Navigation layer (HashMap format)
 [keyboard.layers.navigation]
 activation_key = "CapsLock"
 mode = "Hold"
@@ -203,27 +202,27 @@ J = "Down"
 K = "Up"
 L = "Right"
 
-# 窗口管理（HashMap 格式）
+# Window management (HashMap format)
 [window.shortcuts]
 "Ctrl+Alt+Win+C" = "Center"
 "Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
 "Ctrl+Alt+Win+Right" = "LoopWidth(Right)"
 "Alt+Grave" = "SwitchToNextWindow"
 
-# 快速启动程序
+# Quick launch programs
 [launch]
 "Ctrl+Alt+Win+T" = "wt.exe"
 "Ctrl+Alt+Win+N" = "notepad.exe"
 ```
 
-更多配置示例请参考 [完整配置参考](docs/config.md)。
+For more configuration examples, please refer to the [Complete Configuration Reference](docs/config.md).
 
-## 参考项目
+## Reference Projects
 
-- [mrw](https://github.com/wang-q/mrw) - 个人项目，简洁窗口管理
-- [keymapper](https://github.com/houmain/keymapper) - 跨平台键位映射工具
-- [AutoHotkey](https://www.autohotkey.com/) - Windows 自动化脚本工具
-- [window-switcher](https://github.com/sigoden/window-switcher) - Rust 窗口切换工具
+- [mrw](https://github.com/wang-q/mrw) - Personal project, concise window management
+- [keymapper](https://github.com/houmain/keymapper) - Cross-platform key remapping tool
+- [AutoHotkey](https://www.autohotkey.com/) - Windows automation scripting tool
+- [window-switcher](https://github.com/sigoden/window-switcher) - Rust window switching tool
 
 ## License
 
