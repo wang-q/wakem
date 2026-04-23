@@ -167,6 +167,35 @@ wakem delete-macro my-macro
 | `Macro` | `src/types/macros.rs` | 宏定义结构，包含名称、步骤列表、元数据 |
 | `Action` | `src/types/action.rs` | 统一的动作枚举 |
 
+### 架构概览
+
+```
+┌─────────────────────────────────────────┐
+│           MacroRecorder                 │
+│  - 使用 Action::from_input_event()      │
+│  - 使用 is_modifier() 过滤单独修饰键     │
+│  - 使用 merge() 跟踪修饰键状态           │
+│  - 录制为 Vec<MacroStep>                │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│              MacroStep                  │
+│  ├─ delay_ms: u64                       │
+│  ├─ action: Action                      │
+│  ├─ modifiers: ModifierState            │
+│  └─ timestamp: Timestamp                │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│           MacroPlayer                   │
+│  - 遍历 MacroStep                       │
+│  - 重建修饰键状态                        │
+│  - 执行延迟后调用对应处理器              │
+└─────────────────────────────────────────┘
+```
+
 ### 数据结构
 
 ```rust
