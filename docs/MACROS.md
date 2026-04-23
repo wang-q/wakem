@@ -416,44 +416,7 @@ const MIN_DELAY_MS: u64 = 50; // 最小延迟阈值
 
 如果你需要手动编写宏配置，可能需要知道特定按键的扫描码和虚拟键码。
 
-### 常见按键参考表
-
-| 按键 | 名称 | 扫描码 | 虚拟键码 |
-|------|------|--------|----------|
-| **修饰键** ||||
-| Ctrl 左 | LCtrl / LControl | 0x1D | 0xA2 (VK_LCONTROL) |
-| Ctrl 右 | RCtrl / RControl | 0xE01D | 0xA3 (VK_RCONTROL) |
-| Shift 左 | LShift | 0x2A | 0xA0 (VK_LSHIFT) |
-| Shift 右 | RShift | 0x36 | 0xA1 (VK_RSHIFT) |
-| Alt 左 | LAlt | 0x38 | 0xA4 (VK_LMENU) |
-| Alt 右 | RAlt | 0xE038 | 0xA5 (VK_RMENU) |
-| Win 左 | LWin / LMeta | 0xE05B | 0x5B (VK_LWIN) |
-| Win 右 | RWin / RMeta | 0xE05C | 0x5C (VK_RWIN) |
-| **字母键** ||||
-| A-Z | a-z | 0x1E-0x2C | 0x41-0x5A (65-90) |
-| **数字键** ||||
-| 0-9 | 0-9 | 0x0B-0x14 | 0x30-0x39 (48-57) |
-| **功能键** ||||
-| F1-F12 | f1-f12 | 0x3B-0x58 | 0x70-0x7B (112-123) |
-| **导航键** ||||
-| Enter | Enter / Return | 0x1C | 0x0D (13) |
-| Space | Space | 0x39 | 0x20 (32) |
-| Tab | Tab | 0x0F | 0x09 (9) |
-| Backspace | Backspace / Back | 0x0E | 0x08 (8) |
-| Escape | Escape / Esc | 0x01 | 0x1B (27) |
-| Up | Up | 0x48 | 0x26 (38) |
-| Down | Down | 0x50 | 0x28 (40) |
-| Left | Left | 0x4B | 0x25 (37) |
-| Right | Right | 0x4D | 0x27 (39) |
-| Home | Home | 0x47 | 0x24 (36) |
-| End | End | 0x4F | 0x23 (35) |
-| PageUp | PageUp | 0x49 | 0x21 (33) |
-| PageDown | PageDown | 0x51 | 0x22 (34) |
-| Insert | Insert / Ins | 0x52 | 0x2D (45) |
-| Delete | Delete / Del | 0x53 | 0x2E (46) |
-| **特殊键** ||||
-| CapsLock | CapsLock / Caps | 0x3A | 0x14 (20) |
-| Grave | Grave / Backtick | 0x29 | 0xC0 (96) |
+完整的键名列表和扫描码/虚拟键码对照表请参阅 [keys.md](keys.md)。
 
 ### 获取扫描码的方法
 

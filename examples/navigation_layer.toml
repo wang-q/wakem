@@ -2,9 +2,6 @@
 # Vim-style navigation layer
 
 [keyboard]
-# Basic remapping
-[keyboard.remap]
-CapsLock = "Backspace"
 
 # Vim-style navigation layer
 # Use HJKL for directional navigation while holding CapsLock

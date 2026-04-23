@@ -1045,6 +1045,35 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         "f11" => Ok((0x57, 0x7A)),
         "f12" => Ok((0x58, 0x7B)),
 
+        // Punctuation keys (US layout)
+        "comma" | "," => Ok((0x33, 0xBC)),       // VK_OEM_COMMA
+        "period" | "." => Ok((0x34, 0xBE)),       // VK_OEM_PERIOD
+        "semicolon" | ";" => Ok((0x27, 0xBA)),    // VK_OEM_1
+        "quote" | "'" | "apostrophe" => Ok((0x28, 0xDE)),  // VK_OEM_7
+        "bracketleft" | "[" => Ok((0x1A, 0xDB)),  // VK_OEM_4
+        "bracketright" | "]" => Ok((0x1B, 0xDD)), // VK_OEM_6
+        "backslash" | "\\" => Ok((0x2B, 0xDC)),    // VK_OEM_5
+        "minus" | "-" => Ok((0x0C, 0xBD)),         // VK_OEM_MINUS
+        "equal" | "=" => Ok((0x0D, 0xBB)),         // VK_OEM_PLUS
+
+        // Numpad keys
+        "numpad0" | "num0" => Ok((0x52, 0x60)),
+        "numpad1" | "num1" => Ok((0x4F, 0x61)),
+        "numpad2" | "num2" => Ok((0x50, 0x62)),
+        "numpad3" | "num3" => Ok((0x51, 0x63)),
+        "numpad4" | "num4" => Ok((0x4B, 0x64)),
+        "numpad5" | "num5" => Ok((0x4C, 0x65)),
+        "numpad6" | "num6" => Ok((0x4D, 0x66)),
+        "numpad7" | "num7" => Ok((0x47, 0x67)),
+        "numpad8" | "num8" => Ok((0x48, 0x68)),
+        "numpad9" | "num9" => Ok((0x49, 0x69)),
+        "numpaddot" | "numdot" | "numpaddecimal" => Ok((0x53, 0x6E)),
+        "numpadenter" | "numenter" => Ok((0x1C, 0x0C)),
+        "numpadadd" | "numplus" => Ok((0x4E, 0x6B)),
+        "numpadsub" | "numminus" => Ok((0x4A, 0x6D)),
+        "numpadmul" | "nummul" | "numpadmultiply" => Ok((0x37, 0x6A)),
+        "numpaddiv" | "numslash" | "numpaddivide" => Ok((0x35, 0x6F)),
+
         _ => Err(anyhow::anyhow!("Unknown key name: {}", name)),
     }
 }
