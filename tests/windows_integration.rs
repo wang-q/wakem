@@ -66,11 +66,8 @@ mod integration_tests {
                 // We need to wait until we have (i+1) notepad windows
                 let start = std::time::Instant::now();
                 while start.elapsed() < Duration::from_secs(5) {
-                    let windows = api.find_windows(
-                        Some(r"Notepad|Untitled"),
-                        None,
-                        true,
-                    );
+                    let windows =
+                        api.find_windows(Some(r"Notepad|Untitled"), None, true);
                     if windows.len() >= i + 1 {
                         break;
                     }

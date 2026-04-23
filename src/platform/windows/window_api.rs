@@ -11,8 +11,8 @@ use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowRect,
-    GetWindowTextW, IsIconic, IsWindow, IsWindowVisible, IsZoomed, SetWindowPos, ShowWindow,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
+    GetWindowTextW, IsIconic, IsWindow, IsWindowVisible, IsZoomed, SetWindowPos,
+    ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
 };
 use windows_core::BOOL;
 
@@ -635,7 +635,10 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
     BOOL(1) // Continue enumeration
 }
 
-unsafe extern "system" fn enum_child_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+unsafe extern "system" fn enum_child_windows_callback(
+    hwnd: HWND,
+    lparam: LPARAM,
+) -> BOOL {
     let children = &mut *(lparam.0 as *mut Vec<HWND>);
     children.push(hwnd);
     BOOL(1) // Continue enumeration
@@ -823,6 +826,14 @@ impl WindowApi for MockWindowApi {
         Ok(())
     }
 
+    fn is_topmost(&self, hwnd: HWND) -> bool {
+        self.window_states
+            .borrow()
+            .get(&(hwnd.0 as isize))
+            .map(|s| s.topmost)
+            .unwrap_or(false)
+    }
+
     fn wait_for_window(
         &self,
         _title_pattern: Option<&str>,
@@ -1005,5 +1016,117 @@ mod tests {
         // Set foreground window
         api.set_foreground_window(hwnd);
         assert_eq!(api.get_foreground_window().unwrap().0 as usize, 1111);
+    }
+
+    // ==================== Tests for new methods ====================
+
+    #[test]
+    fn test_mock_find_windows() {
+        let api = MockWindowApi::new();
+        let hwnd1 = test_hwnd(1001);
+        let hwnd2 = test_hwnd(1002);
+
+        // Set up windows
+        api.set_window_rect(hwnd1, WindowFrame::new(0, 0, 100, 100));
+        api.set_window_rect(hwnd2, WindowFrame::new(0, 0, 200, 200));
+
+        // Find all windows
+        let windows = api.find_windows(None, None, false);
+        assert_eq!(windows.len(), 2);
+        assert!(windows.contains(&hwnd1));
+        assert!(windows.contains(&hwnd2));
+    }
+
+    #[test]
+    fn test_mock_get_child_windows() {
+        let api = MockWindowApi::new();
+        let parent = test_hwnd(2000);
+
+        // Mock returns empty vector
+        let children = api.get_child_windows(parent);
+        assert!(children.is_empty());
+    }
+
+    #[test]
+    fn test_mock_get_window_class_name() {
+        let api = MockWindowApi::new();
+        let hwnd = test_hwnd(3000);
+
+        // Mock returns default class name
+        let class_name = api.get_window_class_name(hwnd);
+        assert_eq!(class_name, Some("MockWindowClass".to_string()));
+    }
+
+    #[test]
+    fn test_mock_is_window_visible() {
+        let api = MockWindowApi::new();
+        let hwnd = test_hwnd(4000);
+
+        // Not visible (not in collection)
+        assert!(!api.is_window_visible(hwnd));
+
+        // Add to collection
+        api.set_window_rect(hwnd, WindowFrame::new(0, 0, 100, 100));
+
+        // Now visible
+        assert!(api.is_window_visible(hwnd));
+    }
+
+    #[test]
+    fn test_mock_get_window_text() {
+        let api = MockWindowApi::new();
+        let hwnd = test_hwnd(5000);
+
+        // Mock returns formatted title
+        let text = api.get_window_text(hwnd);
+        assert_eq!(text, Some("Window 5000".to_string()));
+    }
+
+    #[test]
+    fn test_mock_wait_for_foreground_window() {
+        let api = MockWindowApi::new();
+        let hwnd = test_hwnd(6000);
+
+        // Set as foreground
+        api.set_foreground_window(hwnd);
+
+        // Should return true immediately
+        assert!(api.wait_for_foreground_window(hwnd, Duration::from_secs(1)));
+
+        // Different window should return false
+        let other = test_hwnd(6001);
+        assert!(!api.wait_for_foreground_window(other, Duration::from_millis(100)));
+    }
+
+    #[test]
+    fn test_mock_mouse_operations() {
+        let api = MockWindowApi::new();
+
+        // All mouse operations should succeed in mock
+        assert!(api.get_cursor_pos().is_some());
+        assert!(api.set_cursor_pos(100, 200).is_ok());
+        assert!(api.send_lbutton_down().is_ok());
+        assert!(api.send_lbutton_up().is_ok());
+        assert!(api.send_rbutton_down().is_ok());
+        assert!(api.send_rbutton_up().is_ok());
+        assert!(api.click_at(50, 50).is_ok());
+    }
+
+    #[test]
+    fn test_mock_wait_for_window() {
+        let api = MockWindowApi::new();
+        let hwnd = test_hwnd(7000);
+
+        // Set up a window
+        api.set_window_rect(hwnd, WindowFrame::new(0, 0, 100, 100));
+
+        // wait_for_window should return the first available window
+        let result = api.wait_for_window(
+            None,
+            None,
+            Duration::from_secs(1),
+            Duration::from_millis(10),
+        );
+        assert!(result.is_some());
     }
 }
