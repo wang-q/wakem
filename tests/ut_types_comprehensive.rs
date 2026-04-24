@@ -1,9 +1,10 @@
 // Types 补充测试 - 边界条件、错误处理和完整类型覆盖
 
 use wakem::types::{
-    Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, Layer,
-    LayerMode, MappingRule, ModifierState, MouseAction, MouseButton, MouseEvent,
-    MouseEventType, Trigger, WindowAction,
+    Action, Alignment, ContextCondition, ContextInfo, Edge, InputEvent, KeyAction,
+    KeyEvent, KeyState, LaunchAction, Layer, LayerMode, MappingRule, ModifierState,
+    MonitorDirection, MouseAction, MouseButton, MouseEvent, MouseEventType, Trigger,
+    WindowAction,
 };
 
 // ==================== Action 变体完整测试 ====================
@@ -359,6 +360,97 @@ fn test_mapping_rule_with_context() {
     assert!(rule.context.is_some());
 }
 
+/// 测试 MappingRule 创建
+#[test]
+fn test_mapping_rule_creation() {
+    let trigger = Trigger::key(0x1E, 0x41); // 'A' key
+    let action = Action::window(WindowAction::Center);
+
+    let rule = MappingRule::new(trigger, action);
+
+    assert!(rule.enabled);
+    assert!(rule.name.is_none());
+    assert!(rule.context.is_none());
+}
+
+/// 测试 MappingRule with_name
+#[test]
+fn test_mapping_rule_with_name_alt() {
+    let trigger = Trigger::key(0x1E, 0x41);
+    let action = Action::window(WindowAction::Center);
+
+    let rule = MappingRule::new(trigger, action).with_name("Center Window");
+
+    assert_eq!(rule.name, Some("Center Window".to_string()));
+}
+
+/// 测试 MappingRule with_context
+#[test]
+fn test_mapping_rule_with_context_alt() {
+    let trigger = Trigger::key(0x1E, 0x41);
+    let action = Action::window(WindowAction::Center);
+
+    let context = ContextCondition::new().with_process_name("notepad.exe");
+
+    let rule = MappingRule::new(trigger, action).with_context(context);
+
+    assert!(rule.context.is_some());
+}
+
+/// 测试 MappingRule 禁用状态
+#[test]
+fn test_mapping_rule_disabled() {
+    let trigger = Trigger::key(0x1E, 0x41);
+    let action = Action::window(WindowAction::Center);
+
+    let mut rule = MappingRule::new(trigger, action);
+    rule.enabled = false;
+
+    let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+
+    let context = ContextInfo::default();
+
+    // 禁用的规则不应该匹配
+    assert!(!rule.matches(&event, &context));
+}
+
+/// 测试复杂的 ContextCondition
+#[test]
+fn test_complex_context_condition() {
+    let cond = ContextCondition::new()
+        .with_process_name("code.exe")
+        .with_window_class("Chrome_WidgetWin_1");
+
+    let full_match = ContextInfo {
+        window_class: "Chrome_WidgetWin_1".to_string(),
+        process_name: "code.exe".to_string(),
+        process_path: "".to_string(),
+        window_title: "".to_string(),
+        window_handle: 0,
+    };
+
+    let partial_match = ContextInfo {
+        window_class: "Chrome_WidgetWin_1".to_string(),
+        process_name: "notepad.exe".to_string(),
+        process_path: "".to_string(),
+        window_title: "".to_string(),
+        window_handle: 0,
+    };
+
+    assert!(cond.matches(
+        &full_match.process_name,
+        &full_match.window_class,
+        &full_match.window_title,
+        Some(&full_match.process_path)
+    ));
+    assert!(!cond.matches(
+        &partial_match.process_name,
+        &partial_match.window_class,
+        &partial_match.window_title,
+        Some(&partial_match.process_path)
+    ));
+}
+
 // ==================== Layer 测试 ====================
 
 /// 测试 Hold 模式层的行为
@@ -430,6 +522,144 @@ fn test_context_condition_empty() {
     assert!(condition.process_name.is_none());
     assert!(condition.window_class.is_none());
     assert!(condition.window_title.is_none());
+}
+
+/// 测试 ContextCondition 匹配 - 空条件应该匹配所有
+#[test]
+fn test_context_condition_empty_matches_all() {
+    let cond = ContextCondition::new();
+    let context = ContextInfo {
+        window_class: "AnyClass".to_string(),
+        process_name: "any.exe".to_string(),
+        process_path: "C:\\any.exe".to_string(),
+        window_title: "Any Title".to_string(),
+        window_handle: 0,
+    };
+
+    assert!(cond.matches(
+        &context.process_name,
+        &context.window_class,
+        &context.window_title,
+        Some(&context.process_path)
+    ));
+}
+
+/// 测试 ContextCondition 进程名匹配
+#[test]
+fn test_context_condition_process_match() {
+    let cond = ContextCondition::new().with_process_name("notepad.exe");
+
+    let matching_context = ContextInfo {
+        window_class: "Notepad".to_string(),
+        process_name: "notepad.exe".to_string(),
+        process_path: "C:\\Windows\\notepad.exe".to_string(),
+        window_title: "Untitled".to_string(),
+        window_handle: 0,
+    };
+
+    let non_matching_context = ContextInfo {
+        window_class: "Chrome".to_string(),
+        process_name: "chrome.exe".to_string(),
+        process_path: "C:\\Program Files\\chrome.exe".to_string(),
+        window_title: "Google".to_string(),
+        window_handle: 0,
+    };
+
+    assert!(cond.matches(
+        &matching_context.process_name,
+        &matching_context.window_class,
+        &matching_context.window_title,
+        Some(&matching_context.process_path)
+    ));
+    assert!(!cond.matches(
+        &non_matching_context.process_name,
+        &non_matching_context.window_class,
+        &non_matching_context.window_title,
+        Some(&non_matching_context.process_path)
+    ));
+}
+
+/// 测试 Trigger::key 创建
+#[test]
+fn test_trigger_key_creation() {
+    let trigger = Trigger::key(0x1E, 0x41);
+
+    match trigger {
+        Trigger::Key {
+            scan_code,
+            virtual_key,
+            modifiers,
+        } => {
+            assert_eq!(scan_code, Some(0x1E));
+            assert_eq!(virtual_key, Some(0x41));
+            assert!(modifiers.is_empty());
+        }
+        _ => panic!("Expected Key trigger"),
+    }
+}
+
+/// 测试 Trigger::key_with_modifiers
+#[test]
+fn test_trigger_key_with_modifiers() {
+    let mut modifiers = ModifierState::new();
+    modifiers.ctrl = true;
+    modifiers.shift = true;
+
+    let trigger = Trigger::key_with_modifiers(0x1E, 0x41, modifiers);
+
+    match trigger {
+        Trigger::Key {
+            scan_code,
+            virtual_key,
+            modifiers: m,
+        } => {
+            assert_eq!(scan_code, Some(0x1E));
+            assert_eq!(virtual_key, Some(0x41));
+            assert!(m.ctrl);
+            assert!(m.shift);
+            assert!(!m.alt);
+            assert!(!m.meta);
+        }
+        _ => panic!("Expected Key trigger"),
+    }
+}
+
+/// 测试 Trigger 变体
+#[test]
+fn test_trigger_variants() {
+    let key_trigger = Trigger::Key {
+        scan_code: Some(0x1E),
+        virtual_key: Some(0x41),
+        modifiers: ModifierState::default(),
+    };
+
+    let mouse_trigger = Trigger::MouseButton {
+        button: MouseButton::Left,
+        modifiers: ModifierState::default(),
+    };
+
+    let hotstring_trigger = Trigger::HotString {
+        trigger: ".date".to_string(),
+    };
+
+    let always_trigger = Trigger::Always;
+
+    assert!(matches!(key_trigger, Trigger::Key { .. }));
+    assert!(matches!(mouse_trigger, Trigger::MouseButton { .. }));
+    assert!(matches!(hotstring_trigger, Trigger::HotString { .. }));
+    assert!(matches!(always_trigger, Trigger::Always));
+}
+
+/// 测试 ContextInfo 默认值
+#[test]
+fn test_context_info_default() {
+    let context = ContextInfo::default();
+
+    assert_eq!(context.window_class, "");
+    assert_eq!(context.process_name, "");
+    assert_eq!(context.process_path, "");
+    assert_eq!(context.window_title, "");
+    assert_eq!(context.window_handle, 0);
 }
 
 // ==================== Action 辅助方法测试 ====================
@@ -549,4 +779,219 @@ fn test_key_action_from_event() {
         assert_eq!(scan_code, 0x1E);
         assert_eq!(virtual_key, 0x41);
     }
+}
+
+// ==================== Action 类型测试（原 ut_types_action.rs）====================
+
+/// 测试 KeyAction 创建
+#[test]
+fn test_key_action_creation() {
+    let _press = KeyAction::Press {
+        scan_code: 0x1E,
+        virtual_key: 0x41, // 'A'
+    };
+
+    let _release = KeyAction::Release {
+        scan_code: 0x1E,
+        virtual_key: 0x41,
+    };
+
+    let click = KeyAction::click(0x1E, 0x41);
+
+    match click {
+        KeyAction::Click {
+            scan_code,
+            virtual_key,
+        } => {
+            assert_eq!(scan_code, 0x1E);
+            assert_eq!(virtual_key, 0x41);
+        }
+        _ => panic!("Expected Click action"),
+    }
+}
+
+/// 测试 ModifierState
+#[test]
+fn test_modifier_state() {
+    let mut state = ModifierState::new();
+    assert!(state.is_empty());
+
+    state.ctrl = true;
+    assert!(!state.is_empty());
+
+    // 测试从虚拟键码创建
+    let (ctrl_state, pressed) = ModifierState::from_virtual_key(0x11, true).unwrap();
+    assert!(ctrl_state.ctrl);
+    assert!(pressed);
+
+    let (shift_state, _) = ModifierState::from_virtual_key(0x10, true).unwrap();
+    assert!(shift_state.shift);
+
+    let (alt_state, _) = ModifierState::from_virtual_key(0x12, true).unwrap();
+    assert!(alt_state.alt);
+
+    let (meta_state, _) = ModifierState::from_virtual_key(0x5B, true).unwrap();
+    assert!(meta_state.meta);
+}
+
+/// 测试 ModifierState 合并
+#[test]
+fn test_modifier_state_merge_alt() {
+    let mut state1 = ModifierState::new();
+    state1.ctrl = true;
+
+    let mut state2 = ModifierState::new();
+    state2.shift = true;
+
+    state1.merge(&state2);
+
+    assert!(state1.ctrl);
+    assert!(state1.shift);
+    assert!(!state1.alt);
+    assert!(!state1.meta);
+}
+
+/// 测试 WindowAction 变体
+#[test]
+fn test_window_action_variants() {
+    let center = WindowAction::Center;
+    let half_screen = WindowAction::HalfScreen(Edge::Left);
+    let move_to_edge = WindowAction::MoveToEdge(Edge::Right);
+    let loop_width = WindowAction::LoopWidth(Alignment::Left);
+    let fixed_ratio = WindowAction::FixedRatio {
+        ratio: 1.333,
+        scale_index: 0,
+    };
+
+    // 验证它们是不同的变体
+    assert!(matches!(center, WindowAction::Center));
+    assert!(matches!(half_screen, WindowAction::HalfScreen(Edge::Left)));
+    assert!(matches!(
+        move_to_edge,
+        WindowAction::MoveToEdge(Edge::Right)
+    ));
+    assert!(matches!(
+        loop_width,
+        WindowAction::LoopWidth(Alignment::Left)
+    ));
+    assert!(matches!(fixed_ratio, WindowAction::FixedRatio { .. }));
+}
+
+/// 测试 MonitorDirection
+#[test]
+fn test_monitor_direction() {
+    let next = MonitorDirection::Next;
+    let prev = MonitorDirection::Prev;
+    let index = MonitorDirection::Index(2);
+
+    assert!(matches!(next, MonitorDirection::Next));
+    assert!(matches!(prev, MonitorDirection::Prev));
+    assert!(matches!(index, MonitorDirection::Index(2)));
+}
+
+/// 测试 Action 封装
+#[test]
+fn test_action_wrapper() {
+    let key_action = Action::key(KeyAction::click(0x1E, 0x41));
+    let mouse_action = Action::mouse(MouseAction::ButtonClick {
+        button: MouseButton::Left,
+    });
+    let window_action = Action::window(WindowAction::Center);
+    let launch_action = Action::launch("notepad.exe");
+
+    assert!(matches!(key_action, Action::Key(_)));
+    assert!(matches!(mouse_action, Action::Mouse(_)));
+    assert!(matches!(window_action, Action::Window(_)));
+    assert!(matches!(launch_action, Action::Launch(_)));
+}
+
+/// 测试 Action::is_none
+#[test]
+fn test_action_is_none_alt() {
+    let none_action = Action::None;
+    let some_action = Action::key(KeyAction::click(0x1E, 0x41));
+
+    assert!(none_action.is_none());
+    assert!(!some_action.is_none());
+}
+
+/// 测试 Action 序列
+#[test]
+fn test_action_sequence() {
+    let sequence = Action::sequence(vec![
+        Action::key(KeyAction::click(0x1E, 0x41)),
+        Action::key(KeyAction::click(0x30, 0x42)),
+        Action::window(WindowAction::Center),
+    ]);
+
+    match sequence {
+        Action::Sequence(actions) => {
+            assert_eq!(actions.len(), 3);
+        }
+        _ => panic!("Expected Sequence action"),
+    }
+}
+
+/// 测试 LaunchAction
+#[test]
+fn test_launch_action() {
+    let launch = LaunchAction {
+        program: "code.exe".to_string(),
+        args: vec![".", "--goto"].iter().map(|s| s.to_string()).collect(),
+        working_dir: Some("C:\\Projects".to_string()),
+        env_vars: vec![("EDITOR".to_string(), "code".to_string())],
+    };
+
+    assert_eq!(launch.program, "code.exe");
+    assert_eq!(launch.args.len(), 2);
+    assert_eq!(launch.working_dir, Some("C:\\Projects".to_string()));
+    assert_eq!(launch.env_vars.len(), 1);
+}
+
+/// 测试 MouseAction 变体
+#[test]
+fn test_mouse_action_variants() {
+    let move_rel = MouseAction::Move {
+        x: 100,
+        y: 50,
+        relative: true,
+    };
+    let move_abs = MouseAction::Move {
+        x: 500,
+        y: 300,
+        relative: false,
+    };
+    let button_down = MouseAction::ButtonDown {
+        button: MouseButton::Left,
+    };
+    let wheel = MouseAction::Wheel { delta: 120 };
+    let h_wheel = MouseAction::HWheel { delta: -120 };
+
+    assert!(matches!(move_rel, MouseAction::Move { relative: true, .. }));
+    assert!(matches!(
+        move_abs,
+        MouseAction::Move {
+            relative: false,
+            ..
+        }
+    ));
+    assert!(matches!(button_down, MouseAction::ButtonDown { .. }));
+    assert!(matches!(wheel, MouseAction::Wheel { delta: 120 }));
+    assert!(matches!(h_wheel, MouseAction::HWheel { delta: -120 }));
+}
+
+/// 测试 Edge 和 Alignment 枚举
+#[test]
+fn test_edge_alignment_enums() {
+    let edges = vec![Edge::Left, Edge::Right, Edge::Top, Edge::Bottom];
+    let alignments = vec![
+        Alignment::Left,
+        Alignment::Right,
+        Alignment::Top,
+        Alignment::Bottom,
+        Alignment::Center,
+    ];
+
+    assert_eq!(edges.len(), 4);
+    assert_eq!(alignments.len(), 5);
 }
