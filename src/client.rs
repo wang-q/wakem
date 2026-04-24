@@ -146,6 +146,18 @@ impl DaemonClient {
         }
     }
 
+    fn expect_success(response: Message, context: &str) -> Result<()> {
+        match response {
+            Message::Success => Ok(()),
+            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response for {}: expected Success or Error, got {:?}",
+                context,
+                std::mem::discriminant(&other)
+            )),
+        }
+    }
+
     /// Start recording macro
     pub async fn start_macro_recording(&mut self, name: &str) -> Result<()> {
         let response = self
@@ -153,15 +165,7 @@ impl DaemonClient {
                 name: name.to_string(),
             })
             .await?;
-
-        match response {
-            Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected Success or Error, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::expect_success(response, "StartMacroRecording")
     }
 
     /// Stop recording macro
@@ -174,7 +178,7 @@ impl DaemonClient {
             }
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             other => Err(anyhow::anyhow!(
-                "Unexpected response: expected MacroRecordingResult or Error, got {:?}",
+                "Unexpected response for StopMacroRecording: expected MacroRecordingResult or Error, got {:?}",
                 std::mem::discriminant(&other)
             )),
         }
@@ -187,15 +191,7 @@ impl DaemonClient {
                 name: name.to_string(),
             })
             .await?;
-
-        match response {
-            Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected Success or Error, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::expect_success(response, "PlayMacro")
     }
 
     /// Get list of macros
@@ -205,7 +201,7 @@ impl DaemonClient {
         match response {
             Message::MacrosList { macros } => Ok(macros),
             other => Err(anyhow::anyhow!(
-                "Unexpected response: expected MacrosList, got {:?}",
+                "Unexpected response for GetMacros: expected MacrosList, got {:?}",
                 std::mem::discriminant(&other)
             )),
         }
@@ -218,15 +214,7 @@ impl DaemonClient {
                 name: name.to_string(),
             })
             .await?;
-
-        match response {
-            Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected Success or Error, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::expect_success(response, "DeleteMacro")
     }
 
     /// Bind macro to trigger key
@@ -237,15 +225,7 @@ impl DaemonClient {
                 trigger: trigger.to_string(),
             })
             .await?;
-
-        match response {
-            Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected Success or Error, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::expect_success(response, "BindMacro")
     }
 
     /// Register message window handle
@@ -254,29 +234,13 @@ impl DaemonClient {
         let response = self
             .send_receive(&Message::RegisterMessageWindow { hwnd })
             .await?;
-
-        match response {
-            Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected Success or Error, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::expect_success(response, "RegisterMessageWindow")
     }
 
     /// Shutdown the daemon
     pub async fn shutdown(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::Shutdown).await?;
-
-        match response {
-            Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected Success or Error, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::expect_success(response, "Shutdown")
     }
 }
 

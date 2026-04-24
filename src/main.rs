@@ -69,7 +69,7 @@ fn main() -> Result<()> {
         Some(Commands::Save) => cmd_save_sync(cli.instance),
         Some(Commands::Enable) => cmd_enable_sync(cli.instance),
         Some(Commands::Disable) => cmd_disable_sync(cli.instance),
-        Some(Commands::Config) => cmd_config_sync(),
+        Some(Commands::Config) => cmd_config_sync(cli.instance),
         Some(Commands::Instances) => cmd_instances_sync(),
         Some(Commands::Record { name }) => cmd_record_sync(cli.instance, &name),
         Some(Commands::StopRecord) => cmd_stop_record_sync(cli.instance),
@@ -366,7 +366,7 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
                 }
                 AppCommand::OpenConfigFolder => {
                     info!("Open config folder command received");
-                    if let Err(e) = open_config_folder_sync() {
+                    if let Err(e) = open_config_folder_sync(instance_id) {
                         error!("Failed to open config folder: {}", e);
                     }
                 }
@@ -558,7 +558,7 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
                 }
                 AppCommand::OpenConfigFolder => {
                     info!("Open config folder command received");
-                    if let Err(e) = open_config_folder_macos_sync() {
+                    if let Err(e) = open_config_folder_macos_sync(instance_id) {
                         error!("Failed to open config folder: {}", e);
                     }
                 }
@@ -602,10 +602,10 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
 
 /// Open config folder (macOS) - sync version
 #[cfg(target_os = "macos")]
-fn open_config_folder_macos_sync() -> Result<()> {
+fn open_config_folder_macos_sync(instance_id: u32) -> Result<()> {
     use std::process::Command;
 
-    let config_path = config::resolve_config_file_path(None, 0)
+    let config_path = config::resolve_config_file_path(None, instance_id)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| {
             std::env::var("HOME")
@@ -618,11 +618,10 @@ fn open_config_folder_macos_sync() -> Result<()> {
 }
 
 /// Open config folder - sync version
-fn open_config_folder_sync() -> Result<()> {
+fn open_config_folder_sync(instance_id: u32) -> Result<()> {
     use std::process::Command;
 
-    // Get config folder path
-    let config_path = config::resolve_config_file_path(None, 0)
+    let config_path = config::resolve_config_file_path(None, instance_id)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| {
             std::env::var("USERPROFILE")
@@ -630,7 +629,6 @@ fn open_config_folder_sync() -> Result<()> {
                 .unwrap_or_default()
         });
 
-    // Open folder using explorer
     Command::new("explorer").arg(config_path).spawn()?;
 
     Ok(())
@@ -714,8 +712,8 @@ fn cmd_disable_sync(instance_id: u32) -> Result<()> {
 }
 
 /// Open config folder - sync version
-fn cmd_config_sync() -> Result<()> {
-    open_config_folder_sync()?;
+fn cmd_config_sync(instance_id: u32) -> Result<()> {
+    open_config_folder_sync(instance_id)?;
     println!("Config folder opened");
     Ok(())
 }

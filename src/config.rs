@@ -176,31 +176,35 @@ impl Config {
     /// Get all mapping rules
     pub fn get_all_rules(&self) -> Vec<MappingRule> {
         let mut rules = Vec::new();
-        rules.extend(
-            self.keyboard
-                .remap
-                .iter()
-                .filter_map(|(k, v)| parse_key_mapping(k, v).ok()),
-        );
-        rules.extend(
-            self.keyboard
-                .layers
-                .iter()
-                .filter_map(|(name, layer)| self.parse_layer_mappings(name, layer).ok())
-                .flatten(),
-        );
-        rules.extend(
-            self.window
-                .shortcuts
-                .iter()
-                .filter_map(|(k, v)| parse_window_shortcut(k, v).ok()),
-        );
-        // Add launch item mappings
-        rules.extend(
-            self.launch
-                .iter()
-                .filter_map(|(k, v)| parse_launch_mapping(k, v).ok()),
-        );
+
+        for (k, v) in &self.keyboard.remap {
+            match parse_key_mapping(k, v) {
+                Ok(rule) => rules.push(rule),
+                Err(e) => tracing::warn!("Skipping keyboard.remap '{}': {}", k, e),
+            }
+        }
+
+        for (name, layer) in &self.keyboard.layers {
+            match self.parse_layer_mappings(name, layer) {
+                Ok(layer_rules) => rules.extend(layer_rules),
+                Err(e) => tracing::warn!("Skipping keyboard.layers '{}': {}", name, e),
+            }
+        }
+
+        for (k, v) in &self.window.shortcuts {
+            match parse_window_shortcut(k, v) {
+                Ok(rule) => rules.push(rule),
+                Err(e) => tracing::warn!("Skipping window.shortcuts '{}': {}", k, e),
+            }
+        }
+
+        for (k, v) in &self.launch {
+            match parse_launch_mapping(k, v) {
+                Ok(rule) => rules.push(rule),
+                Err(e) => tracing::warn!("Skipping launch '{}': {}", k, e),
+            }
+        }
+
         rules
     }
 
@@ -730,30 +734,25 @@ fn create_hyper_key_action(
     let mut press_actions = Vec::new();
     let mut release_actions = Vec::new();
 
-    // Press modifier keys (in specific order: Ctrl -> Alt -> Win -> Shift)
-    if modifiers.ctrl {
-        press_actions.push(Action::key(KeyAction::press(0x1D, 0x11))); // Ctrl
-        release_actions.insert(0, Action::key(KeyAction::release(0x1D, 0x11))); // Ctrl (reverse)
-    }
-    if modifiers.alt {
-        press_actions.push(Action::key(KeyAction::press(0x38, 0x12))); // Alt
-        release_actions.insert(0, Action::key(KeyAction::release(0x38, 0x12))); // Alt (reverse)
-    }
-    if modifiers.meta {
-        press_actions.push(Action::key(KeyAction::press(0x5B, 0x5B))); // Win (Left)
-        release_actions.insert(0, Action::key(KeyAction::release(0x5B, 0x5B))); // Win (reverse)
-    }
-    if modifiers.shift {
-        press_actions.push(Action::key(KeyAction::press(0x2A, 0x10))); // Shift
-        release_actions.insert(0, Action::key(KeyAction::release(0x2A, 0x10))); // Shift (reverse)
+    let modifier_keys = [
+        ("lctrl", modifiers.ctrl),
+        ("lalt", modifiers.alt),
+        ("lwin", modifiers.meta),
+        ("lshift", modifiers.shift),
+    ];
+
+    for (key_name, active) in modifier_keys {
+        if active {
+            if let Ok((sc, vk)) = parse_key(key_name) {
+                press_actions.push(Action::key(KeyAction::press(sc, vk)));
+                release_actions.insert(0, Action::key(KeyAction::release(sc, vk)));
+            }
+        }
     }
 
-    // Combine press and release into a sequence that will be split by the mapper
-    // The mapper will execute press_actions on key down and release_actions on key up
     let mut all_actions = press_actions;
-    // Add a small delay after pressing modifiers to ensure system recognizes them
     all_actions.push(Action::Delay { milliseconds: 10 });
-    all_actions.push(Action::None); // Marker to split press and release actions
+    all_actions.push(Action::None);
     all_actions.extend(release_actions);
 
     Action::Sequence(all_actions)
@@ -1219,10 +1218,8 @@ J = "Down"
 
     #[test]
     fn test_parse_key_mapping_with_modifiers() {
-        // Test CapsLock -> Ctrl+Alt+Win mapping
         let rule = parse_key_mapping("CapsLock", "Ctrl+Alt+Win").unwrap();
 
-        // Verify trigger is CapsLock
         if let crate::types::Trigger::Key {
             scan_code,
             virtual_key,
@@ -1235,34 +1232,29 @@ J = "Down"
             panic!("Expected Key trigger");
         }
 
-        // Verify action is Sequence (contains modifier key press/release)
         if let crate::types::Action::Sequence(actions) = &rule.action {
-            // Should have 8 actions: Ctrl press, Alt press, Win press, Delay, None marker, Win release, Alt release, Ctrl release
             assert_eq!(actions.len(), 8);
 
-            // Verify first action is Ctrl press
             if let crate::types::Action::Key(crate::types::KeyAction::Press {
                 virtual_key,
                 ..
             }) = &actions[0]
             {
-                assert_eq!(*virtual_key, 0x11); // VK_CONTROL
+                assert_eq!(*virtual_key, 0xA2); // VK_LCONTROL
             } else {
                 panic!("Expected Ctrl Press as first action, got {:?}", actions[0]);
             }
 
-            // Verify second action is Alt press
             if let crate::types::Action::Key(crate::types::KeyAction::Press {
                 virtual_key,
                 ..
             }) = &actions[1]
             {
-                assert_eq!(*virtual_key, 0x12); // VK_MENU (Alt)
+                assert_eq!(*virtual_key, 0xA4); // VK_LMENU (Alt)
             } else {
                 panic!("Expected Alt Press as second action, got {:?}", actions[1]);
             }
 
-            // Verify third action is Win press
             if let crate::types::Action::Key(crate::types::KeyAction::Press {
                 virtual_key,
                 ..
@@ -1273,21 +1265,18 @@ J = "Down"
                 panic!("Expected Win Press as third action, got {:?}", actions[2]);
             }
 
-            // Verify fourth action is Delay (10ms)
             if let crate::types::Action::Delay { milliseconds } = &actions[3] {
                 assert_eq!(*milliseconds, 10);
             } else {
                 panic!("Expected Delay as fourth action, got {:?}", actions[3]);
             }
 
-            // Verify fifth action is None (marker to split press and release)
             assert!(
                 matches!(actions[4], crate::types::Action::None),
                 "Expected None marker as fifth action, got {:?}",
                 actions[4]
             );
 
-            // Verify sixth, seventh, eighth actions are release
             if let crate::types::Action::Key(crate::types::KeyAction::Release {
                 virtual_key,
                 ..

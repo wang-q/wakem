@@ -100,6 +100,8 @@ pub fn is_allowed_ip(ip: IpAddr) -> bool {
 const MAX_TRACKED_IPS: usize = 1000;
 /// Cleanup threshold - when exceeded, remove oldest entries
 const CLEANUP_THRESHOLD: usize = 900;
+/// Maximum instance ID to scan during discovery
+const MAX_DISCOVERY_INSTANCE_ID: u32 = 9;
 
 /// Connection rate limiter
 ///
@@ -143,9 +145,13 @@ impl ConnectionLimiter {
 
         let attempt_times = self.attempts.entry(ip).or_default();
         attempt_times.retain(|&time| now.duration_since(time) < window);
-        attempt_times.push(now);
 
-        attempt_times.len() <= self.max_attempts as usize
+        let allowed = attempt_times.len() < self.max_attempts as usize;
+        if allowed {
+            attempt_times.push(now);
+        }
+
+        allowed
     }
 
     fn cleanup_oldest_entries(&mut self, count: usize) {
@@ -203,11 +209,11 @@ pub struct InstanceInfo {
 }
 
 /// Discover running instances
-/// Scan ports 57427-57436 (max 10 instances, ID 0-9)
+/// Scan ports based on MAX_DISCOVERY_INSTANCE_ID
 pub async fn discover_instances() -> Vec<InstanceInfo> {
     let mut set = JoinSet::new();
 
-    for id in 0..10u32 {
+    for id in 0..=MAX_DISCOVERY_INSTANCE_ID {
         set.spawn(async move {
             let address = get_instance_address(id);
 
@@ -232,7 +238,7 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
         });
     }
 
-    let mut instances = Vec::with_capacity(10);
+    let mut instances = Vec::with_capacity((MAX_DISCOVERY_INSTANCE_ID + 1) as usize);
     while let Some(result) = set.join_next().await {
         if let Ok(info) = result {
             instances.push(info);
@@ -697,6 +703,10 @@ async fn server_perform_authentication(
 
 /// Zero sensitive string data in memory
 fn zero_string(s: &mut String) {
+    // SAFETY: as_bytes_mut() returns a mutable reference to the String's byte buffer.
+    // Writing zero bytes is safe because 0x00 is valid UTF-8 (null code point),
+    // and we immediately call clear() afterward which resets the String length to 0,
+    // ensuring no invalid UTF-8 is ever observed through the String interface.
     unsafe {
         let bytes = s.as_bytes_mut();
         bytes.iter_mut().for_each(|b| *b = 0);

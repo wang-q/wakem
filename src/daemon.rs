@@ -91,10 +91,11 @@ pub struct ServerState {
     message_window_hwnd: Arc<RwLock<Option<isize>>>,
     /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
-    /// Virtual modifier state for Hyper key support
-    /// This tracks modifiers injected by hyper keys since GetAsyncKeyState
-    /// cannot reliably detect injected key states
-    virtual_modifiers: Arc<RwLock<ModifierState>>,
+    /// Active hyper keys and their contributed modifier states
+    /// Tracks which hyper keys are currently pressed and what modifiers they inject.
+    /// This allows correct per-key release behavior: releasing one hyper key only
+    /// removes its own modifier contributions, not all virtual modifiers.
+    active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
     /// Dynamically extracted from remap rules where target is a modifier combo
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
@@ -122,7 +123,7 @@ impl ServerState {
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
-            virtual_modifiers: Arc::new(RwLock::new(ModifierState::new())),
+            active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
             shutdown_flag: Arc::new(AtomicBool::new(false)),
         }
@@ -147,7 +148,7 @@ impl ServerState {
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
-            virtual_modifiers: Arc::new(RwLock::new(ModifierState::new())),
+            active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
             shutdown_flag: Arc::new(AtomicBool::new(false)),
         }
@@ -463,26 +464,26 @@ impl ServerState {
                 hyper_key_map.get(&(key_event.scan_code, key_event.virtual_key))
             {
                 drop(hyper_key_map);
-                let mut virtual_mods = self.virtual_modifiers.write().await;
+                let mut active = self.active_hyper_keys.write().await;
+                let key_id = (key_event.scan_code, key_event.virtual_key);
                 match key_event.state {
                     crate::types::KeyState::Pressed => {
-                        virtual_mods.shift |= modifiers.shift;
-                        virtual_mods.ctrl |= modifiers.ctrl;
-                        virtual_mods.alt |= modifiers.alt;
-                        virtual_mods.meta |= modifiers.meta;
+                        active.insert(key_id, modifiers);
                         debug!(
                             scan_code = key_event.scan_code,
                             vk = key_event.virtual_key,
                             ?modifiers,
+                            active_count = active.len(),
                             "Hyper key pressed, virtual modifiers activated"
                         );
                     }
                     crate::types::KeyState::Released => {
-                        *virtual_mods = ModifierState::new();
+                        active.remove(&key_id);
                         debug!(
                             scan_code = key_event.scan_code,
                             vk = key_event.virtual_key,
-                            "Hyper key released, virtual modifiers cleared"
+                            active_count = active.len(),
+                            "Hyper key released, its modifier contributions removed"
                         );
                     }
                 }
@@ -492,8 +493,6 @@ impl ServerState {
         false
     }
 
-    /// Merge virtual modifiers into key event for hyper key support
-    /// Skips the hyper key itself so it can match its own remap rule with original modifiers
     async fn merge_virtual_modifiers(&self, mut event: InputEvent) -> InputEvent {
         if let InputEvent::Key(ref mut key_event) = event {
             let hyper_key_map = self.hyper_key_map.read().await;
@@ -503,11 +502,20 @@ impl ServerState {
             }
             drop(hyper_key_map);
 
-            let virtual_mods = *self.virtual_modifiers.read().await;
-            key_event.modifiers.shift |= virtual_mods.shift;
-            key_event.modifiers.ctrl |= virtual_mods.ctrl;
-            key_event.modifiers.alt |= virtual_mods.alt;
-            key_event.modifiers.meta |= virtual_mods.meta;
+            let active = self.active_hyper_keys.read().await;
+            if !active.is_empty() {
+                let mut merged = ModifierState::new();
+                for mods in active.values() {
+                    merged.shift |= mods.shift;
+                    merged.ctrl |= mods.ctrl;
+                    merged.alt |= mods.alt;
+                    merged.meta |= mods.meta;
+                }
+                key_event.modifiers.shift |= merged.shift;
+                key_event.modifiers.ctrl |= merged.ctrl;
+                key_event.modifiers.alt |= merged.alt;
+                key_event.modifiers.meta |= merged.meta;
+            }
             InputEvent::Key(key_event.clone())
         } else {
             event
@@ -749,18 +757,18 @@ impl ServerState {
 
     /// Save macro to config
     async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
-        let mut config = self.config.write().await;
-        config
-            .macros
-            .insert(macro_def.name.clone(), macro_def.steps.clone());
-
-        // Try to save to file, but don't fail if it doesn't work (e.g., in tests)
-        if let Some(config_path) =
+        let config_path = {
+            let mut config = self.config.write().await;
+            config
+                .macros
+                .insert(macro_def.name.clone(), macro_def.steps.clone());
             crate::config::resolve_config_file_path(None, config.network.instance_id)
-        {
+        };
+
+        if let Some(config_path) = config_path {
+            let config = self.config.read().await;
             if let Err(e) = config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
-                // Continue even if file save fails - the macro is still in memory
             }
         }
 
