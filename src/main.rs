@@ -159,15 +159,73 @@ fn run_tray_sync(
 
     // Cleanup: signal tokio to stop, wait for threads
     let _ = cmd_tx.send(AppCommand::Exit); // Signal tokio to exit
+    info!("Waiting for tokio thread to exit...");
     let _ = tokio_handle.join();
+    info!("Tokio thread exited");
 
     if let Some(handle) = daemon_handle {
         info!("Waiting for daemon to shutdown...");
-        let _ = handle.join();
+        // Use a timeout to avoid blocking forever
+        match wait_for_daemon_shutdown(handle, std::time::Duration::from_secs(10)) {
+            Ok(_) => info!("Daemon shutdown successfully"),
+            Err(_) => {
+                error!("Daemon shutdown timed out after 10 seconds, forcing exit...");
+                // Force kill the daemon process if it's still running
+                force_kill_daemon(instance_id);
+            }
+        }
     }
 
     info!("wakem shutdown complete");
     tray_result
+}
+
+/// Wait for daemon thread to shutdown with timeout
+#[cfg(target_os = "windows")]
+fn wait_for_daemon_shutdown(
+    handle: std::thread::JoinHandle<()>,
+    timeout: std::time::Duration,
+) -> Result<(), ()> {
+    use std::sync::mpsc::channel;
+    use std::thread;
+
+    let (tx, rx) = channel();
+
+    // Spawn a thread to wait for the daemon handle
+    thread::spawn(move || {
+        let _ = handle.join();
+        let _ = tx.send(());
+    });
+
+    // Wait with timeout
+    match rx.recv_timeout(timeout) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(()),
+    }
+}
+
+/// Force kill the daemon process
+#[cfg(target_os = "windows")]
+fn force_kill_daemon(_instance_id: u32) {
+    use std::process::Command;
+    use std::process::Stdio;
+
+    // Find and kill the wakemd process
+    // Note: taskkill filters don't support instance ID in window title easily,
+    // so we kill all wakem.exe processes. This is a last resort after timeout.
+    let output = Command::new("taskkill")
+        .args([
+            "/F",
+            "/IM",
+            "wakem.exe",
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+
+    if let Err(e) = output {
+        error!("Failed to kill daemon process: {}", e);
+    }
 }
 
 /// Run tokio runtime in background thread for Windows tray
