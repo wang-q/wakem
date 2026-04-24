@@ -1,73 +1,73 @@
-# wakem 宏系统文档
+# wakem Macro System Documentation
 
-本文档详细介绍 wakem 的宏录制和回放系统。
+This document provides a detailed introduction to wakem's macro recording and playback system.
 
-## 目录
+## Table of Contents
 
-- [概述](#概述)
-- [命令行使用](#命令行使用)
-- [配置文件定义宏](#配置文件定义宏)
-- [核心组件](#核心组件)
-- [智能录制特性](#智能录制特性)
-- [获取按键扫描码](#获取按键扫描码)
-- [宏绑定系统](#宏绑定系统)
+- [Overview](#overview)
+- [Command Line Usage](#command-line-usage)
+- [Defining Macros in Configuration File](#defining-macros-in-configuration-file)
+- [Core Components](#core-components)
+- [Smart Recording Features](#smart-recording-features)
+- [Getting Key Scan Codes](#getting-key-scan-codes)
+- [Macro Binding System](#macro-binding-system)
 
-## 概述
+## Overview
 
-宏系统允许用户录制和回放键盘/鼠标操作序列。你可以：
+The macro system allows users to record and playback keyboard/mouse action sequences. You can:
 
-- 录制任意键盘和鼠标操作（智能过滤单独修饰键）
-- 通过快捷键或命令行触发录制的宏
-- 在配置文件中精确定义宏步骤（使用 MacroStep 格式）
-- 支持所有动作类型（按键、鼠标、窗口管理、启动程序、延迟等）
-- 宏数据持久化存储到配置文件
+- Record arbitrary keyboard and mouse operations (intelligently filtering standalone modifier keys)
+- Trigger recorded macros via hotkeys or command line
+- Precisely define macro steps in the configuration file (using MacroStep format)
+- Support all action types (keys, mouse, window management, launching programs, delays, etc.)
+- Persist macro data to the configuration file
 
-## 命令行使用
+## Command Line Usage
 
-### 录制宏
+### Recording Macros
 
 ```bash
-# 开始录制宏
+# Start recording a macro
 wakem record my-macro
-# 执行要录制的操作...
-# 按 Ctrl+Shift+Esc 停止录制
+# Perform the actions you want to record...
+# Press Ctrl+Shift+Esc to stop recording
 
-# 停止录制（另一种方式）
+# Stop recording (alternative method)
 wakem stop-record
 ```
 
-录制完成后，宏会自动保存到配置文件，并显示通知告知录制结果。
+After recording is complete, the macro will be automatically saved to the configuration file, and a notification will be displayed to inform you of the recording result.
 
-### 播放宏
+### Playing Macros
 
 ```bash
-# 播放宏
+# Play a macro
 wakem play my-macro
 ```
 
-播放完成后会显示通知。
+A notification will be displayed after playback is complete.
 
-### 管理宏
+### Managing Macros
 
 ```bash
-# 列出所有宏
+# List all macros
 wakem macros
 
-# 绑定宏到快捷键
+# Bind a macro to a hotkey
 wakem bind-macro my-macro F1
 
-# 删除宏
+# Delete a macro
 wakem delete-macro my-macro
 ```
 
-## 配置文件定义宏
+## Defining Macros in Configuration File
 
-你也可以直接在配置文件中定义宏（使用 MacroStep 格式）：
+You can also define macros directly in the configuration file (using MacroStep format):
 
 ```toml
-# 宏定义（使用 MacroStep 格式）
+# Macro definitions (using MacroStep format)
 [macros]
-# 打开终端（Win+R, 输入 wt, 回车）
+# Open terminal (Win+R, type wt, Enter)
 "open-terminal" = [
     { delay_ms = 0, action = { Key = { Press = { scan_code = 91, virtual_key = 91 } } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 0 },
     { delay_ms = 0, action = { Key = { Release = { scan_code = 91, virtual_key = 91 } } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 10 },
@@ -81,7 +81,7 @@ wakem delete-macro my-macro
     { delay_ms = 0, action = { Key = { Release = { scan_code = 28, virtual_key = 13 } } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 270 },
 ]
 
-# 复制粘贴（带 Ctrl 修饰键）
+# Copy and paste (with Ctrl modifier)
 "copy-paste" = [
     { delay_ms = 0, action = { Key = { Press = { scan_code = 46, virtual_key = 67 } } }, modifiers = { ctrl = true, shift = false, alt = false, meta = false }, timestamp = 0 },
     { delay_ms = 0, action = { Key = { Release = { scan_code = 46, virtual_key = 67 } } }, modifiers = { ctrl = true, shift = false, alt = false, meta = false }, timestamp = 10 },
@@ -90,373 +90,377 @@ wakem delete-macro my-macro
     { delay_ms = 0, action = { Key = { Release = { scan_code = 47, virtual_key = 86 } } }, modifiers = { ctrl = true, shift = false, alt = false, meta = false }, timestamp = 130 },
 ]
 
-# 窗口管理宏示例：将当前窗口居中并调整大小
+# Window management macro example: center and resize the current window
 "center-and-resize" = [
-    # 先居中窗口
+    # First center the window
     { delay_ms = 0, action = { Window = "Center" }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 0 },
     { delay_ms = 200, action = { Delay = { milliseconds = 200 } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 200 },
 ]
 
-# 启动程序宏示例
+# Launch program macro example
 "launch-browser" = [
     { delay_ms = 0, action = { Launch = { program = "chrome.exe", args = [], working_dir = null, env_vars = [] } }, modifiers = { ctrl = false, shift = false, alt = false, meta = false }, timestamp = 0 },
 ]
 
-# 宏触发键绑定
+# Macro trigger key bindings
 [macro_bindings]
 "F1" = "open-terminal"
 "Ctrl+Shift+V" = "copy-paste"
 ```
 
-### MacroStep 字段说明
+### MacroStep Field Descriptions
 
-| 字段 | 类型 | 说明 |
-|-----|------|------|
-| `delay_ms` | u64 | 此步骤前的延迟时间（毫秒） |
-| `action` | Action | 要执行的动作 |
-| `modifiers` | ModifierState | 录制时的修饰键状态（ctrl/shift/alt/meta） |
-| `timestamp` | u64 | 事件时间戳（用于调试分析） |
+| Field | Type | Description |
+|-------|------|-------------|
+| `delay_ms` | u64 | Delay time before this step (milliseconds) |
+| `action` | Action | The action to perform |
+| `modifiers` | ModifierState | Modifier key state during recording (ctrl/shift/alt/meta) |
+| `timestamp` | u64 | Event timestamp (for debugging/analysis) |
 
-### 宏动作类型
+### Macro Action Types
 
-宏系统复用 `Action` 枚举，支持所有动作类型：
+The macro system reuses the `Action` enum and supports all action types:
 
-#### Key 动作 (KeyAction)
+#### Key Actions (KeyAction)
 
-| 动作 | 说明 | 参数 |
-|-----|------|------|
-| `Press` | 按下按键 | `scan_code`, `virtual_key` |
-| `Release` | 释放按键 | `scan_code`, `virtual_key` |
-| `Click` | 点击按键（按下并释放） | `scan_code`, `virtual_key` |
-| `TypeText` | 输入文本字符串 | `String` |
-| `Combo` | 组合键（带修饰键） | `modifiers` (ModifierState), `key` (scan_code, virtual_key) |
-| `None` | 无操作 | - |
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `Press` | Press a key | `scan_code`, `virtual_key` |
+| `Release` | Release a key | `scan_code`, `virtual_key` |
+| `Click` | Click a key (press and release) | `scan_code`, `virtual_key` |
+| `TypeText` | Type a text string | `String` |
+| `Combo` | Combo key (with modifiers) | `modifiers` (ModifierState), `key` (scan_code, virtual_key) |
+| `None` | No operation | - |
 
-#### Mouse 动作 (MouseAction)
+#### Mouse Actions (MouseAction)
 
-| 动作 | 说明 | 参数 |
-|-----|------|------|
-| `Move` | 移动鼠标 | `x`, `y`, `relative` |
-| `ButtonDown` | 按下按钮 | `button` (Left/Right/Middle/X1/X2) |
-| `ButtonUp` | 释放按钮 | `button` |
-| `ButtonClick` | 点击按钮 | `button` |
-| `Wheel` | 垂直滚轮滚动 | `delta` (正值向上) |
-| `HWheel` | 水平滚轮滚动 | `delta` (正值向右) |
-| `None` | 无操作 | - |
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `Move` | Move mouse | `x`, `y`, `relative` |
+| `ButtonDown` | Press button | `button` (Left/Right/Middle/X1/X2) |
+| `ButtonUp` | Release button | `button` |
+| `ButtonClick` | Click button | `button` |
+| `Wheel` | Vertical wheel scroll | `delta` (positive value scrolls up) |
+| `HWheel` | Horizontal wheel scroll | `delta` (positive value scrolls right) |
+| `None` | No operation | - |
 
-#### Window 动作 (WindowAction)
+#### Window Actions (WindowAction)
 
-支持以下窗口管理动作：
+The following window management actions are supported:
 
-**基础操作**
+**Basic Operations**
 
-| 动作 | 说明 |
-|-----|------|
-| `Center` | 居中窗口 |
-| `Minimize` | 最小化窗口 |
-| `Maximize` | 最大化窗口 |
-| `Restore` | 恢复窗口 |
-| `Close` | 关闭窗口 |
-| `ToggleTopmost` | 切换置顶 |
+| Action | Description |
+|--------|-------------|
+| `Center` | Center window |
+| `Minimize` | Minimize window |
+| `Maximize` | Maximize window |
+| `Restore` | Restore window |
+| `Close` | Close window |
+| `ToggleTopmost` | Toggle always-on-top |
 
-**位置与大小**
+**Position and Size**
 
-| 动作 | 说明 | 参数 |
-|-----|------|------|
-| `MoveToEdge(Edge)` | 移动到屏幕边缘 | Left/Right/Top/Bottom |
-| `HalfScreen(Edge)` | 半屏显示 | Left/Right/Top/Bottom |
-| `LoopWidth(Alignment)` | 循环调整宽度 | Left/Right/Center/Top/Bottom |
-| `LoopHeight(Alignment)` | 循环调整高度 | Left/Right/Center/Top/Bottom |
-| `FixedRatio { ratio, scale_index }` | 固定比例窗口 | 比例值, 缩放索引 |
-| `NativeRatio { scale_index }` | 原生比例窗口 | 缩放索引 |
-| `Move { x, y }` | 移动窗口到绝对坐标 | x, y 坐标 |
-| `Resize { width, height }` | 调整窗口大小 | 宽度, 高度 |
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `MoveToEdge(Edge)` | Move to screen edge | Left/Right/Top/Bottom |
+| `HalfScreen(Edge)` | Half-screen display | Left/Right/Top/Bottom |
+| `LoopWidth(Alignment)` | Loop resize width | Left/Right/Center/Top/Bottom |
+| `LoopHeight(Alignment)` | Loop resize height | Left/Right/Center/Top/Bottom |
+| `FixedRatio { ratio, scale_index }` | Fixed ratio window | Ratio value, scale index |
+| `NativeRatio { scale_index }` | Native ratio window | Scale index |
+| `Move { x, y }` | Move window to absolute coordinates | x, y coordinates |
+| `Resize { width, height }` | Resize window | Width, height |
 
-**高级功能**
+**Advanced Features**
 
-| 动作 | 说明 | 参数 |
-|-----|------|------|
-| `SwitchToNextWindow` | 同进程窗口切换（Alt+\`） | - |
-| `MoveToMonitor(MonitorDirection)` | 跨显示器移动 | Next/Prev/Index(n) |
-| `ShowDebugInfo` | 显示调试信息 | - |
-| `ShowNotification { title, message }` | 显示通知 | 标题, 内容 |
-| `SavePreset { name }` | 保存当前窗口为预设 | 预设名称 |
-| `LoadPreset { name }` | 加载指定预设到当前窗口 | 预设名称 |
-| `ApplyPreset` | 应用匹配的预设到当前窗口 | - |
-| `None` | 无操作 | - |
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `SwitchToNextWindow` | Switch between windows of same process (Alt+`) | - |
+| `MoveToMonitor(MonitorDirection)` | Move across monitors | Next/Prev/Index(n) |
+| `ShowDebugInfo` | Show debug info | - |
+| `ShowNotification { title, message }` | Show notification | Title, content |
+| `SavePreset { name }` | Save current window as preset | Preset name |
+| `LoadPreset { name }` | Load specified preset to current window | Preset name |
+| `ApplyPreset` | Apply matched preset to current window | - |
+| `None` | No operation | - |
 
-#### Launch 动作 (LaunchAction)
+#### Launch Actions (LaunchAction)
 
-| 字段 | 类型 | 说明 |
-|-----|------|------|
-| `program` | String | 程序路径或名称 |
-| `args` | Vec\<String\> | 命令行参数列表 |
-| `working_dir` | Option\<String\> | 工作目录（null 表示不指定） |
-| `env_vars` | Vec\<(String, String)\> | 环境变量键值对列表 |
+| Field | Type | Description |
+|-------|------|-------------|
+| `program` | String | Program path or name |
+| `args` | Vec\<String\> | Command line argument list |
+| `working_dir` | Option\<String\> | Working directory (null means not specified) |
+| `env_vars` | Vec\<(String, String)\> | Environment variable key-value pair list |
 
-#### System 动作 (SystemAction)
+#### System Actions (SystemAction)
 
-| 动作 | 说明 |
-|-----|------|
-| `VolumeUp` | 增加音量 |
-| `VolumeDown` | 降低音量 |
-| `VolumeMute` | 静音切换 |
-| `BrightnessUp` | 增加亮度 |
-| `BrightnessDown` | 降低亮度 |
+| Action | Description |
+|--------|-------------|
+| `VolumeUp` | Increase volume |
+| `VolumeDown` | Decrease volume |
+| `VolumeMute` | Toggle mute |
+| `BrightnessUp` | Increase brightness |
+| `BrightnessDown` | Decrease brightness |
 
-#### 其他动作
+#### Other Actions
 
-| 动作 | 说明 | 参数 |
-|-----|------|------|
-| `Sequence` | 动作序列（嵌套多个动作） | `Vec<Action>` |
-| `Delay` | 延迟等待 | `milliseconds` (u64) |
-| `None` | 无操作 | - |
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `Sequence` | Action sequence (nest multiple actions) | `Vec<Action>` |
+| `Delay` | Delay wait | `milliseconds` (u64) |
+| `None` | No operation | - |
 
-## 核心组件
+## Core Components
 
-| 组件 | 文件 | 说明 |
-|------|------|------|
-| `MacroRecorder` | `src/types/macros.rs` | 录制输入事件，使用 `Action::from_input_event()` |
-| `MacroPlayer` | `src/runtime/macro_player.rs` | 回放宏动作，支持修饰键状态重建 |
-| `MacroManager` | `src/types/macros.rs` | 宏管理器，负责加载、添加、删除、查询宏定义 |
-| `MacroStep` | `src/types/macros.rs` | 宏步骤结构，包含动作、修饰键、时间戳 |
-| `Macro` | `src/types/macros.rs` | 宏定义结构，包含名称、步骤列表、元数据 |
-| `ModifierState` | `src/types/mod.rs` | 修饰键状态结构（ctrl/shift/alt/meta） |
-| `Action` | `src/types/action.rs` | 统一的动作枚举 |
+| Component | File | Description |
+|-----------|------|-------------|
+| `MacroRecorder` | `src/types/macros.rs` | Record input events, using `Action::from_input_event()` |
+| `MacroPlayer` | `src/runtime/macro_player.rs` | Playback macro actions, supports modifier state reconstruction |
+| `MacroManager` | `src/types/macros.rs` | Macro manager, responsible for loading, adding, deleting, querying macro definitions |
+| `MacroStep` | `src/types/macros.rs` | Macro step structure, containing action, modifiers, timestamp |
+| `Macro` | `src/types/macros.rs` | Macro definition structure, containing name, step list, metadata |
+| `ModifierState` | `src/types/mod.rs` | Modifier key state structure (ctrl/shift/alt/meta) |
+| `Action` | `src/types/action.rs` | Unified action enum |
 
-### 架构概览
+### Architecture Overview
 
 ```
 ┌─────────────────────────────────────────┐
 │           MacroRecorder                 │
-│  - 使用 Action::from_input_event()      │
-│  - 使用 is_modifier() 过滤单独修饰键     │
-│  - 使用 from_virtual_key() + merge()    │
-│    跟踪修饰键状态                       │
-│  - 录制为 Vec<MacroStep>                │
+│  - Uses Action::from_input_event()      │
+│  - Uses is_modifier() to filter         │
+│    standalone modifier keys             │
+│  - Uses from_virtual_key() + merge()    │
+│    to track modifier state              │
+│  - Records as Vec<MacroStep>            │
 └─────────────────┬───────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────┐
 │          simplify_delays()              │
 │                                         │
-│  合并连续的短延迟（< 50ms）             │
-│  保留必要的延迟（>= 50ms）             │
-│  生成最终的 Vec<MacroStep>             │
+│  Merges consecutive short delays (<50ms)│
+│  Retains necessary delays (>=50ms)      │
+│  Generates final Vec<MacroStep>         │
 └─────────────────┬───────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────┐
 │         MacroManager                    │
-│  - load_from_config(): 从配置加载       │
-│  - add_macro() / remove_macro()        │
-│  - get_macro() / get_macro_names()     │
+│  - load_from_config(): Load from config │
+│  - add_macro() / remove_macro()         │
+│  - get_macro() / get_macro_names()      │
 └─────────────────┬───────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────┐
 │           MacroPlayer                   │
 │                                         │
-│  遍历 MacroStep:                        │
-│  1. 执行 delay_ms 延迟                │
-│  2. ensure_modifiers() 重建修饰键状态   │
-│  3. execute_action() 调用对应处理器:    │
-│     - Key -> send_key_action()         │
-│     - Mouse -> send_mouse_action()     │
-│     - Window -> (通过 ActionMapper)    │
-│     - Launch -> launcher               │
-│     - System -> system_control         │
-│     - Sequence -> 递归处理             │
-│     - Delay / None -> sleep 或跳过     │
-│  4. release_all_modifiers() 清理       │
+│  Iterate through MacroStep:             │
+│  1. Execute delay_ms delay              │
+│  2. ensure_modifiers() reconstructs     │
+│     modifier state                      │
+│  3. execute_action() calls handler:     │
+│     - Key -> send_key_action()          │
+│     - Mouse -> send_mouse_action()      │
+│     - Window -> (via ActionMapper)      │
+│     - Launch -> launcher                │
+│     - System -> system_control          │
+│     - Sequence -> recursive processing  │
+│     - Delay / None -> sleep or skip     │
+│  4. release_all_modifiers() cleanup     │
 └─────────────────────────────────────────┘
 ```
 
-### 数据结构
+### Data Structures
 
 ```rust
-// 修饰键状态
+// Modifier key state
 pub struct ModifierState {
     pub shift: bool,
     pub ctrl: bool,
     pub alt: bool,
-    pub meta: bool,  // Win 键 / Command 键
+    pub meta: bool,  // Win key / Command key
 }
 
 impl ModifierState {
-    // 从虚拟键码创建修饰键状态
+    // Create modifier state from virtual key code
     pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)>;
-    // 合并另一个修饰键状态
+    // Merge another modifier state
     pub fn merge(&mut self, other: &ModifierState);
-    // 检查是否无修饰键按下
+    // Check if no modifiers are pressed
     pub fn is_empty(&self) -> bool;
 }
 
-// 宏步骤
+// Macro step
 pub struct MacroStep {
-    pub delay_ms: u64,           // 延迟（毫秒）
-    pub action: Action,          // 动作
-    pub modifiers: ModifierState, // 录制时的修饰键状态
-    pub timestamp: Timestamp,     // 时间戳
+    pub delay_ms: u64,           // Delay (milliseconds)
+    pub action: Action,          // Action
+    pub modifiers: ModifierState, // Modifier state during recording
+    pub timestamp: Timestamp,     // Timestamp
 }
 
-// 宏定义
+// Macro definition
 pub struct Macro {
-    pub name: String,              // 宏名称
-    pub steps: Vec<MacroStep>,    // 步骤列表
-    pub created_at: Option<String>, // 创建时间
-    pub description: Option<String>, // 描述（可选）
+    pub name: String,              // Macro name
+    pub steps: Vec<MacroStep>,    // Step list
+    pub created_at: Option<String>, // Creation time
+    pub description: Option<String>, // Description (optional)
 }
 ```
 
-### 录制流程架构
+### Recording Flow Architecture
 
 ```
 ┌─────────────────────────────────────────┐
 │           MacroRecorder                 │
 │                                         │
-│  输入事件 ──► is_modifier()?            │
-│              │                         │
-│         ┌────┴────┐                    │
-│        是        否                    │
-│         │         │                    │
-│        跳过  from_input_event()        │
-│              │                        │
-│              ▼                        │
-│      update_modifiers()                │
-│      (from_virtual_key + merge)        │
-│              │                        │
-│              ▼                        │
-│      创建 MacroStep                   │
-│      添加到录制缓冲                    │
+│  Input Event ──► is_modifier()?         │
+│              │                          │
+│         ┌────┴────┐                     │
+│        Yes       No                     │
+│         │         │                     │
+│        Skip  from_input_event()         │
+│              │                          │
+│              ▼                          │
+│      update_modifiers()                 │
+│      (from_virtual_key + merge)         │
+│              │                          │
+│              ▼                          │
+│      Create MacroStep                   │
+│      Add to recording buffer            │
 └─────────────────┬───────────────────────┘
                   │ stop_recording()
                   ▼
 ┌─────────────────────────────────────────┐
 │          simplify_delays()              │
 │                                         │
-│  MIN_DELAY_MS = 50ms                   │
-│  - 相邻步骤间隔 < 50ms: 不插入延迟     │
-│  - 相邻步骤间隔 >= 50ms: 插入 Delay    │
-│  - 显式 Delay 动作始终保留             │
+│  MIN_DELAY_MS = 50ms                    │
+│  - Adjacent step interval < 50ms:       │
+│    no delay inserted                    │
+│  - Adjacent step interval >= 50ms:      │
+│    insert Delay                         │
+│  - Explicit Delay action always kept    │
 └─────────────────────────────────────────┘
 ```
 
-### 回放流程架构
+### Playback Flow Architecture
 
 ```
 ┌─────────────────────────────────────────┐
 │           MacroPlayer::play_macro()     │
 │                                         │
 │  for step in macro.steps:               │
-│  ├─ 1. sleep(delay_ms)                 │
+│  ├─ 1. sleep(delay_ms)                  │
 │  ├─ 2. ensure_modifiers(&step.modifiers)│
-│  │   按 Ctrl -> Alt -> Meta -> Shift    │
+│  │   Press Ctrl -> Alt -> Meta -> Shift │
 │  ├─ 3. execute_action(&step.action)     │
-│  │   ├─ Key    -> send_key_action()    │
-│  │   ├─ Mouse  -> send_mouse_action()  │
-│  │   ├─ Window -> (日志记录)           │
-│  │   ├─ Launch -> (日志记录)           │
-│  │   ├─ System -> (日志记录)           │
-│  │   ├─ Sequence -> 递归执行子动作     │
-│  │   └─ Delay/None -> 跳过或 sleep     │
-│  └─ end for                            │
+│  │   ├─ Key    -> send_key_action()     │
+│  │   ├─ Mouse  -> send_mouse_action()   │
+│  │   ├─ Window -> (log)                 │
+│  │   ├─ Launch -> (log)                 │
+│  │   ├─ System -> (log)                 │
+│  │   ├─ Sequence -> recursive sub-action│
+│  │   └─ Delay/None -> skip or sleep     │
+│  └─ end for                             │
 │                                         │
-│  release_all_modifiers()               │
-│  释放顺序: Meta -> Alt -> Shift -> Ctrl │
+│  release_all_modifiers()                │
+│  Release order: Meta -> Alt -> Shift -> Ctrl│
 └─────────────────────────────────────────┘
 ```
 
-## 智能录制特性
+## Smart Recording Features
 
-### 1. 过滤单独修饰键
+### 1. Filtering Standalone Modifier Keys
 
-录制时自动跳过单独的 Ctrl/Shift/Alt/Win 键，只记录组合键。例如：
+Automatically skip standalone Ctrl/Shift/Alt/Win keys during recording, only recording combo keys. For example:
 
-- 录制 `Ctrl+C`: 只记录 2 个步骤（C 的按下和释放），而不是 4 个
-- 单独按 `Ctrl`: 完全跳过，不记录任何内容
+- Recording `Ctrl+C`: Only records 2 steps (C press and release), not 4
+- Pressing `Ctrl` alone: Completely skipped, nothing recorded
 
-实现方式：通过 `KeyEvent::is_modifier()` 方法判断是否为修饰键。判断依据为虚拟键码匹配：
+Implementation: Determine if it's a modifier key via the `KeyEvent::is_modifier()` method. Judgment is based on virtual key code matching:
 
-| 修饰键 | 虚拟键码 (含左右变体) |
-|--------|---------------------|
-| Shift | 0x10, 0xA0 (左), 0xA1 (右) |
-| Ctrl | 0x11, 0xA2 (左), 0xA3 (右) |
-| Alt | 0x12, 0xA4 (左), 0xA5 (右) |
-| Win/Meta | 0x5B (左), 0x5C (右) |
+| Modifier | Virtual Key Code (including left/right variants) |
+|----------|--------------------------------------------------|
+| Shift | 0x10, 0xA0 (left), 0xA1 (right) |
+| Ctrl | 0x11, 0xA2 (left), 0xA3 (right) |
+| Alt | 0x12, 0xA4 (left), 0xA5 (right) |
+| Win/Meta | 0x5B (left), 0x5C (right) |
 
-### 2. 跟踪修饰键状态
+### 2. Tracking Modifier State
 
-记录每个动作发生时的完整修饰键状态：
+Record the complete modifier state when each action occurs:
 
 ```rust
 pub struct ModifierState {
     pub shift: bool,
     pub ctrl: bool,
     pub alt: bool,
-    pub meta: bool,  // Win 键
+    pub meta: bool,  // Win key
 }
 ```
 
-这对于回放时正确还原上下文非常重要。录制过程中通过 `ModifierState::from_virtual_key()` 解析修饰键事件，并用 `merge()` 方法合并到当前状态。
+This is very important for correctly restoring context during playback. During recording, modifier key events are parsed via `ModifierState::from_virtual_key()` and merged into the current state using the `merge()` method.
 
-### 3. 延迟优化
+### 3. Delay Optimization
 
-自动合并短延迟（< 50ms），只保留有意义的延迟：
+Automatically merge short delays (< 50ms), only retaining meaningful delays:
 
 ```rust
-const MIN_DELAY_MS: u64 = 50; // 最小延迟阈值
+const MIN_DELAY_MS: u64 = 50; // Minimum delay threshold
 ```
 
-例如：
-- 按下 A (0ms) → 释放 A (10ms) → 按下 B (90ms): 只在 A 和 B 之间插入一个约 80ms 的延迟
-- 按下 A (0ms) → 释放 A (10ms) → **Delay(100ms)** → 按下 B: 保留显式的 100ms 延迟
+For example:
+- Press A (0ms) -> Release A (10ms) -> Press B (90ms): Only insert an ~80ms delay between A and B
+- Press A (0ms) -> Release A (10ms) -> **Delay(100ms)** -> Press B: Retain explicit 100ms delay
 
-## 获取按键扫描码
+## Getting Key Scan Codes
 
-如果你需要手动编写宏配置，可能需要知道特定按键的扫描码和虚拟键码。
+If you need to manually write macro configurations, you may need to know the scan code and virtual key code for specific keys.
 
-完整的键名列表和扫描码/虚拟键码对照表请参阅 [keys.md](keys.md)。
+For a complete list of key names and scan code/virtual key code对照表, please refer to [keys.md](keys.md).
 
-### 获取扫描码的方法
+### Methods to Get Scan Codes
 
-1. **使用 wakem 日志**: 设置 `log_level = "debug"` 后启动守护进程，查看日志中的按键信息
-2. **在线工具**: 使用 Windows Virtual-Key Codes 在线查询工具
-3. **MSDN 文档**: 参考 [Virtual-Key Codes (Winuser.h)](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
+1. **Use wakem logs**: Set `log_level = "debug"` and start the daemon, check key information in the logs
+2. **Online tools**: Use Windows Virtual-Key Codes online query tools
+3. **MSDN documentation**: Refer to [Virtual-Key Codes (Winuser.h)](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)
 
-## 宏绑定系统
+## Macro Binding System
 
-宏可以通过快捷键触发，需要在 `[macro_bindings]` 部分进行配置：
+Macros can be triggered via hotkeys, which need to be configured in the `[macro_bindings]` section:
 
 ```toml
 [macros]
-"my-macro" = [ ... ]  # 宏定义
+"my-macro" = [ ... ]  # Macro definition
 
 [macro_bindings]
-"F1" = "my-macro"          # F1 键触发
-"Ctrl+Shift+V" = "my-macro"  # Ctrl+Shift+V 触发
+"F1" = "my-macro"          # F1 key trigger
+"Ctrl+Shift+V" = "my-macro"  # Ctrl+Shift+V trigger
 ```
 
-### 绑定规则
+### Binding Rules
 
-1. 绑定的触发键必须是有效的按键名称或快捷键格式
-2. 绑定引用的宏必须存在于 `[macros]` 中（配置验证时会检查）
-3. 一个宏可以被多个触发键绑定
-4. 删除宏时会同时删除相关绑定
-5. 空步骤的宏不会报错，但会产生警告日志
+1. The bound trigger key must be a valid key name or shortcut format
+2. The macro referenced by the binding must exist in `[macros]` (checked during config validation)
+3. One macro can be bound to multiple trigger keys
+4. Deleting a macro will also delete related bindings
+5. Macros with empty steps will not error, but will produce warning logs
 
-### 配置验证
+### Configuration Validation
 
-配置加载时会执行以下验证（参见 `Config::validate()`）：
+The following validations are performed when loading configuration (see `Config::validate()`):
 
-- `[macro_bindings]` 中引用的宏名必须在 `[macros]` 中存在
-- 步骤为空的宏会输出 warning 日志提示
+- Macro names referenced in `[macro_bindings]` must exist in `[macros]`
+- Macros with empty steps will output warning log prompts
 
-### 绑定示例
+### Binding Examples
 
 ```toml
 [macros]
-# 快速打开常用应用
+# Quickly open commonly used applications
 "open-terminal" = [
     { delay_ms = 0, action = { Launch = { program = "wt.exe", args = [], working_dir = null, env_vars = [] } }, ... },
 ]
@@ -468,15 +472,15 @@ const MIN_DELAY_MS: u64 = 50; // 最小延迟阈值
 ]
 
 [macro_bindings]
-# F 系列 Function 键绑定
+# F series Function key bindings
 "F1" = "open-terminal"
 "F2" = "open-explorer"
 "F3" = "open-browser"
 
-# 组合键绑定
+# Combo key bindings
 "Ctrl+Alt+T" = "open-terminal"
 ```
 
 ---
 
-更多配置信息请参考 [config.md](config.md)，开发相关信息请参考 [developer.md](developer.md)。
+For more configuration information, please refer to [config.md](config.md). For development-related information, please refer to [developer.md](developer.md).
