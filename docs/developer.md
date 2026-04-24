@@ -2,7 +2,24 @@
 
 本文档面向 wakem 开发者，包含架构设计、技术决策、扩展 API 和性能数据等内容。
 
-> 项目概览、架构设计、代码规范等内容请参阅 [AGENTS.md](../AGENTS.md)。
+## Changelog
+
+```bash
+git log v0.2.3..HEAD > gitlog.txt
+git diff v0.2.3 HEAD -- "*.rs" "*.md" > gitdiff.txt
+```
+
+## Code coverage
+
+```bash
+rustup component add llvm-tools
+cargo install cargo-llvm-cov
+
+# 生成覆盖率报告
+cargo llvm-cov
+```
+
+使用 `cargo llvm-cov` 生成覆盖率报告，找出需要提升测试覆盖率的代码路径。
 
 ```bash
 pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/null; sleep 1; echo "已清理"

@@ -137,9 +137,19 @@ Cargo.lock
 
 *.tmp
 
-*.sqlite
-*.dmp
-*.tsv
+*.pdb
+*.exe
 
-/binaries/
-/vcpkg/
+# Coverage directory
+/coverage-*/
+/coverage_*/
+coverge-*
+coverge_*
+coverage.*
+
+flamegraph.*
+
+node_modules/
+package-lock.json
+
+git*.txt

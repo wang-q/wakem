@@ -4,6 +4,8 @@ A cross-platform window/keyboard/mouse enhancer.
 
 ## Quick Start
 
+Current release: 0.0.1
+
 ### 1. Installation
 
 ```bash
