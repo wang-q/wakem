@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.0 - 2026-04-24
+
 ### Initial Release
 
 First public release of wakem - a cross-platform input enhancement and window management tool in Rust.

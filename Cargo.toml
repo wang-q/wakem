@@ -1,6 +1,6 @@
 [package]
 name = "wakem"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["wang-q <wang-q@outlook.com>"]
 edition = "2021"
 license = "MIT"
