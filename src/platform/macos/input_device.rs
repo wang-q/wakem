@@ -108,11 +108,8 @@ impl MacosInputDevice {
 
     /// Update modifier key state
     fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
-        if let Some((modifier, _)) =
-            ModifierState::from_virtual_key(virtual_key, pressed)
-        {
-            self.modifier_state.merge(&modifier);
-        }
+        self.modifier_state
+            .apply_from_virtual_key(virtual_key, pressed);
     }
 
     /// Start the CGEventTap in background thread
@@ -397,12 +394,10 @@ impl InputDevice for MockInputDevice {
             self.captured_events.borrow_mut().push(e.clone());
 
             if let InputEvent::Key(key_event) = e {
-                if let Some((modifier, _)) = ModifierState::from_virtual_key(
+                self.modifier_state.borrow_mut().apply_from_virtual_key(
                     key_event.virtual_key,
                     key_event.state == KeyState::Pressed,
-                ) {
-                    self.modifier_state.borrow_mut().merge(&modifier);
-                }
+                );
             }
         }
 

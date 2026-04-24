@@ -9,7 +9,6 @@ use keyboard_codes::{Key, KeyCodeMapper, Platform};
 
 use crate::constants::{
     DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
-    WILDCARD_MAX_INPUT_SIZE,
 };
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
@@ -485,114 +484,9 @@ impl WindowPreset {
     }
 }
 
-/// Public wildcard matching function (supports * and ?)
-/// Unified implementation to avoid code duplication
-///
-/// Performance optimizations:
-/// - Fast path for exact matches and simple patterns
-/// - Uses dynamic programming (DP) for complex patterns
-/// - Time complexity: O(m*n) worst case, O(1) best case
-/// - Prevents stack overflow and exponential time complexity
+/// Public wildcard matching function - delegates to types::mapping
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
-    // Fast path 1: Exact match (case-insensitive)
-    if text.eq_ignore_ascii_case(pattern) {
-        return true;
-    }
-
-    // Fast path 2: Pattern is "*" (matches everything)
-    if pattern == "*" {
-        return true;
-    }
-
-    // Fast path 3: No wildcards - simple string comparison
-    if !pattern.contains('*') && !pattern.contains('?') {
-        return text.eq_ignore_ascii_case(pattern);
-    }
-
-    // Fast path 4: Pattern starts/ends with * (suffix/prefix match)
-    if pattern.starts_with('*') && !pattern[1..].contains('*') && !pattern.contains('?')
-    {
-        let suffix = &pattern[1..];
-        return text.to_lowercase().ends_with(&suffix.to_lowercase());
-    }
-    if pattern.ends_with('*')
-        && !pattern[..pattern.len() - 1].contains('*')
-        && !pattern.contains('?')
-    {
-        let prefix = &pattern[..pattern.len() - 1];
-        return text.to_lowercase().starts_with(&prefix.to_lowercase());
-    }
-
-    // Full DP implementation for complex patterns
-    let text_lower = text.to_lowercase();
-    let pattern_lower = pattern.to_lowercase();
-    wildcard_match_dp(&text_lower, &pattern_lower)
-}
-
-/// Dynamic programming implementation of wildcard matching
-///
-/// Algorithm description:
-/// - dp[i][j] indicates whether text[0..i] matches pattern[0..j]
-/// - State transitions:
-///   - If pattern[j-1] == '*', can match 0 or more characters
-///   - If pattern[j-1] == '?' or characters are equal, match current character
-fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
-    // Note: text and pattern are already lowercased by the caller (wildcard_match)
-    let text_chars: Vec<char> = text.chars().collect();
-    let pattern_chars: Vec<char> = pattern.chars().collect();
-
-    let m = text_chars.len();
-    let n = pattern_chars.len();
-
-    // Boundary case handling
-    if n == 0 {
-        return m == 0;
-    }
-
-    // Prevent large inputs from causing memory issues
-    if m > WILDCARD_MAX_INPUT_SIZE || n > WILDCARD_MAX_INPUT_SIZE {
-        return false;
-    }
-
-    // Create DP table (m+1) x (n+1)
-    let mut dp = vec![vec![false; n + 1]; m + 1];
-
-    // Empty string matches empty pattern
-    dp[0][0] = true;
-
-    // Handle '*' at the beginning of pattern (can match empty string)
-    for j in 1..=n {
-        if pattern_chars[j - 1] == '*' {
-            dp[0][j] = dp[0][j - 1];
-        } else {
-            break; // Stop when encountering non-'*' character
-        }
-    }
-
-    // Fill DP table
-    for i in 1..=m {
-        for j in 1..=n {
-            match pattern_chars[j - 1] {
-                '*' => {
-                    // '*' can match:
-                    // 1. 0 characters (dp[i][j-1])
-                    // 2. 1 or more characters (dp[i-1][j])
-                    dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
-                }
-                '?' => {
-                    // '?' matches any single character
-                    dp[i][j] = dp[i - 1][j - 1];
-                }
-                _ => {
-                    // Regular characters must match exactly (already converted to lowercase)
-                    dp[i][j] =
-                        dp[i - 1][j - 1] && (text_chars[i - 1] == pattern_chars[j - 1]);
-                }
-            }
-        }
-    }
-
-    dp[m][n]
+    crate::types::mapping::wildcard_match(text, pattern)
 }
 
 /// Mouse configuration
@@ -1631,64 +1525,53 @@ test_macro = []
 
     #[test]
     fn test_wildcard_dp_basic_patterns() {
-        // basic matching (using lowercase inputs as expected by wildcard_match_dp)
-        assert!(wildcard_match_dp("hello", "hello"));
-        assert!(!wildcard_match_dp("hello", "world"));
+        assert!(wildcard_match("hello", "hello"));
+        assert!(!wildcard_match("hello", "world"));
 
-        // * wildcard (matches any character sequence)
-        assert!(wildcard_match_dp("test.exe", "*.exe"));
-        assert!(wildcard_match_dp("file.txt", "*.txt"));
-        assert!(wildcard_match_dp("", "*"));
-        assert!(wildcard_match_dp("anything", "*"));
-        assert!(wildcard_match_dp("prefix-suffix", "*suffix"));
-        assert!(wildcard_match_dp("prefix-suffix", "prefix*"));
+        assert!(wildcard_match("test.exe", "*.exe"));
+        assert!(wildcard_match("file.txt", "*.txt"));
+        assert!(wildcard_match("", "*"));
+        assert!(wildcard_match("anything", "*"));
+        assert!(wildcard_match("prefix-suffix", "*suffix"));
+        assert!(wildcard_match("prefix-suffix", "prefix*"));
 
-        // ? wildcard (matches single character)
-        assert!(wildcard_match_dp("cat", "?at"));
-        assert!(wildcard_match_dp("bat", "?at"));
-        assert!(!wildcard_match_dp("at", "?at")); // ? requires one character
-        assert!(wildcard_match_dp("abc", "???"));
-        assert!(!wildcard_match_dp("ab", "???"));
+        assert!(wildcard_match("cat", "?at"));
+        assert!(wildcard_match("bat", "?at"));
+        assert!(!wildcard_match("at", "?at"));
+        assert!(wildcard_match("abc", "???"));
+        assert!(!wildcard_match("ab", "???"));
 
-        // Mixed usage
-        assert!(wildcard_match_dp("test123.txt", "test*.txt"));
-        assert!(wildcard_match_dp("file_1.txt", "file_?.txt"));
+        assert!(wildcard_match("test123.txt", "test*.txt"));
+        assert!(wildcard_match("file_1.txt", "file_?.txt"));
     }
 
     #[test]
     fn test_wildcard_dp_edge_cases() {
-        // empty string and empty pattern
-        assert!(wildcard_match_dp("", ""));
-        assert!(!wildcard_match_dp("a", ""));
-        assert!(wildcard_match_dp("", "*"));
-        assert!(!wildcard_match_dp("", "?")); // ? requires at least one character
+        assert!(wildcard_match("", ""));
+        assert!(!wildcard_match("a", ""));
+        assert!(wildcard_match("", "*"));
+        assert!(!wildcard_match("", "?"));
 
-        // consecutive *
-        assert!(wildcard_match_dp("test", "**test"));
-        assert!(wildcard_match_dp("test", "***"));
-        assert!(wildcard_match_dp("", "**"));
+        assert!(wildcard_match("test", "**test"));
+        assert!(wildcard_match("test", "***"));
+        assert!(wildcard_match("", "**"));
 
-        // multiple leading *
-        assert!(wildcard_match_dp("test", "****test"));
+        assert!(wildcard_match("test", "****test"));
 
-        // case insensitive (test via public wildcard_match function)
         assert!(wildcard_match("TEST.EXE", "*.exe"));
         assert!(wildcard_match("File.TXT", "*.txt"));
     }
 
     #[test]
     fn test_wildcard_dp_complex_patterns() {
-        // multiple *
-        assert!(wildcard_match_dp("a.b.c.d", "*.d"));
-        assert!(wildcard_match_dp("a.b.c.d", "a.*.c.*"));
+        assert!(wildcard_match("a.b.c.d", "*.d"));
+        assert!(wildcard_match("a.b.c.d", "a.*.c.*"));
 
-        // complex mixed patterns
-        assert!(wildcard_match_dp("test_2024.log", "test_????.log"));
-        assert!(wildcard_match_dp("image001.png", "image???.png"));
+        assert!(wildcard_match("test_2024.log", "test_????.log"));
+        assert!(wildcard_match("image001.png", "image???.png"));
 
-        // path-style matching
-        assert!(wildcard_match_dp("/path/to/file.txt", "/path/*/file.txt"));
-        assert!(wildcard_match_dp(
+        assert!(wildcard_match("/path/to/file.txt", "/path/*/file.txt"));
+        assert!(wildcard_match(
             "c:\\users\\test\\*\\*.txt",
             "c:\\users\\test\\*\\*.txt"
         ));
@@ -1696,19 +1579,15 @@ test_macro = []
 
     #[test]
     fn test_wildcard_dp_performance_safety() {
-        // Test should not crash or stack overflow on long input
         let long_text = "a".repeat(1000);
         let long_pattern = "*".repeat(100);
 
-        // Should handle normally without stack overflow
-        let result = wildcard_match_dp(&long_text, &long_pattern);
-        assert!(result); // * matches anything
+        let result = wildcard_match(&long_text, &long_pattern);
+        assert!(result);
 
-        // empty pattern and long text
-        assert!(!wildcard_match_dp(&long_text, ""));
+        assert!(!wildcard_match(&long_text, ""));
 
-        // long text and simple pattern
-        assert!(wildcard_match_dp(&long_text, "*"));
+        assert!(wildcard_match(&long_text, "*"));
     }
 
     #[test]

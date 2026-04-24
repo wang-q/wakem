@@ -32,6 +32,8 @@ impl MacroPlayer {
             macro_def.steps.len()
         );
 
+        let mut current_modifiers = ModifierState::default();
+
         for step in &macro_def.steps {
             // Execute delay
             if step.delay_ms > 0 {
@@ -39,72 +41,123 @@ impl MacroPlayer {
                 sleep(Duration::from_millis(step.delay_ms)).await;
             }
 
-            // Ensure modifier state is correct
-            Self::ensure_modifiers(output_device, &step.modifiers).await?;
+            // Ensure modifier state is correct (only press/release differences)
+            Self::ensure_modifiers(
+                output_device,
+                &mut current_modifiers,
+                &step.modifiers,
+            )
+            .await?;
 
             // Execute action
             Self::execute_action(output_device, &step.action).await?;
         }
 
-        // Finally release all modifiers
-        Self::release_all_modifiers(output_device).await?;
+        // Release only modifiers that were pressed by the macro player
+        Self::release_held_modifiers(output_device, &current_modifiers).await?;
 
         info!("Macro '{}' completed", macro_def.name);
         Ok(())
     }
 
-    /// Ensure modifier state matches recording
+    /// Ensure modifier state matches target (only press/release differences)
     async fn ensure_modifiers(
         output: &OutputDevice,
+        current: &mut ModifierState,
         target: &ModifierState,
     ) -> anyhow::Result<()> {
-        if target.ctrl {
+        // Press modifiers that are in target but not in current
+        if target.ctrl && !current.ctrl {
             output.send_key_action(&KeyAction::Press {
                 scan_code: 0x1D,
                 virtual_key: 0x11,
             })?;
+            current.ctrl = true;
         }
-        if target.shift {
+        if target.shift && !current.shift {
             output.send_key_action(&KeyAction::Press {
                 scan_code: 0x2A,
                 virtual_key: 0x10,
             })?;
+            current.shift = true;
         }
-        if target.alt {
+        if target.alt && !current.alt {
             output.send_key_action(&KeyAction::Press {
                 scan_code: 0x38,
                 virtual_key: 0x12,
             })?;
+            current.alt = true;
         }
-        if target.meta {
+        if target.meta && !current.meta {
             output.send_key_action(&KeyAction::Press {
                 scan_code: 0x5B,
                 virtual_key: 0x5B,
             })?;
+            current.meta = true;
+        }
+
+        // Release modifiers that are in current but not in target
+        if current.meta && !target.meta {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x5B,
+                virtual_key: 0x5B,
+            })?;
+            current.meta = false;
+        }
+        if current.alt && !target.alt {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x38,
+                virtual_key: 0x12,
+            })?;
+            current.alt = false;
+        }
+        if current.shift && !target.shift {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x2A,
+                virtual_key: 0x10,
+            })?;
+            current.shift = false;
+        }
+        if current.ctrl && !target.ctrl {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x1D,
+                virtual_key: 0x11,
+            })?;
+            current.ctrl = false;
         }
 
         Ok(())
     }
 
-    /// Release all modifiers
-    async fn release_all_modifiers(output: &OutputDevice) -> anyhow::Result<()> {
-        // Release order: opposite of press
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x5B,
-            virtual_key: 0x5B,
-        })?; // Meta
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x38,
-            virtual_key: 0x12,
-        })?; // Alt
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x2A,
-            virtual_key: 0x10,
-        })?; // Shift
-        output.send_key_action(&KeyAction::Release {
-            scan_code: 0x1D,
-            virtual_key: 0x11,
-        })?; // Ctrl
+    /// Release only modifiers that were pressed by the macro player
+    async fn release_held_modifiers(
+        output: &OutputDevice,
+        current: &ModifierState,
+    ) -> anyhow::Result<()> {
+        if current.meta {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x5B,
+                virtual_key: 0x5B,
+            })?;
+        }
+        if current.alt {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x38,
+                virtual_key: 0x12,
+            })?;
+        }
+        if current.shift {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x2A,
+                virtual_key: 0x10,
+            })?;
+        }
+        if current.ctrl {
+            output.send_key_action(&KeyAction::Release {
+                scan_code: 0x1D,
+                virtual_key: 0x11,
+            })?;
+        }
 
         Ok(())
     }
@@ -225,7 +278,7 @@ mod tests {
 
         assert_eq!(macro_def.steps.len(), 6);
         assert_eq!(macro_def.step_count(), 6);
-        assert_eq!(macro_def.total_delay(), 150); // 0+0+50+0+100+0
+        assert_eq!(macro_def.total_delay(), 350); // 0+0+50+0+100+200(delay action)
     }
 
     #[test]

@@ -151,12 +151,10 @@ impl InputDeviceOps for MockInputDevice {
 
             // Update modifier key state
             if let InputEvent::Key(key_event) = e {
-                if let Some((modifier, _)) = ModifierState::from_virtual_key(
+                self.modifier_state.borrow_mut().apply_from_virtual_key(
                     key_event.virtual_key,
                     key_event.state == KeyState::Pressed,
-                ) {
-                    self.modifier_state.borrow_mut().merge(&modifier);
-                }
+                );
             }
         }
 

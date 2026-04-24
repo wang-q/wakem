@@ -62,12 +62,24 @@ impl ModifierState {
         Some((state, pressed))
     }
 
-    /// Merge another modifier key state
+    /// Merge another modifier key state (OR logic, only sets bits)
     pub fn merge(&mut self, other: &ModifierState) {
         self.shift |= other.shift;
         self.ctrl |= other.ctrl;
         self.alt |= other.alt;
         self.meta |= other.meta;
+    }
+
+    /// Apply modifier state from a virtual key event (sets on press, clears on release)
+    pub fn apply_from_virtual_key(&mut self, key: u16, pressed: bool) -> bool {
+        match key {
+            0x10 | 0xA0 | 0xA1 => self.shift = pressed,
+            0x11 | 0xA2 | 0xA3 => self.ctrl = pressed,
+            0x12 | 0xA4 | 0xA5 => self.alt = pressed,
+            0x5B | 0x5C => self.meta = pressed,
+            _ => return false,
+        }
+        true
     }
 }
 
@@ -184,6 +196,35 @@ mod tests {
         assert!(state1.shift);
         assert!(state1.alt);
         assert!(!state1.meta);
+    }
+
+    /// Test ModifierState apply_from_virtual_key (press and release)
+    #[test]
+    fn test_modifier_state_apply_from_vk() {
+        let mut state = ModifierState::default();
+
+        // Press Ctrl
+        assert!(state.apply_from_virtual_key(0x11, true));
+        assert!(state.ctrl);
+        assert!(!state.shift);
+
+        // Press Shift
+        assert!(state.apply_from_virtual_key(0x10, true));
+        assert!(state.ctrl);
+        assert!(state.shift);
+
+        // Release Ctrl
+        assert!(state.apply_from_virtual_key(0x11, false));
+        assert!(!state.ctrl);
+        assert!(state.shift);
+
+        // Release Shift
+        assert!(state.apply_from_virtual_key(0x10, false));
+        assert!(!state.ctrl);
+        assert!(!state.shift);
+
+        // Non-modifier key returns false
+        assert!(!state.apply_from_virtual_key(0x41, true));
     }
 
     /// Test ModifierState new()

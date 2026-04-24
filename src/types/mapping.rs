@@ -99,6 +99,10 @@ impl Trigger {
                 },
                 InputEvent::Key(e),
             ) => {
+                // At least one of scan_code or virtual_key must be specified
+                if scan_code.is_none() && virtual_key.is_none() {
+                    return false;
+                }
                 // Check scan code
                 if let Some(sc) = scan_code {
                     if *sc != e.scan_code {
@@ -247,10 +251,90 @@ pub struct ContextInfo {
     pub window_handle: isize, // HWND
 }
 
-/// Wildcard matching using the implementation from config module
-/// Supports * (matches any characters) and ? (matches single character)
-fn wildcard_match(text: &str, pattern: &str) -> bool {
-    crate::config::wildcard_match(text, pattern)
+/// Wildcard matching (supports * and ?)
+///
+/// Performance optimizations:
+/// - Fast path for exact matches and simple patterns
+/// - Uses dynamic programming (DP) for complex patterns
+/// - Time complexity: O(m*n) worst case, O(1) best case
+pub fn wildcard_match(text: &str, pattern: &str) -> bool {
+    if text.eq_ignore_ascii_case(pattern) {
+        return true;
+    }
+
+    if pattern == "*" {
+        return true;
+    }
+
+    if !pattern.contains('*') && !pattern.contains('?') {
+        return text.eq_ignore_ascii_case(pattern);
+    }
+
+    if pattern.starts_with('*') && !pattern[1..].contains('*') && !pattern.contains('?')
+    {
+        let suffix = &pattern[1..];
+        return text.to_lowercase().ends_with(&suffix.to_lowercase());
+    }
+    if pattern.ends_with('*')
+        && !pattern[..pattern.len() - 1].contains('*')
+        && !pattern.contains('?')
+    {
+        let prefix = &pattern[..pattern.len() - 1];
+        return text.to_lowercase().starts_with(&prefix.to_lowercase());
+    }
+
+    let text_lower = text.to_lowercase();
+    let pattern_lower = pattern.to_lowercase();
+    wildcard_match_dp(&text_lower, &pattern_lower)
+}
+
+/// Dynamic programming implementation of wildcard matching
+fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
+    let text_chars: Vec<char> = text.chars().collect();
+    let pattern_chars: Vec<char> = pattern.chars().collect();
+
+    let m = text_chars.len();
+    let n = pattern_chars.len();
+
+    if n == 0 {
+        return m == 0;
+    }
+
+    const WILDCARD_MAX_INPUT_SIZE: usize = 1024;
+    if m > WILDCARD_MAX_INPUT_SIZE || n > WILDCARD_MAX_INPUT_SIZE {
+        return false;
+    }
+
+    let mut dp = vec![vec![false; n + 1]; m + 1];
+
+    dp[0][0] = true;
+
+    for j in 1..=n {
+        if pattern_chars[j - 1] == '*' {
+            dp[0][j] = dp[0][j - 1];
+        } else {
+            break;
+        }
+    }
+
+    for i in 1..=m {
+        for j in 1..=n {
+            match pattern_chars[j - 1] {
+                '*' => {
+                    dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
+                }
+                '?' => {
+                    dp[i][j] = dp[i - 1][j - 1];
+                }
+                _ => {
+                    dp[i][j] =
+                        dp[i - 1][j - 1] && (text_chars[i - 1] == pattern_chars[j - 1]);
+                }
+            }
+        }
+    }
+
+    dp[m][n]
 }
 
 #[cfg(test)]
@@ -345,6 +429,19 @@ mod tests {
         // Should match any scan code as long as virtual key matches
         let event = InputEvent::Key(KeyEvent::new(0x4B, 0x25, KeyState::Pressed));
         assert!(trigger.matches(&event));
+    }
+
+    #[test]
+    fn test_trigger_empty_key_never_matches() {
+        // Trigger with neither scan_code nor virtual_key should not match anything
+        let trigger = Trigger::Key {
+            scan_code: None,
+            virtual_key: None,
+            modifiers: ModifierState::default(),
+        };
+
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        assert!(!trigger.matches(&event));
     }
 
     #[test]

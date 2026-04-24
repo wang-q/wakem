@@ -1,6 +1,5 @@
 use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
-    Trigger,
 };
 use std::collections::HashMap;
 use tracing::{debug, trace};
@@ -78,12 +77,6 @@ pub struct ContextMappingRule {
 /// - Context condition caching to reduce repeated calculations
 /// - Supports hot-reload configuration without restarting service
 pub struct KeyMapper {
-    /// Base mapping table: scan code -> action
-    ///
-    /// Stores global key mapping rules that always take effect.
-    /// Key is scan code (hardware-related), value is the action to execute.
-    mappings: HashMap<u16, Action>,
-
     /// Complete mapping rule list
     ///
     /// Preserves original rules for debugging and serialization.
@@ -118,9 +111,10 @@ pub struct KeyMapper {
 }
 
 // SAFETY: KeyMapper is Send + Sync because:
-// - All contained HWND/HICON handles are only used from the main thread
-// - Window handles are thread-safe to store (just pointers)
-// - Actual API calls are always done from the same thread
+// - HWND/HICON handles are pointer-sized integer values that are safe to store and send across threads
+// - All mutating Win32 API calls (execute_action) are serialized through the outer RwLock write guard
+// - Read operations (process_event_with_context) never access Win32 handles directly
+// - The outer Arc<RwLock<KeyMapper>> ensures exclusive access for writes and shared reads
 unsafe impl Send for KeyMapper {}
 unsafe impl Sync for KeyMapper {}
 
@@ -128,7 +122,6 @@ impl KeyMapper {
     /// Create a new mapping engine
     pub fn new() -> Self {
         Self {
-            mappings: HashMap::new(),
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
@@ -147,7 +140,6 @@ impl KeyMapper {
     #[cfg(target_os = "windows")]
     pub fn with_window_manager(window_manager: RealWindowManager) -> Self {
         Self {
-            mappings: HashMap::new(),
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
@@ -163,7 +155,6 @@ impl KeyMapper {
     #[cfg(target_os = "macos")]
     pub fn with_window_manager(window_manager: RealMacosWindowManager) -> Self {
         Self {
-            mappings: HashMap::new(),
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
@@ -183,7 +174,6 @@ impl KeyMapper {
     /// Load mapping rules from configuration
     pub fn load_rules(&mut self, rules: Vec<MappingRule>) {
         self.rules = rules;
-        self.rebuild_mappings();
         debug!("Loaded {} mapping rules", self.rules.len());
     }
 
@@ -775,34 +765,6 @@ impl KeyMapper {
         }
 
         Ok(())
-    }
-
-    /// Rebuild mapping table
-    fn rebuild_mappings(&mut self) {
-        self.mappings.clear();
-
-        for rule in &self.rules {
-            if !rule.enabled {
-                continue;
-            }
-
-            // Extract simple key mappings
-            if let Trigger::Key {
-                scan_code,
-                virtual_key,
-                ..
-            } = &rule.trigger
-            {
-                if let Some(sc) = scan_code {
-                    self.mappings.insert(*sc, rule.action.clone());
-                } else if let Some(vk) = virtual_key {
-                    // If no scan code, use virtual key as fallback
-                    self.mappings.insert(*vk, rule.action.clone());
-                }
-            }
-        }
-
-        debug!("Rebuilt mappings: {} entries", self.mappings.len());
     }
 
     /// Load context-aware mapping rules

@@ -53,7 +53,9 @@ impl Layer {
 
     /// Check if this is the activation key for this layer
     pub fn is_activation_key(&self, scan_code: u16, vk: u16) -> bool {
-        self.activation_key == scan_code || self.activation_vk == vk
+        let scan_matches = self.activation_key != 0 && self.activation_key == scan_code;
+        let vk_matches = self.activation_vk != 0 && self.activation_vk == vk;
+        scan_matches && vk_matches
     }
 }
 
@@ -385,8 +387,9 @@ mod tests {
     fn test_layer_is_activation_key() {
         let layer = Layer::new("test", 0x3A, 0x14); // CapsLock
 
-        assert!(layer.is_activation_key(0x3A, 0x00)); // Scan code matches
-        assert!(layer.is_activation_key(0x00, 0x14)); // Virtual key matches
+        assert!(layer.is_activation_key(0x3A, 0x14)); // Both match
+        assert!(!layer.is_activation_key(0x3A, 0x00)); // Only scan code matches (vk=0 is invalid)
+        assert!(!layer.is_activation_key(0x00, 0x14)); // Only vk matches (scan=0 is invalid)
         assert!(!layer.is_activation_key(0x1E, 0x41)); // No match
     }
 

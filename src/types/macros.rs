@@ -55,10 +55,16 @@ impl Macro {
         self.steps.len()
     }
 
-    /// Get total delay (milliseconds)
+    /// Get total delay from Delay actions (milliseconds)
     #[allow(dead_code)]
     pub fn total_delay(&self) -> u64 {
-        self.steps.iter().map(|s| s.delay_ms).sum()
+        self.steps
+            .iter()
+            .map(|s| match &s.action {
+                Action::Delay { milliseconds } => *milliseconds,
+                _ => s.delay_ms,
+            })
+            .sum()
     }
 }
 
@@ -81,13 +87,10 @@ impl MacroRecording {
     /// Update current modifier state based on event
     fn update_modifiers(&mut self, event: &InputEvent) {
         if let InputEvent::Key(key_event) = event {
-            if let Some((modifier, _pressed)) = ModifierState::from_virtual_key(
+            self.current_modifiers.apply_from_virtual_key(
                 key_event.virtual_key,
                 key_event.state == KeyState::Pressed,
-            ) {
-                // Merge modifier state
-                self.current_modifiers.merge(&modifier);
-            }
+            );
         }
     }
 }
