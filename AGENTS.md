@@ -4,7 +4,7 @@
 
 ## 项目概览
 
-**当前状态**: 活跃开发中 | **主要语言**: Rust | **版本**: 0.1.1 | **平台**: Windows (完整支持), macOS (开发中), Linux(Wayland) 将在后续迁移.
+**当前状态**: 活跃开发中 | **主要语言**: Rust | **版本**: 0.1.2 | **平台**: Windows (完整支持), macOS (开发中), Linux(Wayland) 将在后续迁移.
 
 **语言约定**: 为了便于指导，本文件 (`AGENTS.md`) 使用中文编写，且**与用户交流时请使用中文**。但项目代码中的
 **所有文档注释 (doc comments)**、**行内注释**以及**提交信息**必须使用**英文**。
@@ -73,8 +73,8 @@ src/
 │       ├── window_manager.rs  # 窗口管理器
 │       ├── window_event_hook.rs  # 窗口事件监听
 │       ├── window_preset.rs     # 窗口预设匹配和应用
-│       └── native_api/  # macOS 原生 API 封装
-│           ├── mod.rs           # 原生 API 模块入口
+│       ├── native_api.rs      # 原生 API 模块入口
+│       └── native_api/        # macOS 原生 API 封装
 │           ├── ax_element.rs    # Accessibility API 封装
 │           ├── cg_window.rs     # Core Graphics 窗口 API
 │           ├── coordinate.rs    # 坐标转换
@@ -99,71 +99,45 @@ src/
     ├── macros.rs        # 宏相关类型（MacroStep/MacroRecorder）
     └── time_source.rs   # 时间源抽象（用于测试）
 
-tests/                   # 测试目录（1 层子目录结构）
-├── types/                  # 类型系统测试 (6 files)
-│   ├── basic.rs           # 基础类型创建和匹配
-│   ├── comprehensive.rs   # 完整边界条件覆盖
-│   ├── action.rs          # Action 类型变体
-│   ├── input_event.rs     # KeyEvent/MouseEvent
-│   ├── mapping_rule.rs    # MappingRule 触发器
-│   └── layer.rs           # Layer/LayerMode
+tests/                   # 测试目录（扁平结构，按前缀分类）
+├── ut_config_comprehensive.rs   # 配置系统综合测试
+├── ut_core_daemon.rs            # 守护进程逻辑测试
+├── ut_core_ipc.rs               # IPC 序列化测试
+├── ut_core_security.rs          # 安全策略测试
+├── ut_window_calc.rs            # 窗口计算算法测试
 │
-├── runtime/                # 运行时逻辑测试 (3 files)
-│   ├── mapper.rs          # KeyMapper 映射引擎
-│   ├── mapper_full.rs     # KeyMapper 深度测试
-│   └── layer_manager.rs   # LayerManager 层管理
+├── it_core.rs                   # 核心模块集成测试
+├── it_edge_cases.rs             # 跨模块边界情况测试
+├── it_ipc.rs                    # IPC 集成测试
 │
-├── config/                 # 配置系统测试 (3 files)
-│   ├── parser.rs          # 配置解析基础
-│   ├── comprehensive.rs    # 配置完整场景
-│   └── edge_cases.rs      # 配置边界条件
+├── prop_config.rs               # 配置属性测试（proptest）
+├── prop_macos_keycode.rs        # macOS 键码映射属性测试 [macOS only]
 │
-├── core/                   # 核心功能测试 (5 files)
-│   ├── daemon.rs          # ServerState 守护进程逻辑
-│   ├── cli.rs             # CLI 参数解析
-│   ├── client.rs          # DaemonClient 通信层
-│   ├── ipc.rs             # IPC 消息序列化
-│   └── security.rs        # 安全策略（IP 白名单等）
+├── platform_windows_specific.rs # Windows 平台特定测试
+├── platform_windows_tray.rs     # Windows 系统托盘测试
+├── platform_macos_specific.rs   # macOS 平台特定测试
+├── platform_macos_tray.rs       # macOS 系统托盘测试
 │
-├── window/                 # 窗口管理测试 (2 files)
-│   ├── calc.rs            # 窗口位置/大小计算算法
-│   └── manager.rs         # 窗口管理器逻辑
-│
-├── integration/            # 集成测试 (3 files)
-│   ├── core.rs            # Config + Runtime + Types 集成
-│   ├── edge_cases.rs      # 跨模块边界情况
-│   └── ipc.rs             # IPC 集成测试
-│
-├── property/               # 属性测试 (proptest) (4 files)
-│   ├── config.rs          # 通配符匹配、键名解析
-│   ├── config.regressions # proptest 回归种子
-│   ├── macos_keycode.rs   # macOS 键码映射 [macOS only]
-│   └── macos_keycode.regressions  # macOS 回归种子 [macOS only]
-│
-├── windows/                # Windows 平台特定测试 (3 files)
-│   ├── e2e.rs             # Windows 端到端测试（操作真实窗口，需手动运行）
-│   ├── tray.rs            # Windows 系统托盘
-│   └── specific.rs        # MonitorInfo, WindowFrame
-│
-└── macos/                  # macOS 平台特定测试 (1 file)
-    └── integration.rs     # macOS 集成测试
+├── e2e_windows_launcher.rs      # Windows 启动器端到端测试
+├── e2e_windows_window.rs        # Windows 窗口管理端到端测试
+└── e2e_macos.rs                 # macOS 端到端测试
 
 benches/                  # 性能基准测试 (cargo bench)
-├── basic_benchmarks.rs    # 跨平台基准测试（8 个 benchmark）
+├── basic_benchmarks.rs    # 跨平台基准测试（Criterion）
 └── macos/
     └── macos_bench.rs     # macOS 专用基准 [macOS only]
 
 examples/                # 配置示例
 ├── minimal.toml         # 最小配置示例
 ├── navigation_layer.toml # 导航层配置示例
-├── window_manager.toml   # 窗口管理配置示例
-└── test_config.toml      # 测试配置
+└── window_manager.toml   # 窗口管理配置示例
 
 docs/                    # 文档
 ├── config.md            # 配置指南
 ├── developer.md         # 开发者文档
 ├── macros.md            # 宏系统文档
-└── keys.md              # 键名参考
+├── keys.md              # 键名参考
+└── autohotkey_reference.md # AutoHotkey 参考对照
 ```
 
 ### 模块访问路径
@@ -189,12 +163,17 @@ cargo build --release
 # 运行所有测试
 cargo test
 
-# 仅运行单元测试
-cargo test --lib
+# 仅运行单元测试（ut_ 前缀）
+cargo test ut_
 
-# 运行特定测试（按目录）
-cargo test --test types::basic
-cargo test --test core::daemon
+# 运行集成测试（it_ 前缀）
+cargo test it_
+
+# 运行属性测试（prop_ 前缀）
+cargo test prop_
+
+# 运行特定测试文件
+cargo test --test ut_core_daemon
 
 # 运行性能基准测试
 cargo bench
@@ -232,6 +211,7 @@ cargo clippy -- -D warnings
 | `dirs` | 5 | 跨平台目录路径获取 |
 | `chrono` | 0.4 | 时间戳处理 |
 | `async-trait` | 0.1 | 异步 trait 支持 |
+| `regex` | 1.10 | 正则表达式匹配 |
 
 ### 平台特定依赖
 
@@ -259,7 +239,6 @@ cargo clippy -- -D warnings
 |-------|------|------|
 | `hmac` / `sha2` | 0.12 / 0.10 | IPC 通信的 HMAC-SHA256 认证 |
 | `rand` | 0.8 | 认证密钥生成 |
-| `regex` | 1.10 | 正则表达式匹配 |
 
 ### 开发依赖
 
@@ -279,32 +258,38 @@ cargo clippy -- -D warnings
 
 ## 测试规范
 
-项目采用**多层次测试策略**，按功能域组织在 1 层子目录中：
+项目采用**多层次测试策略**，测试文件按前缀分类存放在 `tests/` 目录下：
 
-- **单元测试**: 所有核心功能必须在源文件底部的 `#[cfg(test)]` 模块中编写单元测试
-- **集成测试**: 跨模块交互在 `tests/integration/` 目录中测试
-- **属性测试**: 使用 proptest 在 `tests/property/` 中发现边缘情况
-- **Mock 测试**: 平台相关功能提供 Mock 实现，便于单元测试
-- **性能基准**: 使用 Criterion 在 `benches/` 中进行专业基准测试
+- **单元测试 (ut_)**: 单个模块的功能测试，如 `ut_core_daemon.rs`
+- **集成测试 (it_)**: 跨模块交互测试，如 `it_ipc.rs`
+- **属性测试 (prop_)**: 使用 proptest 进行随机数据测试，如 `prop_config.rs`
+- **平台特定测试 (platform_)**: Windows/macOS 平台特定功能测试
+- **端到端测试 (e2e_)**: 完整功能流程测试，操作真实系统资源
 
-### 测试目录结构
+### 测试文件命名规范
 
 ```
-tests/
-├── types/          # 类型系统 (basic, comprehensive, action, input_event, mapping_rule, layer)
-├── runtime/        # 运行时逻辑 (mapper, mapper_full, layer_manager)
-├── config/         # 配置系统 (parser, comprehensive, edge_cases)
-├── core/           # 核心功能 (daemon, cli, client, ipc, security)
-├── window/         # 窗口管理 (calc, manager)
-├── integration/    # 集成测试 (core, edge_cases, ipc)
-├── property/       # 属性测试 (config, macos_keycode) [proptest]
-├── windows/        # Windows 平台特定 (e2e, tray, specific)
-└── macos/          # macOS 平台特定 (integration)
+ut_<模块>_<描述>.rs      # 单元测试
+it_<描述>.rs              # 集成测试
+prop_<描述>.rs            # 属性测试
+platform_<平台>_<描述>.rs # 平台特定测试
+e2e_<平台>_<描述>.rs      # 端到端测试
+```
 
-benches/
-├── basic_benchmarks.rs  # 跨平台基准
-└── macos/
-    └── macos_bench.rs   # macOS 基准
+### 运行特定类别测试
+
+```bash
+# 运行所有单元测试
+cargo test ut_
+
+# 运行所有集成测试
+cargo test it_
+
+# 运行 Windows 平台测试
+cargo test platform_windows
+
+# 运行特定测试文件
+cargo test --test ut_window_calc
 ```
 
 ## 架构设计要点
