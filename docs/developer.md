@@ -321,40 +321,44 @@ cargo test --test e2e_windows_launcher test_launch_simple_program -- --ignored -
 | 测试名 | 说明 |
 |--------|------|
 | `test_get_foreground_window_info` | 获取前台窗口信息（标题、位置、大小、显示器工作区） |
+| `test_get_window_info_by_handle` | 通过句柄获取窗口信息 |
+| `test_get_debug_info` | 获取调试信息字符串 |
 
 #### 窗口位置与大小
 
 | 测试名 | 说明 |
 |--------|------|
 | `test_move_to_center` | 窗口居中 |
-| `test_move_to_edge_left_right_top_bottom` | 窗口移动到四边缘 |
-| `test_set_half_screen_left_right` | 半屏显示（左/右） |
+| `test_move_to_edge` | 窗口移动到边缘 |
+| `test_set_half_screen` | 半屏显示（左/右） |
 | `test_loop_width_cycle` | 循环调整宽度（多种预设比例） |
 | `test_loop_height_cycle` | 循环调整高度（多种预设比例） |
-| `test_set_fixed_ratio_16_9_and_4_3` | 固定比例窗口（16:9、4:3、21:9、1:1） |
-| `test_set_window_frame_absolute` | 绝对坐标移动和调整大小 |
+| `test_set_fixed_ratio_16_9_and_4_3` | 固定比例窗口（16:9、4:3 等） |
+| `test_set_window_frame` | 绝对坐标移动和调整大小 |
 
 #### 窗口状态控制
 
 | 测试名 | 说明 |
 |--------|------|
 | `test_minimize_and_restore_window` | 最小化后还原 |
+| `test_maximize_and_restore_window` | 最大化后还原 |
+| `test_toggle_topmost` | 置顶/取消置顶切换 |
 | `test_close_window` | 关闭窗口 |
-
-#### 多显示器支持
-
-| 测试名 | 说明 |
-|--------|------|
-| `test_move_to_monitor_next_prev` | 移动到下一个/上一个显示器 |
 
 #### 同进程窗口切换（Alt+`）
 
 | 测试名 | 说明 |
 |--------|------|
-| `test_switch_between_two_notepad_windows` | 2 个 Notepad 窗口间切换 |
+| `test_switch_to_next_window_of_same_process` | 切换到同进程下一个窗口 |
 | `test_switch_cycles_through_three_windows` | 3 个窗口循环切换验证 |
-| `test_switch_cycles_through_four_windows` | 4 个窗口循环切换验证（修复 Bug 专用测试） |
+| `test_switch_cycles_through_four_windows` | 4 个窗口循环切换验证 |
 | `test_single_window_does_not_panic` | 单窗口时切换不报错 |
+
+#### 窗口枚举
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_get_app_visible_windows` | 获取应用可见窗口 |
 | `test_get_app_visible_windows_finds_notepad` | 窗口枚举能找到 Notepad |
 | `test_explorer_multi_process_window_enumeration` | Explorer 多进程窗口枚举（不含系统窗口） |
 
@@ -371,14 +375,13 @@ cargo test --test e2e_windows_launcher test_launch_simple_program -- --ignored -
 | `test_launch_nonexistent_program` | 启动不存在的程序应返回错误 |
 | `test_launch_system_program_cmd` | 启动 cmd.exe 并执行命令 |
 
-> 位置: `tests/windows_launcher_e2e.rs` | 仅 Windows 平台
-
 ### 待实现测试
 
 以下 API 尚未覆盖，欢迎补充：
 
 - `set_native_ratio()` - 原生比例窗口
 - `move_to_monitor(Index)` - 按索引移动显示器
+- `move_to_monitor_next()` / `move_to_monitor_prev()` - 跨显示器移动
 
 ### 设计要点
 

@@ -107,6 +107,61 @@ mod launcher_tests {
 
     #[test]
     #[ignore = "Launches real programs - run manually with: cargo test --test e2e_windows_launcher -- --ignored"]
+    fn test_launcher_parse_command_and_launch() {
+        // Clean up
+        kill_process("CalculatorApp.exe");
+        kill_process("calc.exe");
+        thread::sleep(Duration::from_millis(300));
+
+        let launcher = Launcher::new();
+
+        // Parse command string
+        let action = Launcher::parse_command("calc.exe");
+        assert_eq!(action.program, "calc.exe");
+        assert!(action.args.is_empty());
+
+        // Launch
+        let result = launcher.launch(&action);
+        assert!(result.is_ok(), "Should launch successfully");
+
+        // Wait and verify
+        let calc_running = wait_for_process("CalculatorApp.exe", 5000)
+            || wait_for_process("calc.exe", 5000);
+        assert!(calc_running, "Calculator should be running");
+
+        // Clean up
+        kill_process("CalculatorApp.exe");
+        kill_process("calc.exe");
+    }
+
+    #[test]
+    #[ignore = "Launches real programs - run manually with: cargo test --test e2e_windows_launcher -- --ignored"]
+    fn test_launch_program_with_multiple_args() {
+        // Test launching with multiple arguments
+        // Using ping command as it's available on all Windows systems
+
+        let launcher = Launcher::new();
+        let action = LaunchAction {
+            program: "ping.exe".to_string(),
+            args: vec!["127.0.0.1".to_string(), "-n".to_string(), "1".to_string()],
+            working_dir: None,
+            env_vars: Vec::new(),
+        };
+
+        // Launch ping
+        let result = launcher.launch(&action);
+        assert!(
+            result.is_ok(),
+            "Should launch ping.exe with args successfully: {:?}",
+            result.err()
+        );
+
+        // Give it time to complete
+        thread::sleep(Duration::from_millis(2000));
+    }
+
+    #[test]
+    #[ignore = "Launches real programs - run manually with: cargo test --test e2e_windows_launcher -- --ignored"]
     fn test_launch_nonexistent_program() {
         let launcher = Launcher::new();
         let action = LaunchAction {
@@ -121,6 +176,50 @@ mod launcher_tests {
             result.is_err(),
             "Should fail to launch non-existent program"
         );
+    }
+
+    #[test]
+    #[ignore = "Launches real programs - run manually with: cargo test --test e2e_windows_launcher -- --ignored"]
+    fn test_launch_system_program_cmd() {
+        // Test launching cmd.exe with /c to run a simple command
+        let temp_output = std::env::temp_dir().join("wakem_cmd_test.txt");
+
+        // Clean up any existing file
+        let _ = std::fs::remove_file(&temp_output);
+
+        let launcher = Launcher::new();
+        let action = LaunchAction {
+            program: "cmd.exe".to_string(),
+            args: vec![
+                "/c".to_string(),
+                format!(
+                    "echo wakem_launcher_test > {}",
+                    temp_output.to_string_lossy()
+                ),
+            ],
+            working_dir: None,
+            env_vars: Vec::new(),
+        };
+
+        // Launch cmd
+        let result = launcher.launch(&action);
+        assert!(
+            result.is_ok(),
+            "Should launch cmd.exe successfully: {:?}",
+            result.err()
+        );
+
+        // Wait for command to complete
+        thread::sleep(Duration::from_millis(1000));
+
+        // Verify output file was created
+        assert!(
+            temp_output.exists(),
+            "Output file should be created by cmd.exe"
+        );
+
+        // Clean up
+        let _ = std::fs::remove_file(&temp_output);
     }
 }
 
