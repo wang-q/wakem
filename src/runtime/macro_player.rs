@@ -157,9 +157,10 @@ impl MacroPlayer {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::types::{
-        Action, KeyAction, Macro, MacroStep, MouseAction, MouseButton, WindowAction,
+        Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState,
+        LaunchAction, LayerMode, Macro, MacroStep, MappingRule, ModifierState,
+        MouseAction, MouseButton, SystemAction, Trigger, WindowAction,
     };
 
     #[test]
@@ -249,5 +250,523 @@ mod tests {
         assert!(!step.modifiers.alt);
         assert!(!step.modifiers.meta);
         assert_eq!(step.timestamp, 1000);
+    }
+
+    // ==================== Additional tests from ut_runtime_mapper_full.rs ====================
+
+    #[test]
+    fn test_empty_macro() {
+        let macro_def = Macro {
+            name: "empty".to_string(),
+            steps: vec![],
+            created_at: None,
+            description: None,
+        };
+
+        assert_eq!(macro_def.step_count(), 0);
+        assert_eq!(macro_def.total_delay(), 0);
+    }
+
+    #[test]
+    fn test_single_step_macro() {
+        let step = MacroStep::new(
+            0,
+            Action::key(KeyAction::click(0x1E, 0x41)),
+            ModifierState::default(),
+            0,
+        );
+
+        let macro_def = Macro {
+            name: "single".to_string(),
+            steps: vec![step],
+            created_at: Some("2024-01-01".to_string()),
+            description: Some("Single step macro".to_string()),
+        };
+
+        assert_eq!(macro_def.step_count(), 1);
+        assert_eq!(macro_def.total_delay(), 0);
+        assert_eq!(macro_def.name, "single");
+        assert!(macro_def.created_at.is_some());
+        assert!(macro_def.description.is_some());
+    }
+
+    #[test]
+    fn test_multi_step_macro_delays() {
+        let steps: Vec<MacroStep> = vec![
+            MacroStep::new(
+                0,
+                Action::key(KeyAction::click(0x1E, 0x41)),
+                ModifierState::default(),
+                0,
+            ),
+            MacroStep::new(
+                50,
+                Action::key(KeyAction::click(0x30, 0x42)),
+                ModifierState::default(),
+                50,
+            ),
+            MacroStep::new(
+                100,
+                Action::key(KeyAction::click(0x2E, 0x43)),
+                ModifierState::default(),
+                150,
+            ),
+            MacroStep::new(
+                200,
+                Action::mouse(MouseAction::Wheel { delta: 120 }),
+                ModifierState::default(),
+                350,
+            ),
+        ];
+
+        let macro_def = Macro {
+            name: "multi_step".to_string(),
+            steps,
+            created_at: None,
+            description: None,
+        };
+
+        assert_eq!(macro_def.step_count(), 4);
+        assert_eq!(macro_def.total_delay(), 350); // max timestamp
+    }
+
+    #[test]
+    fn test_macro_step_with_modifiers_alt() {
+        let mut modifiers = ModifierState::default();
+        modifiers.ctrl = true;
+        modifiers.shift = true;
+
+        let step = MacroStep::new(
+            0,
+            Action::key(KeyAction::press(0x2E, 0x43)),
+            modifiers.clone(),
+            100,
+        );
+
+        assert!(step.modifiers.ctrl);
+        assert!(step.modifiers.shift);
+        assert!(!step.modifiers.alt);
+        assert!(!step.modifiers.meta);
+        assert_eq!(step.timestamp, 100);
+    }
+
+    #[test]
+    fn test_macro_steps_all_action_types() {
+        let steps: Vec<MacroStep> = vec![
+            // Key action
+            MacroStep::new(
+                0,
+                Action::key(KeyAction::Press {
+                    scan_code: 0x1E,
+                    virtual_key: 0x41,
+                }),
+                ModifierState::default(),
+                0,
+            ),
+            // Mouse action
+            MacroStep::new(
+                10,
+                Action::mouse(MouseAction::Move {
+                    x: 100,
+                    y: 200,
+                    relative: false,
+                }),
+                ModifierState::default(),
+                10,
+            ),
+            // Window action
+            MacroStep::new(
+                20,
+                Action::window(WindowAction::Center),
+                ModifierState::default(),
+                20,
+            ),
+            // Delay action
+            MacroStep::new(30, Action::delay(500), ModifierState::default(), 30),
+            // Sequence action
+            MacroStep::new(
+                40,
+                Action::sequence(vec![
+                    Action::key(KeyAction::click(0x01, 0x1B)),
+                    Action::key(KeyAction::click(0x0E, 0x08)),
+                ]),
+                ModifierState::default(),
+                40,
+            ),
+            // No-op
+            MacroStep::new(50, Action::None, ModifierState::default(), 50),
+        ];
+
+        let macro_def = Macro {
+            name: "all_types".to_string(),
+            steps,
+            created_at: None,
+            description: None,
+        };
+
+        assert_eq!(macro_def.step_count(), 6);
+    }
+
+    #[test]
+    fn test_macro_unicode_name() {
+        let macro_def = Macro {
+            name: "测试宏 🎉 日本語マクロ".to_string(),
+            steps: vec![],
+            created_at: None,
+            description: Some("中文描述".to_string()),
+        };
+
+        assert_eq!(macro_def.name, "测试宏 🎉 日本語マクロ");
+        assert_eq!(macro_def.description.unwrap(), "中文描述");
+    }
+
+    #[test]
+    fn test_large_macro() {
+        let steps: Vec<MacroStep> = (0..100)
+            .map(|i| {
+                MacroStep::new(
+                    i as u64 * 10,
+                    Action::key(KeyAction::click(i as u16, i as u16)),
+                    ModifierState::default(),
+                    i as u64 * 10,
+                )
+            })
+            .collect();
+
+        let macro_def = Macro {
+            name: "large_macro".to_string(),
+            steps,
+            created_at: None,
+            description: None,
+        };
+
+        assert_eq!(macro_def.step_count(), 100);
+        // total_delay() is sum of all step delay_ms: 0 + 10 + 20 + ... + 990
+        // This is arithmetic series sum: (first + last) * count / 2 = (0 + 990) * 100 / 2 = 49500
+        assert_eq!(macro_def.total_delay(), 49500);
+    }
+
+    // ==================== Additional tests from ut_runtime_mapper.rs ====================
+
+    #[test]
+    fn test_action_variants() {
+        let key_action = Action::key(KeyAction::click(0x1E, 0x41));
+        assert!(matches!(key_action, Action::Key(_)));
+
+        let mouse_action = Action::mouse(MouseAction::Move {
+            x: 100,
+            y: 100,
+            relative: false,
+        });
+        assert!(matches!(mouse_action, Action::Mouse(_)));
+
+        let window_action = Action::window(WindowAction::Maximize);
+        assert!(matches!(window_action, Action::Window(_)));
+
+        let launch_action = Action::launch("notepad.exe");
+        assert!(matches!(launch_action, Action::Launch(_)));
+
+        let delay_action = Action::delay(100);
+        assert!(matches!(delay_action, Action::Delay { .. }));
+    }
+
+    #[test]
+    fn test_key_action_variants() {
+        let press = KeyAction::Press {
+            scan_code: 0x1E,
+            virtual_key: 0x41,
+        };
+        assert!(matches!(press, KeyAction::Press { .. }));
+
+        let release = KeyAction::Release {
+            scan_code: 0x1E,
+            virtual_key: 0x41,
+        };
+        assert!(matches!(release, KeyAction::Release { .. }));
+
+        let click = KeyAction::click(0x1E, 0x41);
+        assert!(matches!(click, KeyAction::Click { .. }));
+
+        let mut modifiers = ModifierState::new();
+        modifiers.ctrl = true;
+        let combo = KeyAction::combo(modifiers, 0x1E, 0x41);
+        assert!(matches!(combo, KeyAction::Combo { .. }));
+
+        let type_text = KeyAction::TypeText("hello".to_string());
+        assert!(matches!(type_text, KeyAction::TypeText(_)));
+
+        let none = KeyAction::None;
+        assert!(matches!(none, KeyAction::None));
+    }
+
+    #[test]
+    fn test_key_event_creation_alt() {
+        let event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+
+        assert_eq!(event.scan_code, 0x1E);
+        assert_eq!(event.virtual_key, 0x41);
+        assert!(matches!(event.state, KeyState::Pressed));
+    }
+
+    #[test]
+    fn test_key_event_with_modifiers_alt() {
+        let mut modifiers = ModifierState::new();
+        modifiers.ctrl = true;
+        modifiers.shift = true;
+        let event =
+            KeyEvent::new(0x1E, 0x41, KeyState::Pressed).with_modifiers(modifiers);
+
+        assert!(event.modifiers.ctrl);
+        assert!(event.modifiers.shift);
+        assert!(!event.modifiers.alt);
+    }
+
+    #[test]
+    fn test_key_event_injected_alt() {
+        let event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed).injected();
+
+        assert!(event.is_injected);
+    }
+
+    #[test]
+    fn test_modifier_state_alt() {
+        let mut state = ModifierState::new();
+        state.ctrl = true;
+        assert!(state.ctrl);
+        assert!(!state.shift);
+
+        let mut state = ModifierState::new();
+        state.shift = true;
+        assert!(!state.ctrl);
+        assert!(state.shift);
+
+        let mut state = ModifierState::new();
+        state.alt = true;
+        assert!(state.alt);
+
+        let mut state = ModifierState::new();
+        state.meta = true;
+        assert!(state.meta);
+    }
+
+    #[test]
+    fn test_modifier_state_merge_alt() {
+        let mut state1 = ModifierState::new();
+        state1.ctrl = true;
+        let mut state2 = ModifierState::new();
+        state2.shift = true;
+
+        state1.merge(&state2);
+
+        assert!(state1.ctrl);
+        assert!(state1.shift);
+    }
+
+    #[test]
+    fn test_trigger_matching_alt() {
+        let trigger = Trigger::key(0x1E, 0x41);
+
+        let matching_event =
+            InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        assert!(trigger.matches(&matching_event));
+
+        let non_matching_event =
+            InputEvent::Key(KeyEvent::new(0x1F, 0x42, KeyState::Pressed));
+        assert!(!trigger.matches(&non_matching_event));
+    }
+
+    #[test]
+    fn test_window_action_variants_alt() {
+        let center = WindowAction::Center;
+        assert!(matches!(center, WindowAction::Center));
+
+        let maximize = WindowAction::Maximize;
+        assert!(matches!(maximize, WindowAction::Maximize));
+
+        let minimize = WindowAction::Minimize;
+        assert!(matches!(minimize, WindowAction::Minimize));
+
+        let close = WindowAction::Close;
+        assert!(matches!(close, WindowAction::Close));
+
+        let resize = WindowAction::Resize {
+            width: 800,
+            height: 600,
+        };
+        assert!(matches!(resize, WindowAction::Resize { .. }));
+    }
+
+    #[test]
+    fn test_mouse_action_variants_alt() {
+        let move_action = MouseAction::Move {
+            x: 100,
+            y: 200,
+            relative: false,
+        };
+        assert!(matches!(move_action, MouseAction::Move { .. }));
+
+        let relative_move = MouseAction::Move {
+            x: 10,
+            y: -10,
+            relative: true,
+        };
+        assert!(matches!(relative_move, MouseAction::Move { .. }));
+    }
+
+    #[test]
+    fn test_launch_action_alt() {
+        let action = LaunchAction {
+            program: "notepad.exe".to_string(),
+            args: vec![],
+            working_dir: None,
+            env_vars: vec![],
+        };
+        assert_eq!(action.program, "notepad.exe");
+        assert!(action.args.is_empty());
+
+        let action = LaunchAction {
+            program: "code".to_string(),
+            args: vec![".".to_string()],
+            working_dir: None,
+            env_vars: vec![],
+        };
+        assert_eq!(action.program, "code");
+        assert_eq!(action.args, vec!["."]);
+    }
+
+    #[test]
+    fn test_system_action_variants() {
+        assert!(matches!(SystemAction::VolumeUp, SystemAction::VolumeUp));
+        assert!(matches!(SystemAction::VolumeDown, SystemAction::VolumeDown));
+        assert!(matches!(SystemAction::VolumeMute, SystemAction::VolumeMute));
+        assert!(matches!(
+            SystemAction::BrightnessUp,
+            SystemAction::BrightnessUp
+        ));
+        assert!(matches!(
+            SystemAction::BrightnessDown,
+            SystemAction::BrightnessDown
+        ));
+    }
+
+    #[test]
+    fn test_action_sequence_alt() {
+        let actions = vec![
+            Action::key(KeyAction::click(0x1E, 0x41)),
+            Action::key(KeyAction::click(0x1F, 0x42)),
+            Action::key(KeyAction::click(0x20, 0x43)),
+        ];
+
+        assert_eq!(actions.len(), 3);
+    }
+
+    #[test]
+    fn test_event_sequence_alt() {
+        let events = vec![
+            InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed)),
+            InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Released)),
+            InputEvent::Key(KeyEvent::new(0x1F, 0x42, KeyState::Pressed)),
+            InputEvent::Key(KeyEvent::new(0x1F, 0x42, KeyState::Released)),
+        ];
+
+        assert_eq!(events.len(), 4);
+    }
+
+    #[test]
+    fn test_context_condition_alt() {
+        let context = ContextCondition::new()
+            .with_process_name("notepad.exe")
+            .with_window_class("NotepadClass");
+
+        assert!(context.process_name.is_some());
+        assert_eq!(context.process_name.unwrap(), "notepad.exe");
+        assert!(context.window_class.is_some());
+    }
+
+    #[test]
+    fn test_mapping_rule_enabled() {
+        let rule = MappingRule::new(
+            Trigger::key(0x1E, 0x41),
+            Action::key(KeyAction::click(0x1F, 0x42)),
+        );
+
+        assert!(rule.enabled);
+    }
+
+    #[test]
+    fn test_layer_modes_alt2() {
+        let toggle_mode = LayerMode::Toggle;
+        assert!(matches!(toggle_mode, LayerMode::Toggle));
+
+        let hold_mode = LayerMode::Hold;
+        assert!(matches!(hold_mode, LayerMode::Hold));
+    }
+
+    #[test]
+    fn test_trigger_variants_alt() {
+        let key_trigger = Trigger::key(0x1E, 0x41);
+        assert!(matches!(key_trigger, Trigger::Key { .. }));
+
+        let mouse_trigger = Trigger::MouseButton {
+            button: MouseButton::Left,
+            modifiers: ModifierState::new(),
+        };
+        assert!(matches!(mouse_trigger, Trigger::MouseButton { .. }));
+
+        let hotstring_trigger = Trigger::HotString {
+            trigger: "test".to_string(),
+        };
+        assert!(matches!(hotstring_trigger, Trigger::HotString { .. }));
+    }
+
+    #[test]
+    fn test_action_none() {
+        let none = Action::None;
+        assert!(none.is_none());
+        assert!(matches!(none, Action::None));
+    }
+
+    #[test]
+    fn test_key_state_variants() {
+        let pressed = KeyState::Pressed;
+        assert!(matches!(pressed, KeyState::Pressed));
+
+        let released = KeyState::Released;
+        assert!(matches!(released, KeyState::Released));
+    }
+
+    #[test]
+    fn test_mouse_button_variants() {
+        assert!(matches!(MouseButton::Left, MouseButton::Left));
+        assert!(matches!(MouseButton::Right, MouseButton::Right));
+        assert!(matches!(MouseButton::Middle, MouseButton::Middle));
+        assert!(matches!(MouseButton::X1, MouseButton::X1));
+        assert!(matches!(MouseButton::X2, MouseButton::X2));
+    }
+
+    #[test]
+    fn test_modifier_from_virtual_key_alt() {
+        // VK_SHIFT = 0x10
+        let (state, pressed) = ModifierState::from_virtual_key(0x10, true).unwrap();
+        assert!(state.shift);
+        assert!(pressed);
+
+        // VK_CONTROL = 0x11
+        let (state, pressed) = ModifierState::from_virtual_key(0x11, true).unwrap();
+        assert!(state.ctrl);
+        assert!(pressed);
+
+        // VK_MENU = 0x12 (Alt)
+        let (state, pressed) = ModifierState::from_virtual_key(0x12, true).unwrap();
+        assert!(state.alt);
+        assert!(pressed);
+
+        // VK_LWIN = 0x5B (Meta)
+        let (state, pressed) = ModifierState::from_virtual_key(0x5B, true).unwrap();
+        assert!(state.meta);
+        assert!(pressed);
+
+        // Non-modifier key should return None
+        assert!(ModifierState::from_virtual_key(0x41, true).is_none());
     }
 }

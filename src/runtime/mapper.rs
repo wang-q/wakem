@@ -872,6 +872,7 @@ impl Default for KeyMapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{InputEvent, KeyEvent, KeyState, ModifierState, Trigger};
 
     #[test]
     fn test_key_mapper_basic() {
@@ -909,5 +910,177 @@ mod tests {
 
         // Verify rules loaded
         assert_eq!(mapper.rules.len(), 1);
+    }
+
+    // ==================== Additional tests from ut_runtime_mapper_full.rs ====================
+
+    #[test]
+    fn test_key_mapper_new() {
+        let _mapper = KeyMapper::new();
+    }
+
+    #[test]
+    fn test_key_mapper_default() {
+        let _mapper = KeyMapper::default();
+    }
+
+    #[test]
+    fn test_mapper_load_rules_alt() {
+        let mut mapper = KeyMapper::new();
+
+        let rules = vec![
+            MappingRule::new(
+                Trigger::key(0x3A, 0x14),                  // CapsLock
+                Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
+            ),
+            MappingRule::new(
+                Trigger::key(0x01, 0x1B),                  // Escape
+                Action::key(KeyAction::click(0x4B, 0x25)), // Left
+            ),
+        ];
+
+        mapper.load_rules(rules);
+    }
+
+    #[test]
+    fn test_mapper_process_event_simple_match() {
+        let mut mapper = KeyMapper::new();
+
+        let rules = vec![MappingRule::new(
+            Trigger::key(0x3A, 0x14),                  // CapsLock
+            Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
+        )];
+
+        mapper.load_rules(rules);
+
+        let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        let result = mapper.process_event_with_context(&event, None);
+
+        assert!(result.is_some(), "Should find matching mapping");
+    }
+
+    #[test]
+    fn test_mapper_process_event_no_match() {
+        let mut mapper = KeyMapper::new();
+
+        let rules = vec![MappingRule::new(
+            Trigger::key(0x3A, 0x14),                  // CapsLock
+            Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
+        )];
+
+        mapper.load_rules(rules);
+
+        // Press 'A' key, should not match
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        let result = mapper.process_event_with_context(&event, None);
+
+        assert!(result.is_none(), "Should not find match");
+    }
+
+    #[test]
+    fn test_mapper_disabled_alt() {
+        let mut mapper = KeyMapper::new();
+
+        let rules = vec![MappingRule::new(
+            Trigger::key(0x3A, 0x14),
+            Action::key(KeyAction::click(0x0E, 0x08)),
+        )];
+
+        mapper.load_rules(rules);
+
+        // When disabled, events should return None
+        // Note: enabled field is private, we verify through behavior
+        let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        let result = mapper.process_event_with_context(&event, None);
+        assert!(result.is_some()); // Default is enabled, so should have result
+    }
+
+    #[test]
+    fn test_mapper_process_mouse_event() {
+        let mapper = KeyMapper::new();
+
+        let mouse_event =
+            crate::types::MouseEvent::new(crate::types::MouseEventType::Move, 100, 200);
+        let event = InputEvent::Mouse(mouse_event);
+
+        let result = mapper.process_event_with_context(&event, None);
+        assert!(result.is_none(), "Mouse events currently not processed");
+    }
+
+    #[test]
+    fn test_mapper_adjust_action_pressed() {
+        let mut mapper = KeyMapper::new();
+
+        let rules = vec![MappingRule::new(
+            Trigger::key(0x3A, 0x14),
+            Action::key(KeyAction::click(0x0E, 0x08)), // Click action
+        )];
+
+        mapper.load_rules(rules);
+
+        // Press event -> should return Press action
+        let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        let result = mapper.process_event_with_context(&event, None);
+
+        assert!(result.is_some());
+        if let Some(Action::Key(KeyAction::Press { .. })) = result {
+            // Correct: press event converts to Press
+        } else {
+            panic!("Press event should convert to Press action");
+        }
+    }
+
+    #[test]
+    fn test_mapper_adjust_action_released() {
+        let mut mapper = KeyMapper::new();
+
+        let rules = vec![MappingRule::new(
+            Trigger::key(0x3A, 0x14),
+            Action::key(KeyAction::click(0x0E, 0x08)), // Click action
+        )];
+
+        mapper.load_rules(rules);
+
+        // Release event -> should return Release action
+        let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Released));
+        let result = mapper.process_event_with_context(&event, None);
+
+        assert!(result.is_some());
+        if let Some(Action::Key(KeyAction::Release { .. })) = result {
+            // Correct: release event converts to Release
+        } else {
+            panic!("Release event should convert to Release action");
+        }
+    }
+
+    // ==================== Additional tests from ut_runtime_mapper.rs ====================
+
+    #[test]
+    fn test_mapping_rule_matching() {
+        let rule = MappingRule::new(
+            Trigger::key(0x1E, 0x41),                  // 'A' key
+            Action::key(KeyAction::click(0x1F, 0x42)), // 'B' key
+        );
+
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        assert!(rule.trigger.matches(&event));
+    }
+
+    #[test]
+    fn test_mapping_rule_with_modifiers() {
+        let mut modifiers = ModifierState::new();
+        modifiers.ctrl = true;
+        let trigger = Trigger::key_with_modifiers(0x1E, 0x41, modifiers); // Ctrl + 'A'
+
+        let rule = MappingRule::new(trigger, Action::key(KeyAction::click(0x1F, 0x42)));
+
+        // Create event with Ctrl modifier
+        let mut event_modifiers = ModifierState::new();
+        event_modifiers.ctrl = true;
+        let event = InputEvent::Key(
+            KeyEvent::new(0x1E, 0x41, KeyState::Pressed).with_modifiers(event_modifiers),
+        );
+
+        assert!(rule.trigger.matches(&event));
     }
 }

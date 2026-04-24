@@ -154,6 +154,9 @@ impl Default for LayerManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{
+        Action, InputEvent, KeyAction, KeyEvent, KeyState, Layer, LayerMode, Trigger,
+    };
 
     #[test]
     fn test_layer_manager_hold() {
@@ -207,5 +210,262 @@ mod tests {
         let (handled, action) = manager.process_event(&InputEvent::Key(h_press));
         assert!(handled);
         assert!(action.is_some());
+    }
+
+    // ==================== Additional tests from ut_runtime_mapper_full.rs ====================
+
+    #[test]
+    fn test_layer_manager_new() {
+        let manager = LayerManager::new();
+        assert!(!manager.is_layer_active("any_layer"));
+        assert!(manager.get_active_layers().is_empty());
+    }
+
+    #[test]
+    fn test_layer_manager_default() {
+        let manager = LayerManager::default();
+        assert!(manager.get_active_layers().is_empty());
+    }
+
+    #[test]
+    fn test_layer_manager_register_layer() {
+        let mut manager = LayerManager::new();
+
+        let layer = Layer::new("test_layer", 0x3A, 0x14).with_mode(LayerMode::Hold);
+        manager.register_layer(layer);
+
+        // After registration, layer is not yet activated
+        assert!(!manager.is_layer_active("test_layer"));
+    }
+
+    #[test]
+    fn test_layer_manager_hold_mode_activate_deactivate() {
+        let mut manager = LayerManager::new();
+
+        let layer = LayerManager::create_layer_from_config(
+            "nav",
+            "CapsLock",
+            LayerMode::Hold,
+            &[],
+        )
+        .unwrap();
+        manager.register_layer(layer);
+
+        // Press activation key
+        let press = KeyEvent::new(0x3A, 0x14, KeyState::Pressed);
+        let (handled, _) = manager.process_event(&InputEvent::Key(press));
+
+        assert!(handled, "Should handle activation key press event");
+        assert!(manager.is_layer_active("nav"), "Layer should be activated");
+
+        // Release activation key
+        let release = KeyEvent::new(0x3A, 0x14, KeyState::Released);
+        let (handled, _) = manager.process_event(&InputEvent::Key(release));
+
+        assert!(handled, "Should handle activation key release event");
+        assert!(
+            !manager.is_layer_active("nav"),
+            "Hold mode layer should be deactivated after release"
+        );
+    }
+
+    #[test]
+    fn test_layer_manager_toggle_mode() {
+        let mut manager = LayerManager::new();
+
+        let layer = LayerManager::create_layer_from_config(
+            "sym",
+            "Space",
+            LayerMode::Toggle,
+            &[],
+        )
+        .unwrap();
+        manager.register_layer(layer);
+
+        // First press -> activate
+        let press1 = KeyEvent::new(0x39, 0x20, KeyState::Pressed);
+        let (handled, _) = manager.process_event(&InputEvent::Key(press1));
+        assert!(handled);
+        assert!(
+            manager.is_layer_active("sym"),
+            "First press should activate"
+        );
+
+        // Second press -> deactivate
+        let press2 = KeyEvent::new(0x39, 0x20, KeyState::Pressed);
+        let (handled, _) = manager.process_event(&InputEvent::Key(press2));
+        assert!(handled);
+        assert!(
+            !manager.is_layer_active("sym"),
+            "Second press should deactivate"
+        );
+    }
+
+    #[test]
+    fn test_layer_mapping_lookup() {
+        let mut manager = LayerManager::new();
+
+        let layer = LayerManager::create_layer_from_config(
+            "nav",
+            "RAlt",
+            LayerMode::Hold,
+            &[("H".to_string(), "Left".to_string())],
+        )
+        .unwrap();
+        manager.register_layer(layer);
+
+        // Activate layer
+        let alt_press = KeyEvent::new(0xE038, 0xA5, KeyState::Pressed);
+        manager.process_event(&InputEvent::Key(alt_press));
+
+        // Press H in layer, should map to Left
+        let h_press = KeyEvent::new(0x23, 0x48, KeyState::Pressed);
+        let (handled, action) = manager.process_event(&InputEvent::Key(h_press));
+
+        assert!(handled, "Should find mapping in layer");
+        assert!(action.is_some(), "Should return action");
+    }
+
+    #[test]
+    fn test_layer_non_activation_key_not_handled() {
+        let mut manager = LayerManager::new();
+
+        let layer = LayerManager::create_layer_from_config(
+            "nav",
+            "CapsLock",
+            LayerMode::Hold,
+            &[],
+        )
+        .unwrap();
+        manager.register_layer(layer);
+
+        // Press a normal key (not activation key)
+        let a_press = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+        let (handled, action) = manager.process_event(&InputEvent::Key(a_press));
+
+        assert!(!handled, "Non-activation key should not be handled");
+        assert!(action.is_none(), "Should not return action");
+    }
+
+    #[test]
+    fn test_layer_manager_multiple_layers() {
+        let mut manager = LayerManager::new();
+
+        let nav =
+            LayerManager::create_layer_from_config("nav", "RAlt", LayerMode::Hold, &[])
+                .unwrap();
+        let sym = LayerManager::create_layer_from_config(
+            "sym",
+            "Space",
+            LayerMode::Toggle,
+            &[],
+        )
+        .unwrap();
+        let num =
+            LayerManager::create_layer_from_config("num", "F12", LayerMode::Hold, &[])
+                .unwrap();
+
+        manager.register_layer(nav);
+        manager.register_layer(sym);
+        manager.register_layer(num);
+
+        // All layers initially inactive
+        assert!(!manager.is_layer_active("nav"));
+        assert!(!manager.is_layer_active("sym"));
+        assert!(!manager.is_layer_active("num"));
+    }
+
+    #[test]
+    fn test_layer_manager_clear_layers() {
+        let mut manager = LayerManager::new();
+
+        let layer = LayerManager::create_layer_from_config(
+            "test",
+            "F11",
+            LayerMode::Toggle,
+            &[],
+        )
+        .unwrap();
+        manager.register_layer(layer);
+
+        // Activate layer
+        let f11_press = KeyEvent::new(0x57, 0x7A, KeyState::Pressed);
+        manager.process_event(&InputEvent::Key(f11_press));
+        assert!(manager.is_layer_active("test"));
+
+        // Clear all layers
+        manager.clear_layers();
+        assert!(!manager.is_layer_active("test"));
+        assert!(manager.get_active_layers().is_empty());
+    }
+
+    // ==================== Additional tests from ut_runtime_mapper.rs ====================
+
+    #[test]
+    fn test_layer_creation_alt() {
+        let layer = Layer::new("test", 0x3A, 0x14).with_mode(LayerMode::Hold);
+
+        assert_eq!(layer.name, "test");
+        assert_eq!(layer.activation_key, 0x3A);
+        assert_eq!(layer.activation_vk, 0x14);
+        assert!(matches!(layer.mode, LayerMode::Hold));
+    }
+
+    #[test]
+    fn test_layer_add_mapping_alt() {
+        let mut layer = Layer::new("nav", 0x3A, 0x14);
+
+        let trigger = Trigger::key(0x1E, 0x41);
+        let action = Action::key(KeyAction::click(0x1F, 0x42));
+
+        layer.add_mapping(trigger, action);
+        assert_eq!(layer.mappings.len(), 1);
+    }
+
+    #[test]
+    fn test_layer_activation_key_alt() {
+        let layer = Layer::new("test", 0x3A, 0x14);
+
+        assert!(layer.is_activation_key(0x3A, 0x14));
+        assert!(!layer.is_activation_key(0x3B, 0x15));
+    }
+
+    #[test]
+    fn test_layer_activation() {
+        // Test layer activation and deactivation
+        let layer_name = "navigation";
+        let activation_key = "CapsLock";
+
+        assert_eq!(layer_name, "navigation");
+        assert_eq!(activation_key, "CapsLock");
+    }
+
+    #[test]
+    fn test_layer_modes_alt() {
+        let modes = vec!["Hold", "Toggle"];
+
+        assert!(modes.contains(&"Hold"));
+        assert!(modes.contains(&"Toggle"));
+    }
+
+    #[test]
+    fn test_layer_mappings_alt() {
+        let mappings = vec![("H", "Left"), ("J", "Down"), ("K", "Up"), ("L", "Right")];
+
+        assert_eq!(mappings.len(), 4);
+        assert_eq!(mappings[0].0, "H");
+        assert_eq!(mappings[0].1, "Left");
+    }
+
+    #[test]
+    fn test_multiple_layers_alt() {
+        let layers = vec![
+            ("navigation", "CapsLock", "Hold"),
+            ("numpad", "RightAlt", "Hold"),
+        ];
+
+        assert_eq!(layers.len(), 2);
+        assert_eq!(layers[0].0, "navigation");
+        assert_eq!(layers[1].0, "numpad");
     }
 }
