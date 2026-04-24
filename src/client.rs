@@ -67,7 +67,10 @@ impl DaemonClient {
                 active,
                 config_loaded,
             } => Ok((active, config_loaded)),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected StatusResponse, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -80,7 +83,10 @@ impl DaemonClient {
             Message::Error { message } => {
                 Err(anyhow::anyhow!("Server error: {message}"))
             }
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected StatusResponse or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -96,7 +102,10 @@ impl DaemonClient {
             Message::ConfigError { error } => {
                 Err(anyhow::anyhow!("Config error: {error}"))
             }
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected ConfigLoaded or ConfigError, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -112,7 +121,10 @@ impl DaemonClient {
             Message::ConfigError { error } => {
                 Err(anyhow::anyhow!("Config error: {error}"))
             }
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected ConfigLoaded or ConfigError, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -145,7 +157,10 @@ impl DaemonClient {
         match response {
             Message::Success => Ok(()),
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected Success or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -158,7 +173,10 @@ impl DaemonClient {
                 Ok((name, action_count))
             }
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected MacroRecordingResult or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -173,7 +191,10 @@ impl DaemonClient {
         match response {
             Message::Success => Ok(()),
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected Success or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -183,7 +204,10 @@ impl DaemonClient {
 
         match response {
             Message::MacrosList { macros } => Ok(macros),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected MacrosList, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -198,7 +222,10 @@ impl DaemonClient {
         match response {
             Message::Success => Ok(()),
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected Success or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -214,7 +241,10 @@ impl DaemonClient {
         match response {
             Message::Success => Ok(()),
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected Success or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -228,7 +258,10 @@ impl DaemonClient {
         match response {
             Message::Success => Ok(()),
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected Success or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 
@@ -239,7 +272,10 @@ impl DaemonClient {
         match response {
             Message::Success => Ok(()),
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            _ => Err(anyhow::anyhow!("Unexpected response")),
+            other => Err(anyhow::anyhow!(
+                "Unexpected response: expected Success or Error, got {:?}",
+                std::mem::discriminant(&other)
+            )),
         }
     }
 }

@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Mutex;
 use tracing::debug;
 
 use keyboard_codes::{Key, KeyCodeMapper, Platform};
@@ -530,8 +530,9 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
 ///   - If pattern[j-1] == '*', can match 0 or more characters
 ///   - If pattern[j-1] == '?' or characters are equal, match current character
 fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
-    let text_chars: Vec<char> = text.to_lowercase().chars().collect();
-    let pattern_chars: Vec<char> = pattern.to_lowercase().chars().collect();
+    // Note: text and pattern are already lowercased by the caller (wildcard_match)
+    let text_chars: Vec<char> = text.chars().collect();
+    let pattern_chars: Vec<char> = pattern.chars().collect();
 
     let m = text_chars.len();
     let n = pattern_chars.len();
@@ -1093,46 +1094,40 @@ impl ConfigPathCache {
     }
 
     fn get_or_resolve(&self, instance_id: u32) -> Option<std::path::PathBuf> {
-        // Check cache first
-        if let Ok(mut cache) = self.cache.lock() {
-            if let Some(cached) = cache.get(&instance_id) {
-                debug!("Config path cache hit for instance {}", instance_id);
-                return cached.clone();
-            }
-
-            // Cache miss, resolve path
-            let path = Self::resolve_config_path_internal(instance_id);
-
-            // Store in cache
-            cache.insert(instance_id, path.clone());
-
-            debug!(
-                "Config path cache miss for instance {}, resolved and cached",
-                instance_id
-            );
-            path
-        } else {
-            // Fallback to direct resolution when lock fails
-            Self::resolve_config_path_internal(instance_id)
+        // Check cache first (parking_lot::Mutex::lock() returns MutexGuard directly, not Result)
+        let mut cache = self.cache.lock();
+        if let Some(cached) = cache.get(&instance_id) {
+            debug!("Config path cache hit for instance {}", instance_id);
+            return cached.clone();
         }
+
+        // Cache miss, resolve path
+        let path = Self::resolve_config_path_internal(instance_id);
+
+        // Store in cache
+        cache.insert(instance_id, path.clone());
+
+        debug!(
+            "Config path cache miss for instance {}, resolved and cached",
+            instance_id
+        );
+        path
     }
 
     /// Invalidate cache for specified instance
     #[allow(dead_code)]
     fn invalidate(&self, instance_id: u32) {
-        if let Ok(mut cache) = self.cache.lock() {
-            cache.remove(&instance_id);
-            debug!("Invalidated config path cache for instance {}", instance_id);
-        }
+        let mut cache = self.cache.lock();
+        cache.remove(&instance_id);
+        debug!("Invalidated config path cache for instance {}", instance_id);
     }
 
     /// Clear all cache
     #[allow(dead_code)]
     fn clear(&self) {
-        if let Ok(mut cache) = self.cache.lock() {
-            cache.clear();
-            debug!("Cleared all config path cache");
-        }
+        let mut cache = self.cache.lock();
+        cache.clear();
+        debug!("Cleared all config path cache");
     }
 
     /// Internal path resolution logic (unified across all platforms)
@@ -1635,7 +1630,7 @@ test_macro = []
 
     #[test]
     fn test_wildcard_dp_basic_patterns() {
-        // basic matching
+        // basic matching (using lowercase inputs as expected by wildcard_match_dp)
         assert!(wildcard_match_dp("hello", "hello"));
         assert!(!wildcard_match_dp("hello", "world"));
 
@@ -1675,9 +1670,9 @@ test_macro = []
         // multiple leading *
         assert!(wildcard_match_dp("test", "****test"));
 
-        // case insensitive (converted to lowercase)
-        assert!(wildcard_match_dp("TEST.EXE", "*.exe"));
-        assert!(wildcard_match_dp("File.TXT", "*.txt"));
+        // case insensitive (test via public wildcard_match function)
+        assert!(wildcard_match("TEST.EXE", "*.exe"));
+        assert!(wildcard_match("File.TXT", "*.txt"));
     }
 
     #[test]
@@ -1693,8 +1688,8 @@ test_macro = []
         // path-style matching
         assert!(wildcard_match_dp("/path/to/file.txt", "/path/*/file.txt"));
         assert!(wildcard_match_dp(
-            "C:\\Users\\test\\*\\*.txt",
-            "C:\\Users\\test\\*\\*.txt"
+            "c:\\users\\test\\*\\*.txt",
+            "c:\\users\\test\\*\\*.txt"
         ));
     }
 

@@ -138,20 +138,41 @@ mod tests {
     /// Test --version flag
     #[test]
     fn test_cli_version_flag() {
-        // --version causes the program to print version and exit, so we only test that it can be parsed
-        // clap version behavior causes process exit, so we only verify parameters can be recognized
+        // --version causes clap to return an error with kind DisplayVersion
+        // This verifies the version flag is properly recognized
         let result = Cli::try_parse_from(["wakem", "--version"]);
-        // This call usually triggers version display and exit, so may return Err
-        // We mainly verify parameter format is correct
-        assert!(result.is_err() || result.is_ok());
+        match result {
+            Ok(_) => panic!("--version should trigger version display and exit"),
+            Err(e) => {
+                // Check that it's a display version error (not a parsing error)
+                let err_str = e.to_string();
+                assert!(
+                    err_str.contains("wakem") || err_str.is_empty(),
+                    "Version error should contain program name or be empty, got: {}",
+                    err_str
+                );
+            }
+        }
     }
 
     /// Test --help flag
     #[test]
     fn test_cli_help_flag() {
-        // Similar to --version, --help displays help information
+        // --help causes clap to return an error with kind DisplayHelp
+        // This verifies the help flag is properly recognized
         let result = Cli::try_parse_from(["wakem", "--help"]);
-        assert!(result.is_err() || result.is_ok());
+        match result {
+            Ok(_) => panic!("--help should trigger help display and exit"),
+            Err(e) => {
+                // Check that it's a display help error (contains usage information)
+                let err_str = e.to_string();
+                assert!(
+                    err_str.contains("Usage:") || err_str.contains("wakem"),
+                    "Help error should contain usage information, got: {}",
+                    err_str
+                );
+            }
+        }
     }
 
     /// Test invalid command error handling

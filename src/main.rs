@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 mod cli;
 mod client;
@@ -27,21 +27,31 @@ use platform::macos::{run_tray_event_loop, AppCommand};
 
 /// Initialize logging system with support for reading log level from config file
 fn init_logging(cli: &Cli) {
-    let log_level = if let Some(config_path) =
+    let (log_level, config_error) = if let Some(config_path) =
         config::resolve_config_file_path(None, cli.instance)
     {
         // Try to read log level from config file
-        config::Config::from_file(&config_path)
-            .map(|cfg| cfg.log_level)
-            .unwrap_or_else(|_| "info".to_string())
+        match config::Config::from_file(&config_path) {
+            Ok(cfg) => (cfg.log_level, None),
+            Err(e) => {
+                // Log config loading error at debug level (logging not initialized yet)
+                eprintln!("Debug: Failed to load config for log level: {}", e);
+                ("info".to_string(), Some(e))
+            }
+        }
     } else {
-        "info".to_string()
+        ("info".to_string(), None)
     };
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&log_level));
 
     tracing_subscriber::fmt().with_env_filter(env_filter).init();
+
+    // Now logging is initialized, log any config error if occurred
+    if let Some(err) = config_error {
+        debug!("Failed to load config for log level: {}", err);
+    }
 
     info!("Logging initialized with level: {}", log_level);
 }
@@ -204,15 +214,43 @@ fn wait_for_daemon_shutdown(
     }
 }
 
-/// Force kill the daemon process
+/// Force kill the daemon process for a specific instance
 #[cfg(target_os = "windows")]
-fn force_kill_daemon(_instance_id: u32) {
+fn force_kill_daemon(instance_id: u32) {
     use std::process::Command;
     use std::process::Stdio;
 
-    // Find and kill the wakemd process
-    // Note: taskkill filters don't support instance ID in window title easily,
-    // so we kill all wakem.exe processes. This is a last resort after timeout.
+    // Try to find and kill only the specific instance by its window title
+    // Instance 0 uses "wakemd", others use "wakemd-instance{N}"
+    let window_title = if instance_id == 0 {
+        "wakemd".to_string()
+    } else {
+        format!("wakemd-instance{}", instance_id)
+    };
+
+    // First try to kill by window title (more specific)
+    let output = Command::new("taskkill")
+        .args(["/F", "/FI", &format!("WINDOWTITLE eq {}", window_title)])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+
+    match output {
+        Ok(result) if result.status.success() => {
+            info!("Successfully killed daemon instance {}", instance_id);
+            return;
+        }
+        _ => {
+            // Fallback: try to find process by checking command line arguments
+            // This is less precise but better than killing all wakem.exe
+            debug!("Could not kill by window title, trying alternative method");
+        }
+    }
+
+    // Last resort: kill all wakem.exe (with warning)
+    warn!(
+        "Falling back to killing all wakem.exe processes. This may affect other instances."
+    );
     let output = Command::new("taskkill")
         .args(["/F", "/IM", "wakem.exe"])
         .stdout(Stdio::null())
