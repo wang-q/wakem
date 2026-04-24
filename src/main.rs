@@ -72,8 +72,8 @@ fn main() -> Result<()> {
         Some(Commands::DeleteMacro { name }) => {
             cmd_delete_macro_sync(cli.instance, &name)
         }
-        Some(Commands::Tray) => run_tray_sync(cli.instance, false), // Tray only, don't auto-start daemon
-        None => run_tray_sync(cli.instance, true), // Default: auto-start daemon if not running
+        Some(Commands::Tray) => run_tray_sync(cli.instance, false, false), // Tray only, don't auto-start daemon, keep console
+        None => run_tray_sync(cli.instance, true, true), // Default: auto-start daemon, detach console
     }
 }
 
@@ -108,18 +108,21 @@ fn is_daemon_running(instance_id: u32) -> bool {
 /// Run system tray (Windows)
 /// Tray message loop runs on main thread, tokio runs in background thread
 #[cfg(target_os = "windows")]
-fn run_tray_sync(instance_id: u32, auto_start_daemon: bool) -> Result<()> {
-    use windows::Win32::System::Console::GetConsoleWindow;
-    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+fn run_tray_sync(
+    instance_id: u32,
+    auto_start_daemon: bool,
+    detach_console: bool,
+) -> Result<()> {
+    use windows::Win32::System::Console::FreeConsole;
 
     info!("wakem starting (instance {})...", instance_id);
 
-    // Hide the console window for tray mode (console subsystem exe, but we
-    // don't want a visible terminal when running as tray application)
-    unsafe {
-        let hwnd = GetConsoleWindow();
-        if !hwnd.is_invalid() {
-            let _ = ShowWindow(hwnd, SW_HIDE);
+    // Detach from console for default tray mode (no command). This prevents
+    // any console window from showing when wakem is launched from GUI.
+    // Explicit `wakem tray` keeps console for logging.
+    if detach_console {
+        unsafe {
+            let _ = FreeConsole();
         }
     }
 
@@ -306,7 +309,11 @@ fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
 /// Run system tray (macOS)
 /// On macOS, NSApplication must run on the main thread, so we spawn tokio in a background thread
 #[cfg(target_os = "macos")]
-fn run_tray_sync(instance_id: u32, auto_start_daemon: bool) -> Result<()> {
+fn run_tray_sync(
+    instance_id: u32,
+    auto_start_daemon: bool,
+    _detach_console: bool,
+) -> Result<()> {
     use platform::macos::run_tray_event_loop;
 
     info!("wakem starting (instance {})...", instance_id);
