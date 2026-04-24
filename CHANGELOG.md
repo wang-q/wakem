@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.2 - 2026-04-24
+
 ### Bug Fixes
 
 - **Launcher**: Fixed hotkey parsing in `[launch]` configuration to support modifier keys (e.g., `Ctrl+Alt+Meta+T`)
