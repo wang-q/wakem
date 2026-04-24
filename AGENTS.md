@@ -4,7 +4,7 @@
 
 ## 项目概览
 
-**当前状态**: 活跃开发中 | **主要语言**: Rust | **版本**: 0.1.0 | **平台**: Windows, macOS; Linux(wayland) 将在后续迁移.
+**当前状态**: 活跃开发中 | **主要语言**: Rust | **版本**: 0.1.1 | **平台**: Windows (完整支持), macOS (开发中), Linux(Wayland) 将在后续迁移.
 
 **语言约定**: 为了便于指导，本文件 (`AGENTS.md`) 使用中文编写，且**与用户交流时请使用中文**。但项目代码中的
 **所有文档注释 (doc comments)**、**行内注释**以及**提交信息**必须使用**英文**。
@@ -14,12 +14,13 @@
 ### 核心特性
 
 - **键盘增强**: 键位重映射、修饰键自定义、宏录制与播放
-- **鼠标增强**: 滚轮加速/减速、鼠标按键映射、水平滚动支持
-- **窗口管理**: 窗口移动/调整大小/最大化/最小化、预设布局、自动应用规则
-- **进程启动**: 快捷键启动应用程序
+- **鼠标增强**: 滚轮加速/减速、水平滚动、音量/亮度控制
+- **窗口管理**: 窗口移动/调整大小/最大化/最小化、预设布局、自动应用规则、跨显示器移动
+- **进程启动**: 快捷键启动应用程序（支持参数）
 - **守护进程模式**: 后台运行，通过 IPC 接受客户端命令
 - **配置系统**: TOML 格式配置文件，支持热重载和多实例
 - **系统托盘**: Windows/macOS 系统托盘图标集成
+- **多实例支持**: 同时运行多个独立配置的实例
 
 ## 项目结构
 
@@ -53,7 +54,6 @@ src/
 │   │   ├── input.rs     # 输入设备抽象 trait
 │   │   ├── input_device.rs   # Raw Input 设备实现
 │   │   ├── output_device.rs  # SendInput 输出实现
-│   │   ├── output.rs    # 输出辅助函数
 │   │   ├── launcher.rs  # 应用程序启动器
 │   │   ├── context.rs   # 窗口上下文信息获取
 │   │   ├── tray.rs      # 系统托盘图标
@@ -158,6 +158,12 @@ examples/                # 配置示例
 ├── navigation_layer.toml # 导航层配置示例
 ├── window_manager.toml   # 窗口管理配置示例
 └── test_config.toml      # 测试配置
+
+docs/                    # 文档
+├── config.md            # 配置指南
+├── developer.md         # 开发者文档
+├── macros.md            # 宏系统文档
+└── keys.md              # 键名参考
 ```
 
 ### 模块访问路径
@@ -214,12 +220,18 @@ cargo clippy -- -D warnings
 
 | Crate | 版本 | 用途 |
 |-------|------|------|
-| `serde` / `toml` | 1.0 / 0.8 | 序列化/反序列化（配置文件） |
+| `serde` / `serde_json` / `toml` | 1.0 / 1.0 / 0.8 | 序列化/反序列化（配置文件） |
 | `tokio` | 1.35 | 异步运行时（full features） |
-| `tracing` | 0.1 | 结构化日志 |
+| `tracing` / `tracing-subscriber` | 0.1 / 0.3 | 结构化日志 |
 | `clap` | 4.4 | 命令行参数解析 |
 | `parking_lot` | 0.12 | 高性能同步原语（Mutex/RwLock） |
 | `keyboard-codes` | 0.3 | 跨平台键码映射 |
+| `anyhow` / `thiserror` | 1.0 | 错误处理 |
+| `indexmap` | 2.0 | 有序 HashMap（保持配置顺序） |
+| `once_cell` / `lazy_static` | 1.19 / 1.4 | 延迟初始化全局单例 |
+| `dirs` | 5 | 跨平台目录路径获取 |
+| `chrono` | 0.4 | 时间戳处理 |
+| `async-trait` | 0.1 | 异步 trait 支持 |
 
 ### 平台特定依赖
 
@@ -239,6 +251,7 @@ cargo clippy -- -D warnings
 | `cocoa` | 0.26 | Cocoa UI 框架 |
 | `objc` | 0.2 | Objective-C 运行时绑定 |
 | `accessibility` | 0.2 | Accessibility API |
+| `libc` | 0.2 | 原生 API 调用（pid_t, c_char, proc_pidpath） |
 
 ### 功能性依赖
 
@@ -246,10 +259,7 @@ cargo clippy -- -D warnings
 |-------|------|------|
 | `hmac` / `sha2` | 0.12 / 0.10 | IPC 通信的 HMAC-SHA256 认证 |
 | `rand` | 0.8 | 认证密钥生成 |
-| `chrono` | 0.4 | 时间戳处理 |
-| `indexmap` | 2.0 | 有序 HashMap（保持配置顺序） |
-| `once_cell` | 1.19 | 延迟初始化全局单例 |
-| `async-trait` | 0.1 | 异步 trait 支持 |
+| `regex` | 1.10 | 正则表达式匹配 |
 
 ### 开发依赖
 
