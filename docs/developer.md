@@ -5,8 +5,8 @@
 ## Changelog
 
 ```bash
-git log v0.1.1..HEAD > gitlog.txt
-git diff v0.1.1 HEAD -- "*.rs" "*.md" > gitdiff.txt
+git log v0.1.2..HEAD > gitlog.txt
+git diff v0.1.2 HEAD -- "*.rs" "*.md" > gitdiff.txt
 ```
 
 ## Code coverage
@@ -89,7 +89,7 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 - 窗口居中 / 移动到边缘 / 半屏显示
 - 循环调整宽度/高度（多种比例）
 - 固定比例窗口 / 原生比例窗口
-- 跨显示器移动 / 同进程窗口切换
+- 跨显示器移动 / 同进程窗口切换 (Alt+`)
 - 窗口置顶 / 最小化/最大化/还原/关闭
 - 窗口绝对坐标移动 / 大小调整
 - 显示调试信息 / 显示通知
@@ -120,7 +120,7 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 ### 高级功能
 - 窗口预设（保存/恢复/自动应用布局）
 - 上下文感知快捷键（进程名/标题/类/路径匹配）
-- 网络通信（TCP + 远程控制 + 挑战-响应认证）
+- 网络通信（TCP + 远程控制 + HMAC-SHA256 认证）
 - 通配符匹配（支持 `*` 和 `?`，大小写不敏感）
 - 宏录制回放系统（详见 [macros.md](macros.md)）
 
@@ -145,7 +145,7 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 
 ### 2. 鼠标按钮重映射
 
-位置: `src/config.rs` → `MouseConfig.button_remap`
+位置: `src/config.rs` → `MouseConfig`
 
 `button_remap` 字段已定义但功能待实现。可用于将鼠标侧键映射为其他功能。
 
@@ -154,12 +154,14 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 位置: `src/config.rs` → `Config::validate()`
 
 当前实现的验证规则：
-- 日志级别有效性检查
+- 日志级别有效性检查（trace/debug/info/warn/error）
 - 端口范围检查（1024-65535）
 - 实例 ID 范围检查（0-255）
 - 宏绑定引用的宏存在性检查
 - 层激活键非空检查
 - 空宏步骤警告
+- 鼠标滚轮加速度范围检查（0.1-10.0）
+- 鼠标滚轮速度正数检查
 
 ### 4. IPC 消息协议完整列表
 
@@ -180,6 +182,7 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 | C→S | `DeleteMacro` | 已使用 | 删除宏 |
 | C→S | `BindMacro` | 已使用 | 绑定宏到触发键 |
 | C→S | `RegisterMessageWindow` | 已使用 | 注册消息窗口句柄 |
+| C→S | `Shutdown` | 已使用 | 关闭守护进程 |
 | S→C | `StatusResponse` | 已使用 | 状态响应 |
 | S→C | `ConfigLoaded` | 已使用 | 配置已加载 |
 | S→C | `ConfigError` | 已使用 | 配置加载错误 |
@@ -195,8 +198,13 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 位置: `src/types/layer.rs`, `src/runtime/layer_manager.rs`
 
 核心 API：
+- `Layer`: 层定义（名称、激活键、模式、映射规则）
 - `LayerStack`: 管理层激活/停用/Hold/Toggle
 - `LayerManager`: 处理输入事件的层分发
+
+层模式支持：
+- `Hold`: 按住激活，释放退出
+- `Toggle`: 按一次进入，再按一次退出
 
 ### 6. 映射规则 API
 
@@ -209,6 +217,12 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 | `with_context()` | 添加上下文条件 |
 | `matches()` | 检查事件是否匹配规则 |
 
+上下文条件 (`ContextCondition`) 支持：
+- `process_name`: 进程名匹配（通配符）
+- `window_class`: 窗口类名匹配（通配符）
+- `window_title`: 窗口标题匹配（通配符）
+- `executable_path`: 可执行路径匹配（通配符）
+
 ### 7. 通配符匹配实现细节
 
 位置: `src/config.rs` → `wildcard_match()` 和 `WindowPreset::wildcard_match()`
@@ -217,7 +231,7 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 - `*` 匹配任意字符序列（连续 `*` 会被合并优化）
 - `?` 匹配单个字符
 - 大小写不敏感匹配
-- 递归回溯算法确保正确性
+- 动态规划算法确保正确性，时间复杂度 O(m*n)
 
 ---
 
@@ -225,6 +239,7 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 
 - **鼠标按钮重映射** - 完成 `MouseConfig.button_remap` 功能
 - **组合触发 (Chord)** - 实现顺序按键触发
+- **热字符串 (HotString)** - 实现文本扩展功能
 - **跨平台抽象层完善** - 为 macOS/Linux 移植做准备
 
 ---
@@ -235,8 +250,8 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 
 ### 测试环境
 
-- OS: Windows 10/11
-- CPU: x86_64
+- OS: Windows 10/11, macOS
+- CPU: x86_64, ARM64 (Apple Silicon)
 - 编译: release + debuginfo (opt-level = 3)
 
 ### 基准测试结果
@@ -277,11 +292,9 @@ benches/
     └── macos_bench.rs     # macOS 专用基准 [macOS only]
 ```
 
----
-
 ## 真实集成测试
 
-> 位置: `tests/windows_integration.rs` | 仅 Windows 平台
+> 位置: `tests/e2e_windows_window.rs` | 仅 Windows 平台
 
 与 `tests/` 目录下的其他 mock 测试不同，真实集成测试会在**桌面启动真实窗口**并验证实际行为。
 
@@ -291,14 +304,14 @@ benches/
 
 ```bash
 # 运行窗口管理真实集成测试
-cargo test --test windows_integration -- --ignored --test-threads=1
+cargo test --test e2e_windows_window -- --ignored --test-threads=1
 
 # 运行程序启动器真实集成测试
-cargo test --test windows_launcher_e2e -- --ignored --test-threads=1
+cargo test --test e2e_windows_launcher -- --ignored --test-threads=1
 
 # 单个测试
-cargo test --test windows_integration test_explorer_multi_process_window_enumeration -- --ignored --test-threads=1
-cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored --test-threads=1
+cargo test --test e2e_windows_window test_get_foreground_window_info -- --ignored --test-threads=1
+cargo test --test e2e_windows_launcher test_launch_simple_program -- --ignored --test-threads=1
 ```
 
 ### 测试用例列表
@@ -308,8 +321,6 @@ cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored -
 | 测试名 | 说明 |
 |--------|------|
 | `test_get_foreground_window_info` | 获取前台窗口信息（标题、位置、大小、显示器工作区） |
-| `test_get_window_info_invalid_hwnd` | 传入无效句柄应返回错误 |
-| `test_get_debug_info` | 获取调试信息字符串 |
 
 #### 窗口位置与大小
 
@@ -327,9 +338,7 @@ cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored -
 
 | 测试名 | 说明 |
 |--------|------|
-| `test_minimize_restore_window` | 最小化后还原 |
-| `test_maximize_restore_window` | 最大化后还原 |
-| `test_toggle_topmost` | 置顶/取消置顶切换 |
+| `test_minimize_and_restore_window` | 最小化后还原 |
 | `test_close_window` | 关闭窗口 |
 
 #### 多显示器支持
@@ -351,6 +360,8 @@ cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored -
 
 #### 程序启动器 (Launcher)
 
+> 位置: `tests/e2e_windows_launcher.rs` | 仅 Windows 平台
+
 | 测试名 | 说明 |
 |--------|------|
 | `test_launch_simple_program` | 启动计算器 (calc.exe) |
@@ -371,8 +382,9 @@ cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored -
 
 ### 设计要点
 
-- 使用 `PlatformWindowManager` (即 `WindowManager<RealWindowApi>`) 调用真实 Windows API
+- 使用 `WindowManager` 调用真实 Windows API
 - 通过 `Command::new("notepad.exe").spawn()` 启动真实进程
-- `wait_for` 辅助函数轮询等待窗口出现（最长 5 秒超时）
+- `wait_for_window` 辅助函数轮询等待窗口出现（最长 5 秒超时）
 - 每个测试结束后自动 `taskkill /IM notepad.exe /F` 清理
 - `#[cfg(target_os = "windows")]` 条件编译，非 Windows 平台提供空占位测试
+
