@@ -63,7 +63,11 @@ mod launcher_tests {
         };
 
         let result = launcher.launch(&action);
-        assert!(result.is_ok(), "Should launch calc.exe successfully: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should launch calc.exe successfully: {:?}",
+            result.err()
+        );
 
         let calc_running = wait_for_process("CalculatorApp.exe", 5000)
             || wait_for_process("calc.exe", 5000);
@@ -113,7 +117,10 @@ mod launcher_tests {
         };
 
         let result = launcher.launch(&action);
-        assert!(result.is_err(), "Should fail to launch non-existent program");
+        assert!(
+            result.is_err(),
+            "Should fail to launch non-existent program"
+        );
     }
 }
 

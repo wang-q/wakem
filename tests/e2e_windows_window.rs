@@ -5,13 +5,12 @@ mod integration_tests {
     use std::process::Command;
     use std::thread;
     use std::time::Duration;
+    use wakem::platform::windows::{WindowApi, WindowFrame, WindowManager};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextW, IsWindow, IsWindowVisible, PostMessageW, WM_CLOSE,
     };
     use windows_core::BOOL;
-    use wakem::platform::windows::{WindowApi, WindowFrame, WindowManager};
-    use wakem::types::Edge;
 
     fn launch_test_window() -> u32 {
         cleanup_test_windows();
@@ -56,7 +55,10 @@ mod integration_tests {
         let len = GetWindowTextW(hwnd, &mut buffer);
         if len > 0 {
             let title = String::from_utf16_lossy(&buffer[..len as usize]);
-            if title.contains("Notepad") || title.contains("Untitled") || title.contains(".txt") {
+            if title.contains("Notepad")
+                || title.contains("Untitled")
+                || title.contains(".txt")
+            {
                 if IsWindowVisible(hwnd).as_bool() {
                     windows.push(hwnd);
                 }

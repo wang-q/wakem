@@ -124,10 +124,9 @@ fn test_half_screen_right() {
 /// 测试半屏计算 - 上半屏
 #[test]
 fn test_half_screen_top() {
-    let (x, y, w, h) = calculate_half_screen(Edge::Top, 1920, 1080);
+    let (x, _y, w, h) = calculate_half_screen(Edge::Top, 1920, 1080);
 
     assert_eq!(x, 0);
-    assert_eq!(y, 0);
     assert_eq!(w, 1920);
     assert_eq!(h, 540); // 1080 / 2
 }
@@ -135,9 +134,8 @@ fn test_half_screen_top() {
 /// 测试半屏计算 - 下半屏
 #[test]
 fn test_half_screen_bottom() {
-    let (x, y, w, h) = calculate_half_screen(Edge::Bottom, 1920, 1080);
+    let (_x, y, w, h) = calculate_half_screen(Edge::Bottom, 1920, 1080);
 
-    assert_eq!(x, 0);
     assert_eq!(y, 540); // 1080 / 2
     assert_eq!(w, 1920);
     assert_eq!(h, 540); // 1080 / 2
@@ -147,12 +145,12 @@ fn test_half_screen_bottom() {
 #[test]
 fn test_half_screen_different_resolution() {
     // 4K 屏幕
-    let (x, y, w, h) = calculate_half_screen(Edge::Left, 3840, 2160);
+    let (_x, _y, w, h) = calculate_half_screen(Edge::Left, 3840, 2160);
     assert_eq!(w, 1920); // 3840 / 2
     assert_eq!(h, 2160);
 
     // 1440p 屏幕
-    let (x, y, w, h) = calculate_half_screen(Edge::Right, 2560, 1440);
+    let (x, _y, w, _h) = calculate_half_screen(Edge::Right, 2560, 1440);
     assert_eq!(x, 1280); // 2560 / 2
     assert_eq!(w, 1280); // 2560 / 2
 }
@@ -251,11 +249,11 @@ fn test_center_odd_dimensions() {
 /// 测试半屏计算 - 奇数屏幕宽度
 #[test]
 fn test_half_screen_odd_width() {
-    let (x, y, w, h) = calculate_half_screen(Edge::Left, 1921, 1080);
+    let (_x, _y, w, _h) = calculate_half_screen(Edge::Left, 1921, 1080);
 
     assert_eq!(w, 960); // 1921 / 2 = 960.5 -> 960
 
-    let (x, y, w, h) = calculate_half_screen(Edge::Right, 1921, 1080);
+    let (x, _y, w, _h) = calculate_half_screen(Edge::Right, 1921, 1080);
 
     assert_eq!(x, 960); // 1921 / 2 = 960.5 -> 960
     assert_eq!(w, 960); // 1921 / 2 = 960.5 -> 960

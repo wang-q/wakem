@@ -12,7 +12,7 @@ fn test_key_name_parsing() {
         ("Space", 0x39, 0x20),
     ];
 
-    for (name, expected_scan, expected_vk) in keys {
+    for (name, _expected_scan, _expected_vk) in keys {
         // 这里可以调用实际的解析函数
         // let (scan, vk) = parse_key(name).unwrap();
         // assert_eq!(scan, expected_scan);

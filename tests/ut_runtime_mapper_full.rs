@@ -2,9 +2,9 @@
 
 use wakem::runtime::{KeyMapper, LayerManager};
 use wakem::types::{
-    Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, Layer,
-    LayerMode, Macro, MacroStep, MappingRule, ModifierState, MouseAction, MouseButton,
-    MouseEvent, MouseEventType, Trigger, WindowAction,
+    Action, InputEvent, KeyAction, KeyEvent, KeyState, Layer, LayerMode, Macro,
+    MacroStep, MappingRule, ModifierState, MouseAction, MouseEvent, MouseEventType,
+    Trigger, WindowAction,
 };
 
 // ==================== KeyMapper 测试 ====================

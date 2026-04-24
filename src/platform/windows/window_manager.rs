@@ -1,5 +1,6 @@
 //! Windows window manager implementation
 #![cfg(target_os = "windows")]
+#![allow(dead_code)]
 
 use anyhow::Result;
 use tracing::debug;
@@ -876,7 +877,8 @@ impl RealWindowManager {
                 z_index: 0,
             };
 
-            let _ = EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
+            let _ =
+                EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
 
             // Sort by Z-Order (lower index = higher in Z-Order = more recently used)
             let mut sorted = windows;

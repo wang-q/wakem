@@ -1721,8 +1721,8 @@ test_macro = []
 
         let trigger = parse_shortcut_trigger("Ctrl+Alt+C").unwrap();
         if let Trigger::Key {
-            scan_code,
-            virtual_key,
+            scan_code: _,
+            virtual_key: _,
             modifiers,
             ..
         } = trigger
@@ -1806,7 +1806,8 @@ test_macro = []
     #[test]
     fn test_parse_launch_mapping_with_args() {
         // Test launch mapping with command arguments
-        let rule = parse_launch_mapping("Ctrl+Alt+Meta+N", "notepad.exe C:\\test.txt").unwrap();
+        let rule =
+            parse_launch_mapping("Ctrl+Alt+Meta+N", "notepad.exe C:\\test.txt").unwrap();
 
         // Verify trigger
         if let crate::types::Trigger::Key {

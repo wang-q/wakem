@@ -2,8 +2,7 @@
 
 use wakem::ipc::Message;
 use wakem::types::{
-    Action, KeyAction, Layer, LayerMode, LayerStack, Macro, MacroStep, MappingRule,
-    ModifierState, Trigger,
+    Action, KeyAction, Layer, LayerMode, LayerStack, Macro, MacroStep, ModifierState,
 };
 
 /// 测试 IPC 消息序列化

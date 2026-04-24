@@ -49,8 +49,10 @@ instance_id = 1
     assert!(config.network.enabled);
     assert_eq!(config.network.instance_id, 1);
 
-    let serialized = toml::to_string_pretty(&config).expect("Failed to serialize config");
-    let config2: Config = toml::from_str(&serialized).expect("Failed to re-parse config");
+    let serialized =
+        toml::to_string_pretty(&config).expect("Failed to serialize config");
+    let config2: Config =
+        toml::from_str(&serialized).expect("Failed to re-parse config");
 
     assert_eq!(config.log_level, config2.log_level);
     assert_eq!(config.tray_icon, config2.tray_icon);
@@ -86,8 +88,8 @@ instance_id = 256
 fn test_parse_key_consistency() {
     for ch in 'a'..='z' {
         let name = ch.to_string();
-        let (scan_code, virtual_key) = parse_key(&name)
-            .unwrap_or_else(|_| panic!("Failed to parse key: {}", name));
+        let (scan_code, virtual_key) =
+            parse_key(&name).unwrap_or_else(|_| panic!("Failed to parse key: {}", name));
         assert!(scan_code > 0 && scan_code <= 0xFF);
         assert!(virtual_key > 0 && virtual_key <= 0xFF);
     }

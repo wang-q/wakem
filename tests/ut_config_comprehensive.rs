@@ -1,7 +1,6 @@
 // Config 完整测试 - 补充配置解析器的边界条件和完整场景测试
 
 use wakem::config::{wildcard_match, Config, WindowPreset};
-use wakem::types::{Action, Trigger, WindowAction};
 
 // ==================== TOML 解析完整性测试 ====================
 

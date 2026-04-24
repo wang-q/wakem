@@ -214,11 +214,7 @@ fn force_kill_daemon(_instance_id: u32) {
     // Note: taskkill filters don't support instance ID in window title easily,
     // so we kill all wakem.exe processes. This is a last resort after timeout.
     let output = Command::new("taskkill")
-        .args([
-            "/F",
-            "/IM",
-            "wakem.exe",
-        ])
+        .args(["/F", "/IM", "wakem.exe"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .output();

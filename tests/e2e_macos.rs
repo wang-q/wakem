@@ -9,9 +9,7 @@ mod macos_integration_tests {
     use wakem::types::Edge;
 
     fn launch_test_window() {
-        let _ = Command::new("open")
-            .args(["-a", "Terminal"])
-            .output();
+        let _ = Command::new("open").args(["-a", "Terminal"]).output();
         thread::sleep(Duration::from_secs(2));
     }
 
@@ -132,9 +130,7 @@ mod macos_integration_tests {
     fn test_switch_to_next_window_of_same_process() {
         setup();
 
-        let _ = Command::new("open")
-            .args(["-a", "Terminal"])
-            .output();
+        let _ = Command::new("open").args(["-a", "Terminal"]).output();
         thread::sleep(Duration::from_secs(2));
 
         let wm = MacosWindowManager::new_real();

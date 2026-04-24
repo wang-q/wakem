@@ -2,8 +2,8 @@
 
 use wakem::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, Layer,
-    LayerMode, Macro, MacroStep, MappingRule, ModifierState, MouseAction, MouseButton,
-    MouseEvent, MouseEventType, Trigger, WindowAction,
+    LayerMode, MappingRule, ModifierState, MouseAction, MouseButton, MouseEvent,
+    MouseEventType, Trigger, WindowAction,
 };
 
 // ==================== Action 变体完整测试 ====================
@@ -148,10 +148,10 @@ fn test_modifier_state_from_virtual_key_shift() {
     assert!(state.shift);
     assert!(pressed);
 
-    let (state, pressed) = ModifierState::from_virtual_key(0xA0, true).unwrap();
+    let (state, _pressed) = ModifierState::from_virtual_key(0xA0, true).unwrap();
     assert!(state.shift); // LSHIFT
 
-    let (state, pressed) = ModifierState::from_virtual_key(0xA1, true).unwrap();
+    let (state, _pressed) = ModifierState::from_virtual_key(0xA1, true).unwrap();
     assert!(state.shift); // RSHIFT
 
     // 释放状态

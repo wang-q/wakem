@@ -1,13 +1,14 @@
 //! Windows input device implementation
 #![cfg(target_os = "windows")]
+#![allow(dead_code)]
 
 use crate::types::{InputEvent, KeyState, ModifierState};
 #[cfg(test)]
 use crate::types::{KeyEvent, MouseButton, MouseEvent, MouseEventType};
 use anyhow::Result;
-#[allow(unused_imports)]
+#[cfg(test)]
 use std::cell::RefCell;
-#[allow(unused_imports)]
+#[cfg(test)]
 use std::collections::VecDeque;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use tracing::debug;
@@ -309,9 +310,7 @@ impl InputDeviceFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{
-        InputEvent, KeyEvent, KeyState, MouseButton, MouseEvent, MouseEventType,
-    };
+    use crate::types::{InputEvent, KeyEvent, KeyState, MouseButton, MouseEventType};
 
     #[test]
     fn test_mock_input_device_creation() {
@@ -431,7 +430,7 @@ mod tests {
 
         // Due to merge using |=, state persists after release
         // This is a known limitation of MockInputDevice
-        let state = device.get_modifier_state();
+        let _state = device.get_modifier_state();
         // Actual behavior should be clear, but merge doesn't
         // Here we test that events are processed correctly
         assert_eq!(device.get_captured_events().len(), 2);
@@ -504,7 +503,7 @@ mod tests {
         device.register().unwrap();
 
         // Inject large batch of events
-        for i in 0..1000 {
+        for _i in 0..1000 {
             device.inject_key_press(0x1E, 0x41); // 'A' key
         }
 

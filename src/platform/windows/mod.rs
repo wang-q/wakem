@@ -33,6 +33,7 @@ pub use window_api::{
 
 // Mock implementations are only exported during tests
 #[cfg(test)]
+#[allow(unused_imports)]
 pub use input_device::MockInputDevice;
 #[cfg(test)]
 pub use output_device::MockOutputDevice;

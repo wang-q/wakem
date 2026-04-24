@@ -87,7 +87,7 @@ mod tests {
     #[tokio::test]
     async fn test_basic_shutdown() {
         let shutdown = ShutdownSignal::new();
-        let mut rx = shutdown.subscribe();
+        let rx = shutdown.subscribe();
 
         // Initial state should be false
         assert!(!*rx.borrow());
@@ -102,8 +102,8 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_subscribers() {
         let shutdown = ShutdownSignal::new();
-        let mut rx1 = shutdown.subscribe();
-        let mut rx2 = shutdown.subscribe();
+        let rx1 = shutdown.subscribe();
+        let rx2 = shutdown.subscribe();
 
         shutdown.shutdown().await;
 

@@ -6,12 +6,12 @@ use wakem::types::*;
 /// 测试 KeyAction 创建
 #[test]
 fn test_key_action_creation() {
-    let press = KeyAction::Press {
+    let _press = KeyAction::Press {
         scan_code: 0x1E,
         virtual_key: 0x41, // 'A'
     };
 
-    let release = KeyAction::Release {
+    let _release = KeyAction::Release {
         scan_code: 0x1E,
         virtual_key: 0x41,
     };

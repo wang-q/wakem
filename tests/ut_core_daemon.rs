@@ -2,9 +2,7 @@
 
 use wakem::config::Config;
 use wakem::daemon::ServerState;
-use wakem::types::{
-    InputEvent, KeyEvent, KeyState, MacroStep, ModifierState, MouseEventType,
-};
+use wakem::types::{InputEvent, KeyEvent, KeyState, MouseEventType};
 
 // ==================== ServerState 初始化和配置加载 ====================
 
@@ -467,8 +465,6 @@ async fn test_get_status_consistency() {
 #[cfg(target_os = "windows")]
 #[tokio::test]
 async fn test_set_message_window_hwnd() {
-    use windows::Win32::Foundation::HWND;
-
     let state = ServerState::new();
 
     // 注册窗口句柄（使用 isize 而不是 HWND）

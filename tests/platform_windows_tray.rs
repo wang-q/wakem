@@ -106,7 +106,10 @@ mod tray_tests {
         let api = MockTrayApi::new();
         let manager = TrayManager::new(api);
 
-        manager.notify("Notification", "This is a test").await.unwrap();
+        manager
+            .notify("Notification", "This is a test")
+            .await
+            .unwrap();
 
         let notifications = manager.api.get_notifications();
         assert_eq!(notifications.len(), 1);

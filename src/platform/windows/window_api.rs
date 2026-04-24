@@ -648,6 +648,7 @@ pub struct MockWindowApi {
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 impl MockWindowApi {
     pub fn new() -> Self {
         Self {

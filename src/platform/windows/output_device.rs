@@ -3,6 +3,7 @@
 //! This module uses Windows SendInput for simulated input events.
 //! Shared logic (char mapping, text input, key combos) is in [output_helpers].
 #![cfg(target_os = "windows")]
+#![allow(dead_code)]
 
 use crate::platform::output_helpers::char_to_vk;
 use crate::platform::traits::OutputDeviceTrait;
@@ -15,9 +16,6 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
     MOUSEEVENTF_WHEEL, VIRTUAL_KEY,
-};
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    VK_VOLUME_DOWN, VK_VOLUME_MUTE, VK_VOLUME_UP,
 };
 
 /// Local OutputDevice trait for SendInput-based implementation
@@ -218,9 +216,6 @@ impl OutputDevice for SendInputDevice {
 mod tests {
     use super::*;
     use crate::platform::output_helpers::char_to_vk;
-    use crate::types::{KeyAction, ModifierState, MouseAction, MouseButton};
-    use std::cell::RefCell;
-    use std::sync::Arc;
 
     // --- char_to_vk tests (shared logic) ---
 
@@ -968,7 +963,7 @@ impl OutputDeviceTrait for WindowsOutputDevice {
                         r#type: INPUT_KEYBOARD,
                         ..Default::default()
                     };
-                    input.Anonymous.ki.wVk = VK_VOLUME_UP;
+                    input.Anonymous.ki.wVk = VIRTUAL_KEY(0xAF);
                     input.Anonymous.ki.wScan = 0;
                     input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
                     input.Anonymous.ki.time = 0;
@@ -988,7 +983,7 @@ impl OutputDeviceTrait for WindowsOutputDevice {
                         r#type: INPUT_KEYBOARD,
                         ..Default::default()
                     };
-                    input.Anonymous.ki.wVk = VK_VOLUME_DOWN;
+                    input.Anonymous.ki.wVk = VIRTUAL_KEY(0xAE);
                     input.Anonymous.ki.wScan = 0;
                     input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
                     input.Anonymous.ki.time = 0;
@@ -1008,7 +1003,7 @@ impl OutputDeviceTrait for WindowsOutputDevice {
                         r#type: INPUT_KEYBOARD,
                         ..Default::default()
                     };
-                    input.Anonymous.ki.wVk = VK_VOLUME_MUTE;
+                    input.Anonymous.ki.wVk = VIRTUAL_KEY(0xAD);
                     input.Anonymous.ki.wScan = 0;
                     input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
                     input.Anonymous.ki.time = 0;
