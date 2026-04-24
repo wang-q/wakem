@@ -39,6 +39,7 @@ jobs:
 
   macos:
     name: macOS Build
+    if: false
     runs-on: macOS-latest
     steps:
       - name: Checkout sources

@@ -99,6 +99,7 @@ See [examples/window_manager.toml](examples/window_manager.toml) for key binding
 | :-------------------: | :-------------------------------------------: |
 |   <kbd>hyper</kbd>    | <kbd>ctrl</kbd>+<kbd>opt</kbd>+<kbd>cmd</kbd> |
 |                       | <kbd>ctrl</kbd>+<kbd>win</kbd>+<kbd>alt</kbd> |
+|                       | <kbd>capslock</kbd> |
 | <kbd>hyperShift</kbd> |       <kbd>hyper</kbd>+<kbd>shift</kbd>       |
 
 **Movement**
