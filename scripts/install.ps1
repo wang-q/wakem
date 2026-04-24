@@ -8,6 +8,7 @@
 
 param(
     [switch]$Uninstall,    # Uninstall
+    [switch]$AddToPath,    # Add wakem to PATH
     [switch]$Help          # Show help
 )
 
@@ -59,16 +60,24 @@ Installation Source:
   1. If local build exists (target\release\wakem.exe), uses it
   2. Otherwise, downloads the latest release from GitHub
 
+PATH Configuration:
+  Use -AddToPath to add wakem to your user PATH environment variable,
+  allowing you to run 'wakem' from any command prompt or PowerShell session.
+
 Usage:
     .\install.ps1 [options]
 
 Options:
     -Uninstall    Uninstall wakem
+    -AddToPath    Add wakem to PATH environment variable
     -Help         Show this help message
 
 Examples:
     # Install (auto-detect: local build or download from GitHub)
     .\scripts\install.ps1
+
+    # Install and add to PATH
+    .\scripts\install.ps1 -AddToPath
 
     # Build locally and install
     cargo build --release
@@ -101,6 +110,67 @@ function Wait-ProcessClosed {
         Write-Warning "$ProcessName is currently running at '$ExePath'"
         Write-Host "Please close $ProcessName and press Enter to continue..." -ForegroundColor Yellow
         Read-Host | Out-Null
+    }
+}
+
+function Add-ToUserPath {
+    param(
+        [string]$Directory
+    )
+    try {
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        $pathEntries = $currentPath -split ';' | Where-Object { $_ -ne '' }
+        
+        # Check if already in PATH
+        foreach ($entry in $pathEntries) {
+            if ($entry -ieq $Directory) {
+                Write-Host "Directory already in PATH: $Directory" -ForegroundColor Yellow
+                return $true
+            }
+        }
+        
+        # Add to PATH
+        $newPath = $currentPath
+        if (-not $currentPath.EndsWith(';')) {
+            $newPath += ';'
+        }
+        $newPath += $Directory
+        
+        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+        Write-Host "Added to PATH: $Directory" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Warning "Failed to add to PATH: $_"
+        return $false
+    }
+}
+
+function Remove-FromUserPath {
+    param(
+        [string]$Directory
+    )
+    try {
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        $pathEntries = $currentPath -split ';' | Where-Object { $_ -ne '' }
+        
+        $newEntries = $pathEntries | Where-Object { $_ -ine $Directory }
+        
+        if ($newEntries.Count -eq $pathEntries.Count) {
+            Write-Host "Directory not found in PATH: $Directory" -ForegroundColor Yellow
+            return $false
+        }
+        
+        $newPath = ($newEntries -join ';')
+        if ($newPath -ne '' -and -not $newPath.EndsWith(';')) {
+            $newPath += ';'
+        }
+        
+        [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+        Write-Host "Removed from PATH: $Directory" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Warning "Failed to remove from PATH: $_"
+        return $false
     }
 }
 
@@ -333,6 +403,12 @@ function Install-Wakem {
     $Shortcut.Save()
     Write-Host "Created startup shortcut: $ShortcutPath" -ForegroundColor Green
 
+    # Add to PATH if requested
+    if ($AddToPath) {
+        Write-Host ""
+        Add-ToUserPath -Directory $InstallDir
+    }
+
     Write-Host ""
     Write-Host "Installation complete!" -ForegroundColor Green
     Write-Host ""
@@ -400,6 +476,10 @@ function Uninstall-Wakem {
         Remove-Item $InstallDir -Recurse -Force
         Write-Host "Removed program directory: $InstallDir" -ForegroundColor Green
     }
+
+    # Remove from PATH
+    Write-Host ""
+    Remove-FromUserPath -Directory $InstallDir
 
     Write-Host ""
     Write-Host "Uninstallation complete!" -ForegroundColor Green
