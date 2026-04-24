@@ -290,11 +290,15 @@ benches/
 ### 运行方式
 
 ```bash
-# 运行全部真实集成测试
+# 运行窗口管理真实集成测试
 cargo test --test windows_integration -- --ignored --test-threads=1
+
+# 运行程序启动器真实集成测试
+cargo test --test windows_launcher_e2e -- --ignored --test-threads=1
 
 # 单个测试
 cargo test --test windows_integration test_explorer_multi_process_window_enumeration -- --ignored --test-threads=1
+cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored
 ```
 
 ### 测试用例列表
@@ -343,6 +347,19 @@ cargo test --test windows_integration test_explorer_multi_process_window_enumera
 | `test_single_window_does_not_panic` | 单窗口时切换不报错 |
 | `test_get_app_visible_windows_finds_notepad` | 窗口枚举能找到 Notepad |
 | `test_explorer_multi_process_window_enumeration` | Explorer 多进程窗口枚举（不含系统窗口） |
+
+#### 程序启动器 (Launcher)
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_launch_simple_program` | 启动计算器 (calc.exe) |
+| `test_launch_program_with_args` | 启动记事本并打开指定文件 |
+| `test_launcher_parse_command_and_launch` | `parse_command` -> `launch` 完整流程 |
+| `test_launch_program_with_multiple_args` | 多参数启动 (ping 命令) |
+| `test_launch_nonexistent_program` | 启动不存在的程序应返回错误 |
+| `test_launch_system_program_cmd` | 启动 cmd.exe 并执行命令 |
+
+> 位置: `tests/windows_launcher_e2e.rs` | 仅 Windows 平台
 
 ### 待实现测试
 

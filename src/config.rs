@@ -1774,6 +1774,65 @@ test_macro = []
     }
 
     #[test]
+    fn test_parse_launch_mapping_with_modifiers() {
+        // Test launch mapping with modifier keys (e.g., "Ctrl+Alt+Meta+T" = "wt.exe")
+        let rule = parse_launch_mapping("Ctrl+Alt+Meta+T", "wt.exe").unwrap();
+
+        // Verify trigger has correct modifiers
+        if let crate::types::Trigger::Key {
+            virtual_key,
+            modifiers,
+            ..
+        } = &rule.trigger
+        {
+            assert_eq!(*virtual_key, Some(0x54)); // VK_T
+            assert!(modifiers.ctrl, "Should have Ctrl modifier");
+            assert!(modifiers.alt, "Should have Alt modifier");
+            assert!(modifiers.meta, "Should have Meta/Win modifier");
+            assert!(!modifiers.shift, "Should not have Shift modifier");
+        } else {
+            panic!("Expected Key trigger");
+        }
+
+        // Verify action
+        if let crate::types::Action::Launch(cmd) = &rule.action {
+            assert_eq!(cmd.program, "wt.exe");
+            assert!(cmd.args.is_empty());
+        } else {
+            panic!("Expected Launch action");
+        }
+    }
+
+    #[test]
+    fn test_parse_launch_mapping_with_args() {
+        // Test launch mapping with command arguments
+        let rule = parse_launch_mapping("Ctrl+Alt+Meta+N", "notepad.exe C:\\test.txt").unwrap();
+
+        // Verify trigger
+        if let crate::types::Trigger::Key {
+            virtual_key,
+            modifiers,
+            ..
+        } = &rule.trigger
+        {
+            assert_eq!(*virtual_key, Some(0x4E)); // VK_N
+            assert!(modifiers.ctrl);
+            assert!(modifiers.alt);
+            assert!(modifiers.meta);
+        } else {
+            panic!("Expected Key trigger");
+        }
+
+        // Verify action with arguments
+        if let crate::types::Action::Launch(cmd) = &rule.action {
+            assert_eq!(cmd.program, "notepad.exe");
+            assert_eq!(cmd.args, vec!["C:\\test.txt"]);
+        } else {
+            panic!("Expected Launch action");
+        }
+    }
+
+    #[test]
     fn test_mouse_config_default() {
         let config = MouseConfig::default();
         assert!(config.button_remap.is_empty());
@@ -1827,14 +1886,14 @@ F5 = "test_macro"
 
 /// Parse launch item mapping
 /// Supported formats:
-/// - Simple command: "notepad.exe"
-/// - Command with arguments: "notepad.exe C:\\Users\\test.txt"
+/// - Simple trigger key: "F1" = "notepad.exe"
+/// - Trigger with modifiers: "Ctrl+Alt+Meta+T" = "wt.exe"
+/// - Command with arguments: "Ctrl+Alt+Meta+N" = "notepad.exe C:\\Users\\test.txt"
 fn parse_launch_mapping(trigger: &str, command: &str) -> anyhow::Result<MappingRule> {
-    use crate::types::{Action, Trigger};
+    use crate::types::Action;
 
-    // Parse trigger key
-    let (scan_code, virtual_key) = parse_key(trigger)?;
-    let trigger_obj = Trigger::key(scan_code, virtual_key);
+    // Parse trigger shortcut (supports modifiers like "Ctrl+Alt+Meta+T")
+    let trigger_obj = parse_shortcut_trigger(trigger)?;
 
     // Parse launch command
     let action = if command.contains(' ') {

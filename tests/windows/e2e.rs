@@ -658,7 +658,8 @@ mod integration_tests {
 
         teardown();
     }
-}
+
+
 
 // Empty test for non-Windows platforms
 #[cfg(not(target_os = "windows"))]
