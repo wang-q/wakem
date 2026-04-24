@@ -1,4 +1,4 @@
-// Windows 系统托盘测试
+// Windows System Tray Tests
 
 #[cfg(all(test, target_os = "windows"))]
 mod tray_tests {

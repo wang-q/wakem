@@ -1,11 +1,11 @@
-// 集成测试 - IPC 通信测试
+// Integration Tests - IPC Communication Tests
 
 use wakem::ipc::Message;
 use wakem::types::{
     Action, KeyAction, Layer, LayerMode, LayerStack, Macro, MacroStep, ModifierState,
 };
 
-/// 测试 IPC 消息序列化
+/// Test IPC message serialization
 #[tokio::test]
 async fn test_ipc_message_serialization() {
     let msg = Message::ReloadConfig;
@@ -43,7 +43,7 @@ async fn test_ipc_message_serialization() {
     assert!(matches!(deserialized, Message::PlayMacro { .. }));
 }
 
-/// 测试层堆栈操作
+/// Test layer stack operations
 #[test]
 fn test_layer_stack_operations() {
     let mut layer_stack = LayerStack::new();
@@ -64,7 +64,7 @@ fn test_layer_stack_operations() {
     assert!(!layer_stack.is_layer_active("navigation"));
 }
 
-/// 测试宏创建和属性
+/// Test macro creation and properties
 #[test]
 fn test_macro_creation_and_properties() {
     let macro_def = Macro {
@@ -92,7 +92,7 @@ fn test_macro_creation_and_properties() {
     assert_eq!(macro_def.total_delay(), 50);
 }
 
-/// 测试多层工作流
+/// Test multi-layer workflow
 #[test]
 fn test_multi_layer_workflow() {
     let mut layer_stack = LayerStack::new();
@@ -116,22 +116,22 @@ fn test_multi_layer_workflow() {
     assert_eq!(active.len(), 4);
 }
 
-/// 测试 Unicode 名称
+/// Test Unicode names
 #[test]
 fn test_unicode_in_names() {
-    let layer = Layer::new("测试层 🎉", 0x3A, 0x00);
-    assert_eq!(layer.name, "测试层 🎉");
+    let layer = Layer::new("test layer 🎉", 0x3A, 0x00);
+    assert_eq!(layer.name, "test layer 🎉");
 
     let macro_def = Macro {
-        name: "日本語マクロ".to_string(),
+        name: "Japanese macro".to_string(),
         steps: vec![],
         created_at: None,
-        description: Some("中文描述".to_string()),
+        description: Some("Chinese description".to_string()),
     };
-    assert_eq!(macro_def.name, "日本語マクロ");
+    assert_eq!(macro_def.name, "Japanese macro");
 }
 
-/// 测试错误处理
+/// Test error handling
 #[test]
 fn test_error_handling() {
     let mut layer_stack = LayerStack::new();

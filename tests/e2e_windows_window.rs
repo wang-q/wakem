@@ -1,4 +1,4 @@
-// Windows 窗口管理 E2E 测试
+// Windows Window Management E2E Tests
 
 #[cfg(target_os = "windows")]
 mod integration_tests {

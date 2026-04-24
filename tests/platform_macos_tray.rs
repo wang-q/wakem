@@ -1,4 +1,4 @@
-// macOS 系统托盘测试
+// macOS System Tray Tests
 
 #[cfg(all(test, target_os = "macos"))]
 mod macos_tray_tests {

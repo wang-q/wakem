@@ -1,10 +1,10 @@
-// 属性测试 - 配置相关属性测试
+// Property tests - configuration-related property tests
 
 use proptest::prelude::*;
 use wakem::config::{parse_key, wildcard_match};
 use wakem::types::*;
 
-/// 通配符匹配自反性
+/// Wildcard match reflexive
 #[test]
 fn test_wildcard_match_reflexive() {
     assert!(wildcard_match("any_string", "any_string"));
@@ -13,7 +13,7 @@ fn test_wildcard_match_reflexive() {
     assert!(wildcard_match("?", "?"));
 }
 
-// 空模式只匹配空字符串
+// Empty pattern only matches empty string
 proptest! {
     #[test]
     fn empty_pattern_only_matches_empty(s in "\\PC*") {
@@ -22,7 +22,7 @@ proptest! {
     }
 }
 
-// 星号模式匹配任何非空字符串
+// Star pattern matches any non-empty string
 proptest! {
     #[test]
     fn star_pattern_matches_anything(s in "\\PC*") {
@@ -32,7 +32,7 @@ proptest! {
     }
 }
 
-// 前缀匹配属性
+// Prefix matching property
 proptest! {
     #[test]
     fn prefix_star_matches_prefix(
@@ -45,7 +45,7 @@ proptest! {
     }
 }
 
-// 后缀匹配属性
+// Suffix matching property
 proptest! {
     #[test]
     fn suffix_star_matches_suffix(
@@ -58,7 +58,7 @@ proptest! {
     }
 }
 
-// 问号精确匹配单个字符
+// Question mark matches single character exactly
 proptest! {
     #[test]
     fn question_mark_matches_single_char(c in "\\PC") {
@@ -72,7 +72,7 @@ proptest! {
     }
 }
 
-// 字母键名大小写不敏感
+// Letter key names are case-insensitive
 proptest! {
     #[test]
     fn letter_key_case_insensitive(ch in "[a-z]") {
@@ -94,7 +94,7 @@ proptest! {
     }
 }
 
-// 数字键名返回有效代码
+// Digit key names return valid codes
 proptest! {
     #[test]
     fn digit_keys_have_valid_codes(digit in 0u8..=9) {
@@ -109,7 +109,7 @@ proptest! {
     }
 }
 
-// ModifierState 合并幂等性
+// ModifierState merge idempotency
 proptest! {
     #[test]
     fn modifier_state_merge_idempotent(
@@ -139,7 +139,7 @@ proptest! {
     }
 }
 
-// ModifierState 合并交换律
+// ModifierState merge commutativity
 proptest! {
     #[test]
     fn modifier_state_merge_commutative(
@@ -164,7 +164,7 @@ proptest! {
     }
 }
 
-// KeyEvent 注入标记一致性
+// KeyEvent injected flag consistency
 proptest! {
     #[test]
     fn key_event_injected_consistency(
@@ -186,7 +186,7 @@ proptest! {
     }
 }
 
-// 多星号模式等价性
+// Multiple star pattern equivalence
 proptest! {
     #[test]
     fn multiple_stars_equivalence(s in "\\PC*") {
@@ -201,7 +201,7 @@ proptest! {
     }
 }
 
-// Unicode 字符处理
+// Unicode character handling
 proptest! {
     #[test]
     fn unicode_characters_handling(s in "\\PC{1,50}") {

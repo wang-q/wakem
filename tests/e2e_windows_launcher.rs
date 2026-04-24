@@ -1,5 +1,5 @@
-// Windows 启动器 E2E 测试
-// 这些测试会启动真实程序，默认被忽略，需手动运行
+// Windows Launcher E2E Tests
+// These tests launch real programs, ignored by default, run manually
 
 #[cfg(target_os = "windows")]
 mod launcher_tests {

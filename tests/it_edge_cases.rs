@@ -1,9 +1,9 @@
-// 集成测试 - 边界条件和负面测试
+// Integration Tests - Edge Cases and Negative Tests
 
 use wakem::config::{parse_key, wildcard_match, Config};
 use wakem::types::*;
 
-/// 测试空配置加载
+/// Test empty config loading
 #[test]
 fn test_empty_config_loading() {
     let config: Config = toml::from_str("").unwrap();
@@ -11,7 +11,7 @@ fn test_empty_config_loading() {
     assert!(config.keyboard.layers.is_empty());
 }
 
-/// 测试超长键名
+/// Test very long key name
 #[test]
 fn test_very_long_key_name() {
     let long_name = "A".repeat(10000);
@@ -19,17 +19,21 @@ fn test_very_long_key_name() {
     assert!(result.is_err());
 }
 
-/// 测试 Unicode 键名
+/// Test Unicode key names
 #[test]
 fn test_unicode_and_special_characters() {
     let unicode_names = ["日本語", "中文", "🎉"];
     for name in &unicode_names {
         let result = parse_key(name);
-        assert!(result.is_err(), "Unicode 键名 '{}' 应该返回错误", name);
+        assert!(
+            result.is_err(),
+            "Unicode key名 '{}' should return error",
+            name
+        );
     }
 }
 
-/// 测试通配符空字符串
+/// Test wildcard empty string
 #[test]
 fn test_wildcard_empty_string() {
     assert!(wildcard_match("", ""));
@@ -37,7 +41,7 @@ fn test_wildcard_empty_string() {
     assert!(!wildcard_match("test", ""));
 }
 
-/// 测试通配符多个星号
+/// Test wildcard multiple stars
 #[test]
 fn test_wildcard_multiple_stars() {
     assert!(wildcard_match("test", "**"));
@@ -45,7 +49,7 @@ fn test_wildcard_multiple_stars() {
     assert!(wildcard_match("", "**"));
 }
 
-/// 测试空宏
+/// Test empty macro
 #[test]
 fn test_empty_macro_operations() {
     let macro_def = Macro {
@@ -58,14 +62,14 @@ fn test_empty_macro_operations() {
     assert_eq!(macro_def.total_delay(), 0);
 }
 
-/// 测试 Action::None 行为
+/// Test Action::None behavior
 #[test]
 fn test_action_none_behavior() {
     let action = Action::None;
     assert!(action.is_none());
 }
 
-/// 测试嵌套动作序列
+/// Test nested action sequences
 #[test]
 fn test_nested_action_sequences() {
     let inner_seq = Action::sequence(vec![
@@ -80,7 +84,7 @@ fn test_nested_action_sequences() {
     }
 }
 
-/// 测试极端延迟值
+/// Test extreme delay values
 #[test]
 fn test_extreme_delay_values() {
     let zero_delay = Action::delay(0);
@@ -94,7 +98,7 @@ fn test_extreme_delay_values() {
     }
 }
 
-/// 测试所有修饰键组合
+/// Test all modifier combinations
 #[test]
 fn test_all_modifier_combinations() {
     let mut modifiers = ModifierState::default();
@@ -109,7 +113,7 @@ fn test_all_modifier_combinations() {
     assert!(modifiers.shift && modifiers.ctrl && modifiers.alt && modifiers.meta);
 }
 
-/// 测试配置极端数值
+/// Test config extreme values
 #[test]
 fn test_config_extreme_values() {
     let config_str = r#"
@@ -120,7 +124,7 @@ speed = 1000000
     assert_eq!(config.mouse.wheel.speed, 1000000);
 }
 
-/// 测试规则启用/禁用
+/// Test rule enable/disable toggle
 #[test]
 fn test_rule_enable_disable_toggle() {
     let rule = MappingRule::new(
@@ -130,7 +134,7 @@ fn test_rule_enable_disable_toggle() {
     assert!(rule.enabled);
 }
 
-/// 测试层模式差异
+/// Test layer mode differences
 #[test]
 fn test_layer_mode_differences() {
     let hold_layer = Layer::new("hold", 0x3A, 0x14).with_mode(LayerMode::Hold);

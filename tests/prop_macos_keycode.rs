@@ -1,4 +1,4 @@
-// macOS 平台属性测试
+// macOS platform property tests
 
 #[cfg(all(test, target_os = "macos"))]
 mod macos_property_tests {
@@ -7,7 +7,7 @@ mod macos_property_tests {
         keycode_to_virtual_key, virtual_key_to_keycode,
     };
 
-    /// 键码映射单射性
+    /// Keycode mapping injectivity
     #[test]
     fn test_keycode_mapping_is_injective_for_common_keys() {
         let common_keycodes = vec![
@@ -28,7 +28,7 @@ mod macos_property_tests {
         }
     }
 
-    /// 往返一致性
+    /// Roundtrip consistency
     proptest! {
         #[test]
         fn prop_roundtrip_consistency_for_letters(a in 0x00u16..=0x0Du16) {
@@ -51,7 +51,7 @@ mod macos_property_tests {
         }
     }
 
-    /// 未知键码透传
+    /// Unknown keycode passthrough
     proptest! {
         #[test]
         fn prop_unknown_keycode_passthrough(kc in 0xC0u16..0xFFu16) {
@@ -60,7 +60,7 @@ mod macos_property_tests {
         }
     }
 
-    /// 功能键有序性
+    /// Function key ordering
     #[test]
     fn test_function_keys_ordered_sequence() {
         let f_keycodes = vec![
@@ -94,6 +94,6 @@ mod macos_property_tests {
 mod non_macos_placeholder {
     #[test]
     fn placeholder() {
-        // macOS 专用测试在非 macOS 平台上跳过
+        // macOS-specific tests skipped on non-macOS platforms
     }
 }

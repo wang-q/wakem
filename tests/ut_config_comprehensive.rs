@@ -1,10 +1,10 @@
-// Config 完整测试 - 补充配置解析器的边界条件和完整场景测试
+// Config comprehensive tests - supplemental configuration parser boundary conditions and complete scenario tests
 
 use wakem::config::{wildcard_match, Config, WindowPreset};
 
-// ==================== TOML 解析完整性测试 ====================
+// ==================== TOML parsing integrity tests ====================
 
-/// 测试完整配置文件（包含所有配置项）
+/// Test complete config file (includes all config items)
 #[test]
 fn test_parse_complete_config() {
     let config_str = r#"
@@ -55,7 +55,7 @@ F5 = "test_macro"
 
     let config: Config = toml::from_str(config_str).unwrap();
 
-    // 验证主要配置项正确解析
+    // Verify main config items parsed correctly
     assert_eq!(config.log_level, "debug");
     assert!(!config.tray_icon);
     assert!(!config.auto_reload);
@@ -71,7 +71,7 @@ F5 = "test_macro"
     assert!(config.macros.contains_key("test_macro"));
 }
 
-/// 测试最小化配置（使用默认值）
+/// Test minimal config (using defaults)
 #[test]
 fn test_parse_minimal_config() {
     let config_str = r#"
@@ -79,7 +79,7 @@ fn test_parse_minimal_config() {
 
     let config: Config = toml::from_str(config_str).unwrap();
 
-    // 验证默认值
+    // Verify default values
     assert_eq!(config.log_level, "info");
     assert!(config.tray_icon);
     assert!(config.auto_reload);
@@ -94,9 +94,9 @@ fn test_parse_minimal_config() {
     assert!(config.macros.is_empty());
 }
 
-// ==================== 键名解析全面测试 ====================
+// ==================== Key name parsing comprehensive tests ====================
 
-/// 测试所有字母键 A-Z
+/// Test all letter keys A-Z
 #[test]
 fn test_parse_all_letter_keys() {
     use wakem::config::parse_key;
@@ -132,11 +132,15 @@ fn test_parse_all_letter_keys() {
 
     for (name, expected) in letter_keys {
         let result = parse_key(name).unwrap();
-        assert_eq!(result, expected, "键 '{}' 的扫描码/虚拟键码不匹配", name);
+        assert_eq!(
+            result, expected,
+            "key '{}' 的扫描码/虚拟key码mismatch",
+            name
+        );
     }
 }
 
-/// 测试所有数字键 0-9
+/// Test all number keys 0-9
 #[test]
 fn test_parse_all_number_keys() {
     use wakem::config::parse_key;
@@ -156,11 +160,11 @@ fn test_parse_all_number_keys() {
 
     for (name, expected) in number_keys {
         let result = parse_key(name).unwrap();
-        assert_eq!(result, expected, "数字键 '{}' 不匹配", name);
+        assert_eq!(result, expected, "数字key '{}' mismatch", name);
     }
 }
 
-/// 测试功能键 F1-F12
+/// Test function keys F1-F12
 #[test]
 fn test_parse_function_keys_f1_f12() {
     use wakem::config::parse_key;
@@ -182,15 +186,15 @@ fn test_parse_function_keys_f1_f12() {
 
     for (name, expected) in func_keys {
         let result = parse_key(name).unwrap();
-        assert_eq!(result, expected, "功能键 '{}' 不匹配", name);
+        assert_eq!(result, expected, "功能key '{}' mismatch", name);
     }
 
-    // 大写测试
+    // Uppercase test
     let result = parse_key("F1").unwrap();
     assert_eq!(result, (0x3B, 0x70));
 }
 
-/// 测试特殊键（CapsLock, Enter, Escape 等）
+/// Test special keys (CapsLock, Enter, Escape, etc.)
 #[test]
 fn test_parse_special_keys() {
     use wakem::config::parse_key;
@@ -212,11 +216,11 @@ fn test_parse_special_keys() {
 
     for (name, expected) in special_keys {
         let result = parse_key(name).unwrap();
-        assert_eq!(result, expected, "特殊键 '{}' 不匹配", name);
+        assert_eq!(result, expected, "特殊key '{}' mismatch", name);
     }
 }
 
-/// 测试方向键和导航键
+/// Test arrow and navigation keys
 #[test]
 fn test_parse_navigation_keys() {
     use wakem::config::parse_key;
@@ -230,11 +234,11 @@ fn test_parse_navigation_keys() {
 
     for (name, expected) in nav_keys {
         let result = parse_key(name).unwrap();
-        assert_eq!(result, expected, "导航键 '{}' 不匹配", name);
+        assert_eq!(result, expected, "导航key '{}' mismatch", name);
     }
 }
 
-/// 测试修饰键（LCtrl, RAlt, LWin 等）
+/// Test modifier keys (LCtrl, RAlt, LWin, etc.)
 #[test]
 fn test_parse_modifier_keys() {
     use wakem::config::parse_key;
@@ -252,11 +256,11 @@ fn test_parse_modifier_keys() {
 
     for (name, expected) in modifier_keys {
         let result = parse_key(name).unwrap();
-        assert_eq!(result, expected, "修饰键 '{}' 不匹配", name);
+        assert_eq!(result, expected, "修饰key '{}' mismatch", name);
     }
 }
 
-/// 测试未知键名的错误处理
+/// Test unknown key name error handling
 #[test]
 fn test_parse_unknown_key_error() {
     use wakem::config::parse_key;
@@ -265,11 +269,11 @@ fn test_parse_unknown_key_error() {
 
     for name in unknown_keys {
         let result = parse_key(name);
-        assert!(result.is_err(), "未知键名 '{}' 应该返回错误", name);
+        assert!(result.is_err(), "未知key名 '{}' should return error", name);
     }
 }
 
-/// 测试大小写不敏感
+/// Test case insensitivity
 #[test]
 fn test_parse_key_case_insensitive() {
     use wakem::config::parse_key;
@@ -288,13 +292,13 @@ fn test_parse_key_case_insensitive() {
 
     for (name, expected) in cases {
         let result = parse_key(name).unwrap();
-        assert_eq!(result, expected, "'{}' 大小写不敏感测试失败", name);
+        assert_eq!(result, expected, "'{}' Case insensitive测试失败", name);
     }
 }
 
-// ==================== 映射规则解析测试 ====================
+// ==================== Mapping rule parsing tests ====================
 
-/// 测试简单键位映射（通过配置加载验证）
+/// Test simple key mapping (via config loading)
 #[test]
 fn test_parse_simple_key_mapping_via_config() {
     let config_str = r#"
@@ -306,7 +310,7 @@ CapsLock = "Backspace"
     assert!(config.keyboard.remap.contains_key("CapsLock"));
 }
 
-/// 测试键到窗口动作的映射（通过配置加载验证）
+/// Test key to window action mapping (via config loading)
 #[test]
 fn test_parse_key_to_window_action_via_config() {
     let config_str = r#"
@@ -318,7 +322,7 @@ F1 = "Center"
     assert!(config.keyboard.remap.contains_key("F1"));
 }
 
-/// 测试键到修饰键组合的映射（通过配置加载验证）
+/// Test key to modifier combo mapping (via config loading)
 #[test]
 fn test_parse_key_to_modifier_combo_via_config() {
     let config_str = r#"
@@ -330,7 +334,7 @@ CapsLock = "Ctrl+Alt+Win"
     assert!(config.keyboard.remap.contains_key("CapsLock"));
 }
 
-/// 测试快捷键到窗口动作的映射（通过配置加载验证）
+/// Test shortcut to window action mapping (via config loading)
 #[test]
 fn test_parse_shortcut_to_window_action_via_config() {
     let config_str = r#"
@@ -342,9 +346,9 @@ fn test_parse_shortcut_to_window_action_via_config() {
     assert_eq!(config.window.shortcuts.len(), 1);
 }
 
-// ==================== 窗口预设和通配符测试 ====================
+// ==================== Window preset and wildcard tests ====================
 
-/// 测试按进程名匹配
+/// Test match by process name
 #[test]
 fn test_window_preset_match_by_process_name() {
     let preset = WindowPreset {
@@ -362,7 +366,7 @@ fn test_window_preset_match_by_process_name() {
     assert!(!preset.matches("firefox.exe", None, "Firefox"));
 }
 
-/// 测试按可执行路径匹配
+/// Test match by executable path
 #[test]
 fn test_window_preset_match_by_executable_path() {
     let preset = WindowPreset {
@@ -388,7 +392,7 @@ fn test_window_preset_match_by_executable_path() {
     ));
 }
 
-/// 测试按窗口标题模式匹配
+/// Test match by window title pattern
 #[test]
 fn test_window_preset_match_by_title_pattern() {
     let preset = WindowPreset {
@@ -410,7 +414,7 @@ fn test_window_preset_match_by_title_pattern() {
     assert!(!preset.matches("notepad.exe", None, "Untitled - Notepad"));
 }
 
-/// 测试 * 通配符
+/// Test * wildcard
 #[test]
 fn test_wildcard_match_star() {
     assert!(wildcard_match("test.exe", "*.exe"));
@@ -421,16 +425,16 @@ fn test_wildcard_match_star() {
     assert!(!wildcard_match("test.exe", "*.txt"));
 }
 
-/// 测试 ? 通配符
+/// Test ? wildcard
 #[test]
 fn test_wildcard_match_question_mark() {
     assert!(wildcard_match("abc", "a?c"));
     assert!(wildcard_match("abc", "???"));
-    assert!(!wildcard_match("ab", "a?c")); // 太短
-    assert!(!wildcard_match("abcd", "a?c")); // 太长
+    assert!(!wildcard_match("ab", "a?c")); // Too short
+    assert!(!wildcard_match("abcd", "a?c")); // Too long
 }
 
-/// 测试复杂通配符模式
+/// Test complex wildcard patterns
 #[test]
 fn test_wildcard_match_complex_patterns() {
     assert!(wildcard_match("test_file_name.txt", "test*.txt"));
@@ -439,28 +443,28 @@ fn test_wildcard_match_complex_patterns() {
     assert!(wildcard_match("a.b.c", "a.*.c"));
 }
 
-/// 测试通配符边界情况
+/// Test wildcard edge cases
 #[test]
 fn test_wildcard_match_edge_cases() {
-    // 空字符串
+    // Empty string
     assert!(wildcard_match("", ""));
     assert!(wildcard_match("", "*"));
 
-    // 多个连续 *
+    // Multiple consecutive *
     assert!(wildcard_match("test", "**test**"));
     assert!(wildcard_match("test", "***"));
 
-    // 大小写不敏感
+    // Case insensitive
     assert!(wildcard_match("TEST.EXE", "*.exe"));
     assert!(wildcard_match("File.TXT", "file.*"));
 
-    // 特殊字符
+    // Special characters
     assert!(wildcard_match("test-file_v1.2.txt", "test-*.txt"));
 }
 
-// ==================== 配置默认值验证 ====================
+// ==================== Config default values validation ====================
 
-/// 测试 KeyboardConfig 默认值
+/// Test KeyboardConfig defaults
 #[test]
 fn test_keyboard_config_default() {
     let config = wakem::config::KeyboardConfig::default();
@@ -469,7 +473,7 @@ fn test_keyboard_config_default() {
     assert!(config.context_mappings.is_empty());
 }
 
-/// 测试 MouseConfig 默认值
+/// Test MouseConfig defaults
 #[test]
 fn test_mouse_config_default() {
     let config = wakem::config::MouseConfig::default();
@@ -480,7 +484,7 @@ fn test_mouse_config_default() {
     assert!((config.wheel.acceleration_multiplier - 2.0).abs() < 0.001);
 }
 
-/// 测试 NetworkConfig 默认值
+/// Test NetworkConfig defaults
 #[test]
 fn test_network_config_default() {
     let config = wakem::config::NetworkConfig::default();
@@ -489,28 +493,28 @@ fn test_network_config_default() {
     assert!(config.auth_key.is_none());
 }
 
-/// 测试 WindowConfig 默认值
+/// Test WindowConfig defaults
 #[test]
 fn test_window_config_default() {
     let config = wakem::config::WindowConfig::default();
-    // 注意：WindowSwitchConfig 和 auto_apply_preset 使用了 #[serde(default)]
-    // 但 Default trait 不会使用这些 serde 默认值
+    // Note: WindowSwitchConfig and auto_apply_preset use #[serde(default)]
+    // But Default trait does not use these serde defaults
     assert!(!config.switch.ignore_minimal);
     assert!(!config.switch.only_current_desktop);
     assert!(config.positions.is_empty());
     assert!(config.shortcuts.is_empty());
     assert!(config.presets.is_empty());
-    // auto_apply_preset 在 serde 反序列化时默认为 true，
-    // 但 Default trait 中默认为 false（bool 的默认值）
+    // auto_apply_preset defaults to true during serde deserialization,
+    // but defaults to false in Default trait (bool default value)
     assert!(!config.auto_apply_preset);
 }
 
-// ==================== 配置解析基础测试（原 ut_config_parser.rs）====================
+// ==================== Config parsing basic tests (from ut_config_parser.rs)====================
 
-/// 测试键名解析
+/// Test key name parsing
 #[test]
 fn test_key_name_parsing() {
-    // 测试常见键名
+    // Test common key names
     let keys = vec![
         ("CapsLock", 0x3A, 0x14),
         ("Backspace", 0x0E, 0x08),
@@ -520,17 +524,17 @@ fn test_key_name_parsing() {
     ];
 
     for (name, _expected_scan, _expected_vk) in keys {
-        // 这里可以调用实际的解析函数
+        // Can call actual parsing function here
         // let (scan, vk) = parse_key(name).unwrap();
         // assert_eq!(scan, expected_scan);
         // assert_eq!(vk, expected_vk);
 
-        // 临时断言，确保测试通过
+        // Temporary assertion to ensure test passes
         assert!(!name.is_empty());
     }
 }
 
-/// 测试修饰键解析
+/// Test modifier parsing
 #[test]
 fn test_modifier_parsing() {
     let modifiers = vec![
@@ -548,7 +552,7 @@ fn test_modifier_parsing() {
     }
 }
 
-/// 测试窗口管理动作解析
+/// Test window action parsing
 #[test]
 fn test_window_action_parsing() {
     let actions = vec![
@@ -566,9 +570,9 @@ fn test_window_action_parsing() {
     }
 }
 
-// ==================== 配置边界条件测试（原 ut_config_edge_cases.rs）====================
+// ==================== Config edge case tests (from ut_config_edge_cases.rs)====================
 
-/// 测试空配置
+/// Test empty config
 #[test]
 fn test_empty_config() {
     let config_str = "";
@@ -581,7 +585,7 @@ fn test_empty_config() {
     assert!(config.auto_reload);
 }
 
-/// 测试最小配置
+/// Test minimal config
 #[test]
 fn test_minimal_config() {
     let config_str = r#"
@@ -597,7 +601,7 @@ CapsLock = "Backspace"
     assert_eq!(config.keyboard.remap.get("CapsLock").unwrap(), "Backspace");
 }
 
-/// 测试完整配置
+/// Test full config
 #[test]
 fn test_full_config() {
     let config_str = r#"
@@ -650,23 +654,23 @@ instance_id = 5
     assert!(!config.auto_reload);
     assert_eq!(config.icon_path, Some("custom/icon.ico".to_string()));
 
-    // 检查键盘重映射
+    // Check keyboard remapping
     assert_eq!(config.keyboard.remap.len(), 2);
 
-    // 检查层
+    // Check layers
     assert_eq!(config.keyboard.layers.len(), 2);
 
-    // 检查窗口快捷键
+    // Check window shortcuts
     assert_eq!(config.window.shortcuts.len(), 2);
 
-    // 检查启动项
+    // Check launch items
     assert_eq!(config.launch.len(), 3);
 }
 
-/// 测试无效的配置值
+/// Test invalid config values
 #[test]
 fn test_invalid_config_values() {
-    // 无效的 log_level 现在被验证拒绝
+    // Invalid log_level is now rejected by validation
     let config_str = r#"
 log_level = "invalid_level"
 "#;
@@ -678,7 +682,7 @@ log_level = "invalid_level"
         .contains("Invalid log_level"));
 }
 
-/// 测试层配置的各种模式
+/// Test layer config various modes
 #[test]
 fn test_layer_modes() {
     let config_str_hold = r#"
@@ -709,7 +713,7 @@ mappings = {}
     );
 }
 
-/// 测试窗口管理动作解析
+/// Test window action parsing
 #[test]
 fn test_window_action_parsing_in_config() {
     let config_str = r#"
@@ -739,7 +743,7 @@ fn test_window_action_parsing_in_config() {
     assert_eq!(config.window.shortcuts.len(), 12);
 }
 
-/// 测试复杂键位映射
+/// Test complex key mappings
 #[test]
 fn test_complex_key_mappings() {
     let config_str = r#"
@@ -762,23 +766,23 @@ RightAlt = "Ctrl+Shift"
     );
 }
 
-/// 测试配置中的注释
+/// Test config with comments
 #[test]
 fn test_config_with_comments() {
     let config_str = r#"
-# 这是注释
-log_level = "info"  # 行尾注释
+# This is a comment
+log_level = "info"  # End of line comment
 
-# 键盘配置
+# Keyboard config
 [keyboard.remap]
-CapsLock = "Backspace"  # CapsLock 改 Backspace
+CapsLock = "Backspace"  # CapsLock to Backspace
 "#;
 
     let result = Config::from_str(config_str);
     assert!(result.is_ok());
 }
 
-/// 测试多层嵌套配置
+/// Test nested layer config
 #[test]
 fn test_nested_layer_config() {
     let config_str = r#"
@@ -814,7 +818,7 @@ mappings.Period = "3"
     assert_eq!(config.keyboard.layers.len(), 3);
 }
 
-/// 测试配置序列化和反序列化
+/// Test config serialization and deserialization
 #[test]
 fn test_config_roundtrip() {
     let original_config = r#"
@@ -827,12 +831,12 @@ CapsLock = "Backspace"
 "#;
 
     let config = Config::from_str(original_config).unwrap();
-    // 验证配置正确加载
+    // Verify config loaded correctly
     assert_eq!(config.log_level, "debug");
     assert!(config.tray_icon);
 }
 
-/// 测试空层配置
+/// Test empty layer config
 #[test]
 fn test_empty_layer_mappings() {
     let config_str = r#"
@@ -849,7 +853,7 @@ mappings = {}
     assert!(layer.mappings.is_empty());
 }
 
-/// 测试特殊字符键名
+/// Test Special characterskey名
 #[test]
 fn test_special_key_names() {
     let config_str = r#"
@@ -860,7 +864,7 @@ BracketLeft = "Home"
 BracketRight = "End"
 "#;
 
-    // 这些键名在配置中可以被解析
+    // These key names can be parsed in config
     let result = Config::from_str(config_str);
     assert!(result.is_ok());
 }

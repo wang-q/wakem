@@ -1,12 +1,12 @@
-// IPC 通信测试
+// IPC Communication Tests
 
 use wakem::config::Config;
 use wakem::ipc::{get_instance_address, get_instance_port, Message};
 
-/// 测试 IPC 消息序列化
+/// Test IPC message serialization
 #[test]
 fn test_ipc_message_serialization() {
-    // 测试消息序列化和反序列化
+    // Test message serialization and deserialization
     let messages = vec![
         Message::ReloadConfig,
         Message::GetStatus,
@@ -23,7 +23,7 @@ fn test_ipc_message_serialization() {
         let deserialized: Message =
             serde_json::from_str(&json).expect("Failed to deserialize message");
 
-        // 验证反序列化后的消息类型相同
+        // Verify deserialized message type is same
         match (&msg, &deserialized) {
             (Message::ReloadConfig, Message::ReloadConfig) => {}
             (Message::GetStatus, Message::GetStatus) => {}
@@ -39,7 +39,7 @@ fn test_ipc_message_serialization() {
     }
 }
 
-/// 测试状态响应消息
+/// Test 状态响应消息
 #[test]
 fn test_status_response_message() {
     let msg = Message::StatusResponse {
@@ -63,7 +63,7 @@ fn test_status_response_message() {
     }
 }
 
-/// 测试错误消息
+/// Test 错误消息
 #[test]
 fn test_error_message() {
     let msg = Message::Error {
@@ -81,10 +81,10 @@ fn test_error_message() {
     }
 }
 
-/// 测试宏相关消息
+/// Test 宏相关消息
 #[test]
 fn test_macro_messages() {
-    // 测试开始录制
+    // Test start recording
     let msg = Message::StartMacroRecording {
         name: "test_macro".to_string(),
     };
@@ -98,7 +98,7 @@ fn test_macro_messages() {
         panic!("Expected StartMacroRecording message");
     }
 
-    // 测试录制结果
+    // Test recording result
     let msg = Message::MacroRecordingResult {
         name: "test_macro".to_string(),
         action_count: 5,
@@ -114,7 +114,7 @@ fn test_macro_messages() {
         panic!("Expected MacroRecordingResult message");
     }
 
-    // 测试宏列表
+    // Test macros list
     let msg = Message::MacrosList {
         macros: vec!["macro1".to_string(), "macro2".to_string()],
     };
@@ -131,7 +131,7 @@ fn test_macro_messages() {
     }
 }
 
-/// 测试配置消息
+/// Test 配置消息
 #[test]
 fn test_config_message() {
     let config = Config::default();
@@ -144,13 +144,13 @@ fn test_config_message() {
         serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::SetConfig { .. } = deserialized {
-        // 配置对象已反序列化
+        // Config object deserialized
     } else {
         panic!("Expected SetConfig message");
     }
 }
 
-/// 测试配置错误消息
+/// Test 配置错误消息
 #[test]
 fn test_config_error_message() {
     let msg = Message::ConfigError {
@@ -168,7 +168,7 @@ fn test_config_error_message() {
     }
 }
 
-/// 测试绑定宏消息
+/// Test Bind macro消息
 #[test]
 fn test_bind_macro_message() {
     let msg = Message::BindMacro {
@@ -192,7 +192,7 @@ fn test_bind_macro_message() {
     }
 }
 
-/// 测试播放宏消息
+/// Test play macro消息
 #[test]
 fn test_play_macro_message() {
     let msg = Message::PlayMacro {
@@ -210,7 +210,7 @@ fn test_play_macro_message() {
     }
 }
 
-/// 测试删除宏消息
+/// Test Delete macro消息
 #[test]
 fn test_delete_macro_message() {
     let msg = Message::DeleteMacro {
@@ -228,7 +228,7 @@ fn test_delete_macro_message() {
     }
 }
 
-/// 测试获取下一个按键信息消息
+/// Test 获取下一个按key信息消息
 #[test]
 fn test_get_next_key_info_message() {
     let msg = Message::GetNextKeyInfo;
@@ -239,7 +239,7 @@ fn test_get_next_key_info_message() {
     assert!(matches!(deserialized, Message::GetNextKeyInfo));
 }
 
-/// 测试下一个按键信息响应
+/// Test 下一个按key信息响应
 #[test]
 fn test_next_key_info_message() {
     let msg = Message::NextKeyInfo {
@@ -257,7 +257,7 @@ fn test_next_key_info_message() {
     }
 }
 
-/// 测试注册消息窗口
+/// Test 注册消息窗口
 #[test]
 fn test_register_message_window() {
     let msg = Message::RegisterMessageWindow { hwnd: 12345 };
@@ -273,7 +273,7 @@ fn test_register_message_window() {
     }
 }
 
-/// 测试停止录制宏
+/// Test Stop recording宏
 #[test]
 fn test_stop_macro_recording() {
     let msg = Message::StopMacroRecording;
@@ -284,7 +284,7 @@ fn test_stop_macro_recording() {
     assert!(matches!(deserialized, Message::StopMacroRecording));
 }
 
-/// 测试获取宏列表
+/// Test get macros list
 #[test]
 fn test_get_macros() {
     let msg = Message::GetMacros;
@@ -295,7 +295,7 @@ fn test_get_macros() {
     assert!(matches!(deserialized, Message::GetMacros));
 }
 
-/// 测试配置已加载消息
+/// Test 配置已加载消息
 #[test]
 fn test_config_loaded() {
     let msg = Message::ConfigLoaded;
@@ -306,7 +306,7 @@ fn test_config_loaded() {
     assert!(matches!(deserialized, Message::ConfigLoaded));
 }
 
-/// 测试实例端口计算
+/// Test 实例端口计算
 #[test]
 fn test_get_instance_port() {
     assert_eq!(get_instance_port(0), 57427);
@@ -315,7 +315,7 @@ fn test_get_instance_port() {
     assert_eq!(get_instance_port(100), 57527);
 }
 
-/// 测试实例地址生成
+/// Test 实例地址生成
 #[test]
 fn test_get_instance_address() {
     assert_eq!(get_instance_address(0), "127.0.0.1:57427");
@@ -323,12 +323,12 @@ fn test_get_instance_address() {
     assert_eq!(get_instance_address(5), "127.0.0.1:57432");
 }
 
-/// 测试 IPC 错误序列化
+/// Test  IPC 错误序列化
 #[test]
 fn test_ipc_error_serialization() {
     use wakem::ipc::IpcError;
 
-    // 测试错误类型
+    // Test error types
     let err = IpcError::ConnectionRefused;
     assert_eq!(err.to_string(), "Connection refused");
 

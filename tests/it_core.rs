@@ -1,9 +1,9 @@
-// 集成测试 - 核心功能端到端测试
+// Integration Tests - Core Functionality End-to-End Tests
 
 use wakem::config::{parse_key, parse_window_action, wildcard_match, Config};
 use wakem::types::*;
 
-/// 测试配置加载和保存往返
+/// Test config load and save roundtrip
 #[test]
 fn test_config_load_save_roundtrip() {
     let config_str = r#"
@@ -59,7 +59,7 @@ instance_id = 1
     assert_eq!(config.auto_reload, config2.auto_reload);
 }
 
-/// 测试配置验证
+/// Test config validation
 #[test]
 fn test_config_validation_comprehensive() {
     let valid_config = r#"
@@ -83,7 +83,7 @@ instance_id = 256
     assert!(config.validate().is_err());
 }
 
-/// 测试键名解析一致性
+/// Test key name parsing consistency
 #[test]
 fn test_parse_key_consistency() {
     for ch in 'a'..='z' {
@@ -101,7 +101,7 @@ fn test_parse_key_consistency() {
     }
 }
 
-/// 测试窗口动作解析
+/// Test window action parsing
 #[test]
 fn test_parse_window_action_comprehensive() {
     assert!(matches!(
@@ -118,7 +118,7 @@ fn test_parse_window_action_comprehensive() {
     ));
 }
 
-/// 测试通配符匹配
+/// Test wildcard matching
 #[test]
 fn test_wildcard_match_real_world_patterns() {
     assert!(wildcard_match("document.pdf", "*.pdf"));
@@ -127,7 +127,7 @@ fn test_wildcard_match_real_world_patterns() {
     assert!(!wildcard_match("document.txt", "*.pdf"));
 }
 
-/// 测试修饰键状态
+/// Test modifier key state
 #[test]
 fn test_modifier_state_from_virtual_key() {
     let shift_result = ModifierState::from_virtual_key(0x10, true);
@@ -139,7 +139,7 @@ fn test_modifier_state_from_virtual_key() {
     assert!(ModifierState::from_virtual_key(0x41, true).is_none());
 }
 
-/// 测试动作从输入事件创建
+/// Test action creation from input event
 #[test]
 fn test_action_from_input_event() {
     let key_press = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));

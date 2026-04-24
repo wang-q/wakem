@@ -1,4 +1,4 @@
-// Windows 平台特定测试
+// Windows Platform-Specific Tests
 
 #[cfg(all(test, target_os = "windows"))]
 mod windows_specific_tests {

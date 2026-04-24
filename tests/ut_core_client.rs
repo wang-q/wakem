@@ -1,135 +1,162 @@
-// Client 通信层测试
+// Client communication layer tests
 
 use wakem::client::DaemonClient;
 use wakem::ipc::Message;
 
-// ==================== DaemonClient 初始化 ====================
+// ==================== DaemonClient initialization ====================
 
-/// 测试客户端初始化（未连接状态）
+/// Test client initialization (disconnected state)
 #[test]
 fn test_client_new() {
     let client = DaemonClient::new();
-    assert!(!client.is_connected(), "新创建的客户端不应该处于连接状态");
+    assert!(
+        !client.is_connected(),
+        "Newly created client should not be in connected state"
+    );
 }
 
-/// 测试 Default trait 实现
+/// Test Default trait implementation
 #[test]
 fn test_client_default() {
     let client = DaemonClient::default();
     assert!(!client.is_connected());
 }
 
-// ==================== 未连接状态下的错误处理 ====================
+// ==================== Error handling in disconnected state ====================
 
-/// 测试未连接时调用 get_status 应该返回错误
+/// Test get_status should return error when not connected
 #[tokio::test]
 async fn test_get_status_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.get_status().await;
-    assert!(result.is_err(), "未连接时 get_status 应该返回错误");
+    assert!(
+        result.is_err(),
+        "get_status should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 set_active 应该返回错误
+/// Test set_active should return error when not connected
 #[tokio::test]
 async fn test_set_active_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.set_active(true).await;
-    assert!(result.is_err(), "未连接时 set_active 应该返回错误");
+    assert!(
+        result.is_err(),
+        "set_active should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 reload_config 应该返回错误
+/// Test reload_config should return error when not connected
 #[tokio::test]
 async fn test_reload_config_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.reload_config().await;
-    assert!(result.is_err(), "未连接时 reload_config 应该返回错误");
+    assert!(
+        result.is_err(),
+        "reload_config should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 save_config 应该返回错误
+/// Test save_config should return error when not connected
 #[tokio::test]
 async fn test_save_config_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.save_config().await;
-    assert!(result.is_err(), "未连接时 save_config 应该返回错误");
+    assert!(
+        result.is_err(),
+        "save_config should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 start_macro_recording 应该返回错误
+/// Test start_macro_recording should return error when not connected
 #[tokio::test]
 async fn test_start_macro_recording_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.start_macro_recording("test").await;
     assert!(
         result.is_err(),
-        "未连接时 start_macro_recording 应该返回错误"
+        "start_macro_recording should return error when not connected"
     );
 }
 
-/// 测试未连接时调用 stop_macro_recording 应该返回错误
+/// Test stop_macro_recording should return error when not connected
 #[tokio::test]
 async fn test_stop_macro_recording_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.stop_macro_recording().await;
     assert!(
         result.is_err(),
-        "未连接时 stop_macro_recording 应该返回错误"
+        "stop_macro_recording should return error when not connected"
     );
 }
 
-/// 测试未连接时调用 play_macro 应该返回错误
+/// Test play_macro should return error when not connected
 #[tokio::test]
 async fn test_play_macro_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.play_macro("test").await;
-    assert!(result.is_err(), "未连接时 play_macro 应该返回错误");
+    assert!(
+        result.is_err(),
+        "play_macro should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 get_macros 应该返回错误
+/// Test get_macros should return error when not connected
 #[tokio::test]
 async fn test_get_macros_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.get_macros().await;
-    assert!(result.is_err(), "未连接时 get_macros 应该返回错误");
+    assert!(
+        result.is_err(),
+        "get_macros should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 delete_macro 应该返回错误
+/// Test delete_macro should return error when not connected
 #[tokio::test]
 async fn test_delete_macro_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.delete_macro("test").await;
-    assert!(result.is_err(), "未连接时 delete_macro 应该返回错误");
+    assert!(
+        result.is_err(),
+        "delete_macro should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 bind_macro 应该返回错误
+/// Test bind_macro should return error when not connected
 #[tokio::test]
 async fn test_bind_macro_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.bind_macro("test", "F5").await;
-    assert!(result.is_err(), "未连接时 bind_macro 应该返回错误");
+    assert!(
+        result.is_err(),
+        "bind_macro should return error when not connected"
+    );
 }
 
-/// 测试未连接时调用 register_message_window 应该返回错误
+/// Test register_message_window should return error when not connected
 #[tokio::test]
 async fn test_register_message_window_not_connected() {
     let mut client = DaemonClient::new();
     let result = client.register_message_window(12345).await;
     assert!(
         result.is_err(),
-        "未连接时 register_message_window 应该返回错误"
+        "register_message_window should return error when not connected"
     );
 }
 
-// ==================== IPC 消息序列化验证 ====================
+// ==================== IPC message serialization validation ====================
 
-/// 验证客户端使用的消息类型可以正确序列化/反序列化
+/// Verify that message types used by the client can be correctly serialized/deserialized
 #[test]
 fn test_client_message_serialization() {
-    // GetStatus 消息
+    // GetStatus message
     let msg = Message::GetStatus;
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: Message = serde_json::from_str(&json).unwrap();
     assert!(matches!(deserialized, Message::GetStatus));
 
-    // SetActive 消息
+    // SetActive message
     let msg = Message::SetActive { active: true };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: Message = serde_json::from_str(&json).unwrap();
@@ -139,19 +166,19 @@ fn test_client_message_serialization() {
         panic!("Expected SetActive message");
     }
 
-    // ReloadConfig 消息
+    // ReloadConfig message
     let msg = Message::ReloadConfig;
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: Message = serde_json::from_str(&json).unwrap();
     assert!(matches!(deserialized, Message::ReloadConfig));
 
-    // SaveConfig 消息
+    // SaveConfig message
     let msg = Message::SaveConfig;
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: Message = serde_json::from_str(&json).unwrap();
     assert!(matches!(deserialized, Message::SaveConfig));
 
-    // StartMacroRecording 消息
+    // StartMacroRecording message
     let msg = Message::StartMacroRecording {
         name: "test".to_string(),
     };
@@ -163,13 +190,13 @@ fn test_client_message_serialization() {
         panic!("Expected StartMacroRecording message");
     }
 
-    // StopMacroRecording 消息
+    // StopMacroRecording message
     let msg = Message::StopMacroRecording;
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: Message = serde_json::from_str(&json).unwrap();
     assert!(matches!(deserialized, Message::StopMacroRecording));
 
-    // PlayMacro 消息
+    // PlayMacro message
     let msg = Message::PlayMacro {
         name: "macro1".to_string(),
     };
@@ -181,13 +208,13 @@ fn test_client_message_serialization() {
         panic!("Expected PlayMacro message");
     }
 
-    // GetMacros 消息
+    // GetMacros message
     let msg = Message::GetMacros;
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: Message = serde_json::from_str(&json).unwrap();
     assert!(matches!(deserialized, Message::GetMacros));
 
-    // DeleteMacro 消息
+    // DeleteMacro message
     let msg = Message::DeleteMacro {
         name: "old_macro".to_string(),
     };
@@ -199,7 +226,7 @@ fn test_client_message_serialization() {
         panic!("Expected DeleteMacro message");
     }
 
-    // BindMacro 消息
+    // BindMacro message
     let msg = Message::BindMacro {
         macro_name: "my_macro".to_string(),
         trigger: "F5".to_string(),
@@ -217,7 +244,7 @@ fn test_client_message_serialization() {
         panic!("Expected BindMacro message");
     }
 
-    // RegisterMessageWindow 消息
+    // RegisterMessageWindow message
     let msg = Message::RegisterMessageWindow { hwnd: 12345 };
     let json = serde_json::to_string(&msg).unwrap();
     let deserialized: Message = serde_json::from_str(&json).unwrap();
@@ -228,9 +255,9 @@ fn test_client_message_serialization() {
     }
 }
 
-// ==================== 响应消息解析验证 ====================
+// ==================== Response message parsing validation ====================
 
-/// 验证 StatusResponse 响应的解析
+/// Verify parsing of StatusResponse response
 #[test]
 fn test_status_response_parsing() {
     let response = Message::StatusResponse {
@@ -253,7 +280,7 @@ fn test_status_response_parsing() {
     }
 }
 
-/// 验证 MacrosList 响应的解析
+/// Verify parsing of MacrosList response
 #[test]
 fn test_macros_list_response_parsing() {
     let response = Message::MacrosList {
@@ -278,7 +305,7 @@ fn test_macros_list_response_parsing() {
     }
 }
 
-/// 验证 MacroRecordingResult 响应的解析
+/// Verify parsing of MacroRecordingResult response
 #[test]
 fn test_macro_recording_result_parsing() {
     let response = Message::MacroRecordingResult {
@@ -298,7 +325,7 @@ fn test_macro_recording_result_parsing() {
     }
 }
 
-/// 验证 Error 响应的解析
+/// Verify parsing of Error response
 #[test]
 fn test_error_response_parsing() {
     let error_messages = vec![
@@ -306,7 +333,7 @@ fn test_error_response_parsing() {
         "Config not found",
         "Unknown error",
         "",
-        "特殊字符测试 🎉",
+        "Special characters测试 🎉",
     ];
 
     for msg in error_messages {
@@ -324,26 +351,26 @@ fn test_error_response_parsing() {
     }
 }
 
-// ==================== 连接参数验证 ====================
+// ==================== Connection parameter validation ====================
 
-/// 验证实例地址生成逻辑
+/// Verify instance address generation logic
 #[test]
 fn test_instance_address_generation() {
     use wakem::ipc::{get_instance_address, get_instance_port};
 
-    // 实例 0
+    // Instance 0
     assert_eq!(get_instance_port(0), 57427);
     assert_eq!(get_instance_address(0), "127.0.0.1:57427");
 
-    // 实例 1
+    // Instance 1
     assert_eq!(get_instance_port(1), 57428);
     assert_eq!(get_instance_address(1), "127.0.0.1:57428");
 
-    // 实例 5
+    // Instance 5
     assert_eq!(get_instance_port(5), 57432);
     assert_eq!(get_instance_address(5), "127.0.0.1:57432");
 
-    // 大实例 ID
+    // Large instance ID
     assert_eq!(get_instance_port(100), 57527);
     assert_eq!(get_instance_address(100), "127.0.0.1:57527");
 }

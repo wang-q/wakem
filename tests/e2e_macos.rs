@@ -1,4 +1,4 @@
-// macOS E2E 测试
+// macOS E2E Tests
 
 #[cfg(target_os = "macos")]
 mod macos_integration_tests {

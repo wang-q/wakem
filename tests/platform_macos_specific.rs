@@ -1,4 +1,4 @@
-// macOS 平台特定测试
+// macOS Platform-Specific Tests
 
 #[cfg(target_os = "macos")]
 mod macos_specific_tests {

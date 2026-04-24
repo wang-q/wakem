@@ -1,9 +1,9 @@
-// 窗口计算测试
-// 测试窗口位置和大小的计算逻辑
+// Window calculation tests
+// Test window position and size calculation logic
 
 use wakem::types::*;
 
-/// 计算居中窗口的位置
+/// Calculate center position of window
 fn calculate_center(
     window_width: i32,
     window_height: i32,
@@ -15,7 +15,7 @@ fn calculate_center(
     (x, y)
 }
 
-/// 计算半屏窗口的位置和大小
+/// Calculate half-screen window position and size
 fn calculate_half_screen(
     edge: Edge,
     screen_width: i32,
@@ -29,7 +29,7 @@ fn calculate_half_screen(
     }
 }
 
-/// 计算循环宽度
+/// Calculate loop width
 fn calculate_loop_width(
     current_width: i32,
     screen_width: i32,
@@ -37,7 +37,7 @@ fn calculate_loop_width(
 ) -> i32 {
     let ratios = [0.75_f32, 0.6, 0.5, 0.4, 0.25];
 
-    // 找到当前最接近的比例
+    // Find current closest ratio
     let current_ratio = current_width as f32 / screen_width as f32;
     let mut closest_idx = 0;
     let mut min_diff = f32::MAX;
@@ -50,7 +50,7 @@ fn calculate_loop_width(
         }
     }
 
-    // 根据方向选择下一个比例
+    // Select next ratio based on direction
     let next_idx = match alignment {
         Alignment::Left => {
             if closest_idx < ratios.len() - 1 {
@@ -72,7 +72,7 @@ fn calculate_loop_width(
     (screen_width as f32 * ratios[next_idx]) as i32
 }
 
-/// 测试居中计算 - 标准屏幕
+/// Test center calculation - standard screen
 #[test]
 fn test_center_standard_screen() {
     let (x, y) = calculate_center(800, 600, 1920, 1080);
@@ -81,7 +81,7 @@ fn test_center_standard_screen() {
     assert_eq!(y, 240); // (1080 - 600) / 2
 }
 
-/// 测试居中计算 - 小窗口
+/// Test center calculation - small window
 #[test]
 fn test_center_small_window() {
     let (x, y) = calculate_center(400, 300, 1920, 1080);
@@ -90,7 +90,7 @@ fn test_center_small_window() {
     assert_eq!(y, 390); // (1080 - 300) / 2
 }
 
-/// 测试居中计算 - 全屏窗口
+/// Test center calculation - fullscreen window
 #[test]
 fn test_center_fullscreen() {
     let (x, y) = calculate_center(1920, 1080, 1920, 1080);
@@ -99,7 +99,7 @@ fn test_center_fullscreen() {
     assert_eq!(y, 0);
 }
 
-/// 测试半屏计算 - 左半屏
+/// Test half-screen calculation - left half
 #[test]
 fn test_half_screen_left() {
     let (x, y, w, h) = calculate_half_screen(Edge::Left, 1920, 1080);
@@ -110,7 +110,7 @@ fn test_half_screen_left() {
     assert_eq!(h, 1080);
 }
 
-/// 测试半屏计算 - 右半屏
+/// Test half-screen calculation - right half
 #[test]
 fn test_half_screen_right() {
     let (x, y, w, h) = calculate_half_screen(Edge::Right, 1920, 1080);
@@ -121,7 +121,7 @@ fn test_half_screen_right() {
     assert_eq!(h, 1080);
 }
 
-/// 测试半屏计算 - 上半屏
+/// Test half-screen calculation - top half
 #[test]
 fn test_half_screen_top() {
     let (x, _y, w, h) = calculate_half_screen(Edge::Top, 1920, 1080);
@@ -131,7 +131,7 @@ fn test_half_screen_top() {
     assert_eq!(h, 540); // 1080 / 2
 }
 
-/// 测试半屏计算 - 下半屏
+/// Test half-screen calculation - bottom half
 #[test]
 fn test_half_screen_bottom() {
     let (_x, y, w, h) = calculate_half_screen(Edge::Bottom, 1920, 1080);
@@ -141,7 +141,7 @@ fn test_half_screen_bottom() {
     assert_eq!(h, 540); // 1080 / 2
 }
 
-/// 测试半屏计算 - 不同分辨率
+/// Test half-screen calculation - different resolutions
 #[test]
 fn test_half_screen_different_resolution() {
     // 4K 屏幕
@@ -155,7 +155,7 @@ fn test_half_screen_different_resolution() {
     assert_eq!(w, 1280); // 2560 / 2
 }
 
-/// 测试循环宽度 - 从左开始
+/// Test loop width - from left
 #[test]
 fn test_loop_width_from_left() {
     // 从 75% 开始，向左应该变为 60%
@@ -163,7 +163,7 @@ fn test_loop_width_from_left() {
     assert_eq!(width, 1152); // 1920 * 0.6
 }
 
-/// 测试循环宽度 - 从右开始
+/// Test loop width - from right
 #[test]
 fn test_loop_width_from_right() {
     // 从 25% 开始，向右应该变为 40%
@@ -171,7 +171,7 @@ fn test_loop_width_from_right() {
     assert_eq!(width, 768); // 1920 * 0.4
 }
 
-/// 测试循环宽度 - 循环边界（左）
+/// Test loop width - wrap boundary (left)
 #[test]
 fn test_loop_width_wrap_left() {
     // 从 25%（最小）开始，向左应该循环到 75%（最大）
@@ -179,7 +179,7 @@ fn test_loop_width_wrap_left() {
     assert_eq!(width, 1440); // 1920 * 0.75
 }
 
-/// 测试循环宽度 - 循环边界（右）
+/// Test loop width - wrap boundary (right)
 #[test]
 fn test_loop_width_wrap_right() {
     // 从 75%（最大）开始，向右应该循环到 25%（最小）
@@ -187,7 +187,7 @@ fn test_loop_width_wrap_right() {
     assert_eq!(width, 480); // 1920 * 0.25
 }
 
-/// 测试循环宽度 - 所有比例
+/// Test loop width - all ratios
 #[test]
 fn test_loop_width_all_ratios() {
     let screen_width = 1920;
@@ -199,7 +199,7 @@ fn test_loop_width_all_ratios() {
         480,  // 25%
     ];
 
-    // 测试从左循环经过所有比例
+    // Test looping through all ratios from left
     let mut current_width = 1440;
     for expected in &expected_widths[1..] {
         current_width =
@@ -207,12 +207,12 @@ fn test_loop_width_all_ratios() {
         assert_eq!(current_width, *expected);
     }
 
-    // 最后一个应该循环回第一个
+    // Last should wrap back to first
     current_width = calculate_loop_width(current_width, screen_width, Alignment::Left);
     assert_eq!(current_width, expected_widths[0]);
 }
 
-/// 测试循环宽度 - 非标准宽度（找到最接近的）
+/// Test loop width - non-standard width (find closest)
 #[test]
 fn test_loop_width_find_closest() {
     // 1400 最接近 1440 (75%)
@@ -224,7 +224,7 @@ fn test_loop_width_find_closest() {
     assert_eq!(width, 768); // 应该变为 40%
 }
 
-/// 测试循环宽度 - 不同屏幕尺寸
+/// Test loop width - different screen sizes
 #[test]
 fn test_loop_width_different_screens() {
     // 4K 屏幕
@@ -236,17 +236,17 @@ fn test_loop_width_different_screens() {
     assert_eq!(width, 480); // 800 * 0.6
 }
 
-/// 测试居中计算 - 奇数尺寸
+/// Test center calculation - odd dimensions
 #[test]
 fn test_center_odd_dimensions() {
     let (x, y) = calculate_center(801, 601, 1920, 1080);
 
-    // 整数除法会向下取整
+    // Integer division truncates down
     assert_eq!(x, 559); // (1920 - 801) / 2 = 559.5 -> 559
     assert_eq!(y, 239); // (1080 - 601) / 2 = 239.5 -> 239
 }
 
-/// 测试半屏计算 - 奇数屏幕宽度
+/// Test half-screen calculation - odd screen width
 #[test]
 fn test_half_screen_odd_width() {
     let (_x, _y, w, _h) = calculate_half_screen(Edge::Left, 1921, 1080);
@@ -259,12 +259,12 @@ fn test_half_screen_odd_width() {
     assert_eq!(w, 960); // 1921 / 2 = 960.5 -> 960
 }
 
-// ==================== 窗口管理测试（原 ut_window_manager.rs）====================
+// ==================== Window manager tests (from ut_window_manager.rs)====================
 
-/// 测试窗口框架计算
+/// Test window frame calculation
 #[test]
 fn test_window_frame_calculation() {
-    // 测试窗口居中计算
+    // Test window center calculation
     let screen_width = 1920;
     let screen_height = 1080;
     let window_width = 800;
@@ -277,7 +277,7 @@ fn test_window_frame_calculation() {
     assert_eq!(expected_y, 240);
 }
 
-/// 测试循环尺寸计算
+/// Test loop size calculation
 #[test]
 fn test_loop_width_calculation() {
     let screen_width = 1920;
@@ -295,22 +295,22 @@ fn test_loop_width_calculation() {
     assert_eq!(expected_widths[4], 480); // 25%
 }
 
-/// 测试循环尺寸下一个
+/// Test loop size next
 #[test]
 fn test_loop_next_ratio() {
     let ratios = [0.75f32, 0.6, 0.5, 0.4, 0.25];
     let current = 0.5f32;
 
-    // 找到当前比例
+    // Find current ratio
     let current_index = ratios.iter().position(|&r| (current - r).abs() < 0.01);
     assert_eq!(current_index, Some(2));
 
-    // 下一个比例
+    // Next ratio
     let next_index = (current_index.unwrap() + 1) % ratios.len();
     assert_eq!(ratios[next_index], 0.4);
 }
 
-/// 测试固定比例窗口计算
+/// Test fixed ratio window calculation
 #[test]
 fn test_fixed_ratio_calculation() {
     let ratio = 4.0 / 3.0; // 4:3
