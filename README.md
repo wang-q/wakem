@@ -56,11 +56,13 @@ wakem tray      # Then start system tray (assumes background service is running)
 ```
 
 **Notes:**
+
 - Running `wakem` directly will automatically start both the background service and system tray
 - **Windows**: wakem runs as a GUI application (system tray), no console window appears by default
 - If the background service is already running, only the system tray will be started
 - When the system tray is closed, the background service it started will be automatically stopped
-- CLI commands (e.g., `wakem status`, `wakem daemon`, `wakem tray`) will automatically open a console window for output/logs
+- CLI commands (e.g., `wakem status`, `wakem daemon`, `wakem tray`) will automatically open a
+  console window for output/logs
 - Use `wakem` (no arguments) for pure GUI mode without console (e.g., for desktop shortcuts)
 
 ### 4. Client Commands
@@ -93,13 +95,14 @@ wakem delete-macro my-macro  # Delete macro
 
 **Configuration**
 
-See [examples/window_manager.toml](examples/window_manager.toml) for key bindings configuration (defines Hyper key, shortcuts, etc.).
+See [examples/window_manager.toml](examples/window_manager.toml) for key bindings configuration (
+defines Hyper key, shortcuts, etc.).
 
 |        Symbol         |                      Key                      |
-| :-------------------: | :-------------------------------------------: |
+|:---------------------:|:---------------------------------------------:|
 |   <kbd>hyper</kbd>    | <kbd>ctrl</kbd>+<kbd>opt</kbd>+<kbd>cmd</kbd> |
 |                       | <kbd>ctrl</kbd>+<kbd>win</kbd>+<kbd>alt</kbd> |
-|                       | <kbd>capslock</kbd> |
+|                       |              <kbd>capslock</kbd>              |
 | <kbd>hyperShift</kbd> |       <kbd>hyper</kbd>+<kbd>shift</kbd>       |
 
 **Movement**
@@ -117,8 +120,10 @@ See [examples/window_manager.toml](examples/window_manager.toml) for key binding
 **Resize**
 
 * Fixed aspect ratio windows
-    * Native aspect ratio (cycle zoom: 0.9, 0.7, 0.5). <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
-    * 4:3 aspect ratio (cycle zoom: 1.0, 0.9, 0.7, 0.5). <kbd>Hyper</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
+    * Native aspect ratio (cycle zoom: 0.9, 0.7, 0.5). <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>
+      Enter</kbd>
+    * 4:3 aspect ratio (cycle zoom: 1.0, 0.9, 0.7, 0.5). <kbd>Hyper</kbd>+<kbd>M</kbd>/<kbd>
+      Enter</kbd>
 
 * Width adjustment
     * Cycle ratios: 3/4 → 3/5 → 1/2 → 2/5 → 1/4. <kbd>Hyper</kbd>+<kbd>Left</kbd>/<kbd>Right</kbd>
@@ -151,10 +156,12 @@ See [examples/window_manager.toml](examples/window_manager.toml) for key binding
 
 ### 4. Macro Recording & Playback (Macro)
 
-- **Record macros** - Record keyboard/mouse action sequences, intelligently filtering standalone modifier keys
+- **Record macros** - Record keyboard/mouse action sequences, intelligently filtering standalone
+  modifier keys
 - **Play macros** - Trigger recorded macros via hotkeys or command line
 - **Macro management** - View, bind, delete macros, with persistent configuration file storage
-- **Modifier key state tracking** - Automatically records and reconstructs modifier key states during recording
+- **Modifier key state tracking** - Automatically records and reconstructs modifier key states
+  during recording
 
 ### 5. Multi-Instance Support
 
@@ -189,9 +196,12 @@ cargo clippy -- -D warnings
 
 ## Documentation
 
-- [Configuration Guide](docs/config.md) - Complete keyboard, window management, mouse configuration instructions
-- [Developer Documentation](docs/developer.md) - Architecture explanation, development plans, and API reference
-- [Macro System Documentation](docs/macros.md) - Detailed macro recording and playback usage instructions
+- [Configuration Guide](docs/config.md) - Complete keyboard, window management, mouse configuration
+  instructions
+- [Developer Documentation](docs/developer.md) - Architecture explanation, development plans, and
+  API reference
+- [Macro System Documentation](docs/macros.md) - Detailed macro recording and playback usage
+  instructions
 
 ## Reference Projects
 
@@ -200,7 +210,8 @@ cargo clippy -- -D warnings
 - [window-switcher](https://github.com/sigoden/window-switcher) - Rust window switching tool
 - [mrw](https://github.com/wang-q/mrw) - Personal project, concise window management
 - Size looping behavior from [spectacle](https://github.com/eczarny/spectacle).
-- Hammerspoon implementation reference from [this post](http://songchenwen.com/tech/2015/04/02/hammerspoon-mac-window-manager/).
+- Hammerspoon implementation reference
+  from [this post](http://songchenwen.com/tech/2015/04/02/hammerspoon-mac-window-manager/).
 - AutoHotkey implementation reference from [here](https://github.com/justcla/WindowHotKeys).
 
 ## License
