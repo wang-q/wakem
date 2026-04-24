@@ -838,30 +838,47 @@ impl RealWindowManager {
 
     /// Sort windows by Z-Order (from front to back)
     fn sort_windows_by_zorder(&self, windows: Vec<HWND>) -> Vec<HWND> {
-        use windows::Win32::UI::WindowsAndMessaging::GetWindow;
+        use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
 
         unsafe {
             // Get Z-Order positions of all windows
-            // Method: Start from topmost window and traverse, recording position of each window
+            // Method: Enumerate all windows in Z-Order (top to bottom), recording position of each window
             let mut zorder_map: std::collections::HashMap<isize, usize> =
                 std::collections::HashMap::new();
 
-            let mut hwnd = GetWindow(
-                HWND(std::ptr::null_mut()),
-                windows::Win32::UI::WindowsAndMessaging::GW_HWNDFIRST,
-            );
-
-            let mut z_index: usize = 0;
-            while let Ok(h) = hwnd {
-                if windows.contains(&h) {
-                    zorder_map.insert(h.0 as isize, z_index);
-                }
-                hwnd =
-                    GetWindow(h, windows::Win32::UI::WindowsAndMessaging::GW_HWNDNEXT);
-                z_index += 1;
+            // Use EnumWindows to get windows in Z-Order (topmost first)
+            struct EnumData<'a> {
+                target_windows: &'a [HWND],
+                zorder_map: &'a mut std::collections::HashMap<isize, usize>,
+                z_index: usize,
             }
 
-            // Sort by Z-Order
+            unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+                let data = &mut *(lparam.0 as *mut EnumData);
+
+                // Only consider visible windows
+                if !IsWindowVisible(hwnd).as_bool() {
+                    return BOOL(1);
+                }
+
+                // If this window is in our target list, record its Z-Order
+                if data.target_windows.contains(&hwnd) {
+                    data.zorder_map.insert(hwnd.0 as isize, data.z_index);
+                }
+
+                data.z_index += 1;
+                BOOL(1)
+            }
+
+            let mut data = EnumData {
+                target_windows: &windows,
+                zorder_map: &mut zorder_map,
+                z_index: 0,
+            };
+
+            let _ = EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
+
+            // Sort by Z-Order (lower index = higher in Z-Order = more recently used)
             let mut sorted = windows;
             sorted.sort_by_key(|hwnd| {
                 zorder_map

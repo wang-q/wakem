@@ -298,7 +298,7 @@ cargo test --test windows_launcher_e2e -- --ignored --test-threads=1
 
 # 单个测试
 cargo test --test windows_integration test_explorer_multi_process_window_enumeration -- --ignored --test-threads=1
-cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored
+cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored --test-threads=1
 ```
 
 ### 测试用例列表
@@ -344,6 +344,7 @@ cargo test --test windows_launcher_e2e test_launch_simple_program -- --ignored
 |--------|------|
 | `test_switch_between_two_notepad_windows` | 2 个 Notepad 窗口间切换 |
 | `test_switch_cycles_through_three_windows` | 3 个窗口循环切换验证 |
+| `test_switch_cycles_through_four_windows` | 4 个窗口循环切换验证（修复 Bug 专用测试） |
 | `test_single_window_does_not_panic` | 单窗口时切换不报错 |
 | `test_get_app_visible_windows_finds_notepad` | 窗口枚举能找到 Notepad |
 | `test_explorer_multi_process_window_enumeration` | Explorer 多进程窗口枚举（不含系统窗口） |

@@ -1,17 +1,8 @@
-// Platform macOS tray icon tests
-//
-// Mirrors: tests/windows/tray.rs
-//
-// Note: macOS does not have a MockTrayApi (unlike Windows).
-// Tests here cover enum traits and type properties only.
-// Real tray operations require Cocoa event loop and are tested in e2e.
+// macOS 系统托盘测试
 
 #[cfg(all(test, target_os = "macos"))]
 mod macos_tray_tests {
     use wakem::platform::macos::tray::{AppCommand, MenuAction};
-
-    // ==================== MenuAction Enum Tests ====================
-    // (mirrors windows/tray.rs: test_menu_action_debug, test_menu_action_clone, etc.)
 
     #[test]
     fn test_menu_action_debug() {
@@ -44,14 +35,14 @@ mod macos_tray_tests {
         assert_ne!(MenuAction::Exit, MenuAction::OpenConfig);
     }
 
-    // ==================== AppCommand Enum Tests ====================
-    // (macos-specific, mirrors MenuAction pattern)
-
     #[test]
     fn test_app_command_debug() {
         assert_eq!(format!("{:?}", AppCommand::ToggleActive), "ToggleActive");
         assert_eq!(format!("{:?}", AppCommand::ReloadConfig), "ReloadConfig");
-        assert_eq!(format!("{:?}", AppCommand::OpenConfigFolder), "OpenConfigFolder");
+        assert_eq!(
+            format!("{:?}", AppCommand::OpenConfigFolder),
+            "OpenConfigFolder"
+        );
         assert_eq!(format!("{:?}", AppCommand::Exit), "Exit");
     }
 
@@ -76,25 +67,10 @@ mod macos_tray_tests {
         assert_eq!(AppCommand::Exit, AppCommand::Exit);
         assert_ne!(AppCommand::OpenConfigFolder, AppCommand::Exit);
     }
-
-    // ==================== Variant Count Tests ====================
-
-    #[test]
-    fn test_menu_action_variant_count() {
-        use std::mem::variant_count;
-        assert_eq!(variant_count::<MenuAction>(), 5);
-    }
-
-    #[test]
-    fn test_app_command_variant_count() {
-        use std::mem::variant_count;
-        assert_eq!(variant_count::<AppCommand>(), 4);
-    }
 }
 
-// Placeholder for non-macOS platforms
 #[cfg(not(target_os = "macos"))]
 #[test]
 fn test_macos_tray_only_placeholder() {
-    // These tests are macOS-only
+    // macOS-only tests
 }

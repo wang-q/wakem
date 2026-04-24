@@ -48,8 +48,7 @@ fn test_status_response_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::StatusResponse {
         active,
@@ -71,8 +70,7 @@ fn test_error_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::Error { message } = deserialized {
         assert_eq!(message, "Test error");
@@ -89,8 +87,7 @@ fn test_macro_messages() {
         name: "test_macro".to_string(),
     };
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::StartMacroRecording { name } = deserialized {
         assert_eq!(name, "test_macro");
@@ -104,8 +101,7 @@ fn test_macro_messages() {
         action_count: 5,
     };
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::MacroRecordingResult { name, action_count } = deserialized {
         assert_eq!(name, "test_macro");
@@ -119,8 +115,7 @@ fn test_macro_messages() {
         macros: vec!["macro1".to_string(), "macro2".to_string()],
     };
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::MacrosList { macros } = deserialized {
         assert_eq!(macros.len(), 2);
@@ -140,8 +135,7 @@ fn test_config_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::SetConfig { .. } = deserialized {
         // 配置对象已反序列化
@@ -158,8 +152,7 @@ fn test_config_error_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::ConfigError { error } = deserialized {
         assert_eq!(error, "Invalid config");
@@ -177,8 +170,7 @@ fn test_bind_macro_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::BindMacro {
         macro_name,
@@ -200,8 +192,7 @@ fn test_play_macro_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::PlayMacro { name } = deserialized {
         assert_eq!(name, "test_macro");
@@ -218,8 +209,7 @@ fn test_delete_macro_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::DeleteMacro { name } = deserialized {
         assert_eq!(name, "old_macro");
@@ -233,8 +223,7 @@ fn test_delete_macro_message() {
 fn test_get_next_key_info_message() {
     let msg = Message::GetNextKeyInfo;
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     assert!(matches!(deserialized, Message::GetNextKeyInfo));
 }
@@ -247,8 +236,7 @@ fn test_next_key_info_message() {
     };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::NextKeyInfo { info } = deserialized {
         assert_eq!(info, "Key: A, Scan: 0x1E");
@@ -263,8 +251,7 @@ fn test_register_message_window() {
     let msg = Message::RegisterMessageWindow { hwnd: 12345 };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     if let Message::RegisterMessageWindow { hwnd } = deserialized {
         assert_eq!(hwnd, 12345);
@@ -278,8 +265,7 @@ fn test_register_message_window() {
 fn test_stop_macro_recording() {
     let msg = Message::StopMacroRecording;
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     assert!(matches!(deserialized, Message::StopMacroRecording));
 }
@@ -289,8 +275,7 @@ fn test_stop_macro_recording() {
 fn test_get_macros() {
     let msg = Message::GetMacros;
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     assert!(matches!(deserialized, Message::GetMacros));
 }
@@ -300,8 +285,7 @@ fn test_get_macros() {
 fn test_config_loaded() {
     let msg = Message::ConfigLoaded;
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: Message = serde_json::from_str(&json).expect("Failed to deserialize");
 
     assert!(matches!(deserialized, Message::ConfigLoaded));
 }
