@@ -13,13 +13,6 @@ Current release: 0.1.1
 **Windows:**
 
 ```powershell
-# Download and run the install script
-irm https://raw.githubusercontent.com/wang-q/wakem/master/scripts/install.ps1 | iex
-```
-
-Or manually:
-
-```powershell
 # Download the install script
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/wang-q/wakem/master/scripts/install.ps1" -OutFile "install.ps1"
 
@@ -32,13 +25,6 @@ The installer will:
 - Install to `%LOCALAPPDATA%\Programs\wakem\`
 - Create configuration directory at `%APPDATA%\wakem\`
 - Set up auto-start on login
-
-**macOS / Linux:**
-
-```bash
-# Download and run the install script
-curl -fsSL https://raw.githubusercontent.com/wang-q/wakem/master/scripts/install.sh | bash
-```
 
 #### Build from Source
 
@@ -56,7 +42,7 @@ cargo build --release
 .\scripts\install.ps1
 ```
 
-**macOS / Linux:**
+**macOS:**
 
 ```bash
 # Clone the repository
@@ -66,52 +52,38 @@ cd wakem
 # Build
 cargo build --release
 
-# Install (optional)
-cargo install --path .
+# Run directly
+./target/release/wakem
 ```
 
-### 2. Create Configuration File
+### 2. Configuration
 
 **Windows:**
 
-The install script automatically creates the configuration directory and installs example configs.
-Default config is at `%APPDATA%\wakem\config.toml`.
+The install script automatically:
+- Creates the configuration directory at `%APPDATA%\wakem\`
+- Installs example configs: `minimal.toml`, `navigation_layer.toml`, `window_manager.toml`
+- Sets `window_manager.toml` as the default `config.toml`
 
 **macOS:**
 
+Configuration directory: `~/Library/Application Support/wakem/`
+
 ```bash
+# Create config directory
 mkdir -p ~/Library/Application\ Support/wakem
+
+# Copy example config
 cp examples/window_manager.toml ~/Library/Application\ Support/wakem/config.toml
 ```
 
-**Linux:**
+### 3. Start
 
 ```bash
-mkdir -p ~/.config/wakem
-cp examples/window_manager.toml ~/.config/wakem/config.toml
+wakem           # Start daemon + tray (GUI mode, no console on Windows)
+wakem daemon    # Start daemon only
+wakem tray      # Start tray only (daemon must be running)
 ```
-
-### 3. Start Service
-
-```bash
-# One-click start (recommended) - starts both background service and system tray
-# On Windows: runs as GUI application (no console window)
-wakem
-
-# Or start separately (advanced users)
-wakem daemon    # Start background service first
-wakem tray      # Then start system tray (assumes background service is running)
-```
-
-**Notes:**
-
-- Running `wakem` directly will automatically start both the background service and system tray
-- **Windows**: wakem runs as a GUI application (system tray), no console window appears by default
-- If the background service is already running, only the system tray will be started
-- When the system tray is closed, the background service it started will be automatically stopped
-- CLI commands (e.g., `wakem status`, `wakem daemon`, `wakem tray`) will automatically open a
-  console window for output/logs
-- Use `wakem` (no arguments) for pure GUI mode without console (e.g., for desktop shortcuts)
 
 ### 4. Client Commands
 
@@ -143,12 +115,11 @@ wakem delete-macro my-macro  # Delete macro
 
 **Configuration**
 
-See [examples/window_manager.toml](examples/window_manager.toml) for key bindings configuration (
-defines Hyper key, shortcuts, etc.).
+See [examples/window_manager.toml](examples/window_manager.toml) for key bindings configuration (defines Hyper key, shortcuts, etc.).
 
 |        Symbol         |                      Key                      |
 |:---------------------:|:---------------------------------------------:|
-|   <kbd>hyper</kbd>    | <kbd>ctrl</kbd>+<kbd>opt</kbd>+<kbd>cmd</kbd> |
+|   <kbd>hyper</kbd>    | <kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>win</kbd> |
 |                       | <kbd>ctrl</kbd>+<kbd>win</kbd>+<kbd>alt</kbd> |
 |                       |              <kbd>capslock</kbd>              |
 | <kbd>hyperShift</kbd> |       <kbd>hyper</kbd>+<kbd>shift</kbd>       |
@@ -168,10 +139,8 @@ defines Hyper key, shortcuts, etc.).
 **Resize**
 
 * Fixed aspect ratio windows
-    * Native aspect ratio (cycle zoom: 0.9, 0.7, 0.5). <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>
-      Enter</kbd>
-    * 4:3 aspect ratio (cycle zoom: 1.0, 0.9, 0.7, 0.5). <kbd>Hyper</kbd>+<kbd>M</kbd>/<kbd>
-      Enter</kbd>
+    * Native aspect ratio (cycle zoom: 0.9, 0.7, 0.5). <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
+    * 4:3 aspect ratio (cycle zoom: 1.0, 0.9, 0.7, 0.5). <kbd>Hyper</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
 
 * Width adjustment
     * Cycle ratios: 3/4 → 3/5 → 1/2 → 2/5 → 1/4. <kbd>Hyper</kbd>+<kbd>Left</kbd>/<kbd>Right</kbd>
@@ -204,12 +173,10 @@ defines Hyper key, shortcuts, etc.).
 
 ### 4. Macro Recording & Playback (Macro)
 
-- **Record macros** - Record keyboard/mouse action sequences, intelligently filtering standalone
-  modifier keys
+- **Record macros** - Record keyboard/mouse action sequences, intelligently filtering standalone modifier keys
 - **Play macros** - Trigger recorded macros via hotkeys or command line
 - **Macro management** - View, bind, delete macros, with persistent configuration file storage
-- **Modifier key state tracking** - Automatically records and reconstructs modifier key states
-  during recording
+- **Modifier key state tracking** - Automatically records and reconstructs modifier key states during recording
 
 ### 5. Multi-Instance Support
 
@@ -231,7 +198,7 @@ cargo build
 # Release build
 cargo build --release
 
-# Run tests (171 tests)
+# Run tests (171+ tests)
 cargo test
 
 # Run benchmarks
@@ -244,12 +211,18 @@ cargo clippy -- -D warnings
 
 ## Documentation
 
-- [Configuration Guide](docs/config.md) - Complete keyboard, window management, mouse configuration
-  instructions
-- [Developer Documentation](docs/developer.md) - Architecture explanation, development plans, and
-  API reference
-- [Macro System Documentation](docs/macros.md) - Detailed macro recording and playback usage
-  instructions
+- [Configuration Guide](docs/config.md) - Complete keyboard, window management, mouse configuration instructions
+- [Developer Documentation](docs/developer.md) - Architecture explanation, development plans, and API reference
+- [Macro System Documentation](docs/macros.md) - Detailed macro recording and playback usage instructions
+- [Key Names Reference](docs/keys.md) - Complete list of supported key names and scan codes
+
+## Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Windows  | Full support | All features implemented |
+| macOS    | In development | Core features working, some advanced features pending |
+| Linux    | Planned | Wayland support planned for future |
 
 ## Reference Projects
 
@@ -258,8 +231,7 @@ cargo clippy -- -D warnings
 - [window-switcher](https://github.com/sigoden/window-switcher) - Rust window switching tool
 - [mrw](https://github.com/wang-q/mrw) - Personal project, concise window management
 - Size looping behavior from [spectacle](https://github.com/eczarny/spectacle).
-- Hammerspoon implementation reference
-  from [this post](http://songchenwen.com/tech/2015/04/02/hammerspoon-mac-window-manager/).
+- Hammerspoon implementation reference from [this post](http://songchenwen.com/tech/2015/04/02/hammerspoon-mac-window-manager/).
 - AutoHotkey implementation reference from [here](https://github.com/justcla/WindowHotKeys).
 
 ## License
