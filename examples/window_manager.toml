@@ -78,4 +78,4 @@ CapsLock = "Ctrl+Alt+Meta"
 # Open File Explorer to D: drive
 "Ctrl+Alt+Meta+E" = "explorer.exe D:\\"
 # Launch Calculator
-"Ctrl+Alt+Meta+Equals" = "calc.exe"
+"Ctrl+Alt+Meta+Equal" = "calc.exe"
