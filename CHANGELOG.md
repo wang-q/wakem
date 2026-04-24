@@ -2,6 +2,16 @@
 
 ## Unreleased - ReleaseDate
 
+### Bug Fixes
+
+- **Launcher**: Fixed hotkey parsing in `[launch]` configuration to support modifier keys (e.g., `Ctrl+Alt+Meta+T`)
+- **Windows Tray**: Added timeout and force kill mechanism for daemon shutdown to prevent tray from hanging on exit
+
+### Improvements
+
+- **Testing**: Added E2E tests for Windows launcher functionality
+- **Documentation**: Updated developer documentation with launcher test cases
+
 ## 0.1.1 - 2026-04-24
 
 ### Initial Release
