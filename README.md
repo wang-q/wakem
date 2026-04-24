@@ -8,6 +8,56 @@ Current release: 0.1.1
 
 ### 1. Installation
 
+#### Using Install Script (Recommended)
+
+**Windows:**
+
+```powershell
+# Download and run the install script
+irm https://raw.githubusercontent.com/wang-q/wakem/master/scripts/install.ps1 | iex
+```
+
+Or manually:
+
+```powershell
+# Download the install script
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/wang-q/wakem/master/scripts/install.ps1" -OutFile "install.ps1"
+
+# Run the install script (auto-detects local build or downloads from GitHub)
+.\install.ps1
+```
+
+The installer will:
+- Download the latest release from GitHub (or use local build if available)
+- Install to `%LOCALAPPDATA%\Programs\wakem\`
+- Create configuration directory at `%APPDATA%\wakem\`
+- Set up auto-start on login
+
+**macOS / Linux:**
+
+```bash
+# Download and run the install script
+curl -fsSL https://raw.githubusercontent.com/wang-q/wakem/master/scripts/install.sh | bash
+```
+
+#### Build from Source
+
+**Windows:**
+
+```powershell
+# Clone the repository
+git clone https://github.com/wang-q/wakem.git
+cd wakem
+
+# Build
+cargo build --release
+
+# Install using the script (will use local build)
+.\scripts\install.ps1
+```
+
+**macOS / Linux:**
+
 ```bash
 # Clone the repository
 git clone https://github.com/wang-q/wakem.git
@@ -22,14 +72,10 @@ cargo install --path .
 
 ### 2. Create Configuration File
 
-Copy the example configuration to your config directory:
-
 **Windows:**
 
-```powershell
-New-Item -Path "$env:APPDATA\wakem" -ItemType Directory -Force
-cp examples/window_manager.toml $env:APPDATA\wakem\config.toml
-```
+The install script automatically creates the configuration directory and installs example configs.
+Default config is at `%APPDATA%\wakem\config.toml`.
 
 **macOS:**
 

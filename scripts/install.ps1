@@ -32,6 +32,15 @@ $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $ProjectDir = Split-Path -Parent $ScriptDir
 $BuildExe = "$ProjectDir\target\release\wakem.exe"
 
+# GitHub release configuration
+$GitHubRepo = "wang-q/wakem"
+$Architecture = "x86_64-pc-windows-msvc"
+
+# Configuration files source
+$ExamplesDir = "$ProjectDir\examples"
+$ConfigFiles = @("minimal.toml", "navigation_layer.toml", "window_manager.toml")
+$DefaultConfig = "window_manager.toml"  # Used as the default config.toml
+
 function Show-Help {
     Write-Host @"
 wakem Windows Installer
@@ -45,6 +54,11 @@ It does NOT support running as a Windows Service because core
 features (keyboard/mouse capture, window management, SendInput,
 window hooks) require an interactive user session.
 
+Installation Source:
+  The installer automatically detects the installation source:
+  1. If local build exists (target\release\wakem.exe), uses it
+  2. Otherwise, downloads the latest release from GitHub
+
 Usage:
     .\install.ps1 [options]
 
@@ -53,7 +67,10 @@ Options:
     -Help         Show this help message
 
 Examples:
-    # Build and install
+    # Install (auto-detect: local build or download from GitHub)
+    .\scripts\install.ps1
+
+    # Build locally and install
     cargo build --release
     .\scripts\install.ps1
 
@@ -87,15 +104,179 @@ function Wait-ProcessClosed {
     }
 }
 
+function Get-LatestVersion {
+    $apiUrl = "https://api.github.com/repos/$GitHubRepo/releases/latest"
+    try {
+        $response = Invoke-WebRequest -Uri $apiUrl -UseBasicParsing -ErrorAction Stop
+        $release = $response.Content | ConvertFrom-Json
+        return $release.tag_name
+    } catch {
+        Write-Error "Failed to get latest version from GitHub API: $_"
+        return $null
+    }
+}
+
+function Download-Release {
+    param(
+        [string]$Version,
+        [string]$OutputDir
+    )
+    $zipUrl = "https://github.com/$GitHubRepo/releases/download/$Version/wakem-$Architecture.zip"
+    $zipPath = Join-Path $OutputDir "wakem-$Version.zip"
+    try {
+        Write-Host "Downloading wakem $Version..." -ForegroundColor Cyan
+        Write-Host "  URL: $zipUrl" -ForegroundColor Gray
+        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+        Write-Host "Downloaded to: $zipPath" -ForegroundColor Green
+        return $zipPath
+    } catch {
+        Write-Error "Failed to download release: $_"
+        return $null
+    }
+}
+
+function Extract-Release {
+    param(
+        [string]$ZipPath,
+        [string]$OutputDir
+    )
+    try {
+        Write-Host "Extracting archive..." -ForegroundColor Cyan
+        Expand-Archive -Path $ZipPath -DestinationPath $OutputDir -Force
+        $extractedExe = Join-Path $OutputDir "wakem.exe"
+        if (Test-Path $extractedExe) {
+            Write-Host "Extracted to: $extractedExe" -ForegroundColor Green
+            return $extractedExe
+        } else {
+            Write-Error "wakem.exe not found in extracted archive"
+            return $null
+        }
+    } catch {
+        Write-Error "Failed to extract archive: $_"
+        return $null
+    }
+}
+
+function Download-ConfigFile {
+    param(
+        [string]$FileName,
+        [string]$OutputPath
+    )
+    $configUrl = "https://raw.githubusercontent.com/$GitHubRepo/main/examples/$FileName"
+    try {
+        Write-Host "  Downloading $FileName..." -ForegroundColor Gray
+        Invoke-WebRequest -Uri $configUrl -OutFile $OutputPath -UseBasicParsing -ErrorAction Stop
+        return $true
+    } catch {
+        Write-Warning "Failed to download $FileName from GitHub: $_"
+        return $false
+    }
+}
+
+function Install-ConfigFiles {
+    param(
+        [bool]$UseLocal
+    )
+    $installedCount = 0
+    $sourceDesc = if ($UseLocal) { "local examples directory" } else { "GitHub repository" }
+    Write-Host "Installing configuration files from $sourceDesc..." -ForegroundColor Cyan
+
+    # First, install all example config files
+    foreach ($file in $ConfigFiles) {
+        $sourcePath = Join-Path $ExamplesDir $file
+        $destPath = Join-Path $ConfigDir $file
+
+        if ($UseLocal -and (Test-Path $sourcePath)) {
+            # Copy from local examples directory
+            Copy-Item $sourcePath $destPath -Force
+            Write-Host "  Copied $file" -ForegroundColor Green
+            $installedCount++
+        } elseif (-not $UseLocal) {
+            # Download from GitHub
+            if (Download-ConfigFile -FileName $file -OutputPath $destPath) {
+                Write-Host "  Downloaded $file" -ForegroundColor Green
+                $installedCount++
+            }
+        }
+    }
+
+    # Create default config.toml from minimal.toml if it doesn't exist
+    if (-not (Test-Path $ConfigFile)) {
+        $defaultSource = Join-Path $ConfigDir $DefaultConfig
+        if (Test-Path $defaultSource) {
+            Copy-Item $defaultSource $ConfigFile -Force
+            Write-Host "  Created default config.toml (from $DefaultConfig)" -ForegroundColor Green
+        } elseif ($UseLocal) {
+            # Try to copy directly from examples dir if not found in config dir
+            $defaultSource = Join-Path $ExamplesDir $DefaultConfig
+            if (Test-Path $defaultSource) {
+                Copy-Item $defaultSource $ConfigFile -Force
+                Write-Host "  Created default config.toml (from $DefaultConfig)" -ForegroundColor Green
+            }
+        } else {
+            # Download directly as config.toml
+            if (Download-ConfigFile -FileName $DefaultConfig -OutputPath $ConfigFile) {
+                Write-Host "  Created default config.toml (from $DefaultConfig)" -ForegroundColor Green
+            }
+        }
+    } else {
+        Write-Host "  Config file already exists: $ConfigFile" -ForegroundColor Yellow
+    }
+
+    if ($installedCount -eq 0) {
+        Write-Warning "No configuration files were installed"
+    } else {
+        Write-Host "Installed $installedCount configuration file(s) to: $ConfigDir" -ForegroundColor Green
+    }
+    return $installedCount
+}
+
 function Install-Wakem {
     Write-Host "Installing wakem..."
     Write-Host ""
 
-    # Check build artifact
-    if (-not (Test-Path $BuildExe)) {
-        Write-Error "Executable not found: $BuildExe"
-        Write-Host "Please build the project first: cargo build --release"
-        exit 1
+    # Determine source executable: prefer local build, fallback to GitHub release
+    $SourceExe = $null
+    $TempDir = $null
+    $DownloadedZip = $null
+
+    if (Test-Path $BuildExe) {
+        # Use local build
+        $SourceExe = $BuildExe
+        Write-Host "Using local build: $SourceExe" -ForegroundColor Green
+    } else {
+        # Download from GitHub release
+        Write-Host "Local build not found, downloading from GitHub release..." -ForegroundColor Yellow
+        Write-Host ""
+
+        # Get latest version
+        $Version = Get-LatestVersion
+        if (-not $Version) {
+            Write-Error "Failed to get latest version. Please check your internet connection or build locally with: cargo build --release"
+            exit 1
+        }
+        Write-Host "Latest version: $Version" -ForegroundColor Cyan
+
+        # Create temp directory
+        $TempDir = Join-Path $env:TEMP "wakem-install-$(Get-Random)"
+        New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+
+        # Download release
+        $DownloadedZip = Download-Release -Version $Version -OutputDir $TempDir
+        if (-not $DownloadedZip) {
+            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Error "Failed to download release. Please check your internet connection or build locally with: cargo build --release"
+            exit 1
+        }
+
+        # Extract release
+        $SourceExe = Extract-Release -ZipPath $DownloadedZip -OutputDir $TempDir
+        if (-not $SourceExe) {
+            Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Error "Failed to extract release archive."
+            exit 1
+        }
+        Write-Host ""
     }
 
     # If a previous installation is running, wait for it to close before overwriting
@@ -110,8 +291,13 @@ function Install-Wakem {
     }
 
     # Copy executable
-    Copy-Item $BuildExe $InstalledExe -Force
-    Write-Host "Copied executable to: $InstallDir" -ForegroundColor Green
+    Copy-Item $SourceExe $InstalledExe -Force
+    Write-Host "Installed executable to: $InstallDir" -ForegroundColor Green
+
+    # Cleanup temp files if we downloaded
+    if ($TempDir -and (Test-Path $TempDir)) {
+        Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 
     # Create configuration directory
     if (-not (Test-Path $ConfigDir)) {
@@ -119,59 +305,19 @@ function Install-Wakem {
         Write-Host "Created config directory: $ConfigDir" -ForegroundColor Green
     }
 
-    # Create default config file (format matches Config struct definition)
-    if (-not (Test-Path $ConfigFile)) {
-        Write-Host "Creating default configuration file..."
-        @"
-# wakem configuration file
-# Location: %APPDATA%\wakem\config.toml
-# See docs/config.md for full reference
-
-# Log level: trace, debug, info, warn, error
-log_level = "info"
-
-# Show system tray icon
-tray_icon = true
-
-# Auto-reload configuration changes
-auto_reload = true
-
-[keyboard]
-# Key remapping: map source key to target action
-# Target can be a key name or window action string
-[keyboard.remap]
-CapsLock = "Backspace"
-
-# Navigation layer: HJKL as arrow keys while holding CapsLock
-[keyboard.layers.navigation]
-activation_key = "CapsLock"
-mode = "Hold"
-
-[keyboard.layers.navigation.mappings]
-H = "Left"
-J = "Down"
-K = "Up"
-L = "Right"
-U = "Home"
-O = "End"
-Y = "PageUp"
-N = "PageDown"
-
-# Window management shortcuts
-[window.shortcuts]
-"Ctrl+Alt+C" = "Center"
-"Ctrl+Alt+Left" = "HalfScreen(Left)"
-"Ctrl+Alt+Right" = "HalfScreen(Right)"
-"Alt+Grave" = "SwitchToNextWindow"
-
-# Quick launch programs (shortcut = command)
-[launch]
-"Ctrl+Alt+T" = "wt.exe"
-"@ | Out-File -FilePath $ConfigFile -Encoding UTF8
-        Write-Host "Created default config: $ConfigFile" -ForegroundColor Green
-    } else {
-        Write-Host "Config file already exists: $ConfigFile"
+    # Install configuration files
+    # Check if local examples directory exists and has config files
+    $hasLocalConfigs = $false
+    foreach ($file in $ConfigFiles) {
+        if (Test-Path (Join-Path $ExamplesDir $file)) {
+            $hasLocalConfigs = $true
+            break
+        }
     }
+
+    Write-Host ""
+    Install-ConfigFiles -UseLocal $hasLocalConfigs
+    Write-Host ""
 
     # Create data directory
     if (-not (Test-Path $DataDir)) {
