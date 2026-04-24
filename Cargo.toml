@@ -10,11 +10,6 @@ repository = "https://github.com/wang-q/wakem"
 name = "wakem"
 path = "src/main.rs"
 
-# Windows GUI subsystem - prevents console window from appearing
-# This makes wakem a proper GUI application (system tray)
-[target.'cfg(target_os = "windows")'.bin.wakem]
-windows_subsystem = "windows"
-
 [dependencies]
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -120,4 +115,3 @@ debug = true
 
 [profile.release]
 lto = true
-opt-level = 3

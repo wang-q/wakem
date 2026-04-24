@@ -25,43 +25,6 @@ use platform::windows::{run_tray_message_loop, AppCommand};
 #[cfg(target_os = "macos")]
 use platform::macos::{run_tray_event_loop, AppCommand};
 
-/// Check if the command requires console output (for Windows GUI subsystem)
-/// Returns true for commands that need to print results or show logs
-fn requires_console_output(command: &Option<Commands>) -> bool {
-    match command {
-        // These commands need console output for user feedback
-        Some(Commands::Status) |
-        Some(Commands::Reload) |
-        Some(Commands::Save) |
-        Some(Commands::Enable) |
-        Some(Commands::Disable) |
-        Some(Commands::Config) |
-        Some(Commands::Instances) |
-        Some(Commands::Record { .. }) |
-        Some(Commands::StopRecord) |
-        Some(Commands::Play { .. }) |
-        Some(Commands::Macros) |
-        Some(Commands::BindMacro { .. }) |
-        Some(Commands::DeleteMacro { .. }) |
-        Some(Commands::Daemon { .. }) |  // Daemon needs console for logs
-        Some(Commands::Tray) => true,     // Tray needs console for logs
-
-        // Only default (no command) runs as pure GUI without console
-        None => false,
-    }
-}
-
-/// Allocate console on Windows if needed (for GUI subsystem binaries)
-#[cfg(target_os = "windows")]
-fn ensure_console_for_cli() {
-    use windows::Win32::System::Console::AllocConsole;
-
-    unsafe {
-        // Allocate a new console window for CLI output
-        let _ = AllocConsole();
-    }
-}
-
 /// Initialize logging system with support for reading log level from config file
 fn init_logging(cli: &Cli) {
     let log_level = if let Some(config_path) =
@@ -85,12 +48,6 @@ fn init_logging(cli: &Cli) {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-
-    // For Windows GUI subsystem: allocate console if CLI command needs output
-    #[cfg(target_os = "windows")]
-    if requires_console_output(&cli.command) {
-        ensure_console_for_cli();
-    }
 
     // Initialize logging (using log level from config or default info)
     init_logging(&cli);
@@ -152,7 +109,19 @@ fn is_daemon_running(instance_id: u32) -> bool {
 /// Tray message loop runs on main thread, tokio runs in background thread
 #[cfg(target_os = "windows")]
 fn run_tray_sync(instance_id: u32, auto_start_daemon: bool) -> Result<()> {
+    use windows::Win32::System::Console::GetConsoleWindow;
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+
     info!("wakem starting (instance {})...", instance_id);
+
+    // Hide the console window for tray mode (console subsystem exe, but we
+    // don't want a visible terminal when running as tray application)
+    unsafe {
+        let hwnd = GetConsoleWindow();
+        if !hwnd.is_invalid() {
+            let _ = ShowWindow(hwnd, SW_HIDE);
+        }
+    }
 
     // Create sync channel for communication between tray and tokio
     let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
@@ -571,7 +540,7 @@ fn open_config_folder_sync() -> Result<()> {
 /// Get server status - sync version
 fn cmd_status_sync(instance_id: u32) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -588,7 +557,7 @@ fn cmd_status_sync(instance_id: u32) -> Result<()> {
 /// Reload configuration - sync version
 fn cmd_reload_sync(instance_id: u32) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -603,7 +572,7 @@ fn cmd_reload_sync(instance_id: u32) -> Result<()> {
 /// Save configuration - sync version
 fn cmd_save_sync(instance_id: u32) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -618,7 +587,7 @@ fn cmd_save_sync(instance_id: u32) -> Result<()> {
 /// Enable mapping - sync version
 fn cmd_enable_sync(instance_id: u32) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -633,7 +602,7 @@ fn cmd_enable_sync(instance_id: u32) -> Result<()> {
 /// Disable mapping - sync version
 fn cmd_disable_sync(instance_id: u32) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -655,7 +624,7 @@ fn cmd_config_sync() -> Result<()> {
 /// List running instances - sync version
 fn cmd_instances_sync() -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -682,7 +651,7 @@ fn cmd_instances_sync() -> Result<()> {
 fn cmd_record_sync(instance_id: u32, name: &str) -> Result<()> {
     let name_owned = name.to_string();
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -698,7 +667,7 @@ fn cmd_record_sync(instance_id: u32, name: &str) -> Result<()> {
 /// Stop recording macro - sync version
 fn cmd_stop_record_sync(instance_id: u32) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -714,7 +683,7 @@ fn cmd_stop_record_sync(instance_id: u32) -> Result<()> {
 fn cmd_play_sync(instance_id: u32, name: &str) -> Result<()> {
     let name_owned = name.to_string();
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -729,7 +698,7 @@ fn cmd_play_sync(instance_id: u32, name: &str) -> Result<()> {
 /// List all macros - sync version
 fn cmd_macros_sync(instance_id: u32) -> Result<()> {
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -753,7 +722,7 @@ fn cmd_bind_macro_sync(instance_id: u32, macro_name: &str, trigger: &str) -> Res
     let macro_name_owned = macro_name.to_string();
     let trigger_owned = trigger.to_string();
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
@@ -769,7 +738,7 @@ fn cmd_bind_macro_sync(instance_id: u32, macro_name: &str, trigger: &str) -> Res
 fn cmd_delete_macro_sync(instance_id: u32, name: &str) -> Result<()> {
     let name_owned = name.to_string();
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()?;
 
     rt.block_on(async {
