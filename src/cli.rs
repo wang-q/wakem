@@ -189,10 +189,10 @@ mod tests {
     /// Test extra arguments handling
     #[test]
     fn test_cli_extra_arguments() {
-        // daemon command should not have extra arguments
         let result = Cli::try_parse_from(["wakem", "daemon", "extra_arg"]);
-        // Depending on clap configuration, may error or ignore extra arguments
-        // Here we only verify it does not panic
-        let _ = result;
+        assert!(
+            result.is_err(),
+            "Extra arguments should cause a parse error"
+        );
     }
 }

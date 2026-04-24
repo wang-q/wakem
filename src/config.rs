@@ -442,6 +442,9 @@ pub struct WindowPreset {
 
 impl WindowPreset {
     /// Check if preset matches specified window info
+    ///
+    /// Returns false if no matching conditions are set (process_name, executable_path,
+    /// title_pattern all None), preventing empty presets from matching all windows.
     pub fn matches(
         &self,
         process_name: &str,
@@ -1081,7 +1084,10 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     }
 
     #[cfg(not(target_os = "windows"))]
-    Err(anyhow::anyhow!("Unknown key name: {}", name))
+    Err(anyhow::anyhow!(
+        "Unknown key name '{}' on this platform. Windows-specific scan code mappings are not available; only names supported by the keyboard-codes crate are accepted.",
+        name
+    ))
 }
 
 /// Config file path cache (reduces repeated file system I/O)

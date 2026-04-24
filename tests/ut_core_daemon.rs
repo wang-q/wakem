@@ -2,6 +2,7 @@
 
 use wakem::config::Config;
 use wakem::daemon::ServerState;
+use wakem::shutdown::ShutdownSignal;
 use wakem::types::{InputEvent, KeyEvent, KeyState, MouseEventType};
 
 // ==================== ServerState initialization and configuration loading ====================
@@ -9,7 +10,7 @@ use wakem::types::{InputEvent, KeyEvent, KeyState, MouseEventType};
 /// Test ServerState default initialization
 #[tokio::test]
 async fn test_server_state_new() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // Verify default state
     let (active, config_loaded) = state.get_status().await;
@@ -33,7 +34,7 @@ fn test_server_state_default() {
 /// Test basic config loading
 #[tokio::test]
 async fn test_load_config_basic() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
 
     let result = state.load_config(config).await;
@@ -50,7 +51,7 @@ async fn test_load_config_basic() {
 /// Test config loading with key mappings
 #[tokio::test]
 async fn test_load_config_with_key_mappings() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     let config_str = r#"
 [keyboard.remap]
@@ -69,7 +70,7 @@ CapsLock = "Backspace"
 /// Test config loading with layers (Hold mode)
 #[tokio::test]
 async fn test_load_config_with_layers_hold_mode() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     let config_str = r#"
 [keyboard.layers.navigate]
@@ -95,7 +96,7 @@ L = "Right"
 /// Test config loading with layers (Toggle mode)
 #[tokio::test]
 async fn test_load_config_with_layers_toggle_mode() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     let config_str = r#"
 [keyboard.layers.symbols]
@@ -119,9 +120,8 @@ B = "2"
 /// Test config loading with window presets
 #[tokio::test]
 async fn test_load_config_with_window_presets() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
-    // 使用一个简单的配置（不包含复杂的窗口预设）
     let config_str = r#"
 [window.shortcuts]
 "Ctrl+Alt+C" = "Center"
@@ -139,7 +139,7 @@ async fn test_load_config_with_window_presets() {
 /// Test full config loading
 #[tokio::test]
 async fn test_load_config_full() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     let config_str = r#"
 log_level = "debug"
@@ -189,7 +189,7 @@ F5 = "test_macro"
 /// Test keyboard event handling (basic)
 #[tokio::test]
 async fn test_process_input_event_key() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -204,7 +204,7 @@ async fn test_process_input_event_key() {
 /// Test mouse wheel event handling
 #[tokio::test]
 async fn test_process_input_event_mouse_wheel() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -219,7 +219,7 @@ async fn test_process_input_event_mouse_wheel() {
 /// Test event handling in disabled state
 #[tokio::test]
 async fn test_process_input_event_disabled() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -241,7 +241,7 @@ async fn test_process_input_event_disabled() {
 /// Test injected event ignored
 #[tokio::test]
 async fn test_process_injected_event_ignored() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -256,7 +256,7 @@ async fn test_process_injected_event_ignored() {
 /// Test mouse move event handling
 #[tokio::test]
 async fn test_process_input_event_mouse_move() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -271,7 +271,7 @@ async fn test_process_input_event_mouse_move() {
 /// Test mouse button event handling
 #[tokio::test]
 async fn test_process_input_event_mouse_button() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -292,7 +292,7 @@ async fn test_process_input_event_mouse_button() {
 /// Test start and stop macro recording
 #[tokio::test]
 async fn test_start_stop_macro_recording() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // Start recording
     let result = state.start_macro_recording("test_macro").await;
@@ -318,7 +318,7 @@ async fn test_start_stop_macro_recording() {
 /// Test play macro
 #[tokio::test]
 async fn test_play_macro() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // First add a simple macro to the config (using empty steps)
     let config_str = r#"
@@ -339,7 +339,7 @@ simple_macro = []
 /// Test play non-existent macro (error handling)
 #[tokio::test]
 async fn test_play_nonexistent_macro() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -354,7 +354,7 @@ async fn test_play_nonexistent_macro() {
 /// Test get macros list
 #[tokio::test]
 async fn test_get_macros_list() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // In empty config, macro list should be empty
     let macros = state.get_macros().await;
@@ -384,7 +384,7 @@ macro3 = []
 /// Test Delete macro
 #[tokio::test]
 async fn test_delete_macro() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // First add a macro
     let config_str = r#"
@@ -408,7 +408,7 @@ temp_macro = []
 /// Test Delete non-existent macro (error handling)
 #[tokio::test]
 async fn test_delete_nonexistent_macro() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -423,7 +423,7 @@ async fn test_delete_nonexistent_macro() {
 /// Test Bind macro to trigger key
 #[tokio::test]
 async fn test_bind_macro() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // First add a macro
     let config_str = r#"
@@ -443,7 +443,7 @@ my_macro = []
 /// Test Bind non-existent macro (error handling)
 #[tokio::test]
 async fn test_bind_nonexistent_macro() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
 
@@ -460,7 +460,7 @@ async fn test_bind_nonexistent_macro() {
 /// Test enable/disable state toggle
 #[tokio::test]
 async fn test_set_active_state_toggle() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // Default is enabled
     let (active, _) = state.get_status().await;
@@ -486,7 +486,7 @@ async fn test_set_active_state_toggle() {
 /// Test status query consistency
 #[tokio::test]
 async fn test_get_status_consistency() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // Multiple queries should return same result
     let status1 = state.get_status().await;
@@ -501,7 +501,7 @@ async fn test_get_status_consistency() {
 #[cfg(target_os = "windows")]
 #[tokio::test]
 async fn test_set_message_window_hwnd() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // Register window handle (using isize instead of HWND)
     let hwnd_value = 12345_isize;
@@ -517,7 +517,7 @@ async fn test_set_message_window_hwnd() {
 #[cfg(target_os = "macos")]
 #[tokio::test]
 async fn test_set_message_window_hwnd() {
-    let state = ServerState::new();
+    let state = ServerState::new(ShutdownSignal::new());
 
     // Register window handle (macOS version is no-op)
     let hwnd_value = 12345_isize;

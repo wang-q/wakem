@@ -69,7 +69,7 @@ impl DaemonClient {
             } => Ok((active, config_loaded)),
             other => Err(anyhow::anyhow!(
                 "Unexpected response: expected StatusResponse, got {:?}",
-                std::mem::discriminant(&other)
+                other
             )),
         }
     }
@@ -83,29 +83,20 @@ impl DaemonClient {
     /// Reload configuration
     pub async fn reload_config(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::ReloadConfig).await?;
-
-        match response {
-            Message::ConfigLoaded => {
-                info!("Configuration reloaded");
-                Ok(())
-            }
-            Message::ConfigError { error } => {
-                Err(anyhow::anyhow!("Config error: {error}"))
-            }
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected ConfigLoaded or ConfigError, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::handle_config_response(response, "Configuration reloaded")
     }
 
     /// Save configuration to file
     pub async fn save_config(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::SaveConfig).await?;
+        Self::handle_config_response(response, "Configuration saved")
+    }
 
+    /// Handle config operation response (shared by reload and save)
+    fn handle_config_response(response: Message, success_msg: &str) -> Result<()> {
         match response {
             Message::ConfigLoaded => {
-                info!("Configuration saved");
+                info!("{}", success_msg);
                 Ok(())
             }
             Message::ConfigError { error } => {
@@ -113,7 +104,7 @@ impl DaemonClient {
             }
             other => Err(anyhow::anyhow!(
                 "Unexpected response: expected ConfigLoaded or ConfigError, got {:?}",
-                std::mem::discriminant(&other)
+                other
             )),
         }
     }
@@ -143,7 +134,7 @@ impl DaemonClient {
             other => Err(anyhow::anyhow!(
                 "Unexpected response for {}: expected Success or Error, got {:?}",
                 context,
-                std::mem::discriminant(&other)
+                other
             )),
         }
     }
@@ -169,7 +160,7 @@ impl DaemonClient {
             Message::Error { message } => Err(anyhow::anyhow!("{message}")),
             other => Err(anyhow::anyhow!(
                 "Unexpected response for StopMacroRecording: expected MacroRecordingResult or Error, got {:?}",
-                std::mem::discriminant(&other)
+                other
             )),
         }
     }
@@ -192,7 +183,7 @@ impl DaemonClient {
             Message::MacrosList { macros } => Ok(macros),
             other => Err(anyhow::anyhow!(
                 "Unexpected response for GetMacros: expected MacrosList, got {:?}",
-                std::mem::discriminant(&other)
+                other
             )),
         }
     }

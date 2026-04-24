@@ -16,8 +16,8 @@ pub const IPC_CONNECTION_TIMEOUT_SECS: u64 = 5;
 /// IPC discovery timeout (milliseconds) - quick scan for active instances
 pub const IPC_DISCOVERY_TIMEOUT_MS: u64 = 100;
 
-/// IPC idle timeout (seconds) - 2 minutes, balancing resource usage and user experience
-pub const IPC_IDLE_TIMEOUT_SECS: u64 = 120;
+/// IPC idle timeout (seconds) - 10 minutes, long enough for tray client connections
+pub const IPC_IDLE_TIMEOUT_SECS: u64 = 600;
 
 /// IPC channel capacity
 pub const IPC_CHANNEL_CAPACITY: usize = 100;
@@ -64,7 +64,8 @@ pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
 
 // ==================== Wheel Constants ====================
 
-/// WHEEL_DELTA standard value
+/// WHEEL_DELTA standard value (Windows API standard: 120)
+/// On macOS, wheel delta values are typically 1 or 3
 pub const WHEEL_DELTA: i32 = 120;
 
 /// Default wheel speed

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 mod cli;
@@ -26,17 +26,16 @@ use platform::windows::{run_tray_message_loop, AppCommand};
 use platform::macos::{run_tray_event_loop, AppCommand};
 
 /// Initialize logging system with support for reading log level from config file
-fn init_logging(cli: &Cli) {
-    let (log_level, config_error) = if let Some(config_path) =
+/// Returns the parsed Config if successfully loaded, so it can be reused by the daemon
+fn init_logging(cli: &Cli) -> Option<config::Config> {
+    let (log_level, config_result) = if let Some(config_path) =
         config::resolve_config_file_path(None, cli.instance)
     {
-        // Try to read log level from config file
         match config::Config::from_file(&config_path) {
-            Ok(cfg) => (cfg.log_level, None),
+            Ok(cfg) => (cfg.log_level.clone(), Some(Ok(cfg))),
             Err(e) => {
-                // Log config loading error at debug level (logging not initialized yet)
                 eprintln!("Debug: Failed to load config for log level: {}", e);
-                ("info".to_string(), Some(e))
+                ("info".to_string(), Some(Err(e)))
             }
         }
     } else {
@@ -48,22 +47,29 @@ fn init_logging(cli: &Cli) {
 
     tracing_subscriber::fmt().with_env_filter(env_filter).init();
 
-    // Now logging is initialized, log any config error if occurred
-    if let Some(err) = config_error {
-        debug!("Failed to load config for log level: {}", err);
+    if let Some(result) = config_result {
+        match result {
+            Ok(cfg) => {
+                info!("Logging initialized with level: {}", log_level);
+                return Some(cfg);
+            }
+            Err(err) => {
+                debug!("Failed to load config for log level: {}", err);
+            }
+        }
     }
 
     info!("Logging initialized with level: {}", log_level);
+    None
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging (using log level from config or default info)
-    init_logging(&cli);
+    let preloaded_config = init_logging(&cli);
 
     match cli.command {
-        Some(Commands::Daemon) => run_daemon(cli.instance),
+        Some(Commands::Daemon) => run_daemon(cli.instance, preloaded_config),
         Some(Commands::Status) => cmd_status_sync(cli.instance),
         Some(Commands::Reload) => cmd_reload_sync(cli.instance),
         Some(Commands::Save) => cmd_save_sync(cli.instance),
@@ -88,14 +94,14 @@ fn main() -> Result<()> {
 }
 
 /// Start the daemon with multi-thread tokio runtime
-fn run_daemon(instance_id: u32) -> Result<()> {
+fn run_daemon(instance_id: u32, preloaded_config: Option<config::Config>) -> Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
 
     rt.block_on(async {
         info!("Starting wakemd (instance {})...", instance_id);
-        daemon::run_server(instance_id).await
+        daemon::run_server(instance_id, preloaded_config).await
     })
 }
 
@@ -136,8 +142,8 @@ fn run_tray_sync(
         }
     }
 
-    // Create sync channel for communication between tray and tokio
-    let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
+    // Create async channel for communication between tray and tokio
+    let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
     let cmd_tx_for_tray = cmd_tx.clone();
 
     // Start tokio runtime in background thread immediately - don't wait!
@@ -151,7 +157,7 @@ fn run_tray_sync(
             // Check and start daemon if needed
             if !is_daemon_running(instance_id) {
                 info!("Daemon not running, auto-starting...");
-                if let Err(e) = run_daemon(instance_id) {
+                if let Err(e) = run_daemon(instance_id, None) {
                     error!("Daemon exited with error: {}", e);
                 }
             } else {
@@ -164,11 +170,11 @@ fn run_tray_sync(
 
     // Run tray message loop on main thread immediately - no blocking before this!
     let tray_result = run_tray_message_loop(move |cmd| {
-        let _ = cmd_tx_for_tray.send(cmd);
+        let _ = cmd_tx_for_tray.blocking_send(cmd);
     });
 
     // Cleanup: signal tokio to stop, wait for threads
-    let _ = cmd_tx.send(AppCommand::Exit); // Signal tokio to exit
+    let _ = cmd_tx.blocking_send(AppCommand::Exit); // Signal tokio to exit
     info!("Waiting for tokio thread to exit...");
     let _ = tokio_handle.join();
     info!("Tokio thread exited");
@@ -325,7 +331,7 @@ async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u3
 /// `on_exit` is called when the Exit command is received (platform-specific cleanup).
 /// `open_config_folder` is the platform-specific function to open the config folder.
 async fn connect_and_handle_tray_commands(
-    cmd_rx: Receiver<AppCommand>,
+    mut cmd_rx: mpsc::Receiver<AppCommand>,
     instance_id: u32,
     on_exit: impl FnOnce(),
     open_config_folder: impl Fn(u32) -> Result<()>,
@@ -381,7 +387,7 @@ async fn connect_and_handle_tray_commands(
         }
     }
 
-    while let Ok(cmd) = cmd_rx.recv() {
+    while let Some(cmd) = cmd_rx.recv().await {
         match cmd {
             AppCommand::ToggleActive => {
                 info!("Toggle active command received");
@@ -460,7 +466,7 @@ async fn connect_and_handle_tray_commands(
 
 /// Run tokio runtime in background thread for Windows tray
 #[cfg(target_os = "windows")]
-fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
+fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
     rt.block_on(connect_and_handle_tray_commands(
@@ -485,8 +491,8 @@ fn run_tray_sync(
 
     info!("wakem starting (instance {})...", instance_id);
 
-    // Create channels for communication between tray and tokio
-    let (cmd_tx, cmd_rx): (Sender<AppCommand>, Receiver<AppCommand>) = channel();
+    // Create async channels for communication between tray and tokio
+    let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
     let cmd_tx_for_tray = cmd_tx.clone();
 
     // Start tokio runtime in background thread immediately - don't wait!
@@ -500,7 +506,7 @@ fn run_tray_sync(
             // Check and start daemon if needed
             if !is_daemon_running(instance_id) {
                 info!("Daemon not running, auto-starting...");
-                if let Err(e) = run_daemon(instance_id) {
+                if let Err(e) = run_daemon(instance_id, None) {
                     error!("Daemon exited with error: {}", e);
                 }
             } else {
@@ -514,13 +520,13 @@ fn run_tray_sync(
     // Run tray on the main thread immediately - no blocking before this!
     info!("Starting tray on main thread...");
     if let Err(e) = run_tray_event_loop(move |cmd| {
-        let _ = cmd_tx_for_tray.send(cmd);
+        let _ = cmd_tx_for_tray.blocking_send(cmd);
     }) {
         error!("Tray error: {}", e);
     }
 
     // Cleanup: signal tokio to stop, wait for threads
-    let _ = cmd_tx.send(AppCommand::Exit); // Signal tokio to exit
+    let _ = cmd_tx.blocking_send(AppCommand::Exit); // Signal tokio to exit
     let _ = tokio_handle.join();
 
     // Wait for daemon thread if we started it
@@ -535,7 +541,7 @@ fn run_tray_sync(
 
 /// Run tokio runtime in background thread for macOS tray
 #[cfg(target_os = "macos")]
-fn run_tokio_for_tray(cmd_rx: Receiver<AppCommand>, instance_id: u32) {
+fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
     rt.block_on(connect_and_handle_tray_commands(

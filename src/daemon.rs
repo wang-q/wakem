@@ -80,7 +80,7 @@ pub struct ServerState {
     #[allow(dead_code)]
     window_manager: Arc<RwLock<crate::platform::macos::RealMacosWindowManager>>,
     /// Whether mapping is enabled (frequently read, rarely written)
-    active: Arc<RwLock<bool>>,
+    active: Arc<AtomicBool>,
     /// Whether config has been loaded
     config_loaded: Arc<RwLock<bool>>,
     /// Macro recorder (has internal synchronization)
@@ -99,13 +99,13 @@ pub struct ServerState {
     /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
     /// Dynamically extracted from remap rules where target is a modifier combo
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
-    /// Shutdown signal for graceful shutdown (replaces AtomicBool polling)
+    /// Shutdown signal for graceful shutdown (shared with run_server)
     shutdown_signal: ShutdownSignal,
 }
 
 impl ServerState {
     #[cfg(target_os = "windows")]
-    pub fn new() -> Self {
+    pub fn new(shutdown_signal: ShutdownSignal) -> Self {
         let window_manager = WindowManager::new();
         let mut mapper = KeyMapper::with_window_manager(window_manager);
         let window_preset_manager = WindowPresetManager::new();
@@ -118,19 +118,19 @@ impl ServerState {
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
             window_preset_manager: Arc::new(RwLock::new(WindowPresetManager::new())),
-            active: Arc::new(RwLock::new(true)),
+            active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            shutdown_signal: ShutdownSignal::new(),
+            shutdown_signal,
         }
     }
 
     #[cfg(target_os = "macos")]
-    pub fn new() -> Self {
+    pub fn new(shutdown_signal: ShutdownSignal) -> Self {
         let window_manager = WindowManager::new(RealMacosWindowApi::new());
         let mapper = KeyMapper::with_window_manager(window_manager);
 
@@ -146,14 +146,14 @@ impl ServerState {
             window_manager: Arc::new(RwLock::new(WindowManager::new(
                 RealMacosWindowApi::new(),
             ))),
-            active: Arc::new(RwLock::new(true)),
+            active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            shutdown_signal: ShutdownSignal::new(),
+            shutdown_signal,
         }
     }
 
@@ -192,10 +192,10 @@ impl ServerState {
         }
 
         // 2. Update base mapping rules and context rules (merged into one write lock)
+        let all_rules = config.get_all_rules();
         {
             let mut mapper = self.mapper.write().await;
-            let rules = config.get_all_rules();
-            mapper.load_rules(rules);
+            mapper.load_rules(all_rules.clone());
             mapper.load_context_rules(&config.keyboard.context_mappings);
             debug!(
                 context_mappings_count = config.keyboard.context_mappings.len(),
@@ -230,8 +230,7 @@ impl ServerState {
             let mut layer_manager = self.layer_manager.write().await;
 
             // Load base mappings
-            let base_rules = config.get_all_rules();
-            layer_manager.set_base_mappings(base_rules);
+            layer_manager.set_base_mappings(all_rules.clone());
 
             // Load layer configs
             for (name, layer_config) in &config.keyboard.layers {
@@ -363,7 +362,7 @@ impl ServerState {
     #[tracing::instrument(skip(self, event), fields(event_type = %event.event_type_name()))]
     pub async fn process_input_event(&self, event: InputEvent) {
         // Fast path: check if enabled (lightest lock)
-        if !*self.active.read().await {
+        if !self.active.load(Ordering::Acquire) {
             return;
         }
 
@@ -507,6 +506,7 @@ impl ServerState {
             let hyper_key_map = self.hyper_key_map.read().await;
             if hyper_key_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
             {
+                drop(hyper_key_map);
                 return event;
             }
             drop(hyper_key_map);
@@ -525,10 +525,8 @@ impl ServerState {
                 key_event.modifiers.alt |= merged.alt;
                 key_event.modifiers.meta |= merged.meta;
             }
-            InputEvent::Key(key_event.clone())
-        } else {
-            event
         }
+        event
     }
 
     /// Process wheel enhancement
@@ -729,14 +727,16 @@ impl ServerState {
 
     /// Set active state
     pub async fn set_active(&self, active: bool) {
-        let mut a = self.active.write().await;
-        *a = active;
+        self.active.store(active, Ordering::Release);
         info!("Server active state: {}", active);
     }
 
     /// Get status
     pub async fn get_status(&self) -> (bool, bool) {
-        (*self.active.read().await, *self.config_loaded.read().await)
+        (
+            self.active.load(Ordering::Acquire),
+            *self.config_loaded.read().await,
+        )
     }
 
     /// Start macro recording
@@ -993,13 +993,13 @@ impl ServerState {
     /// Check if shutdown has been requested
     #[allow(dead_code)]
     pub fn is_shutdown_requested(&self) -> bool {
-        *self.shutdown_signal.subscribe().borrow()
+        self.shutdown_signal.is_shutdown()
     }
 }
 
 impl Default for ServerState {
     fn default() -> Self {
-        Self::new()
+        Self::new(ShutdownSignal::new())
     }
 }
 
@@ -1024,14 +1024,17 @@ fn get_current_modifier_state() -> ModifierState {
 /// Run server
 ///
 /// Improvement: integrated graceful shutdown mechanism, supports safe exit of all background tasks
-pub async fn run_server(instance_id: u32) -> Result<()> {
+pub async fn run_server(
+    instance_id: u32,
+    preloaded_config: Option<Config>,
+) -> Result<()> {
     info!("Starting wakemd server (instance {})...", instance_id);
 
-    let state = Arc::new(ServerState::new());
-
-    // Create graceful shutdown signal
+    // Create graceful shutdown signal (shared between ServerState and run_server)
     let shutdown = Arc::new(ShutdownSignal::new());
     let shutdown_for_tasks = shutdown.subscribe();
+
+    let state = Arc::new(ServerState::new((*shutdown).clone()));
 
     // Set instance ID
     {
@@ -1039,8 +1042,14 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
         config.network.instance_id = instance_id;
     }
 
-    // Load configuration from file on startup
-    if let Err(e) = state.reload_config_from_file().await {
+    // Load configuration on startup (prefer preloaded config to avoid re-parsing)
+    if let Some(cfg) = preloaded_config {
+        let mut config = state.config.write().await;
+        config.network.instance_id = instance_id;
+        drop(config);
+        state.load_config(cfg).await?;
+        info!("Configuration loaded from preloaded config");
+    } else if let Err(e) = state.reload_config_from_file().await {
         warn!(
             "Failed to load config on startup: {}. Using default config.",
             e
@@ -1603,7 +1612,7 @@ fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
         TrayAppCommand::ToggleActive => {
             info!("Tray: Toggle active command received");
             handle.spawn(async move {
-                let current = *state.active.read().await;
+                let current = state.active.load(Ordering::Acquire);
                 let new_state = !current;
                 state.set_active(new_state).await;
                 info!("Tray: Toggled active state to {}", new_state);

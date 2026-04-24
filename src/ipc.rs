@@ -73,7 +73,11 @@ pub fn verify_response(auth_key: &str, challenge: &[u8], response: &[u8]) -> boo
 // ==================== IP Security ====================
 
 /// Check if IP address is private (RFC 1918) or loopback
-/// Only IPv4 addresses are supported; IPv6 addresses are rejected
+///
+/// IPv6 addresses are intentionally rejected by design:
+/// - The IPC server binds to 127.0.0.1 (IPv4 loopback only)
+/// - IPv6 is not used in this project to keep the networking layer simple
+/// - Any IPv6 connection attempt would not reach the server anyway
 pub fn is_private_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
@@ -89,7 +93,9 @@ pub fn is_private_ip(ip: IpAddr) -> bool {
 }
 
 /// Check if IP address is allowed to connect
-/// Only private IPv4 addresses are allowed
+///
+/// Only private IPv4 addresses are allowed (RFC 1918, loopback, link-local).
+/// IPv6 is intentionally not supported - see `is_private_ip` for rationale.
 pub fn is_allowed_ip(ip: IpAddr) -> bool {
     is_private_ip(ip)
 }
@@ -101,7 +107,8 @@ const MAX_TRACKED_IPS: usize = 1000;
 /// Cleanup threshold - when exceeded, remove oldest entries
 const CLEANUP_THRESHOLD: usize = 900;
 /// Maximum instance ID to scan during discovery
-const MAX_DISCOVERY_INSTANCE_ID: u32 = 9;
+/// Matches Config::validate() which allows instance_id 0-255
+const MAX_DISCOVERY_INSTANCE_ID: u32 = 255;
 
 /// Connection rate limiter
 ///
@@ -719,15 +726,12 @@ async fn server_perform_authentication(
 /// - The slice length matches the String's capacity
 /// - We don't violate Rust's aliasing rules (we have exclusive access via &mut String)
 fn zero_string(s: &mut String) {
-    // SAFETY: as_bytes_mut() returns a mutable reference to the String's byte buffer.
-    // Writing zero bytes is safe because 0x00 is valid UTF-8 (null code point),
-    // and we immediately call clear() afterward which resets the String length to 0,
-    // ensuring no invalid UTF-8 is ever observed through the String interface.
     unsafe {
         let bytes = s.as_bytes_mut();
         bytes.iter_mut().for_each(|b| *b = 0);
     }
     s.clear();
+    s.shrink_to_fit();
 }
 
 // ==================== Tests ====================
@@ -870,7 +874,7 @@ mod tests {
     #[tokio::test]
     async fn test_discover_instances() {
         let instances = discover_instances().await;
-        assert_eq!(instances.len(), 10);
+        assert_eq!(instances.len(), 256);
         for (i, info) in instances.iter().enumerate() {
             assert_eq!(info.id, i as u32);
             assert!(info.address.starts_with("127.0.0.1:"));
