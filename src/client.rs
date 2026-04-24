@@ -77,17 +77,7 @@ impl DaemonClient {
     /// Set active state
     pub async fn set_active(&mut self, active: bool) -> Result<()> {
         let response = self.send_receive(&Message::SetActive { active }).await?;
-
-        match response {
-            Message::StatusResponse { .. } => Ok(()),
-            Message::Error { message } => {
-                Err(anyhow::anyhow!("Server error: {message}"))
-            }
-            other => Err(anyhow::anyhow!(
-                "Unexpected response: expected StatusResponse or Error, got {:?}",
-                std::mem::discriminant(&other)
-            )),
-        }
+        Self::expect_success(response, "SetActive")
     }
 
     /// Reload configuration

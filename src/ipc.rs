@@ -341,8 +341,14 @@ pub type Result<T> = std::result::Result<T, IpcError>;
 pub const BASE_PORT: u16 = IPC_BASE_PORT;
 
 /// Get instance port
+///
+/// # Panics
+/// Panics if `instance_id` would cause port overflow (instance_id > 8108).
+/// In practice, `Config::validate()` limits instance_id to 0-255.
 pub fn get_instance_port(instance_id: u32) -> u16 {
-    BASE_PORT + instance_id as u16
+    BASE_PORT
+        .checked_add(instance_id as u16)
+        .expect("instance_id overflow: port would exceed u16 range")
 }
 
 /// Get instance bind address
@@ -701,7 +707,17 @@ async fn server_perform_authentication(
     Ok(auth_ok)
 }
 
-/// Zero sensitive string data in memory
+/// Zero out a String's memory contents
+///
+/// This is used to clear sensitive data (e.g., authentication keys) from memory
+/// after use, preventing key material from lingering in heap memory where it
+/// could potentially be exposed through memory dumps or core dumps.
+///
+/// # Safety
+/// This is safe because:
+/// - We only write 0 bytes (valid for u8)
+/// - The slice length matches the String's capacity
+/// - We don't violate Rust's aliasing rules (we have exclusive access via &mut String)
 fn zero_string(s: &mut String) {
     // SAFETY: as_bytes_mut() returns a mutable reference to the String's byte buffer.
     // Writing zero bytes is safe because 0x00 is valid UTF-8 (null code point),

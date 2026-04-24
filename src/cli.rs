@@ -22,11 +22,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Start daemon
-    Daemon {
-        /// Instance ID
-        #[arg(short, long, default_value = "0")]
-        instance: u32,
-    },
+    Daemon,
     /// Get server status
     Status,
     /// Reload configuration
@@ -90,7 +86,7 @@ mod tests {
     #[test]
     fn test_cli_daemon_command() {
         let cli = Cli::try_parse_from(["wakem", "daemon"]).unwrap();
-        assert!(matches!(cli.command, Some(Commands::Daemon { .. })));
+        assert!(matches!(cli.command, Some(Commands::Daemon)));
     }
 
     /// Test status subcommand

@@ -99,8 +99,8 @@ pub struct ServerState {
     /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
     /// Dynamically extracted from remap rules where target is a modifier combo
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
-    /// Shutdown flag for graceful shutdown
-    shutdown_flag: Arc<AtomicBool>,
+    /// Shutdown signal for graceful shutdown (replaces AtomicBool polling)
+    shutdown_signal: ShutdownSignal,
 }
 
 impl ServerState {
@@ -125,7 +125,7 @@ impl ServerState {
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            shutdown_flag: Arc::new(AtomicBool::new(false)),
+            shutdown_signal: ShutdownSignal::new(),
         }
     }
 
@@ -134,6 +134,9 @@ impl ServerState {
         let window_manager = WindowManager::new(RealMacosWindowApi::new());
         let mapper = KeyMapper::with_window_manager(window_manager);
 
+        // NOTE: Common fields are duplicated with Windows version above.
+        // Platform-specific fields: mapper (different constructor), window_manager (macOS only).
+        // Windows-specific: window_preset_manager.
         Self {
             config: Arc::new(RwLock::new(Config::default())),
             mapper: Arc::new(RwLock::new(mapper)),
@@ -150,7 +153,7 @@ impl ServerState {
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            shutdown_flag: Arc::new(AtomicBool::new(false)),
+            shutdown_signal: ShutdownSignal::new(),
         }
     }
 
@@ -164,6 +167,12 @@ impl ServerState {
         context_mappings_count = config.keyboard.context_mappings.len(),
     ))]
     pub async fn load_config(&self, config: Config) -> Result<()> {
+        // Lock acquisition order (must be consistent to prevent deadlocks):
+        // 1. auth_key       2. mapper         3. hyper_key_map
+        // 4. preset_manager 5. layer_manager   6. config
+        // 7. config_loaded
+        // IMPORTANT: Always acquire locks in this order. Never acquire an earlier
+        // lock while holding a later one, as this could cause deadlocks.
         // Debug: Log config details
         debug!(
             window_shortcuts_count = config.window.shortcuts.len(),
@@ -973,18 +982,18 @@ impl ServerState {
     /// Trigger graceful shutdown
     pub async fn shutdown(&self) {
         info!("Triggering graceful shutdown...");
-        self.shutdown_flag.store(true, Ordering::SeqCst);
+        self.shutdown_signal.shutdown().await;
     }
 
-    /// Get shutdown flag
-    pub fn get_shutdown_flag(&self) -> Arc<AtomicBool> {
-        self.shutdown_flag.clone()
+    /// Subscribe to shutdown signal (for external listeners)
+    pub fn subscribe_shutdown(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.shutdown_signal.subscribe()
     }
 
     /// Check if shutdown has been requested
     #[allow(dead_code)]
     pub fn is_shutdown_requested(&self) -> bool {
-        self.shutdown_flag.load(Ordering::SeqCst)
+        *self.shutdown_signal.subscribe().borrow()
     }
 }
 
@@ -1405,22 +1414,16 @@ pub async fn run_server(instance_id: u32) -> Result<()> {
 
     info!("Server is running (press Ctrl+C for graceful shutdown)");
 
-    // Get shutdown flag from state for external shutdown requests
-    let state_shutdown_flag = state.get_shutdown_flag();
+    // Subscribe to state shutdown signal for external shutdown requests
+    let mut state_shutdown_rx = state.subscribe_shutdown();
 
     // Wait for exit signal (Ctrl+C) or external shutdown request
-    loop {
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                info!("Ctrl+C received, initiating graceful shutdown...");
-                break;
-            }
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-                if state_shutdown_flag.load(Ordering::SeqCst) {
-                    info!("External shutdown request received, initiating graceful shutdown...");
-                    break;
-                }
-            }
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Ctrl+C received, initiating graceful shutdown...");
+        }
+        _ = state_shutdown_rx.changed() => {
+            info!("External shutdown request received, initiating graceful shutdown...");
         }
     }
 
@@ -1525,10 +1528,7 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
         }
         Message::SetActive { active } => {
             state.set_active(active).await;
-            Message::StatusResponse {
-                active,
-                config_loaded: *state.config_loaded.read().await,
-            }
+            Message::Success
         }
         Message::Ping => Message::Pong,
         // Macro-related messages

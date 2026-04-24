@@ -956,7 +956,10 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         }
     }
 
-    // Fallback to legacy hardcoded mappings for backward compatibility
+    // Fallback to hardcoded mappings (Windows-specific scan codes)
+    // On non-Windows platforms, keyboard-codes should cover all needed keys;
+    // returning Windows scan codes would cause silent incorrect behavior.
+    #[cfg(target_os = "windows")]
     match name_lower.as_str() {
         // Special keys
         "capslock" | "caps" => Ok((0x3A, 0x14)),
@@ -1076,6 +1079,9 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
 
         _ => Err(anyhow::anyhow!("Unknown key name: {}", name)),
     }
+
+    #[cfg(not(target_os = "windows"))]
+    Err(anyhow::anyhow!("Unknown key name: {}", name))
 }
 
 /// Config file path cache (reduces repeated file system I/O)
