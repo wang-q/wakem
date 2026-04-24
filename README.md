@@ -194,10 +194,13 @@ cargo clippy -- -D warnings
 
 ## Reference Projects
 
-- [mrw](https://github.com/wang-q/mrw) - Personal project, concise window management
 - [keymapper](https://github.com/houmain/keymapper) - Cross-platform key remapping tool
 - [AutoHotkey](https://www.autohotkey.com/) - Windows automation scripting tool
 - [window-switcher](https://github.com/sigoden/window-switcher) - Rust window switching tool
+- [mrw](https://github.com/wang-q/mrw) - Personal project, concise window management
+- Size looping behavior from [spectacle](https://github.com/eczarny/spectacle).
+- Hammerspoon implementation reference from [this post](http://songchenwen.com/tech/2015/04/02/hammerspoon-mac-window-manager/).
+- AutoHotkey implementation reference from [here](https://github.com/justcla/WindowHotKeys).
 
 ## License
 
