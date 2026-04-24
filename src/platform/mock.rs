@@ -3,8 +3,6 @@
 //! This module provides mock implementations of platform-specific traits
 //! that can be used for testing on any platform.
 
-#![allow(dead_code)]
-
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,

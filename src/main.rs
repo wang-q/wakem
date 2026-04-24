@@ -727,7 +727,7 @@ fn cmd_instances_sync() -> Result<()> {
         .build()?;
 
     rt.block_on(async {
-        let instances = ipc::discovery::discover_instances().await;
+        let instances = ipc::discover_instances().await;
 
         println!("Running instances:");
         let mut found = false;

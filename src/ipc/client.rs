@@ -1,4 +1,7 @@
-use super::{auth, read_message, send_message, IpcError, Message, Result};
+use super::{
+    compute_response, read_message, send_message, AUTH_RESULT_SUCCESS, CHALLENGE_SIZE, IpcError,
+    Message, Result,
+};
 use crate::constants::IPC_CONNECTION_TIMEOUT_SECS;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -86,7 +89,7 @@ impl Default for IpcClient {
 /// Perform challenge-response authentication
 async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Result<bool> {
     // Read challenge
-    let mut challenge = [0u8; auth::CHALLENGE_SIZE];
+    let mut challenge = [0u8; CHALLENGE_SIZE];
 
     timeout(
         Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
@@ -96,7 +99,7 @@ async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Resul
     .map_err(|_| IpcError::Timeout)??;
 
     // Compute response
-    let response = auth::compute_response(auth_key, &challenge);
+    let response = compute_response(auth_key, &challenge);
 
     // Send response
     timeout(
@@ -106,7 +109,16 @@ async fn perform_authentication(stream: &mut TcpStream, auth_key: &str) -> Resul
     .await
     .map_err(|_| IpcError::Timeout)??;
 
-    Ok(true)
+    // Read authentication result from server
+    let mut result = [0u8; 1];
+    timeout(
+        Duration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
+        stream.read_exact(&mut result),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
+
+    Ok(result[0] == AUTH_RESULT_SUCCESS)
 }
 
 #[cfg(test)]
