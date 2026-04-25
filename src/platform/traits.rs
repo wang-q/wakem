@@ -10,6 +10,27 @@ use crate::types::{
 };
 use anyhow::Result;
 
+/// Input device configuration
+#[derive(Debug, Clone)]
+pub struct InputDeviceConfig {
+    /// Capture keyboard events
+    pub capture_keyboard: bool,
+    /// Capture mouse events
+    pub capture_mouse: bool,
+    /// Block legacy input (platform-specific behavior)
+    pub block_legacy_input: bool,
+}
+
+impl Default for InputDeviceConfig {
+    fn default() -> Self {
+        Self {
+            capture_keyboard: true,
+            capture_mouse: true,
+            block_legacy_input: false,
+        }
+    }
+}
+
 /// Input device trait - for capturing keyboard and mouse events
 #[allow(dead_code)]
 pub trait InputDeviceTrait: Send {

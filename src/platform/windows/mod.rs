@@ -15,9 +15,7 @@ pub mod window_preset;
 pub use context::WindowContext;
 pub use input::RawInputDevice as LegacyRawInputDevice;
 #[allow(unused_imports)]
-pub use input_device::{
-    InputDevice, InputDeviceConfig, InputDeviceFactory, RawInputDevice,
-};
+pub use input_device::{InputDevice, InputDeviceFactory, RawInputDevice};
 pub use launcher::Launcher;
 #[allow(unused_imports)]
 pub use output_device::{OutputDevice, SendInputDevice, WindowsOutputDevice};
@@ -31,12 +29,18 @@ pub use window_api::{
     MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi, WindowOperation, WindowState,
 };
 
+// Re-export shared types from platform::traits
+#[allow(unused_imports)]
+pub use crate::platform::traits::InputDeviceConfig;
+
 // Mock implementations are only exported during tests
 #[cfg(test)]
 #[allow(unused_imports)]
-pub use input_device::MockInputDevice;
+pub use crate::platform::mock::MockInputDevice;
 #[cfg(test)]
-pub use output_device::MockOutputDevice;
+pub use crate::platform::mock::MockOutputDevice;
+#[cfg(test)]
+pub use output_device::MockOutputEvent;
 #[cfg(test)]
 pub use window_api::MockWindowApi;
 

@@ -3,13 +3,15 @@
 //! This module provides mock implementations of platform-specific traits
 //! that can be used for testing on any platform.
 
+use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
-    MouseEventType,
+    MouseEventType, SystemAction,
 };
 use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 
 /// Mock input device for testing
 pub struct MockInputDevice {
@@ -128,7 +130,7 @@ pub trait InputDeviceOps {
     fn stop(&mut self);
 }
 
-impl InputDeviceOps for MockInputDevice {
+impl InputDeviceTrait for MockInputDevice {
     fn register(&mut self) -> Result<()> {
         *self.running.borrow_mut() = true;
         Ok(())
@@ -167,6 +169,108 @@ impl InputDeviceOps for MockInputDevice {
 
     fn stop(&mut self) {
         *self.running.borrow_mut() = false;
+    }
+}
+
+/// Mock output event for testing
+#[derive(Debug, Clone, PartialEq)]
+pub enum MockOutputEvent {
+    /// Key event
+    Key {
+        scan_code: u16,
+        virtual_key: u16,
+        release: bool,
+    },
+    /// Mouse move event
+    MouseMove { x: i32, y: i32, relative: bool },
+    /// Mouse button event
+    MouseButton { button: MouseButton, release: bool },
+    /// Mouse wheel event
+    MouseWheel { delta: i32, horizontal: bool },
+    /// System action
+    SystemAction(SystemAction),
+}
+
+/// Mock output device for testing
+pub struct MockOutputDevice {
+    events: Arc<Mutex<Vec<MockOutputEvent>>>,
+}
+
+impl MockOutputDevice {
+    /// Create a new mock output device
+    pub fn new() -> Self {
+        Self {
+            events: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Get all recorded events
+    pub fn get_events(&self) -> Vec<MockOutputEvent> {
+        self.events.lock().unwrap().clone()
+    }
+
+    /// Get the number of recorded events
+    pub fn event_count(&self) -> usize {
+        self.events.lock().unwrap().len()
+    }
+
+    /// Clear all recorded events
+    pub fn clear(&self) {
+        self.events.lock().unwrap().clear();
+    }
+
+    /// Check if a specific event was recorded
+    pub fn has_event(&self, expected: &MockOutputEvent) -> bool {
+        self.events.lock().unwrap().contains(expected)
+    }
+}
+
+impl Default for MockOutputDevice {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OutputDeviceTrait for MockOutputDevice {
+    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
+        self.events.lock().unwrap().push(MockOutputEvent::Key {
+            scan_code,
+            virtual_key,
+            release,
+        });
+        Ok(())
+    }
+
+    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
+        self.events
+            .lock()
+            .unwrap()
+            .push(MockOutputEvent::MouseMove { x, y, relative });
+        Ok(())
+    }
+
+    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
+        self.events
+            .lock()
+            .unwrap()
+            .push(MockOutputEvent::MouseButton { button, release });
+        Ok(())
+    }
+
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
+        self.events
+            .lock()
+            .unwrap()
+            .push(MockOutputEvent::MouseWheel { delta, horizontal });
+        Ok(())
+    }
+
+    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
+        self.events
+            .lock()
+            .unwrap()
+            .push(MockOutputEvent::SystemAction(*action));
+        Ok(())
     }
 }
 

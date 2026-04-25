@@ -19,9 +19,7 @@ pub mod window_preset;
 // Re-export types for backward compatibility and convenience
 pub use context::WindowContext;
 pub use input::CGEventTapDevice as MacosEventTap;
-pub use input_device::{
-    InputDevice, InputDeviceConfig, InputDeviceFactory, MacosInputDevice,
-};
+pub use input_device::{InputDevice, InputDeviceFactory, MacosInputDevice};
 pub use launcher::Launcher;
 pub use output_device::MacosOutputDevice;
 // Re-export tray types and functions
@@ -38,11 +36,14 @@ pub use window_manager::{
 };
 pub use window_preset::MacosWindowPresetManager;
 
+// Re-export shared types from platform::traits
+pub use crate::platform::traits::InputDeviceConfig;
+
 // Mock implementations are only exported during tests
 #[cfg(test)]
-pub use input_device::MockInputDevice;
+pub use crate::platform::mock::MockInputDevice;
 #[cfg(test)]
-pub use output_device::MockMacosOutputDevice;
+pub use crate::platform::mock::MockOutputDevice as MockMacosOutputDevice;
 #[cfg(test)]
 pub use tray::MockTrayApi;
 #[cfg(test)]

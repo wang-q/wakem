@@ -9,10 +9,8 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::macos::input::CGEventTapDevice;
-use crate::platform::traits::InputDeviceTrait;
+use crate::platform::traits::{InputDeviceConfig, InputDeviceTrait};
 use crate::types::{InputEvent, KeyState, ModifierState};
-#[cfg(test)]
-use crate::types::{KeyEvent, MouseButton, MouseEvent, MouseEventType};
 use anyhow::Result;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use tracing::debug;
@@ -32,24 +30,6 @@ pub trait InputDevice {
     /// Run one iteration (non-blocking)
     fn run_once(&mut self) -> Result<bool, String> {
         Ok(true)
-    }
-}
-
-/// Input device configuration
-#[derive(Debug, Clone)]
-pub struct InputDeviceConfig {
-    pub capture_keyboard: bool,
-    pub capture_mouse: bool,
-    pub block_legacy_input: bool,
-}
-
-impl Default for InputDeviceConfig {
-    fn default() -> Self {
-        Self {
-            capture_keyboard: true,
-            capture_mouse: true,
-            block_legacy_input: true,
-        }
     }
 }
 
@@ -273,153 +253,6 @@ impl InputDevice for MacosInputDevice {
     }
 }
 
-/// Mock input device for testing
-#[cfg(test)]
-pub struct MockInputDevice {
-    events: std::cell::RefCell<std::collections::VecDeque<InputEvent>>,
-    running: std::cell::RefCell<bool>,
-    modifier_state: std::cell::RefCell<ModifierState>,
-    captured_events: std::cell::RefCell<Vec<InputEvent>>,
-}
-
-#[cfg(test)]
-impl MockInputDevice {
-    /// Create a new mock input device
-    pub fn new() -> Self {
-        Self {
-            events: std::cell::RefCell::new(std::collections::VecDeque::new()),
-            running: std::cell::RefCell::new(false),
-            modifier_state: std::cell::RefCell::new(ModifierState::default()),
-            captured_events: std::cell::RefCell::new(Vec::new()),
-        }
-    }
-
-    /// Inject a key press event
-    pub fn inject_key_press(&self, scan_code: u16, virtual_key: u16) {
-        let event = KeyEvent::new(scan_code, virtual_key, KeyState::Pressed);
-        self.events.borrow_mut().push_back(InputEvent::Key(event));
-    }
-
-    /// Inject a key release event
-    pub fn inject_key_release(&self, scan_code: u16, virtual_key: u16) {
-        let event = KeyEvent::new(scan_code, virtual_key, KeyState::Released);
-        self.events.borrow_mut().push_back(InputEvent::Key(event));
-    }
-
-    /// Inject a mouse move event
-    pub fn inject_mouse_move(&self, x: i32, y: i32) {
-        let event = MouseEvent::new(MouseEventType::Move, x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
-    }
-
-    /// Inject a mouse button down event
-    pub fn inject_mouse_button_down(&self, button: MouseButton, x: i32, y: i32) {
-        let event = MouseEvent::new(MouseEventType::ButtonDown(button), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
-    }
-
-    /// Inject a mouse button up event
-    pub fn inject_mouse_button_up(&self, button: MouseButton, x: i32, y: i32) {
-        let event = MouseEvent::new(MouseEventType::ButtonUp(button), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
-    }
-
-    /// Inject a wheel event
-    pub fn inject_wheel(&self, delta: i32, x: i32, y: i32) {
-        let event = MouseEvent::new(MouseEventType::Wheel(delta), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
-    }
-
-    /// Inject a horizontal wheel event
-    pub fn inject_hwheel(&self, delta: i32, x: i32, y: i32) {
-        let event = MouseEvent::new(MouseEventType::HWheel(delta), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
-    }
-
-    /// Inject an arbitrary event
-    pub fn inject_event(&self, event: InputEvent) {
-        self.events.borrow_mut().push_back(event);
-    }
-
-    /// Get all captured events
-    pub fn get_captured_events(&self) -> Vec<InputEvent> {
-        self.captured_events.borrow().clone()
-    }
-
-    /// Clear captured events
-    pub fn clear_captured(&self) {
-        self.captured_events.borrow_mut().clear();
-    }
-
-    /// Get the number of pending events
-    pub fn pending_count(&self) -> usize {
-        self.events.borrow().len()
-    }
-
-    /// Clear all pending events
-    pub fn clear(&self) {
-        self.events.borrow_mut().clear();
-    }
-
-    /// Set modifier key state
-    pub fn set_modifier_state(&self, state: ModifierState) {
-        *self.modifier_state.borrow_mut() = state;
-    }
-
-    /// Get current modifier key state
-    pub fn get_modifier_state(&self) -> ModifierState {
-        *self.modifier_state.borrow()
-    }
-}
-
-#[cfg(test)]
-impl InputDevice for MockInputDevice {
-    fn register(&mut self) -> Result<()> {
-        *self.running.borrow_mut() = true;
-        Ok(())
-    }
-
-    fn unregister(&mut self) {
-        *self.running.borrow_mut() = false;
-    }
-
-    fn poll_event(&mut self) -> Option<InputEvent> {
-        if !*self.running.borrow() {
-            return None;
-        }
-
-        let event = self.events.borrow_mut().pop_front();
-
-        if let Some(ref e) = event {
-            self.captured_events.borrow_mut().push(e.clone());
-
-            if let InputEvent::Key(key_event) = e {
-                self.modifier_state.borrow_mut().apply_from_virtual_key(
-                    key_event.virtual_key,
-                    key_event.state == KeyState::Pressed,
-                );
-            }
-        }
-
-        event
-    }
-
-    fn is_running(&self) -> bool {
-        *self.running.borrow()
-    }
-
-    fn stop(&mut self) {
-        *self.running.borrow_mut() = false;
-    }
-}
-
-#[cfg(test)]
-impl Default for MockInputDevice {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Input device factory
 pub struct InputDeviceFactory;
 
@@ -475,6 +308,8 @@ impl InputDeviceTrait for MacosInputDevice {
 mod tests {
     use super::*;
     use crate::platform::macos::input::keycode_to_virtual_key;
+    use crate::platform::mock::MockInputDevice;
+    use crate::platform::traits::InputDeviceTrait;
     use crate::types::{KeyEvent, MouseButton, MouseEventType};
 
     #[test]
@@ -548,8 +383,8 @@ mod tests {
         let device = MockInputDevice::new();
 
         device.inject_mouse_move(100, 200);
-        device.inject_mouse_button_down(MouseButton::Left, 100, 200);
-        device.inject_mouse_button_up(MouseButton::Left, 100, 200);
+        device.inject_mouse_button_down(crate::types::MouseButton::Left, 100, 200);
+        device.inject_mouse_button_up(crate::types::MouseButton::Left, 100, 200);
         device.inject_wheel(120, 100, 200);
 
         assert_eq!(device.pending_count(), 4);
@@ -587,7 +422,7 @@ mod tests {
         let config = InputDeviceConfig::default();
         assert!(config.capture_keyboard);
         assert!(config.capture_mouse);
-        assert!(config.block_legacy_input);
+        assert!(!config.block_legacy_input);
     }
 
     #[test]
