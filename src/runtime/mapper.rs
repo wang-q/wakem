@@ -161,7 +161,9 @@ impl KeyMapper {
             window_manager: Some(window_manager),
             tray_icon: None,
             window_preset_manager: Some(
-                crate::platform::windows::WindowPresetManager::new(),
+                crate::platform::windows::WindowPresetManager::new(
+                    crate::platform::windows::WindowManager::new(),
+                ),
             ),
         }
     }
@@ -599,10 +601,8 @@ impl KeyMapper {
     ) {
         if let Some(pm) = preset_manager {
             match pm.get_foreground_window_info() {
-                Ok((hwnd, _title, process_name, executable_path)) => {
-                    if let Err(e) =
-                        pm.save_preset(name, hwnd, process_name, executable_path, None)
-                    {
+                Some(Ok(_info)) => {
+                    if let Err(e) = pm.save_preset(name.to_string()) {
                         debug!("Failed to save preset '{}': {}", name, e);
                     } else {
                         debug!("Saved preset '{}' for current window", name);
@@ -614,8 +614,11 @@ impl KeyMapper {
                         }
                     }
                 }
-                Err(e) => {
+                Some(Err(e)) => {
                     debug!("Failed to get foreground window info: {}", e);
+                }
+                None => {
+                    debug!("No foreground window found");
                 }
             }
         } else {
@@ -626,11 +629,11 @@ impl KeyMapper {
     #[cfg(target_os = "windows")]
     fn window_load_preset(
         preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
-        hwnd: windows::Win32::Foundation::HWND,
+        _hwnd: windows::Win32::Foundation::HWND,
         name: &str,
     ) {
         if let Some(pm) = preset_manager {
-            if let Err(e) = pm.load_preset(name, hwnd) {
+            if let Err(e) = pm.load_preset(name) {
                 debug!("Failed to load preset '{}': {}", name, e);
             } else {
                 debug!("Loaded preset '{}' for current window", name);
@@ -646,7 +649,7 @@ impl KeyMapper {
         hwnd: windows::Win32::Foundation::HWND,
     ) {
         if let Some(pm) = preset_manager {
-            match pm.apply_preset_for_window(hwnd) {
+            match pm.apply_preset_for_window_by_id(hwnd) {
                 Ok(true) => {
                     debug!("Applied matching preset to current window");
                 }

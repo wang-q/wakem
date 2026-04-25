@@ -108,7 +108,7 @@ impl ServerState {
     pub fn new(shutdown_signal: ShutdownSignal) -> Self {
         let window_manager = WindowManager::new();
         let mut mapper = KeyMapper::with_window_manager(window_manager);
-        let window_preset_manager = WindowPresetManager::new();
+        let window_preset_manager = WindowPresetManager::new(WindowManager::new());
         mapper.set_window_preset_manager(window_preset_manager);
 
         Self {
@@ -117,7 +117,9 @@ impl ServerState {
             layer_manager: Arc::new(RwLock::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_preset_manager: Arc::new(RwLock::new(WindowPresetManager::new())),
+            window_preset_manager: Arc::new(RwLock::new(WindowPresetManager::new(
+                WindowManager::new(),
+            ))),
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
@@ -1497,7 +1499,7 @@ impl ServerState {
                 let hwnd = windows::Win32::Foundation::HWND(
                     hwnd_isize as *mut std::ffi::c_void,
                 );
-                match preset_manager.apply_preset_for_window(hwnd) {
+                match preset_manager.apply_preset_for_window_by_id(hwnd) {
                     Ok(true) => {
                         debug!("Auto-applied preset to window {:?}", hwnd);
                     }

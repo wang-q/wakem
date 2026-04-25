@@ -23,6 +23,8 @@ pub use input_device::{InputDevice, InputDeviceFactory, MacosInputDevice};
 pub use launcher::Launcher;
 pub use output_device::MacosOutputDevice;
 // Re-export tray types and functions
+#[allow(unused_imports)]
+pub use crate::platform::window_preset_common::WindowPresetApi;
 pub use tray::{
     run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, MenuAction,
     RealTrayApi, TrayApi, TrayIconWrapper as TrayIcon, TrayManager,

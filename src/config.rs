@@ -436,10 +436,7 @@ pub struct WindowPreset {
 }
 
 impl WindowPreset {
-    /// Check if preset matches specified window info
-    ///
-    /// Returns false if no matching conditions are set (process_name, executable_path,
-    /// title_pattern all None), preventing empty presets from matching all windows.
+    #[allow(dead_code)]
     pub fn matches(
         &self,
         process_name: &str,
@@ -474,7 +471,7 @@ impl WindowPreset {
             || self.title_pattern.is_some()
     }
 
-    /// Simple wildcard matching (* matches any characters, ? matches single character)
+    #[allow(dead_code)]
     fn wildcard_match(text: &str, pattern: &str) -> bool {
         wildcard_match(text, pattern)
     }

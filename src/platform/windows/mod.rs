@@ -48,6 +48,8 @@ pub use crate::platform::mock::MockOutputDevice;
 #[cfg(test)]
 pub use window_api::MockWindowApi;
 
+#[allow(unused_imports)]
+pub use crate::platform::window_preset_common::WindowPresetApi;
 pub use window_event_hook::{WindowEvent, WindowEventHook};
 pub use window_manager::{MonitorDirection, WindowManager};
 pub use window_preset::WindowPresetManager;

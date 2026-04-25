@@ -21,6 +21,8 @@ pub mod traits;
 #[allow(dead_code)]
 pub mod tray_common;
 pub mod window_manager_common;
+#[allow(dead_code)]
+pub mod window_preset_common;
 
 // Re-export mock implementations for testing
 #[allow(unused_imports)]
