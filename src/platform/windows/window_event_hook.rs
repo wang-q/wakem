@@ -1,6 +1,7 @@
 //! Windows window event hook implementation
 #![cfg(target_os = "windows")]
 
+use crate::platform::traits::PlatformWindowEvent;
 use anyhow::Result;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Sender;
@@ -11,32 +12,34 @@ use windows::Win32::UI::Accessibility::{
     SetWinEventHook, UnhookWinEvent, HWINEVENTHOOK,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowTextW, EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT,
-    WINEVENT_SKIPOWNPROCESS,
+    GetWindowTextW, GetWindowThreadProcessId, EVENT_SYSTEM_FOREGROUND,
+    WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
-/// Window event types
+/// Window event types (legacy, platform-specific)
+///
+/// Prefer using [PlatformWindowEvent] for cross-platform code.
+/// This type is retained for backward compatibility.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum WindowEvent {
     /// Window activated (became foreground)
-    WindowActivated(isize), // Store as isize instead of HWND for Send/Sync
+    WindowActivated(isize),
 }
 
-// SAFETY: We store HWND as isize, which is Send + Sync
 unsafe impl Send for WindowEvent {}
 unsafe impl Sync for WindowEvent {}
 
 /// Window event hook manager
 pub struct WindowEventHook {
     hook: Option<HWINEVENTHOOK>,
-    event_tx: Sender<WindowEvent>,
-    /// Shutdown flag for graceful exit
+    event_tx: Sender<PlatformWindowEvent>,
     shutdown_flag: Arc<AtomicBool>,
 }
 
 impl WindowEventHook {
     /// Create new window event hook
-    pub fn new(event_tx: Sender<WindowEvent>) -> Self {
+    pub fn new(event_tx: Sender<PlatformWindowEvent>) -> Self {
         Self {
             hook: None,
             event_tx,
@@ -47,16 +50,13 @@ impl WindowEventHook {
     /// Start window event monitoring
     pub fn start(&mut self) -> Result<()> {
         unsafe {
-            // Set window event hook
-            // Monitor: foreground window changes (window activation)
-            // Note: eventMin must be <= eventMax, so we use the same value for both
             let hook = SetWinEventHook(
                 EVENT_SYSTEM_FOREGROUND,
                 EVENT_SYSTEM_FOREGROUND,
-                None, // Current process
+                None,
                 Some(win_event_callback),
-                0, // All processes
-                0, // All threads
+                0,
+                0,
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
             );
 
@@ -64,8 +64,6 @@ impl WindowEventHook {
                 return Err(anyhow::anyhow!("Failed to set WinEventHook"));
             }
 
-            // Store sender in global/thread-local storage for callback use
-            // Using a simple global variable approach here
             set_global_sender(self.event_tx.clone());
 
             self.hook = Some(hook);
@@ -102,17 +100,25 @@ impl Drop for WindowEventHook {
     }
 }
 
-// Global sender (for callback function)
 use std::sync::OnceLock;
 
-static GLOBAL_SENDER: OnceLock<Sender<WindowEvent>> = OnceLock::new();
+static GLOBAL_SENDER: OnceLock<Sender<PlatformWindowEvent>> = OnceLock::new();
 
-fn set_global_sender(sender: Sender<WindowEvent>) {
+fn set_global_sender(sender: Sender<PlatformWindowEvent>) {
     let _ = GLOBAL_SENDER.set(sender);
 }
 
-fn get_global_sender() -> Option<&'static Sender<WindowEvent>> {
+fn get_global_sender() -> Option<&'static Sender<PlatformWindowEvent>> {
     GLOBAL_SENDER.get()
+}
+
+unsafe fn get_process_name_for_hwnd(hwnd: HWND) -> String {
+    let mut pid: u32 = 0;
+    GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    if pid == 0 {
+        return String::new();
+    }
+    super::get_process_name_by_pid(pid).unwrap_or_default()
 }
 
 /// WinEvent callback function
@@ -129,15 +135,20 @@ unsafe extern "system" fn win_event_callback(
         return;
     }
 
-    // Get window title for debugging
-    let mut title_buffer = [0u16; 256];
-    let len = GetWindowTextW(hwnd, &mut title_buffer);
-    let title = String::from_utf16_lossy(&title_buffer[..len as usize]);
-
     if event == EVENT_SYSTEM_FOREGROUND {
+        let mut title_buffer = [0u16; 256];
+        let len = GetWindowTextW(hwnd, &mut title_buffer);
+        let title = String::from_utf16_lossy(&title_buffer[..len as usize]);
+
+        let process_name = get_process_name_for_hwnd(hwnd);
+
         debug!("Window activated: {} ({:?})", title, hwnd);
         if let Some(sender) = get_global_sender() {
-            let _ = sender.send(WindowEvent::WindowActivated(hwnd.0 as isize));
+            let _ = sender.send(PlatformWindowEvent::WindowActivated {
+                process_name,
+                window_title: title,
+                window_id: hwnd.0 as usize,
+            });
         }
     }
 }
@@ -151,7 +162,6 @@ mod tests {
     fn test_window_event_creation() {
         let (tx, _rx) = std::sync::mpsc::channel();
         let hook = WindowEventHook::new(tx);
-        // Note: Actually starting the hook requires a message loop environment
         drop(hook);
     }
 }

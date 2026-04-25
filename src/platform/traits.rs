@@ -329,6 +329,64 @@ pub enum AppCommand {
     Exit,
 }
 
+/// Unified platform window event type
+///
+/// This enum provides a cross-platform representation of window events
+/// that can be produced by both Windows (WinEventHook) and macOS
+/// (CGWindowList polling) window event hooks.
+///
+/// Platform implementations that cannot detect certain events simply
+/// won't emit them. For example, Windows currently only emits
+/// [PlatformWindowEvent::Activated].
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Clone)]
+pub enum PlatformWindowEvent {
+    /// Window became the foreground window
+    WindowActivated {
+        /// Name of the process that owns the window
+        process_name: String,
+        /// Window title
+        window_title: String,
+        /// Platform-specific window identifier (HWND on Windows, 0 on macOS)
+        window_id: usize,
+    },
+    /// Window was minimized
+    WindowMinimized {
+        /// Name of the process that owns the window
+        process_name: String,
+    },
+    /// Window was restored from minimized state
+    WindowRestored {
+        /// Name of the process that owns the window
+        process_name: String,
+    },
+    /// Window was moved or resized
+    WindowMovedOrResized {
+        /// Name of the process that owns the window
+        process_name: String,
+        /// New X position
+        x: i32,
+        /// New Y position
+        y: i32,
+        /// New width
+        width: i32,
+        /// New height
+        height: i32,
+    },
+    /// Window was created
+    WindowCreated {
+        /// Name of the process that owns the window
+        process_name: String,
+        /// Window title
+        window_title: String,
+    },
+    /// Window was closed
+    WindowClosed {
+        /// Name of the process that owns the window
+        process_name: String,
+    },
+}
+
 /// Menu action results from user interaction
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
@@ -399,6 +457,59 @@ pub trait WindowApiTrait: Send + Sync {
 
     /// Check if window is maximized
     fn is_maximized(&self, window: WindowId) -> bool;
+}
+
+/// Base window API trait - shared operations across platforms
+///
+/// This trait defines the common window operations that both Windows and macOS
+/// implement. Platform-specific traits (`MacosWindowApi`, `WindowApi`) extend
+/// this with their own methods.
+///
+/// The associated type `WindowId` abstracts the platform-specific window
+/// identifier (`HWND` on Windows, `CGWindowNumber` on macOS).
+pub trait WindowApiBase {
+    /// Platform-specific window identifier type
+    type WindowId: Copy + std::fmt::Debug;
+
+    /// Get the currently focused window
+    fn get_foreground_window(&self) -> Option<Self::WindowId>;
+
+    /// Set window position and size
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()>;
+
+    /// Minimize window
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
+
+    /// Maximize window
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
+
+    /// Restore window from minimized/maximized state
+    fn restore_window(&self, window: Self::WindowId) -> Result<()>;
+
+    /// Close window
+    fn close_window(&self, window: Self::WindowId) -> Result<()>;
+
+    /// Set window topmost state
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+
+    /// Get all monitors
+    fn get_monitors(&self) -> Vec<MonitorInfo>;
+
+    /// Check if window is valid
+    fn is_window_valid(&self, window: Self::WindowId) -> bool;
+
+    /// Check if window is minimized
+    fn is_minimized(&self, window: Self::WindowId) -> bool;
+
+    /// Check if window is maximized
+    fn is_maximized(&self, window: Self::WindowId) -> bool;
 }
 
 /// Window manager trait - high-level window operations

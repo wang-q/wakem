@@ -13,6 +13,9 @@ use std::sync::Arc;
 use tracing::{debug, info, trace};
 
 /// Window event types for macOS
+///
+/// Prefer using [crate::platform::traits::PlatformWindowEvent] for cross-platform code.
+/// This type is retained for backward compatibility and platform-specific usage.
 #[derive(Debug, Clone)]
 pub enum MacosWindowEvent {
     /// Foreground window changed (application switched)
@@ -39,6 +42,58 @@ pub enum MacosWindowEvent {
     },
     /// Window was closed
     WindowClosed { process_name: String },
+}
+
+impl MacosWindowEvent {
+    /// Convert to cross-platform [PlatformWindowEvent]
+    pub fn to_platform_event(&self) -> crate::platform::traits::PlatformWindowEvent {
+        use crate::platform::traits::PlatformWindowEvent;
+        match self {
+            MacosWindowEvent::WindowActivated {
+                process_name,
+                window_title,
+            } => PlatformWindowEvent::WindowActivated {
+                process_name: process_name.clone(),
+                window_title: window_title.clone(),
+                window_id: 0,
+            },
+            MacosWindowEvent::WindowMinimized { process_name } => {
+                PlatformWindowEvent::WindowMinimized {
+                    process_name: process_name.clone(),
+                }
+            }
+            MacosWindowEvent::WindowRestored { process_name } => {
+                PlatformWindowEvent::WindowRestored {
+                    process_name: process_name.clone(),
+                }
+            }
+            MacosWindowEvent::WindowMovedOrResized {
+                process_name,
+                x,
+                y,
+                width,
+                height,
+            } => PlatformWindowEvent::WindowMovedOrResized {
+                process_name: process_name.clone(),
+                x: *x,
+                y: *y,
+                width: *width,
+                height: *height,
+            },
+            MacosWindowEvent::WindowCreated {
+                process_name,
+                window_title,
+            } => PlatformWindowEvent::WindowCreated {
+                process_name: process_name.clone(),
+                window_title: window_title.clone(),
+            },
+            MacosWindowEvent::WindowClosed { process_name } => {
+                PlatformWindowEvent::WindowClosed {
+                    process_name: process_name.clone(),
+                }
+            }
+        }
+    }
 }
 
 /// macOS window event hook using native APIs (Core Graphics + Accessibility)

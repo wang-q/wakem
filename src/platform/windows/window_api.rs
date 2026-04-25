@@ -16,7 +16,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows_core::BOOL;
 
-use crate::platform::traits::{MonitorInfo, MonitorWorkArea, WindowFrame};
+use crate::platform::traits::{
+    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame,
+};
 
 /// Window operation log (Windows-specific)
 #[derive(Debug, Clone)]
@@ -189,6 +191,64 @@ impl RealWindowApi {
 impl Default for RealWindowApi {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl WindowApiBase for RealWindowApi {
+    type WindowId = HWND;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        WindowApi::get_foreground_window(self)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        WindowApi::set_window_pos(self, window, x, y, width, height)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::minimize_window(self, window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::maximize_window(self, window)
+    }
+
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::restore_window(self, window)
+    }
+
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::close_window(self, window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        WindowApi::set_topmost(self, window, topmost)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        let fg = WindowApi::get_foreground_window(self);
+        fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
+            .map(|info| vec![info])
+            .unwrap_or_default()
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_window(self, window)
+    }
+
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_iconic(self, window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_zoomed(self, window)
     }
 }
 
@@ -384,7 +444,7 @@ impl WindowApi for RealWindowApi {
 
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
-            self.restore_window(hwnd)?;
+            WindowApi::restore_window(self, hwnd)?;
         }
         Ok(())
     }
@@ -820,7 +880,7 @@ impl WindowApi for MockWindowApi {
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         self.log_operation(WindowOperation::EnsureRestored { hwnd });
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
-            self.restore_window(hwnd)?;
+            WindowApi::restore_window(self, hwnd)?;
         }
         Ok(())
     }
@@ -936,6 +996,65 @@ impl Default for MockWindowApi {
 }
 
 #[cfg(test)]
+impl WindowApiBase for MockWindowApi {
+    type WindowId = HWND;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        WindowApi::get_foreground_window(self)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        WindowApi::set_window_pos(self, window, x, y, width, height)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::minimize_window(self, window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::maximize_window(self, window)
+    }
+
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::restore_window(self, window)
+    }
+
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        WindowApi::close_window(self, window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        WindowApi::set_topmost(self, window, topmost)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        let fg = WindowApi::get_foreground_window(self);
+        fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
+            .map(|info| vec![info])
+            .unwrap_or_default()
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_window(self, window)
+    }
+
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_iconic(self, window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_zoomed(self, window)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -970,7 +1089,7 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(5678);
 
-        api.set_window_pos(hwnd, 50, 100, 1024, 768).unwrap();
+        WindowApi::set_window_pos(&api, hwnd, 50, 100, 1024, 768).unwrap();
 
         let frame = api.get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 50);
@@ -984,22 +1103,18 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(9999);
 
-        // Initial state
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        // Minimize
-        api.minimize_window(hwnd).unwrap();
+        WindowApi::minimize_window(&api, hwnd).unwrap();
         assert!(api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        // Restore
-        api.restore_window(hwnd).unwrap();
+        WindowApi::restore_window(&api, hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        // Maximize
-        api.maximize_window(hwnd).unwrap();
+        WindowApi::maximize_window(&api, hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(api.is_zoomed(hwnd));
     }
@@ -1009,12 +1124,13 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(1111);
 
-        // Initially empty
-        assert!(api.get_foreground_window().is_none());
+        assert!(WindowApi::get_foreground_window(&api).is_none());
 
-        // Set foreground window
         api.set_foreground_window(hwnd);
-        assert_eq!(api.get_foreground_window().unwrap().0 as usize, 1111);
+        assert_eq!(
+            WindowApi::get_foreground_window(&api).unwrap().0 as usize,
+            1111
+        );
     }
 
     // ==================== Tests for new methods ====================

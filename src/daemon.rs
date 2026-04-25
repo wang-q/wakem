@@ -1287,17 +1287,17 @@ pub async fn run_server(
     {
         let mut window_event_rx = {
             let (tx, rx) = tokio::sync::mpsc::channel::<
-                crate::platform::windows::WindowEvent,
+                crate::platform::traits::PlatformWindowEvent,
             >(WINDOW_EVENT_CHANNEL_CAPACITY);
 
-            // Create shutdown flag for window event hook
             let hook_shutdown_flag = Arc::new(AtomicBool::new(false));
             let hook_shutdown_flag_clone = hook_shutdown_flag.clone();
             let shutdown_flag = window_shutdown_flag_clone;
 
             let window_bridge_handle = std::thread::spawn(move || {
-                let (std_tx, std_rx) =
-                    std::sync::mpsc::channel::<crate::platform::windows::WindowEvent>();
+                let (std_tx, std_rx) = std::sync::mpsc::channel::<
+                    crate::platform::traits::PlatformWindowEvent,
+                >();
 
                 let hook_shutdown_flag_inner = hook_shutdown_flag.clone();
                 let hook_handle = std::thread::spawn(move || {
@@ -1307,7 +1307,6 @@ pub async fn run_server(
                         error!("Failed to start window event hook: {}", e);
                     } else {
                         info!("Window event hook started");
-                        // Graceful exit: check shutdown flag instead of infinite sleep
                         while !hook.shutdown_flag().load(Ordering::SeqCst) {
                             std::thread::sleep(std::time::Duration::from_millis(100));
                         }
@@ -1474,8 +1473,10 @@ pub async fn run_server(
 /// Handle window events (Windows only)
 #[cfg(target_os = "windows")]
 impl ServerState {
-    async fn handle_window_event(&self, event: crate::platform::windows::WindowEvent) {
-        // Check if auto-apply preset is enabled
+    async fn handle_window_event(
+        &self,
+        event: crate::platform::traits::PlatformWindowEvent,
+    ) {
         let auto_apply = {
             let config = self.config.read().await;
             config.window.auto_apply_preset
@@ -1485,30 +1486,26 @@ impl ServerState {
             return;
         }
 
-        match event {
-            crate::platform::windows::WindowEvent::WindowActivated(hwnd_isize) => {
-                // Delay applying preset to ensure window is fully created
-                tokio::time::sleep(tokio::time::Duration::from_millis(
-                    WINDOW_PRESET_APPLY_DELAY_MS,
-                ))
-                .await;
+        if let crate::platform::traits::PlatformWindowEvent::WindowActivated {
+            window_id,
+            ..
+        } = event
+        {
+            tokio::time::sleep(tokio::time::Duration::from_millis(
+                WINDOW_PRESET_APPLY_DELAY_MS,
+            ))
+            .await;
 
-                // Get preset manager first, then create HWND and apply preset
-                // This avoids holding HWND across await points (HWND is not Send)
-                let preset_manager = self.window_preset_manager.read().await;
-                let hwnd = windows::Win32::Foundation::HWND(
-                    hwnd_isize as *mut std::ffi::c_void,
-                );
-                match preset_manager.apply_preset_for_window_by_id(hwnd) {
-                    Ok(true) => {
-                        debug!("Auto-applied preset to window {:?}", hwnd);
-                    }
-                    Ok(false) => {
-                        // No matching preset, this is normal
-                    }
-                    Err(e) => {
-                        debug!("Failed to auto-apply preset: {}", e);
-                    }
+            let preset_manager = self.window_preset_manager.read().await;
+            let hwnd =
+                windows::Win32::Foundation::HWND(window_id as *mut std::ffi::c_void);
+            match preset_manager.apply_preset_for_window_by_id(hwnd) {
+                Ok(true) => {
+                    debug!("Auto-applied preset to window {:?}", hwnd);
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    debug!("Failed to auto-apply preset: {}", e);
                 }
             }
         }

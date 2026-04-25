@@ -82,35 +82,35 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_init() {
         let api = MockTrayApi::new();
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
 
         manager.init(Some(12345)).await.unwrap();
-        assert!(manager.api.is_registered());
+        assert!(manager.api().unwrap().is_registered());
     }
 
     #[tokio::test]
     async fn test_tray_manager_cleanup() {
         let api = MockTrayApi::new();
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
 
         manager.init(Some(12345)).await.unwrap();
-        assert!(manager.api.is_registered());
+        assert!(manager.api().unwrap().is_registered());
 
         manager.cleanup().await.unwrap();
-        assert!(!manager.api.is_registered());
+        assert!(!manager.api().unwrap().is_registered());
     }
 
     #[tokio::test]
     async fn test_tray_manager_notify() {
         let api = MockTrayApi::new();
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
 
         manager
             .notify("Notification", "This is a test")
             .await
             .unwrap();
 
-        let notifications = manager.api.get_notifications();
+        let notifications = manager.api().unwrap().get_notifications();
         assert_eq!(notifications.len(), 1);
     }
 
@@ -119,7 +119,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         api.set_menu_selections(vec![menu_ids::TOGGLE_ACTIVE]);
 
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
         let action = manager.show_context_menu().await.unwrap();
 
         assert_eq!(action, MenuAction::ToggleActive);
@@ -130,7 +130,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         api.set_menu_selections(vec![menu_ids::RELOAD]);
 
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
         let action = manager.show_context_menu().await.unwrap();
 
         assert_eq!(action, MenuAction::Reload);
@@ -141,7 +141,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         api.set_menu_selections(vec![menu_ids::OPEN_CONFIG]);
 
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
         let action = manager.show_context_menu().await.unwrap();
 
         assert_eq!(action, MenuAction::OpenConfig);
@@ -152,7 +152,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         api.set_menu_selections(vec![menu_ids::EXIT]);
 
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
         let action = manager.show_context_menu().await.unwrap();
 
         assert_eq!(action, MenuAction::Exit);
@@ -161,7 +161,7 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_toggle_active() {
         let api = MockTrayApi::new();
-        let manager = TrayManager::new(api);
+        let manager = TrayManager::from_api(api);
 
         assert!(manager.is_active().await);
 

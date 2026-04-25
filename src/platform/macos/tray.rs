@@ -9,7 +9,7 @@
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
@@ -308,88 +308,9 @@ impl TrayApi for RealTrayApi {
     }
 }
 
-// Re-export TrayIconWrapper from tray_common
+// Re-export TrayIconWrapper and TrayManager from tray_common
 pub use crate::platform::tray_common::TrayIconWrapper;
-
-/// Generic tray manager for managing tray lifecycle
-pub struct TrayManager<T: TrayApi + Send + Sync> {
-    tray: Option<TrayIconWrapper<T>>,
-    command_sender: Sender<AppCommand>,
-    running: bool,
-}
-
-impl<T: TrayApi + Send + Sync + Default + 'static> TrayManager<T> {
-    pub fn new() -> (Self, Receiver<AppCommand>) {
-        let (sender, receiver) = channel();
-
-        let mgr = Self {
-            tray: None,
-            command_sender: sender,
-            running: false,
-        };
-
-        (mgr, receiver)
-    }
-
-    pub async fn start(&mut self) -> Result<()> {
-        if self.running {
-            return Ok(());
-        }
-
-        let icon = TrayIconWrapper::new(T::default());
-        icon.register().await?;
-        icon.set_tooltip("wakem - Window Adjust, Keyboard Enhance, Mouse")
-            .await?;
-
-        self.tray = Some(icon);
-        self.running = true;
-
-        info!("TrayManager started");
-        Ok(())
-    }
-
-    pub async fn stop(&mut self) -> Result<()> {
-        if !self.running {
-            return Ok(());
-        }
-
-        if let Some(ref tray) = self.tray {
-            tray.unregister().await?;
-        }
-
-        self.tray = None;
-        self.running = false;
-
-        info!("TrayManager stopped");
-        Ok(())
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.running
-    }
-
-    pub async fn notify(&self, title: &str, message: &str) -> Result<()> {
-        if let Some(ref tray) = self.tray {
-            tray.show_notification(title, message).await
-        } else {
-            warn!("Cannot send notification: tray not initialized");
-            Err(anyhow!("Tray not initialized"))
-        }
-    }
-
-    pub async fn set_active_status(&self, active: bool) -> Result<()> {
-        if let Some(ref tray) = self.tray {
-            tray.set_active_status(active).await
-        } else {
-            warn!("Cannot set active status: tray not initialized");
-            Err(anyhow!("Tray not initialized"))
-        }
-    }
-
-    pub fn get_command_sender(&self) -> Sender<AppCommand> {
-        self.command_sender.clone()
-    }
-}
+pub use crate::platform::tray_common::TrayManager;
 
 /// Type aliases for convenience
 pub type RealTrayManager = TrayManager<RealTrayApi>;

@@ -34,8 +34,9 @@ pub use output_helpers::char_to_vk;
 #[allow(unused_imports)]
 pub use traits::{
     AppCommand, InputDeviceConfig, InputDeviceTrait, MenuAction, MonitorInfo,
-    MonitorWorkArea, OutputDeviceTrait, TrayIconTrait, WindowApiTrait, WindowContext,
-    WindowFrame, WindowId, WindowInfo, WindowManagerTrait, WindowOperation, WindowState,
+    MonitorWorkArea, OutputDeviceTrait, PlatformWindowEvent, TrayIconTrait,
+    WindowApiBase, WindowApiTrait, WindowContext, WindowFrame, WindowId, WindowInfo,
+    WindowManagerTrait, WindowOperation, WindowState,
 };
 
 // Re-export WindowPreset from config (single source of truth)
@@ -53,24 +54,9 @@ pub mod macos;
 #[cfg(target_os = "windows")]
 #[allow(unused_imports)]
 pub use windows::{
-    // Launcher
-    Launcher,
-    MonitorDirection,
-    // Legacy exports for backward compatibility
-    MonitorInfo as WindowsMonitorInfo,
-    // Input/Output
-    RawInputDevice,
-    RealWindowApi,
-    SendInputDevice,
-    // Tray
-    TrayIcon,
-    // Context
-    WindowContext as WindowsWindowContext,
-    WindowEvent,
-    WindowEventHook,
-    // Window management
-    WindowManager,
-    WindowPresetManager,
+    Launcher, MonitorDirection, MonitorInfo as WindowsMonitorInfo, RawInputDevice,
+    RealWindowApi, SendInputDevice, TrayIcon, WindowContext as WindowsWindowContext,
+    WindowEvent, WindowEventHook, WindowManager, WindowPresetManager,
 };
 
 // Platform-specific type aliases
