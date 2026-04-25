@@ -356,16 +356,6 @@ modifier = "Shift"
 step = 1
 ```
 
-### Volume Control
-
-Hold a modifier key to adjust system volume with the scroll wheel:
-
-```toml
-[mouse.wheel.volume_control]
-modifier = "RightAlt"
-step = 2
-```
-
 ### Brightness Control
 
 Hold a modifier key to adjust screen brightness with the scroll wheel:

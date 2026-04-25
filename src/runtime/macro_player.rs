@@ -739,9 +739,6 @@ mod tests {
 
     #[test]
     fn test_system_action_variants() {
-        assert!(matches!(SystemAction::VolumeUp, SystemAction::VolumeUp));
-        assert!(matches!(SystemAction::VolumeDown, SystemAction::VolumeDown));
-        assert!(matches!(SystemAction::VolumeMute, SystemAction::VolumeMute));
         assert!(matches!(
             SystemAction::BrightnessUp,
             SystemAction::BrightnessUp

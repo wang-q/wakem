@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn test_mapping_rule_matches() {
         let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::System(crate::types::SystemAction::VolumeUp);
+        let action = Action::System(crate::types::SystemAction::BrightnessUp);
         let rule = MappingRule::new(trigger, action);
 
         let context = ContextInfo::default();
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn test_disabled_rule_never_matches() {
         let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::System(crate::types::SystemAction::VolumeUp);
+        let action = Action::System(crate::types::SystemAction::BrightnessUp);
         let mut rule = MappingRule::new(trigger, action);
         rule.enabled = false;
 

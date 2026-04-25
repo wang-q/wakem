@@ -510,11 +510,6 @@ pub struct WheelConfig {
     /// Horizontal scroll configuration
     #[serde(default)]
     pub horizontal_scroll: Option<WheelModifierConfig>,
-    /// Volume control configuration
-    #[serde(default)]
-    pub volume_control: Option<WheelModifierConfig>,
-    /// Brightness control configuration
-    #[serde(default)]
     pub brightness_control: Option<WheelModifierConfig>,
 }
 
@@ -526,7 +521,6 @@ impl Default for WheelConfig {
             acceleration: false,
             acceleration_multiplier: default_acceleration_multiplier(),
             horizontal_scroll: None,
-            volume_control: None,
             brightness_control: None,
         }
     }

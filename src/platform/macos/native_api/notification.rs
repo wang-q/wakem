@@ -61,11 +61,6 @@ pub fn show_notification(title: &str, message: &str) -> Result<(), String> {
         let message_ns = NSString::alloc(nil).init_str(message);
         let _: () = msg_send![notification, setInformativeText: message_ns];
 
-        // Set sound
-        let sound_name =
-            NSString::alloc(nil).init_str("NSUserNotificationDefaultSoundName");
-        let _: () = msg_send![notification, setSoundName: sound_name];
-
         // Deliver notification
         let _: () = msg_send![center, deliverNotification: notification];
 

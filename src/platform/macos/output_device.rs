@@ -183,21 +183,9 @@ impl OutputDeviceTrait for MacosOutputDevice {
     }
 
     fn send_system_action(&self, action: &SystemAction) -> Result<()> {
-        use crate::platform::macos::native_api::{core_audio, display};
+        use crate::platform::macos::native_api::display;
 
         match action {
-            SystemAction::VolumeUp => {
-                core_audio::volume_up(0.1)
-                    .map_err(|e| anyhow::anyhow!("Volume up failed: {}", e))?;
-            }
-            SystemAction::VolumeDown => {
-                core_audio::volume_down(0.1)
-                    .map_err(|e| anyhow::anyhow!("Volume down failed: {}", e))?;
-            }
-            SystemAction::VolumeMute => {
-                core_audio::toggle_mute()
-                    .map_err(|e| anyhow::anyhow!("Toggle mute failed: {}", e))?;
-            }
             SystemAction::BrightnessUp => {
                 display::brightness_up(0.1)
                     .map_err(|e| anyhow::anyhow!("Brightness up failed: {}", e))?;

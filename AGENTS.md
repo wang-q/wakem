@@ -14,7 +14,7 @@
 ### 核心特性
 
 - **键盘增强**: 键位重映射、修饰键自定义、宏录制与播放
-- **鼠标增强**: 滚轮加速/减速、水平滚动、音量/亮度控制
+- **鼠标增强**: 滚轮加速/减速、水平滚动、亮度控制
 - **窗口管理**: 窗口移动/调整大小/最大化/最小化、预设布局、自动应用规则、跨显示器移动
 - **进程启动**: 快捷键启动应用程序（支持参数）
 - **守护进程模式**: 后台运行，通过 IPC 接受客户端命令
@@ -78,7 +78,6 @@ src/
 │           ├── ax_element.rs    # Accessibility API 封装
 │           ├── cg_window.rs     # Core Graphics 窗口 API
 │           ├── coordinate.rs    # 坐标转换
-│           ├── core_audio.rs    # 音频控制 API
 │           ├── display.rs       # 显示器信息 API
 │           ├── notification.rs  # 通知中心 API
 │           └── ns_workspace.rs  # NSWorkspace API

@@ -182,15 +182,7 @@ pub struct LaunchAction {
 /// System control action
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SystemAction {
-    /// Increase volume
-    VolumeUp,
-    /// Decrease volume
-    VolumeDown,
-    /// Toggle mute
-    VolumeMute,
-    /// Increase brightness
     BrightnessUp,
-    /// Decrease brightness
     BrightnessDown,
 }
 

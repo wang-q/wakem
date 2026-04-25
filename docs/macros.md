@@ -198,9 +198,6 @@ The following window management actions are supported:
 
 | Action | Description |
 |--------|-------------|
-| `VolumeUp` | Increase volume |
-| `VolumeDown` | Decrease volume |
-| `VolumeMute` | Toggle mute |
 | `BrightnessUp` | Increase brightness |
 | `BrightnessDown` | Decrease brightness |
 

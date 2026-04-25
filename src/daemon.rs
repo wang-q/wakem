@@ -528,17 +528,6 @@ impl ServerState {
         // Get current modifier state
         let modifiers = get_current_modifier_state();
 
-        // Check volume control
-        if let Some(volume_config) = &wheel_config.volume_control {
-            if Self::check_modifier_match(&volume_config.modifier, &modifiers) {
-                if delta > 0 {
-                    return Some(Action::System(crate::types::SystemAction::VolumeUp));
-                }
-                return Some(Action::System(crate::types::SystemAction::VolumeDown));
-            }
-        }
-
-        // Check brightness control
         if let Some(brightness_config) = &wheel_config.brightness_control {
             if Self::check_modifier_match(&brightness_config.modifier, &modifiers) {
                 if delta > 0 {
