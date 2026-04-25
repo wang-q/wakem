@@ -13,6 +13,77 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+/// Macro to generate test-mode [OutputDeviceTrait] implementation.
+///
+/// Eliminates duplicated `#[cfg(test)]` boilerplate across platforms.
+/// Each method logs a `[TEST MODE]` message and returns `Ok(())`.
+///
+/// # Usage
+///
+/// ```ignore
+/// // In macos/output_device.rs or windows/output_device.rs:
+/// crate::platform::mock::impl_test_output_device!(MyOutputDevice);
+/// ```
+#[macro_export]
+macro_rules! impl_test_output_device {
+    ($device:ty) => {
+        #[cfg(test)]
+        impl OutputDeviceTrait for $device {
+            fn send_key(
+                &self,
+                _scan_code: u16,
+                _virtual_key: u16,
+                _release: bool,
+            ) -> Result<()> {
+                tracing::debug!(
+                    "[TEST MODE] Mock key event: scan={:#04X}, vk={:#04X}, release={}",
+                    _scan_code,
+                    _virtual_key,
+                    _release
+                );
+                Ok(())
+            }
+
+            fn send_mouse_move(&self, _x: i32, _y: i32, _relative: bool) -> Result<()> {
+                tracing::debug!(
+                    "[TEST MODE] Mock mouse move: x={}, y={}, relative={}",
+                    _x,
+                    _y,
+                    _relative
+                );
+                Ok(())
+            }
+
+            fn send_mouse_button(
+                &self,
+                _button: MouseButton,
+                _release: bool,
+            ) -> Result<()> {
+                tracing::debug!(
+                    "[TEST MODE] Mock mouse button: {:?}, release={}",
+                    _button,
+                    _release
+                );
+                Ok(())
+            }
+
+            fn send_mouse_wheel(&self, _delta: i32, _horizontal: bool) -> Result<()> {
+                tracing::debug!(
+                    "[TEST MODE] Mock mouse wheel: delta={}, horizontal={}",
+                    _delta,
+                    _horizontal
+                );
+                Ok(())
+            }
+
+            fn send_system_action(&self, _action: &SystemAction) -> Result<()> {
+                tracing::debug!("[TEST MODE] Mock system action: {:?}", _action);
+                Ok(())
+            }
+        }
+    };
+}
+
 /// Mock input device for testing
 pub struct MockInputDevice {
     events: RefCell<VecDeque<InputEvent>>,

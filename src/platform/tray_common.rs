@@ -158,6 +158,196 @@ pub fn menu_id_to_action(id: u32) -> MenuAction {
     }
 }
 
+/// Generic tray icon wrapper providing convenient methods over [TrayApi].
+///
+/// Wraps any [TrayApi] implementation and exposes ergonomic methods
+/// for common operations (register without hwnd, show_menu returning
+/// [MenuAction], etc.). Previously duplicated in `macos/tray.rs`.
+pub struct TrayIconWrapper<T: TrayApi> {
+    api: T,
+}
+
+impl<T: TrayApi> TrayIconWrapper<T> {
+    pub fn new(api: T) -> Self {
+        Self { api }
+    }
+
+    pub async fn register(&self) -> Result<()> {
+        self.api.register(None).await
+    }
+
+    pub async fn unregister(&self) -> Result<()> {
+        self.api.unregister().await
+    }
+
+    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
+        self.api.show_notification(title, message).await
+    }
+
+    pub async fn show_menu(&self) -> Result<MenuAction> {
+        let selection = self.api.show_menu().await?;
+        Ok(menu_id_to_action(selection))
+    }
+
+    pub async fn set_tooltip(&self, tooltip: &str) -> Result<()> {
+        self.api.set_tooltip(tooltip).await
+    }
+
+    pub async fn set_icon(&self, icon_path: Option<&str>) -> Result<()> {
+        self.api.set_icon(icon_path).await
+    }
+
+    pub async fn show(&self) -> Result<()> {
+        self.api.show().await
+    }
+
+    pub async fn hide(&self) -> Result<()> {
+        self.api.hide().await
+    }
+
+    pub async fn set_active_status(&self, active: bool) -> Result<()> {
+        self.api.set_active_status(active).await
+    }
+
+    pub fn is_registered(&self) -> bool {
+        self.api.is_registered()
+    }
+}
+
+/// Unified mock [TrayApi] implementation for testing.
+///
+/// Replaces platform-specific `MockTrayApi` definitions that were previously
+/// duplicated across `macos/tray.rs` and `windows/tray.rs`.
+/// Uses `std::sync::Mutex` for synchronous locking compatible with both platforms.
+pub struct MockTrayApi {
+    state: std::sync::Mutex<MockTrayState>,
+}
+
+#[derive(Default)]
+struct MockTrayState {
+    registered: bool,
+    hwnd: isize,
+    active: bool,
+    visible: bool,
+    tooltip: String,
+    notifications: Vec<(String, String)>,
+    menu_selections: Vec<u32>,
+    menu_index: usize,
+    menu_actions: std::collections::VecDeque<MenuAction>,
+}
+
+impl Default for MockTrayApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MockTrayApi {
+    pub fn new() -> Self {
+        Self {
+            state: std::sync::Mutex::new(MockTrayState {
+                active: true,
+                ..Default::default()
+            }),
+        }
+    }
+
+    pub fn is_visible(&self) -> bool {
+        self.state.lock().unwrap().visible
+    }
+
+    pub fn get_tooltip(&self) -> String {
+        self.state.lock().unwrap().tooltip.clone()
+    }
+
+    pub fn push_menu_action(&self, action: MenuAction) {
+        self.state.lock().unwrap().menu_actions.push_back(action);
+    }
+
+    pub fn clear(&self) {
+        let mut s = self.state.lock().unwrap();
+        s.notifications.clear();
+        s.menu_actions.clear();
+    }
+}
+
+#[async_trait::async_trait]
+impl TrayApi for MockTrayApi {
+    async fn register(&self, hwnd: Option<isize>) -> Result<()> {
+        let mut s = self.state.lock().unwrap();
+        s.registered = true;
+        s.hwnd = hwnd.unwrap_or(0);
+        Ok(())
+    }
+
+    async fn unregister(&self) -> Result<()> {
+        self.state.lock().unwrap().registered = false;
+        Ok(())
+    }
+
+    async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
+        self.state
+            .lock()
+            .unwrap()
+            .notifications
+            .push((title.to_string(), message.to_string()));
+        Ok(())
+    }
+
+    async fn show_menu(&self) -> Result<u32> {
+        let mut s = self.state.lock().unwrap();
+        if s.menu_index < s.menu_selections.len() {
+            let selection = s.menu_selections[s.menu_index];
+            s.menu_index += 1;
+            Ok(selection)
+        } else {
+            Ok(0)
+        }
+    }
+
+    async fn set_active(&self, active: bool) -> Result<()> {
+        self.state.lock().unwrap().active = active;
+        Ok(())
+    }
+
+    async fn is_active(&self) -> bool {
+        self.state.lock().unwrap().active
+    }
+
+    async fn set_tooltip(&self, tooltip: &str) -> Result<()> {
+        self.state.lock().unwrap().tooltip = tooltip.to_string();
+        Ok(())
+    }
+
+    async fn set_icon(&self, _icon_path: Option<&str>) -> Result<()> {
+        Ok(())
+    }
+
+    async fn show(&self) -> Result<()> {
+        self.state.lock().unwrap().visible = true;
+        Ok(())
+    }
+
+    async fn hide(&self) -> Result<()> {
+        self.state.lock().unwrap().visible = false;
+        Ok(())
+    }
+
+    fn get_notifications(&self) -> Vec<(String, String)> {
+        self.state.lock().unwrap().notifications.clone()
+    }
+
+    fn is_registered(&self) -> bool {
+        self.state.lock().unwrap().registered
+    }
+
+    fn set_menu_selections(&self, selections: Vec<u32>) {
+        let mut s = self.state.lock().unwrap();
+        s.menu_selections = selections;
+        s.menu_index = 0;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

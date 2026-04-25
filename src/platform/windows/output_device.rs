@@ -245,8 +245,9 @@ mod tests {
     }
 }
 
-/// Re-export MockOutputDevice and MockOutputEvent from platform::mock
+/// Re-export MockOutputEvent and MockOutputDevice from platform::mock
 #[cfg(test)]
+#[allow(unused_imports)]
 pub use crate::platform::mock::MockOutputEvent;
 
 /// Windows output device implementing platform [OutputDeviceTrait]

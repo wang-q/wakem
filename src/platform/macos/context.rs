@@ -92,31 +92,10 @@ impl WindowContext {
 }
 
 /// Get current modifier state using CGEventSource
+///
+/// Delegates to [crate::platform::macos::get_modifier_state] to avoid duplication.
 pub fn get_modifier_state() -> crate::types::ModifierState {
-    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-
-    let mut modifiers = crate::types::ModifierState::default();
-
-    if let Ok(source) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) {
-        if let Ok(event) = core_graphics::event::CGEvent::new(source) {
-            let flags = event.get_flags();
-
-            if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagShift) {
-                modifiers.shift = true;
-            }
-            if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagControl) {
-                modifiers.ctrl = true;
-            }
-            if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagAlternate) {
-                modifiers.alt = true;
-            }
-            if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagCommand) {
-                modifiers.meta = true;
-            }
-        }
-    }
-
-    modifiers
+    super::get_modifier_state()
 }
 
 #[cfg(test)]

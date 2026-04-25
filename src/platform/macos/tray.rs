@@ -303,56 +303,8 @@ impl TrayApi for RealTrayApi {
     }
 }
 
-/// Tray icon wrapper
-pub struct TrayIconWrapper<T: TrayApi> {
-    api: T,
-}
-
-impl<T: TrayApi> TrayIconWrapper<T> {
-    pub fn new(api: T) -> Self {
-        Self { api }
-    }
-
-    pub async fn register(&self) -> Result<()> {
-        self.api.register(None).await
-    }
-
-    pub async fn unregister(&self) -> Result<()> {
-        self.api.unregister().await
-    }
-
-    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        self.api.show_notification(title, message).await
-    }
-
-    pub async fn show_menu(&self) -> Result<MenuAction> {
-        Ok(MenuAction::None)
-    }
-
-    pub async fn set_tooltip(&self, tooltip: &str) -> Result<()> {
-        self.api.set_tooltip(tooltip).await
-    }
-
-    pub async fn set_icon(&self, icon_path: Option<&str>) -> Result<()> {
-        self.api.set_icon(icon_path).await
-    }
-
-    pub async fn show(&self) -> Result<()> {
-        self.api.show().await
-    }
-
-    pub async fn hide(&self) -> Result<()> {
-        self.api.hide().await
-    }
-
-    pub async fn set_active_status(&self, active: bool) -> Result<()> {
-        self.api.set_active_status(active).await
-    }
-
-    pub fn is_registered(&self) -> bool {
-        self.api.is_registered()
-    }
-}
+// Re-export TrayIconWrapper from tray_common
+pub use crate::platform::tray_common::TrayIconWrapper;
 
 /// Generic tray manager for managing tray lifecycle
 pub struct TrayManager<T: TrayApi + Send + Sync> {
@@ -500,108 +452,9 @@ pub fn stop_tray() {
     debug!("Stop signal sent to tray loop");
 }
 
-/// Mock tray API for testing
-#[cfg(test)]
-pub struct MockTrayApi {
-    registered: std::sync::Mutex<bool>,
-    visible: std::sync::Mutex<bool>,
-    active: std::sync::Mutex<bool>,
-    notifications: std::sync::Mutex<Vec<(String, String)>>,
-    tooltip: std::sync::Mutex<String>,
-    menu_actions: std::sync::Mutex<std::collections::VecDeque<MenuAction>>,
-}
-
-#[cfg(test)]
-impl MockTrayApi {
-    pub fn new() -> Self {
-        Self {
-            registered: std::sync::Mutex::new(false),
-            visible: std::sync::Mutex::new(true),
-            active: std::sync::Mutex::new(true),
-            notifications: std::sync::Mutex::new(Vec::new()),
-            tooltip: std::sync::Mutex::new(String::new()),
-            menu_actions: std::sync::Mutex::new(std::collections::VecDeque::new()),
-        }
-    }
-
-    pub fn is_visible(&self) -> bool {
-        *self.visible.lock().unwrap()
-    }
-
-    pub fn get_notifications(&self) -> Vec<(String, String)> {
-        self.notifications.lock().unwrap().clone()
-    }
-
-    pub fn get_tooltip(&self) -> String {
-        self.tooltip.lock().unwrap().clone()
-    }
-
-    pub fn push_menu_action(&self, action: MenuAction) {
-        self.menu_actions.lock().unwrap().push_back(action);
-    }
-
-    pub fn clear(&self) {
-        self.notifications.lock().unwrap().clear();
-        self.menu_actions.lock().unwrap().clear();
-    }
-}
-
-#[cfg(test)]
-impl Default for MockTrayApi {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(test)]
-#[async_trait::async_trait]
-impl TrayApi for MockTrayApi {
-    async fn register(&self, _hwnd: Option<isize>) -> Result<()> {
-        *self.registered.lock().unwrap() = true;
-        Ok(())
-    }
-
-    async fn unregister(&self) -> Result<()> {
-        *self.registered.lock().unwrap() = false;
-        Ok(())
-    }
-
-    async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        self.notifications
-            .lock()
-            .unwrap()
-            .push((title.to_string(), message.to_string()));
-        Ok(())
-    }
-
-    async fn set_tooltip(&self, tooltip: &str) -> Result<()> {
-        *self.tooltip.lock().unwrap() = tooltip.to_string();
-        Ok(())
-    }
-
-    async fn set_icon(&self, _icon_path: Option<&str>) -> Result<()> {
-        Ok(())
-    }
-
-    async fn show(&self) -> Result<()> {
-        *self.visible.lock().unwrap() = true;
-        Ok(())
-    }
-
-    async fn hide(&self) -> Result<()> {
-        *self.visible.lock().unwrap() = false;
-        Ok(())
-    }
-
-    async fn set_active(&self, active: bool) -> Result<()> {
-        *self.active.lock().unwrap() = active;
-        Ok(())
-    }
-
-    fn is_registered(&self) -> bool {
-        *self.registered.lock().unwrap()
-    }
-}
+// Re-export unified MockTrayApi from tray_common
+#[allow(unused_imports)]
+pub use crate::platform::tray_common::MockTrayApi;
 
 #[cfg(test)]
 mod tests {
