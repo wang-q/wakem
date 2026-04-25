@@ -1,10 +1,8 @@
 //! macOS input device implementation using CGEventTap
 //!
 //! This module provides:
-//! - `InputDevice` trait for platform-agnostic input device operations
 //! - `MacosInputDevice` - Real implementation using CGEventTap (from input.rs)
 //! - `InputDeviceConfig` - Configuration for input device behavior
-//! - `InputDeviceFactory` - Factory for creating pre-configured devices
 #![cfg(target_os = "macos")]
 
 use crate::platform::input_device_common::InputDeviceBase;
@@ -118,9 +116,6 @@ impl MacosInputDevice {
         self.wait_for_event(100)
     }
 }
-
-/// Input device factory
-pub use crate::platform::input_device_common::InputDeviceFactory;
 
 impl InputDeviceTrait for MacosInputDevice {
     fn register(&mut self) -> Result<()> {

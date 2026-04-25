@@ -6,99 +6,16 @@
 //! Performance: < 2ms per poll (vs 100-200ms with AppleScript)
 #![cfg(target_os = "macos")]
 
+use crate::platform::traits::PlatformWindowEvent;
 use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use tracing::{debug, info, trace};
 
-/// Window event types for macOS
-///
-/// Prefer using [crate::platform::traits::PlatformWindowEvent] for cross-platform code.
-/// This type is retained for backward compatibility and platform-specific usage.
-#[derive(Debug, Clone)]
-pub enum MacosWindowEvent {
-    /// Foreground window changed (application switched)
-    WindowActivated {
-        process_name: String,
-        window_title: String,
-    },
-    /// Window was minimized
-    WindowMinimized { process_name: String },
-    /// Window was restored from minimized state
-    WindowRestored { process_name: String },
-    /// Window was moved or resized
-    WindowMovedOrResized {
-        process_name: String,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    },
-    /// Window was created
-    WindowCreated {
-        process_name: String,
-        window_title: String,
-    },
-    /// Window was closed
-    WindowClosed { process_name: String },
-}
-
-impl MacosWindowEvent {
-    /// Convert to cross-platform [PlatformWindowEvent]
-    pub fn to_platform_event(&self) -> crate::platform::traits::PlatformWindowEvent {
-        use crate::platform::traits::PlatformWindowEvent;
-        match self {
-            MacosWindowEvent::WindowActivated {
-                process_name,
-                window_title,
-            } => PlatformWindowEvent::WindowActivated {
-                process_name: process_name.clone(),
-                window_title: window_title.clone(),
-                window_id: 0,
-            },
-            MacosWindowEvent::WindowMinimized { process_name } => {
-                PlatformWindowEvent::WindowMinimized {
-                    process_name: process_name.clone(),
-                }
-            }
-            MacosWindowEvent::WindowRestored { process_name } => {
-                PlatformWindowEvent::WindowRestored {
-                    process_name: process_name.clone(),
-                }
-            }
-            MacosWindowEvent::WindowMovedOrResized {
-                process_name,
-                x,
-                y,
-                width,
-                height,
-            } => PlatformWindowEvent::WindowMovedOrResized {
-                process_name: process_name.clone(),
-                x: *x,
-                y: *y,
-                width: *width,
-                height: *height,
-            },
-            MacosWindowEvent::WindowCreated {
-                process_name,
-                window_title,
-            } => PlatformWindowEvent::WindowCreated {
-                process_name: process_name.clone(),
-                window_title: window_title.clone(),
-            },
-            MacosWindowEvent::WindowClosed { process_name } => {
-                PlatformWindowEvent::WindowClosed {
-                    process_name: process_name.clone(),
-                }
-            }
-        }
-    }
-}
-
 /// macOS window event hook using native APIs (Core Graphics + Accessibility)
 pub struct MacosWindowEventHook {
-    event_sender: Sender<MacosWindowEvent>,
+    event_sender: Sender<PlatformWindowEvent>,
     running: Arc<AtomicBool>,
     shutdown_flag: Arc<AtomicBool>,
     poll_interval_ms: u64,
@@ -106,7 +23,6 @@ pub struct MacosWindowEventHook {
 }
 
 impl MacosWindowEventHook {
-    /// Create a new window event hook
     pub fn new() -> Self {
         let (sender, _) = channel();
 
@@ -119,7 +35,7 @@ impl MacosWindowEventHook {
         }
     }
 
-    pub fn with_sender(event_sender: Sender<MacosWindowEvent>) -> Self {
+    pub fn with_sender(event_sender: Sender<PlatformWindowEvent>) -> Self {
         Self {
             event_sender,
             running: Arc::new(AtomicBool::new(false)),
@@ -130,7 +46,7 @@ impl MacosWindowEventHook {
     }
 
     pub fn with_interval(
-        event_sender: Sender<MacosWindowEvent>,
+        event_sender: Sender<PlatformWindowEvent>,
         interval_ms: u64,
     ) -> Self {
         Self {
@@ -176,9 +92,10 @@ impl MacosWindowEventHook {
                                 || current_title != last_title
                             {
                                 let _ =
-                                    sender.send(MacosWindowEvent::WindowActivated {
+                                    sender.send(PlatformWindowEvent::WindowActivated {
                                         process_name: current_process.clone(),
                                         window_title: current_title.clone(),
+                                        window_id: 0,
                                     });
                                 debug!(
                                     "Foreground window changed: {} - {}",
@@ -192,14 +109,14 @@ impl MacosWindowEventHook {
                             if current_window_count != last_window_count && initialized {
                                 if current_window_count > last_window_count {
                                     let _ =
-                                        sender.send(MacosWindowEvent::WindowCreated {
+                                        sender.send(PlatformWindowEvent::WindowCreated {
                                             process_name: last_process.clone(),
                                             window_title: last_title.clone(),
                                         });
                                     debug!("Window created in {}", last_process);
                                 } else if current_window_count < last_window_count {
                                     let _ =
-                                        sender.send(MacosWindowEvent::WindowClosed {
+                                        sender.send(PlatformWindowEvent::WindowClosed {
                                             process_name: last_process.clone(),
                                         });
                                     debug!("Window closed in {}", last_process);
@@ -238,23 +155,19 @@ impl MacosWindowEventHook {
         debug!("MacosWindowEventHook stopped");
     }
 
-    /// Check if the hook is currently running
     pub fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
     }
 
-    /// Get the shutdown flag reference (for external coordination)
     pub fn shutdown_flag(&self) -> &Arc<AtomicBool> {
         &self.shutdown_flag
     }
 
-    /// Get the event sender
-    pub fn event_sender(&self) -> &Sender<MacosWindowEvent> {
+    pub fn event_sender(&self) -> &Sender<PlatformWindowEvent> {
         &self.event_sender
     }
 
-    /// Create a new channel and return the receiver
-    pub fn create_receiver(&mut self) -> Receiver<MacosWindowEvent> {
+    pub fn create_receiver(&mut self) -> Receiver<PlatformWindowEvent> {
         let (sender, receiver) = channel();
         self.event_sender = sender;
         receiver
@@ -275,15 +188,12 @@ impl Drop for MacosWindowEventHook {
     }
 }
 
-/// Get frontmost application info using native APIs
-/// Returns: (process_name, window_title, window_count)
 fn get_frontmost_app_info() -> Result<(String, String, usize)> {
     use crate::platform::macos::native_api::cg_window::get_on_screen_windows;
 
     let windows = get_on_screen_windows()
         .map_err(|e| anyhow::anyhow!("Failed to get window list: {}", e))?;
 
-    // Find the frontmost window (highest layer, most recent in that layer)
     let frontmost = windows
         .iter()
         .filter(|w| w.layer == 0 && !w.owner_name.is_empty())
@@ -293,7 +203,6 @@ fn get_frontmost_app_info() -> Result<(String, String, usize)> {
         let process_name = window.owner_name.clone();
         let window_title = window.name.clone();
 
-        // Count windows for this process
         let window_count = windows
             .iter()
             .filter(|w| w.owner_name == process_name && w.layer == 0)
@@ -312,40 +221,6 @@ fn get_frontmost_app_info() -> Result<(String, String, usize)> {
     }
 }
 
-/// Window event handler trait for processing window events
-pub trait WindowEventHandler: Send + Sync {
-    fn handle_event(&self, event: &MacosWindowEvent);
-}
-
-/// Simple window event processor that routes events to handlers
-pub struct WindowEventProcessor {
-    handlers: Vec<Box<dyn WindowEventHandler>>,
-}
-
-impl WindowEventProcessor {
-    pub fn new() -> Self {
-        Self {
-            handlers: Vec::new(),
-        }
-    }
-
-    pub fn add_handler(&mut self, handler: Box<dyn WindowEventHandler>) {
-        self.handlers.push(handler);
-    }
-
-    pub fn process_event(&self, event: &MacosWindowEvent) {
-        for handler in &self.handlers {
-            handler.handle_event(event);
-        }
-    }
-}
-
-impl Default for WindowEventProcessor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -358,111 +233,33 @@ mod tests {
 
     #[test]
     fn test_event_hook_with_sender() {
-        let (sender, _receiver) = channel::<MacosWindowEvent>();
+        let (sender, _receiver) = channel::<PlatformWindowEvent>();
         let hook = MacosWindowEventHook::with_sender(sender);
         assert!(!hook.is_running());
     }
 
     #[test]
     fn test_event_hook_with_interval() {
-        let (sender, _receiver) = channel::<MacosWindowEvent>();
+        let (sender, _receiver) = channel::<PlatformWindowEvent>();
         let hook = MacosWindowEventHook::with_interval(sender, 500);
         assert!(!hook.is_running());
     }
 
     #[test]
     fn test_event_hook_start_stop() {
-        let (sender, receiver) = channel::<MacosWindowEvent>();
+        let (sender, receiver) = channel::<PlatformWindowEvent>();
         let mut hook = MacosWindowEventHook::with_sender(sender);
 
         hook.start().unwrap();
         assert!(hook.is_running());
 
-        // Give it a moment to start
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         hook.stop();
         assert!(!hook.is_running());
 
-        // Channel should be closed after stop
         drop(hook);
         drop(receiver);
-    }
-
-    #[test]
-    fn test_window_event_variants() {
-        let event1 = MacosWindowEvent::WindowActivated {
-            process_name: "Safari".to_string(),
-            window_title: "Apple".to_string(),
-        };
-
-        let event2 = MacosWindowEvent::WindowMinimized {
-            process_name: "Finder".to_string(),
-        };
-
-        let event3 = MacosWindowEvent::WindowRestored {
-            process_name: "Terminal".to_string(),
-        };
-
-        let event4 = MacosWindowEvent::WindowMovedOrResized {
-            process_name: "Code".to_string(),
-            x: 100,
-            y: 200,
-            width: 800,
-            height: 600,
-        };
-
-        let event5 = MacosWindowEvent::WindowCreated {
-            process_name: "Safari".to_string(),
-            window_title: "New Window".to_string(),
-        };
-
-        let event6 = MacosWindowEvent::WindowClosed {
-            process_name: "Finder".to_string(),
-        };
-
-        // Verify they can be cloned and matched on
-        let _e1 = event1.clone();
-        let _e2 = event2.clone();
-
-        match &event1 {
-            MacosWindowEvent::WindowActivated { .. } => {}
-            _ => panic!("Expected WindowActivated"),
-        }
-
-        match &event4 {
-            MacosWindowEvent::WindowMovedOrResized {
-                process_name: _,
-                x,
-                y,
-                width,
-                height,
-            } => {
-                assert_eq!(*x, 100);
-                assert_eq!(*y, 200);
-                assert_eq!(*width, 800);
-                assert_eq!(*height, 600);
-            }
-            _ => panic!("Expected WindowMovedOrResized"),
-        }
-
-        match &event5 {
-            MacosWindowEvent::WindowCreated {
-                process_name,
-                window_title,
-            } => {
-                assert_eq!(process_name, "Safari");
-                assert_eq!(window_title, "New Window");
-            }
-            _ => panic!("Expected WindowCreated"),
-        }
-
-        match &event6 {
-            MacosWindowEvent::WindowClosed { process_name } => {
-                assert_eq!(process_name, "Finder");
-            }
-            _ => panic!("Expected WindowClosed"),
-        }
     }
 
     #[test]
@@ -483,7 +280,6 @@ mod tests {
         hook.start().unwrap();
         assert!(hook.is_running());
 
-        // Second start should be no-op
         hook.start().unwrap();
         assert!(hook.is_running());
 
@@ -491,37 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn test_event_processor() {
-        struct TestHandler {
-            received: std::sync::Arc<std::sync::atomic::AtomicUsize>,
-        }
-
-        impl WindowEventHandler for TestHandler {
-            fn handle_event(&self, _event: &MacosWindowEvent) {
-                self.received.fetch_add(1, Ordering::SeqCst);
-            }
-        }
-
-        let counter = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let handler = TestHandler {
-            received: counter.clone(),
-        };
-
-        let mut processor = WindowEventProcessor::new();
-        processor.add_handler(Box::new(handler));
-
-        let event = MacosWindowEvent::WindowActivated {
-            process_name: "Test".to_string(),
-            window_title: "Test".to_string(),
-        };
-        processor.process_event(&event);
-
-        assert_eq!(counter.load(Ordering::SeqCst), 1);
-    }
-
-    #[test]
     fn test_get_frontmost_app_info() {
-        // This test may fail in headless environments
         match get_frontmost_app_info() {
             Ok((process, title, count)) => {
                 println!("Frontmost: {} - {} ({} windows)", process, title, count);

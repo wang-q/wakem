@@ -8,7 +8,7 @@ pub mod context;
 pub mod input;
 pub mod input_device;
 pub mod launcher;
-pub mod native_api; // Native API wrappers (Core Graphics + Accessibility)
+pub mod native_api;
 pub mod output_device;
 pub mod tray;
 pub mod window_api;
@@ -17,7 +17,7 @@ pub mod window_manager;
 pub mod window_preset;
 
 pub use input::CGEventTapDevice as MacosEventTap;
-pub use input_device::{InputDevice, InputDeviceFactory, MacosInputDevice};
+pub use input_device::MacosInputDevice;
 pub use launcher::Launcher;
 pub use output_device::MacosOutputDevice;
 pub use crate::platform::window_preset_common::WindowPresetApi;
@@ -26,17 +26,12 @@ pub use tray::{
     RealTrayApi, TrayApi, TrayIconWrapper as TrayIcon, TrayManager,
 };
 pub use window_api::{MacosWindowApi, MonitorWorkArea, RealMacosWindowApi, WindowState};
-pub use window_event_hook::{MacosWindowEvent, MacosWindowEventHook};
-pub use window_manager::{
-    EdgeDirection, MacosWindowFrame, MacosWindowManager,
-    RealMacosWindowManager,
-};
+pub use window_event_hook::MacosWindowEventHook;
+pub use window_manager::{MacosWindowManager, RealMacosWindowManager};
 pub use window_preset::MacosWindowPresetManager;
 
-// Re-export shared types from platform::traits
 pub use crate::platform::traits::InputDeviceConfig;
 
-// Mock implementations are only exported during tests
 #[cfg(test)]
 pub use crate::platform::mock::MockInputDevice;
 #[cfg(test)]

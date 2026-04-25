@@ -7,20 +7,19 @@ use anyhow::Result;
 use std::process::Command;
 use tracing::{debug, info};
 
-/// Common program launcher
+/// Cross-platform program launcher
 ///
-/// This struct provides cross-platform program launching capabilities
-/// using the standard library's Command API.
+/// Provides program launching capabilities using the standard library's
+/// Command API. Platform-specific extensions (e.g., macOS `open`) are
+/// added via conditional impl blocks.
 #[derive(Debug, Clone)]
-pub struct CommonLauncher;
+pub struct Launcher;
 
-impl CommonLauncher {
-    /// Create a new launcher
+impl Launcher {
     pub fn new() -> Self {
         Self
     }
 
-    /// Execute launch action
     pub fn launch(&self, action: &LaunchAction) -> Result<()> {
         info!("Launching program: {}", action.program);
         debug!("Args: {:?}", action.args);
@@ -56,7 +55,6 @@ impl CommonLauncher {
         }
     }
 
-    /// Create a simple launch action from string
     #[allow(dead_code)]
     pub fn create_action(program: impl Into<String>) -> LaunchAction {
         LaunchAction {
@@ -67,7 +65,6 @@ impl CommonLauncher {
         }
     }
 
-    /// Parse from command line string (e.g., "notepad.exe file.txt")
     pub fn parse_command(command: &str) -> LaunchAction {
         let parts: Vec<&str> = command.split_whitespace().collect();
         if parts.is_empty() {
@@ -88,47 +85,6 @@ impl CommonLauncher {
     }
 }
 
-impl Default for CommonLauncher {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Cross-platform program launcher
-///
-/// Thin wrapper around [CommonLauncher] providing a unified API.
-/// Platform-specific extensions (e.g., macOS `open`) are added
-/// via conditional impl blocks.
-#[derive(Debug, Clone)]
-pub struct Launcher {
-    inner: CommonLauncher,
-}
-
-impl Launcher {
-    /// Create a new launcher
-    pub fn new() -> Self {
-        Self {
-            inner: CommonLauncher::new(),
-        }
-    }
-
-    /// Execute launch action
-    pub fn launch(&self, action: &LaunchAction) -> Result<()> {
-        self.inner.launch(action)
-    }
-
-    /// Create a simple launch action from string
-    #[allow(dead_code)]
-    pub fn create_action(program: impl Into<String>) -> LaunchAction {
-        CommonLauncher::create_action(program)
-    }
-
-    /// Parse from command line string (e.g., "notepad.exe file.txt")
-    pub fn parse_command(command: &str) -> LaunchAction {
-        CommonLauncher::parse_command(command)
-    }
-}
-
 impl Default for Launcher {
     fn default() -> Self {
         Self::new()
@@ -141,72 +97,47 @@ mod tests {
 
     #[test]
     fn test_parse_command() {
-        let action = CommonLauncher::parse_command("notepad.exe file.txt");
-        assert_eq!(action.program, "notepad.exe");
-        assert_eq!(action.args, vec!["file.txt"]);
-    }
-
-    #[test]
-    fn test_parse_command_no_args() {
-        let action = CommonLauncher::parse_command("calc.exe");
-        assert_eq!(action.program, "calc.exe");
-        assert!(action.args.is_empty());
-    }
-
-    #[test]
-    fn test_create_action() {
-        let action = CommonLauncher::create_action("Safari");
-        assert_eq!(action.program, "Safari");
-        assert!(action.args.is_empty());
-    }
-
-    #[test]
-    fn test_parse_command_multiple_args() {
-        let action = CommonLauncher::parse_command("open -a Safari");
-        assert_eq!(action.program, "open");
-        assert_eq!(action.args, vec!["-a", "Safari"]);
-    }
-
-    #[test]
-    fn test_parse_command_empty() {
-        let action = CommonLauncher::parse_command("");
-        assert!(action.program.is_empty());
-        assert!(action.args.is_empty());
-    }
-
-    #[test]
-    fn test_launcher_creation() {
-        let launcher = CommonLauncher::new();
-        let _cloned = launcher.clone();
-    }
-
-    #[test]
-    fn test_launcher_default() {
-        let _launcher = CommonLauncher::default();
-    }
-
-    #[test]
-    fn test_launcher_wrapper_creation() {
-        let launcher = Launcher::new();
-        let _cloned = launcher.clone();
-    }
-
-    #[test]
-    fn test_launcher_wrapper_default() {
-        let _launcher = Launcher::default();
-    }
-
-    #[test]
-    fn test_launcher_wrapper_parse_command() {
         let action = Launcher::parse_command("notepad.exe file.txt");
         assert_eq!(action.program, "notepad.exe");
         assert_eq!(action.args, vec!["file.txt"]);
     }
 
     #[test]
-    fn test_launcher_wrapper_create_action() {
-        let action = Launcher::create_action("calc.exe");
+    fn test_parse_command_no_args() {
+        let action = Launcher::parse_command("calc.exe");
         assert_eq!(action.program, "calc.exe");
         assert!(action.args.is_empty());
+    }
+
+    #[test]
+    fn test_create_action() {
+        let action = Launcher::create_action("Safari");
+        assert_eq!(action.program, "Safari");
+        assert!(action.args.is_empty());
+    }
+
+    #[test]
+    fn test_parse_command_multiple_args() {
+        let action = Launcher::parse_command("open -a Safari");
+        assert_eq!(action.program, "open");
+        assert_eq!(action.args, vec!["-a", "Safari"]);
+    }
+
+    #[test]
+    fn test_parse_command_empty() {
+        let action = Launcher::parse_command("");
+        assert!(action.program.is_empty());
+        assert!(action.args.is_empty());
+    }
+
+    #[test]
+    fn test_launcher_creation() {
+        let launcher = Launcher::new();
+        let _cloned = launcher.clone();
+    }
+
+    #[test]
+    fn test_launcher_default() {
+        let _launcher = Launcher::default();
     }
 }
