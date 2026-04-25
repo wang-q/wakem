@@ -2,9 +2,9 @@
 #![cfg(target_os = "windows")]
 
 use anyhow::Result;
-#[allow(unused_imports)]
+#[cfg(test)]
 use std::cell::RefCell;
-#[allow(unused_imports)]
+#[cfg(test)]
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
@@ -20,10 +20,10 @@ use crate::platform::traits::{
     MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame,
 };
 
-/// Window operation log (Windows-specific)
+/// API call log entry (for MockWindowApi testing)
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub enum WindowOperation {
+pub enum WindowApiCall {
     GetForegroundWindow,
     GetWindowRect {
         hwnd: HWND,
@@ -644,6 +644,12 @@ struct EnumContext<'a> {
     results: &'a mut Vec<HWND>,
 }
 
+/// EnumWindows callback.
+///
+/// SAFETY: Windows `EnumWindows` executes callbacks synchronously on the
+/// calling thread before returning. The LPARAM pointer is created on the
+/// same thread and is only accessed during the callback, so the mutable
+/// reference is safe.
 #[allow(dead_code)]
 unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
     if lparam.0 == 0 {
@@ -689,6 +695,9 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
     BOOL(1) // Continue enumeration
 }
 
+/// EnumChildWindows callback.
+///
+/// SAFETY: Same as enum_windows_callback - synchronous execution on calling thread.
 #[allow(dead_code)]
 unsafe extern "system" fn enum_child_windows_callback(
     hwnd: HWND,
@@ -706,7 +715,7 @@ pub struct MockWindowApi {
     pub window_rects: RefCell<HashMap<isize, WindowFrame>>,
     pub monitor_info: RefCell<HashMap<isize, MonitorInfo>>,
     pub window_states: RefCell<HashMap<isize, WindowStateDetail>>,
-    pub operations_log: RefCell<Vec<WindowOperation>>,
+    pub operations_log: RefCell<Vec<WindowApiCall>>,
 }
 
 #[cfg(test)]
@@ -742,7 +751,7 @@ impl MockWindowApi {
             .insert(hwnd.0 as isize, state);
     }
 
-    pub fn get_operations(&self) -> Vec<WindowOperation> {
+    pub fn get_operations(&self) -> Vec<WindowApiCall> {
         self.operations_log.borrow().clone()
     }
 
@@ -750,7 +759,7 @@ impl MockWindowApi {
         self.operations_log.borrow_mut().clear();
     }
 
-    fn log_operation(&self, op: WindowOperation) {
+    fn log_operation(&self, op: WindowApiCall) {
         self.operations_log.borrow_mut().push(op);
     }
 }
@@ -758,12 +767,12 @@ impl MockWindowApi {
 #[cfg(test)]
 impl WindowApi for MockWindowApi {
     fn get_foreground_window(&self) -> Option<HWND> {
-        self.log_operation(WindowOperation::GetForegroundWindow);
+        self.log_operation(WindowApiCall::GetForegroundWindow);
         *self.foreground_window.borrow()
     }
 
     fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame> {
-        self.log_operation(WindowOperation::GetWindowRect { hwnd });
+        self.log_operation(WindowApiCall::GetWindowRect { hwnd });
         self.window_rects.borrow().get(&(hwnd.0 as isize)).copied()
     }
 
@@ -775,7 +784,7 @@ impl WindowApi for MockWindowApi {
         width: i32,
         height: i32,
     ) -> Result<()> {
-        self.log_operation(WindowOperation::SetWindowPos {
+        self.log_operation(WindowApiCall::SetWindowPos {
             hwnd,
             x,
             y,
@@ -797,7 +806,7 @@ impl WindowApi for MockWindowApi {
     }
 
     fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo> {
-        self.log_operation(WindowOperation::GetMonitorInfo { hwnd });
+        self.log_operation(WindowApiCall::GetMonitorInfo { hwnd });
         self.monitor_info.borrow().get(&(hwnd.0 as isize)).cloned()
     }
 
@@ -811,12 +820,12 @@ impl WindowApi for MockWindowApi {
     }
 
     fn is_window(&self, hwnd: HWND) -> bool {
-        self.log_operation(WindowOperation::IsWindow { hwnd });
+        self.log_operation(WindowApiCall::IsWindow { hwnd });
         self.window_rects.borrow().contains_key(&(hwnd.0 as isize))
     }
 
     fn get_window_title(&self, hwnd: HWND) -> Option<String> {
-        self.log_operation(WindowOperation::GetWindowTitle { hwnd });
+        self.log_operation(WindowApiCall::GetWindowTitle { hwnd });
         Some(format!("Window {:?}", hwnd.0 as isize))
     }
 
@@ -837,21 +846,21 @@ impl WindowApi for MockWindowApi {
     }
 
     fn minimize_window(&self, hwnd: HWND) -> Result<()> {
-        self.log_operation(WindowOperation::MinimizeWindow { hwnd });
+        self.log_operation(WindowApiCall::MinimizeWindow { hwnd });
         let mut states = self.window_states.borrow_mut();
         states.entry(hwnd.0 as isize).or_default().minimized = true;
         Ok(())
     }
 
     fn maximize_window(&self, hwnd: HWND) -> Result<()> {
-        self.log_operation(WindowOperation::MaximizeWindow { hwnd });
+        self.log_operation(WindowApiCall::MaximizeWindow { hwnd });
         let mut states = self.window_states.borrow_mut();
         states.entry(hwnd.0 as isize).or_default().maximized = true;
         Ok(())
     }
 
     fn restore_window(&self, hwnd: HWND) -> Result<()> {
-        self.log_operation(WindowOperation::RestoreWindow { hwnd });
+        self.log_operation(WindowApiCall::RestoreWindow { hwnd });
         let mut states = self.window_states.borrow_mut();
         if let Some(state) = states.get_mut(&(hwnd.0 as isize)) {
             state.minimized = false;
@@ -861,21 +870,21 @@ impl WindowApi for MockWindowApi {
     }
 
     fn close_window(&self, hwnd: HWND) -> Result<()> {
-        self.log_operation(WindowOperation::CloseWindow { hwnd });
+        self.log_operation(WindowApiCall::CloseWindow { hwnd });
         self.window_rects.borrow_mut().remove(&(hwnd.0 as isize));
         self.window_states.borrow_mut().remove(&(hwnd.0 as isize));
         Ok(())
     }
 
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()> {
-        self.log_operation(WindowOperation::SetTopmost { hwnd, topmost });
+        self.log_operation(WindowApiCall::SetTopmost { hwnd, topmost });
         let mut states = self.window_states.borrow_mut();
         states.entry(hwnd.0 as isize).or_default().topmost = topmost;
         Ok(())
     }
 
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
-        self.log_operation(WindowOperation::EnsureRestored { hwnd });
+        self.log_operation(WindowApiCall::EnsureRestored { hwnd });
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
             WindowApi::restore_window(self, hwnd)?;
         }
@@ -1078,7 +1087,7 @@ mod tests {
         // Verify operation log
         let ops = api.get_operations();
         assert_eq!(ops.len(), 1);
-        assert!(matches!(ops[0], WindowOperation::GetWindowRect { .. }));
+        assert!(matches!(ops[0], WindowApiCall::GetWindowRect { .. }));
     }
 
     #[test]

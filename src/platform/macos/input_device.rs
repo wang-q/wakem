@@ -17,8 +17,6 @@ use tracing::debug;
 
 /// Real macOS input device implementation using CGEventTap
 pub struct MacosInputDevice {
-    #[allow(dead_code)]
-    config: InputDeviceConfig,
     base: InputDeviceBase,
     tap: Option<CGEventTapDevice>,
     pending_event: std::cell::RefCell<Option<InputEvent>>,
@@ -26,9 +24,8 @@ pub struct MacosInputDevice {
 
 impl MacosInputDevice {
     /// Create a new macOS input device with default config
-    pub fn new(config: InputDeviceConfig) -> Result<Self> {
+    pub fn new(_config: InputDeviceConfig) -> Result<Self> {
         Ok(Self {
-            config,
             base: InputDeviceBase::new(),
             tap: None,
             pending_event: std::cell::RefCell::new(None),
@@ -38,7 +35,6 @@ impl MacosInputDevice {
     /// Create a MacosInputDevice with custom sender (for integration with existing systems)
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
         Ok(Self {
-            config: InputDeviceConfig::default(),
             base: InputDeviceBase::with_sender(event_sender),
             tap: None,
             pending_event: std::cell::RefCell::new(None),

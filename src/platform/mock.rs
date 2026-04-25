@@ -87,10 +87,12 @@ macro_rules! impl_test_output_device {
 ///
 /// Uses `Arc<Mutex<>>` for thread-safe interior mutability, consistent
 /// with [MockOutputDevice].
+#[allow(dead_code)]
 pub struct MockInputDevice {
     state: Arc<Mutex<MockInputState>>,
 }
 
+#[allow(dead_code)]
 struct MockInputState {
     events: VecDeque<InputEvent>,
     running: bool,
@@ -98,6 +100,7 @@ struct MockInputState {
     captured_events: Vec<InputEvent>,
 }
 
+#[allow(dead_code)]
 impl MockInputDevice {
     pub fn new() -> Self {
         Self {
@@ -223,6 +226,7 @@ impl InputDeviceTrait for MockInputDevice {
 
 /// Mock output event for testing
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum MockOutputEvent {
     /// Key event
     Key {
@@ -241,10 +245,12 @@ pub enum MockOutputEvent {
 }
 
 /// Mock output device for testing
+#[allow(dead_code)]
 pub struct MockOutputDevice {
     events: Arc<Mutex<Vec<MockOutputEvent>>>,
 }
 
+#[allow(dead_code)]
 impl MockOutputDevice {
     /// Create a new mock output device
     pub fn new() -> Self {
@@ -600,12 +606,12 @@ mod tests {
         assert!(state_after_shift.ctrl); // Ctrl remains
         assert!(state_after_shift.shift); // Shift is set
 
-        // Note: Current implementation uses merge (|=), so release won't clear state
+        // Release Ctrl
         device.inject_key_release(0x1D, 0x11); // Release Ctrl
         let _ = device.poll_event();
         let state_after_release = device.get_modifier_state();
-        // Since merge uses |=, state persists after release
-        assert!(state_after_release.ctrl || true); // Document actual behavior
+        assert!(!state_after_release.ctrl); // Ctrl should be cleared on release
+        assert!(state_after_shift.shift); // Shift should still be set
     }
 
     #[test]

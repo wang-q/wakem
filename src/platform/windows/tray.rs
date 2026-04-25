@@ -64,8 +64,11 @@ impl TrayIconData {
     fn create() -> Self {
         let offset = unsafe {
             LookupIconIdFromDirectoryEx(ICON_BYTES.as_ptr(), true, 0, 0, LR_DEFAULTCOLOR)
-        };
-        let icon_data = &ICON_BYTES[offset as usize..];
+        } as usize;
+        if offset >= ICON_BYTES.len() {
+            panic!("Icon offset {} out of bounds (max {})", offset, ICON_BYTES.len());
+        }
+        let icon_data = &ICON_BYTES[offset..];
         let hicon = unsafe {
             CreateIconFromResourceEx(icon_data, true, 0x30000, 0, 0, LR_DEFAULTCOLOR)
         }
@@ -325,6 +328,7 @@ pub struct TrayIcon {
 // handles is undefined behavior.
 unsafe impl Send for TrayIcon {}
 
+#[allow(dead_code)]
 impl TrayIcon {
     /// Create new tray icon
     pub fn new() -> Self {
@@ -341,8 +345,11 @@ impl TrayIcon {
     fn create_nid() -> NOTIFYICONDATAW {
         let offset = unsafe {
             LookupIconIdFromDirectoryEx(ICON_BYTES.as_ptr(), true, 0, 0, LR_DEFAULTCOLOR)
-        };
-        let icon_data = &ICON_BYTES[offset as usize..];
+        } as usize;
+        if offset >= ICON_BYTES.len() {
+            panic!("Icon offset {} out of bounds (max {})", offset, ICON_BYTES.len());
+        }
+        let icon_data = &ICON_BYTES[offset..];
         let hicon = unsafe {
             CreateIconFromResourceEx(icon_data, true, 0x30000, 0, 0, LR_DEFAULTCOLOR)
         }
@@ -364,7 +371,6 @@ impl TrayIcon {
     }
 
     /// Register tray icon
-    #[allow(dead_code)]
     pub fn register(&mut self, hwnd: HWND) -> Result<()> {
         self.data.hWnd = hwnd;
         unsafe {
@@ -375,7 +381,6 @@ impl TrayIcon {
     }
 
     /// Unregister tray icon
-    #[allow(dead_code)]
     pub fn unregister(&mut self) -> Result<()> {
         unsafe {
             Shell_NotifyIconW(NIM_DELETE, &self.data)
@@ -413,7 +418,6 @@ impl TrayIcon {
     }
 
     /// Show context menu
-    #[allow(dead_code)]
     pub fn show_menu(&mut self) -> Result<u32> {
         unsafe {
             SetForegroundWindow(self.data.hWnd)
@@ -447,7 +451,6 @@ impl TrayIcon {
     }
 
     /// Create context menu
-    #[allow(dead_code)]
     fn create_menu(&mut self) -> Result<HMENU> {
         unsafe {
             let hmenu = CreatePopupMenu()
@@ -543,8 +546,8 @@ impl Default for RealTrayApi {
     }
 }
 
+#[allow(dead_code)]
 impl RealTrayApi {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(TrayIconInner {
@@ -614,7 +617,6 @@ impl TrayApi for RealTrayApi {
 }
 
 /// Mock tray icon API implementation - for testing
-#[allow(dead_code)]
 // Re-export unified MockTrayApi and shared TrayManager from tray_common
 // (used by integration tests in tests/platform_windows_tray.rs)
 #[allow(unused_imports)]

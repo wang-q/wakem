@@ -14,8 +14,10 @@ use std::sync::mpsc::Sender;
 use tracing::debug;
 
 pub struct RawInputDevice {
+    #[allow(dead_code)]
     config: InputDeviceConfig,
     base: InputDeviceBase,
+    #[allow(dead_code)]
     inner: Option<crate::platform::windows::input::RawInputDevice>,
 }
 
@@ -26,6 +28,7 @@ pub struct RawInputDevice {
 // always happens on the creating thread.
 unsafe impl Send for RawInputDevice {}
 
+#[allow(dead_code)]
 impl RawInputDevice {
     pub fn new(config: InputDeviceConfig) -> Result<Self> {
         let base = InputDeviceBase::new();

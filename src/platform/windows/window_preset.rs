@@ -101,6 +101,7 @@ mod tests {
     use super::*;
     use crate::config::WindowPreset;
 
+    #[allow(dead_code)]
     fn test_hwnd(value: usize) -> HWND {
         HWND(value as *mut core::ffi::c_void)
     }

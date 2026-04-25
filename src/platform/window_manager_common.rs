@@ -14,7 +14,16 @@ use tracing::debug;
 /// platform-agnostic and can be used by any window manager implementation.
 pub struct CommonWindowManager;
 
+/// Find the monitor that contains the given point, falling back to the first monitor.
+fn find_monitor_for_point(monitors: &[MonitorInfo], x: i32, y: i32) -> Option<&MonitorInfo> {
+    monitors
+        .iter()
+        .find(|m| x >= m.x && x < m.x + m.width && y >= m.y && y < m.y + m.height)
+        .or_else(|| monitors.first())
+}
+
 /// Trait for window API operations needed by common window manager
+#[allow(dead_code)]
 pub trait CommonWindowApi {
     type WindowId: Copy;
     type WindowInfo: WindowInfoProvider;
@@ -102,6 +111,7 @@ pub trait CommonWindowApi {
     }
 
     /// Toggle window topmost state, returns the new state
+    #[allow(dead_code)]
     fn toggle_topmost(&self, window: Self::WindowId) -> Result<bool>
     where
         Self: Sized,
@@ -121,8 +131,7 @@ impl CommonWindowManager {
         let info = api.get_window_info(window)?;
         let monitors = api.get_monitors();
 
-        let monitor = monitors
-            .first()
+        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let frame = WindowFrame::new(info.x(), info.y(), info.width(), info.height());
@@ -140,9 +149,9 @@ impl CommonWindowManager {
         I: WindowInfoProvider,
         W: Copy,
     {
+        let info = api.get_window_info(window)?;
         let monitors = api.get_monitors();
-        let monitor = monitors
-            .first()
+        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let (new_x, new_y, new_width, new_height) = match edge {
@@ -177,13 +186,11 @@ impl CommonWindowManager {
 
         let info = api.get_window_info(window)?;
         let monitors = api.get_monitors();
-        let monitor = monitors
-            .first()
+        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let current_ratio = info.width() as f32 / monitor.width as f32;
 
-        // Find next ratio
         let mut next_ratio = WIDTH_RATIOS[0];
         for (i, ratio) in WIDTH_RATIOS.iter().enumerate() {
             if (current_ratio - ratio).abs() < 0.01 {
@@ -215,13 +222,11 @@ impl CommonWindowManager {
 
         let info = api.get_window_info(window)?;
         let monitors = api.get_monitors();
-        let monitor = monitors
-            .first()
+        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let current_ratio = info.height() as f32 / monitor.height as f32;
 
-        // Find next ratio
         let mut next_ratio = HEIGHT_RATIOS[0];
         for (i, ratio) in HEIGHT_RATIOS.iter().enumerate() {
             if (current_ratio - ratio).abs() < 0.01 {
@@ -258,21 +263,17 @@ impl CommonWindowManager {
 
         let info = api.get_window_info(window)?;
         let monitors = api.get_monitors();
-        let monitor = monitors
-            .first()
+        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
-        // Calculate base size based on the smaller side of work area
         let base_size = std::cmp::min(monitor.width, monitor.height);
         let base_width = (base_size as f32 * ratio) as i32;
         let base_height = base_size;
 
-        // Calculate current scale based on window size
         let current_width_ratio = info.width() as f32 / base_width as f32;
         let current_height_ratio = info.height() as f32 / base_height as f32;
         let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
 
-        // Find next scale (loop through SCALES array)
         let mut next_scale = SCALES[0];
         for (i, scale) in SCALES.iter().enumerate() {
             if (current_scale - scale).abs() < 0.05 {
@@ -284,7 +285,6 @@ impl CommonWindowManager {
         let new_width = (base_width as f32 * next_scale) as i32;
         let new_height = (base_height as f32 * next_scale) as i32;
 
-        // Center
         let new_x = monitor.x + (monitor.width - new_width) / 2;
         let new_y = monitor.y + (monitor.height - new_height) / 2;
 
@@ -307,27 +307,22 @@ impl CommonWindowManager {
         I: WindowInfoProvider,
         W: Copy,
     {
+        let info = api.get_window_info(window)?;
         let monitors = api.get_monitors();
-        let monitor = monitors
-            .first()
+        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
-        // Calculate base size based on screen aspect ratio
         let screen_ratio = monitor.width as f32 / monitor.height as f32;
         let base_size = std::cmp::min(monitor.width, monitor.height);
         let base_width = (base_size as f32 * screen_ratio) as i32;
         let base_height = base_size;
 
-        let info = api.get_window_info(window)?;
-
-        // Calculate current scale based on window size
         let current_width_ratio = info.width() as f32 / base_width as f32;
         let current_height_ratio = info.height() as f32 / base_height as f32;
         let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
 
         const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
 
-        // Find next scale (loop through SCALES array)
         let mut next_scale = SCALES[0];
         for (i, scale) in SCALES.iter().enumerate() {
             if (current_scale - scale).abs() < 0.05 {
@@ -339,7 +334,6 @@ impl CommonWindowManager {
         let new_width = (base_width as f32 * next_scale) as i32;
         let new_height = (base_height as f32 * next_scale) as i32;
 
-        // Center
         let new_x = monitor.x + (monitor.width - new_width) / 2;
         let new_y = monitor.y + (monitor.height - new_height) / 2;
 
@@ -352,6 +346,7 @@ impl CommonWindowManager {
     }
 
     /// Toggle window topmost state
+    #[allow(dead_code)]
     pub fn toggle_topmost<A, W, I>(api: &A, window: W) -> Result<bool>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
@@ -378,8 +373,7 @@ impl CommonWindowManager {
     {
         let info = api.get_window_info(window)?;
         let monitors = api.get_monitors();
-        let monitor = monitors
-            .first()
+        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let (new_x, new_y) = match edge {
@@ -433,7 +427,34 @@ mod tests {
             height: 1080,
         };
         let (x, y) = frame.center_in(&monitor);
-        assert_eq!(x, 560); // (1920 - 800) / 2
-        assert_eq!(y, 240); // (1080 - 600) / 2
+        assert_eq!(x, 560);
+        assert_eq!(y, 240);
+    }
+
+    #[test]
+    fn test_find_monitor_for_point() {
+        let monitors = vec![
+            MonitorInfo {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            MonitorInfo {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+        ];
+
+        let m = find_monitor_for_point(&monitors, 500, 500).unwrap();
+        assert_eq!(m.x, 0);
+
+        let m = find_monitor_for_point(&monitors, 2500, 500).unwrap();
+        assert_eq!(m.x, 1920);
+
+        let m = find_monitor_for_point(&monitors, -100, -100).unwrap();
+        assert_eq!(m.x, 0);
     }
 }

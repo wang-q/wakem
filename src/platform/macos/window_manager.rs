@@ -33,12 +33,6 @@ pub enum EdgeDirection {
     Down,
 }
 
-#[deprecated(
-    since = "0.1.2",
-    note = "Use EdgeDirection instead. MonitorDirection is semantically different on Windows (Next/Prev/Index)."
-)]
-pub type MonitorDirection = EdgeDirection;
-
 /// Generic macOS window manager using MacosWindowApi trait
 pub struct MacosWindowManager<A: MacosWindowApi> {
     api: A,

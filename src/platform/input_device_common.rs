@@ -13,8 +13,10 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 ///
 /// This is a platform-agnostic factory that works with any platform's
 /// input device implementation.
+#[allow(dead_code)]
 pub struct InputDeviceFactory;
 
+#[allow(dead_code)]
 impl InputDeviceFactory {
     /// Create default input device configuration
     pub fn default_config() -> InputDeviceConfig {
@@ -44,6 +46,7 @@ impl InputDeviceFactory {
 ///
 /// Encapsulates the common fields and logic shared across all platform
 /// input devices: modifier state tracking, event channel, and running flag.
+#[allow(dead_code)]
 pub struct InputDeviceBase {
     pub modifier_state: ModifierState,
     pub running: bool,
@@ -51,6 +54,7 @@ pub struct InputDeviceBase {
     pub event_sender: Sender<InputEvent>,
 }
 
+#[allow(dead_code)]
 impl InputDeviceBase {
     /// Create a new base with a fresh event channel
     pub fn new() -> Self {

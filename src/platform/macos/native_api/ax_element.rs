@@ -83,10 +83,7 @@ extern "C" {
     fn CFStringGetCStringPtr(cfStr: *const c_void, encoding: usize) -> *const i8;
 
     // AXUIElement functions - Element Creation
-    #[allow(dead_code)]
     fn AXUIElementCreateApplication(pid: i32) -> *const c_void;
-    #[allow(dead_code)]
-    fn AXUIElementCreateSystemWide() -> *const c_void;
 
     // AXUIElement functions - Attribute Access
     fn AXUIElementCopyAttributeValue(

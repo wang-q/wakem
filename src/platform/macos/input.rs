@@ -31,7 +31,6 @@ use tracing::{debug, trace};
 // ============================================================================
 
 /// CGEvent type constants
-#[allow(dead_code)]
 pub mod cg_event_types {
     pub const KEY_DOWN: u32 = 10;
     pub const KEY_UP: u32 = 11;
@@ -90,15 +89,9 @@ extern "C" {
 
     fn CGEventTapEnable(tap: *mut c_void, enable: bool);
 
-    #[allow(dead_code)]
-    fn CGEventRelease(event: *const c_void);
-
-    // Event query functions
     fn CGEventGetType(event: *const c_void) -> u32;
     fn CGEventGetIntegerValueField(event: *const c_void, field: u32) -> i64;
 
-    // Run loop integration
-    #[allow(dead_code)]
     fn CFRelease(cf: *const c_void);
 }
 
@@ -567,6 +560,19 @@ impl CGEventTapDevice {
 
 impl Drop for CGEventTapDevice {
     fn drop(&mut self) {
+        {
+            let guard = self.created_on_thread.lock().unwrap();
+            if let Some(tid) = *guard {
+                if tid != std::thread::current().id() {
+                    tracing::warn!(
+                        "CGEventTapDevice dropped from a different thread \
+                         than run(). CFRunLoopRemoveSource may not be thread-safe. \
+                         Prefer dropping on the same thread as run()."
+                    );
+                }
+            }
+        }
+
         if self.running.load(std::sync::atomic::Ordering::SeqCst) {
             self.stop();
         } else {

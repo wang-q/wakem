@@ -31,6 +31,7 @@ pub enum MonitorDirection {
 }
 
 /// Create WindowFrame from RECT
+#[allow(dead_code)]
 fn window_frame_from_rect(rect: &RECT) -> WindowFrame {
     WindowFrame::new(
         rect.left,
@@ -119,8 +120,8 @@ impl WindowInfoProvider for WindowInfo {
     }
 }
 
-#[allow(dead_code)]
 /// Window manager (generic version)
+#[allow(dead_code)]
 pub struct WindowManager<A: WindowApi> {
     api: A,
 }

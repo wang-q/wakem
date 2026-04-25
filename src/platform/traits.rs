@@ -12,12 +12,10 @@ use anyhow::Result;
 
 /// Input device configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct InputDeviceConfig {
-    /// Capture keyboard events
     pub capture_keyboard: bool,
-    /// Capture mouse events
     pub capture_mouse: bool,
-    /// Block legacy input (platform-specific behavior)
     pub block_legacy_input: bool,
 }
 
@@ -34,26 +32,15 @@ impl Default for InputDeviceConfig {
 /// Input device trait - for capturing keyboard and mouse events
 #[allow(dead_code)]
 pub trait InputDeviceTrait: Send {
-    /// Register the device and start capturing events
     fn register(&mut self) -> Result<()>;
-
-    /// Unregister the device and stop capturing
     fn unregister(&mut self);
-
-    /// Poll for the next input event (non-blocking)
     fn poll_event(&mut self) -> Option<InputEvent>;
-
-    /// Check if the device is currently running
     fn is_running(&self) -> bool;
-
-    /// Stop the device
     fn stop(&mut self);
 }
 
 /// Output device trait - for sending simulated input events
-#[allow(dead_code)]
 pub trait OutputDeviceTrait: Send {
-    /// Send a key action
     fn send_key_action(&self, action: &KeyAction) -> Result<()> {
         match action {
             KeyAction::Press {
@@ -79,7 +66,6 @@ pub trait OutputDeviceTrait: Send {
         }
     }
 
-    /// Send text by typing each character
     fn send_text(&self, text: &str) -> Result<()> {
         for ch in text.chars() {
             if let Some(vk) = char_to_vk(ch) {
@@ -90,9 +76,6 @@ pub trait OutputDeviceTrait: Send {
         Ok(())
     }
 
-    /// Send key combination with modifiers
-    ///
-    /// Sequence: press modifiers → press target → release target → release modifiers (reverse order).
     fn send_combo(
         &self,
         modifiers: &ModifierState,
@@ -133,10 +116,7 @@ pub trait OutputDeviceTrait: Send {
         Ok(())
     }
 
-    /// Send a single key event
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()>;
-
-    /// Send a mouse action
     fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
         match action {
             MouseAction::Move { x, y, relative } => {
@@ -154,26 +134,18 @@ pub trait OutputDeviceTrait: Send {
         }
     }
 
-    /// Send mouse move
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()>;
-
-    /// Send mouse button
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()>;
-
-    /// Send mouse wheel
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()>;
-
-    /// Send system action (volume, brightness, etc.)
     fn send_system_action(&self, action: &SystemAction) -> Result<()>;
 }
 
 /// Window identifier type (platform-specific)
-#[allow(dead_code)]
 pub type WindowId = usize;
 
 /// Window information
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct WindowInfo {
     pub id: WindowId,
     pub title: String,
@@ -186,7 +158,6 @@ pub struct WindowInfo {
 }
 
 /// Monitor information
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct MonitorInfo {
     pub x: i32,
@@ -196,8 +167,8 @@ pub struct MonitorInfo {
 }
 
 /// Monitor work area (usable screen area excluding taskbar/dock)
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct MonitorWorkArea {
     pub x: i32,
     pub y: i32,
@@ -206,7 +177,7 @@ pub struct MonitorWorkArea {
 }
 
 impl MonitorWorkArea {
-    /// Create a new monitor work area
+    #[allow(dead_code)]
     pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
         Self {
             x,
@@ -219,18 +190,13 @@ impl MonitorWorkArea {
 
 /// Trait for window information needed by common operations
 pub trait WindowInfoProvider {
-    /// Get window position X
     fn x(&self) -> i32;
-    /// Get window position Y
     fn y(&self) -> i32;
-    /// Get window width
     fn width(&self) -> i32;
-    /// Get window height
     fn height(&self) -> i32;
 }
 
 /// Window frame with position and size
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct WindowFrame {
     pub x: i32,
@@ -240,7 +206,6 @@ pub struct WindowFrame {
 }
 
 impl WindowFrame {
-    /// Create a new window frame
     pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
         Self {
             x,
@@ -250,7 +215,7 @@ impl WindowFrame {
         }
     }
 
-    /// Calculate aspect ratio (width / height)
+    #[allow(dead_code)]
     pub fn aspect_ratio(&self) -> f64 {
         if self.height > 0 {
             self.width as f64 / self.height as f64
@@ -259,12 +224,11 @@ impl WindowFrame {
         }
     }
 
-    /// Check if frame is valid (positive dimensions)
+    #[allow(dead_code)]
     pub fn is_valid(&self) -> bool {
         self.width > 0 && self.height > 0
     }
 
-    /// Calculate centered position within a monitor
     pub fn center_in(&self, monitor: &MonitorInfo) -> (i32, i32) {
         let x = monitor.x + (monitor.width - self.width) / 2;
         let y = monitor.y + (monitor.height - self.height) / 2;
@@ -292,42 +256,31 @@ impl WindowInfoProvider for WindowInfo {
 
 /// Window state enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum WindowState {
-    /// Normal window state
     Normal,
-    /// Window is minimized
     Minimized,
-    /// Window is maximized
     Maximized,
-    /// Window is in fullscreen mode
     FullScreen,
 }
 
 /// Window operation types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum WindowOperation {
-    /// Minimize window
     Minimize,
-    /// Maximize window
     Maximize,
-    /// Restore window
     Restore,
-    /// Close window
     Close,
-    /// Toggle topmost state
     ToggleTopmost,
 }
 
 /// Application commands sent from tray menu
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppCommand {
-    /// Toggle active state
     ToggleActive,
-    /// Reload configuration
     ReloadConfig,
-    /// Open config folder
     OpenConfigFolder,
-    /// Exit application
     Exit,
 }
 
@@ -342,123 +295,44 @@ pub enum AppCommand {
 /// [PlatformWindowEvent::Activated].
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum PlatformWindowEvent {
-    /// Window became the foreground window
     WindowActivated {
-        /// Name of the process that owns the window
         process_name: String,
-        /// Window title
         window_title: String,
-        /// Platform-specific window identifier (HWND on Windows, 0 on macOS)
         window_id: usize,
     },
-    /// Window was minimized
     WindowMinimized {
-        /// Name of the process that owns the window
         process_name: String,
     },
-    /// Window was restored from minimized state
     WindowRestored {
-        /// Name of the process that owns the window
         process_name: String,
     },
-    /// Window was moved or resized
     WindowMovedOrResized {
-        /// Name of the process that owns the window
         process_name: String,
-        /// New X position
         x: i32,
-        /// New Y position
         y: i32,
-        /// New width
         width: i32,
-        /// New height
         height: i32,
     },
-    /// Window was created
     WindowCreated {
-        /// Name of the process that owns the window
         process_name: String,
-        /// Window title
         window_title: String,
     },
-    /// Window was closed
     WindowClosed {
-        /// Name of the process that owns the window
         process_name: String,
     },
 }
 
 /// Menu action results from user interaction
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuAction {
-    /// No action
-    None,
-    /// Toggle active state
-    ToggleActive,
-    /// Reload configuration
-    Reload,
-    /// Open config folder
-    OpenConfig,
-    /// Exit application
-    Exit,
-}
-
-/// Window API trait - low-level window operations
-///
-/// # Deprecation Notice
-///
-/// This trait is deprecated in favor of [WindowManagerTrait], which provides
-/// the identical method set. The two traits were created separately but have
-/// converged to the same interface. New code should use [WindowManagerTrait].
-#[deprecated(since = "0.1.2", note = "Use WindowManagerTrait instead")]
 #[allow(dead_code)]
-pub trait WindowApiTrait: Send + Sync {
-    /// Get the currently focused window
-    fn get_foreground_window(&self) -> Option<WindowId>;
-
-    /// Get window information
-    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
-
-    /// Set window position and size
-    fn set_window_pos(
-        &self,
-        window: WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()>;
-
-    /// Minimize window
-    fn minimize_window(&self, window: WindowId) -> Result<()>;
-
-    /// Maximize window
-    fn maximize_window(&self, window: WindowId) -> Result<()>;
-
-    /// Restore window
-    fn restore_window(&self, window: WindowId) -> Result<()>;
-
-    /// Close window
-    fn close_window(&self, window: WindowId) -> Result<()>;
-
-    /// Set window topmost state
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-
-    /// Get all monitors
-    fn get_monitors(&self) -> Vec<MonitorInfo>;
-
-    /// Move window to another monitor
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
-
-    /// Check if window is valid
-    fn is_window_valid(&self, window: WindowId) -> bool;
-
-    /// Check if window is minimized
-    fn is_minimized(&self, window: WindowId) -> bool;
-
-    /// Check if window is maximized
-    fn is_maximized(&self, window: WindowId) -> bool;
+pub enum MenuAction {
+    None,
+    ToggleActive,
+    Reload,
+    OpenConfig,
+    Exit,
 }
 
 /// Base window API trait - shared operations across platforms
@@ -469,14 +343,11 @@ pub trait WindowApiTrait: Send + Sync {
 ///
 /// The associated type `WindowId` abstracts the platform-specific window
 /// identifier (`HWND` on Windows, `CGWindowNumber` on macOS).
+#[allow(dead_code)]
 pub trait WindowApiBase {
-    /// Platform-specific window identifier type
     type WindowId: Copy + std::fmt::Debug;
 
-    /// Get the currently focused window
     fn get_foreground_window(&self) -> Option<Self::WindowId>;
-
-    /// Set window position and size
     fn set_window_pos(
         &self,
         window: Self::WindowId,
@@ -485,45 +356,22 @@ pub trait WindowApiBase {
         width: i32,
         height: i32,
     ) -> Result<()>;
-
-    /// Minimize window
     fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
-
-    /// Maximize window
     fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
-
-    /// Restore window from minimized/maximized state
     fn restore_window(&self, window: Self::WindowId) -> Result<()>;
-
-    /// Close window
     fn close_window(&self, window: Self::WindowId) -> Result<()>;
-
-    /// Set window topmost state
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
-
-    /// Get all monitors
     fn get_monitors(&self) -> Vec<MonitorInfo>;
-
-    /// Check if window is valid
     fn is_window_valid(&self, window: Self::WindowId) -> bool;
-
-    /// Check if window is minimized
     fn is_minimized(&self, window: Self::WindowId) -> bool;
-
-    /// Check if window is maximized
     fn is_maximized(&self, window: Self::WindowId) -> bool;
 }
 
 /// Window manager trait - high-level window operations
 #[allow(dead_code)]
 pub trait WindowManagerTrait: Send + Sync {
-    /// Get the currently focused window
     fn get_foreground_window(&self) -> Option<WindowId>;
-
-    /// Get window information
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
-
-    /// Set window position and size
     fn set_window_pos(
         &self,
         window: WindowId,
@@ -532,56 +380,21 @@ pub trait WindowManagerTrait: Send + Sync {
         width: i32,
         height: i32,
     ) -> Result<()>;
-
-    /// Minimize window
     fn minimize_window(&self, window: WindowId) -> Result<()>;
-
-    /// Maximize window
     fn maximize_window(&self, window: WindowId) -> Result<()>;
-
-    /// Restore window
     fn restore_window(&self, window: WindowId) -> Result<()>;
-
-    /// Close window
     fn close_window(&self, window: WindowId) -> Result<()>;
-
-    /// Set window topmost state
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-
-    /// Get all monitors
     fn get_monitors(&self) -> Vec<MonitorInfo>;
-
-    /// Move window to another monitor
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
-
-    /// Check if window is valid
     fn is_window_valid(&self, window: WindowId) -> bool;
-
-    /// Check if window is minimized
     fn is_minimized(&self, window: WindowId) -> bool;
-
-    /// Check if window is maximized
     fn is_maximized(&self, window: WindowId) -> bool;
-}
-
-/// Tray icon trait - for system tray integration
-#[allow(dead_code)]
-pub trait TrayIconTrait: Send {
-    /// Show the tray icon
-    fn show(&mut self) -> Result<()>;
-
-    /// Hide the tray icon
-    fn hide(&mut self) -> Result<()>;
-
-    /// Show a notification
-    fn show_notification(&mut self, title: &str, message: &str) -> Result<()>;
-
-    /// Show context menu
-    fn show_menu(&mut self) -> Result<()>;
 }
 
 /// Window context information (for context-aware mappings)
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct WindowContext {
     pub process_name: String,
     pub window_class: String,
@@ -590,15 +403,12 @@ pub struct WindowContext {
 }
 
 impl WindowContext {
-    /// Create an empty context
     #[allow(dead_code)]
     pub fn empty() -> Self {
         Self::default()
     }
 
-    /// Check if context matches the given conditions using wildcard matching.
-    ///
-    /// Supports glob-style patterns: `*` matches any sequence, `?` matches single char.
+    #[allow(dead_code)]
     pub fn matches(
         &self,
         process_name: Option<&str>,

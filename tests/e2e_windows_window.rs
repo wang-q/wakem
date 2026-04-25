@@ -8,7 +8,7 @@ mod integration_tests {
     use wakem::platform::window_manager_common::CommonWindowApi;
     use wakem::platform::windows::window_api::WindowApi;
     use wakem::platform::windows::WindowManager;
-    use wakem::platform::WindowFrame;
+    use wakem::platform::traits::WindowFrame;
     use wakem::types::{Alignment, Edge};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -389,7 +389,7 @@ mod integration_tests {
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
 
         // Test 16:9 ratio
-        let result = wm.set_fixed_ratio(hwnd, 16.0 / 9.0, 0);
+        let result = wm.set_fixed_ratio(hwnd, 16.0 / 9.0);
         assert!(result.is_ok(), "Should set 16:9 ratio");
         wait_for_window_stable();
 
@@ -402,7 +402,7 @@ mod integration_tests {
         );
 
         // Test 4:3 ratio
-        let result = wm.set_fixed_ratio(hwnd, 4.0 / 3.0, 0);
+        let result = wm.set_fixed_ratio(hwnd, 4.0 / 3.0);
         assert!(result.is_ok(), "Should set 4:3 ratio");
         wait_for_window_stable();
 

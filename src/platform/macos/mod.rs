@@ -16,15 +16,10 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-// Re-export types for backward compatibility and convenience
-#[allow(unused_imports)]
-pub use context::get_current as get_window_context;
 pub use input::CGEventTapDevice as MacosEventTap;
 pub use input_device::{InputDevice, InputDeviceFactory, MacosInputDevice};
 pub use launcher::Launcher;
 pub use output_device::MacosOutputDevice;
-// Re-export tray types and functions
-#[allow(unused_imports)]
 pub use crate::platform::window_preset_common::WindowPresetApi;
 pub use tray::{
     run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, MenuAction,
@@ -33,7 +28,7 @@ pub use tray::{
 pub use window_api::{MacosWindowApi, MonitorWorkArea, RealMacosWindowApi, WindowState};
 pub use window_event_hook::{MacosWindowEvent, MacosWindowEventHook};
 pub use window_manager::{
-    EdgeDirection, MacosWindowFrame, MacosWindowManager, MonitorDirection,
+    EdgeDirection, MacosWindowFrame, MacosWindowManager,
     RealMacosWindowManager,
 };
 pub use window_preset::MacosWindowPresetManager;

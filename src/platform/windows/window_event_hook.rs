@@ -16,20 +16,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
-/// Window event types (legacy, platform-specific)
-///
-/// Prefer using [PlatformWindowEvent] for cross-platform code.
-/// This type is retained for backward compatibility.
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub enum WindowEvent {
-    /// Window activated (became foreground)
-    WindowActivated(isize),
-}
-
-unsafe impl Send for WindowEvent {}
-unsafe impl Sync for WindowEvent {}
-
 /// Window event hook manager
 pub struct WindowEventHook {
     hook: Option<HWINEVENTHOOK>,

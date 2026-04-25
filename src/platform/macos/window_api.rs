@@ -120,33 +120,10 @@ impl MacosWindowApi for RealMacosWindowApi {
             }
         }
 
-        tracing::warn!(
-            "Failed to get window info by number {}, falling back to frontmost window. \
-             The returned info may not match the requested window.",
+        Err(anyhow!(
+            "Failed to get window info for window number {}",
             target_number
-        );
-
-        match cg_window::get_frontmost_window_info() {
-            Ok(Some(info)) => {
-                debug!(
-                    "Got window info natively: {} ({}) at ({}, {}) {}x{}",
-                    info.name, info.owner_name, info.x, info.y, info.width, info.height
-                );
-
-                Ok(WindowInfo {
-                    id: window,
-                    title: info.name,
-                    process_name: info.owner_name,
-                    executable_path: None,
-                    x: info.x,
-                    y: info.y,
-                    width: info.width as i32,
-                    height: info.height as i32,
-                })
-            }
-            Ok(None) => Err(anyhow!("No frontmost window found")),
-            Err(e) => Err(anyhow!("Failed to get window info: {}", e)),
-        }
+        ))
     }
 
     fn set_window_pos(

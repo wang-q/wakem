@@ -57,6 +57,7 @@ impl CommonLauncher {
     }
 
     /// Create a simple launch action from string
+    #[allow(dead_code)]
     pub fn create_action(program: impl Into<String>) -> LaunchAction {
         LaunchAction {
             program: program.into(),
@@ -117,6 +118,7 @@ impl Launcher {
     }
 
     /// Create a simple launch action from string
+    #[allow(dead_code)]
     pub fn create_action(program: impl Into<String>) -> LaunchAction {
         CommonLauncher::create_action(program)
     }

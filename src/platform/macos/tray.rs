@@ -401,7 +401,6 @@ pub fn stop_tray() {
 }
 
 // Re-export unified MockTrayApi from tray_common
-#[allow(unused_imports)]
 pub use crate::platform::tray_common::MockTrayApi;
 
 #[cfg(test)]
