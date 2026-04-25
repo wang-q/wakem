@@ -57,27 +57,18 @@ pub mod cg_event_fields {
 
 /// CGEventTap constants
 pub mod cg_tap {
-    pub const OPTION_LISTEN_SESSION: u32 = 0; // kCGSessionEventTap
-    pub const OPTION_TAP_LISTEN: u32 = 1; // kCGHeadInsertEventTap
-                                          // Event type values (inline to avoid cross-module reference issues)
-    const KEY_DOWN_VAL: u32 = 10;
-    const KEY_UP_VAL: u32 = 11;
-    const FLAGS_CHANGED_VAL: u32 = 12;
-    const LEFT_MOUSE_DOWN_VAL: u32 = 1;
-    const LEFT_MOUSE_UP_VAL: u32 = 2;
-    const RIGHT_MOUSE_DOWN_VAL: u32 = 3;
-    const RIGHT_MOUSE_UP_VAL: u32 = 4;
-    const MOUSE_MOVED_VAL: u32 = 5;
-    const SCROLL_WHEEL_VAL: u32 = 22;
+    pub const OPTION_LISTEN_SESSION: u32 = 0;
+    pub const OPTION_TAP_LISTEN: u32 = 1;
 
-    pub const MASK_KEYBOARD: u64 =
-        1 << KEY_DOWN_VAL | 1 << KEY_UP_VAL | 1 << FLAGS_CHANGED_VAL;
-    pub const MASK_MOUSE: u64 = 1 << LEFT_MOUSE_DOWN_VAL
-        | 1 << LEFT_MOUSE_UP_VAL
-        | 1 << RIGHT_MOUSE_DOWN_VAL
-        | 1 << RIGHT_MOUSE_UP_VAL
-        | 1 << MOUSE_MOVED_VAL
-        | 1 << SCROLL_WHEEL_VAL;
+    pub const MASK_KEYBOARD: u64 = 1 << super::cg_event_types::KEY_DOWN
+        | 1 << super::cg_event_types::KEY_UP
+        | 1 << super::cg_event_types::FLAGS_CHANGED;
+    pub const MASK_MOUSE: u64 = 1 << super::cg_event_types::LEFT_MOUSE_DOWN
+        | 1 << super::cg_event_types::LEFT_MOUSE_UP
+        | 1 << super::cg_event_types::RIGHT_MOUSE_DOWN
+        | 1 << super::cg_event_types::RIGHT_MOUSE_UP
+        | 1 << super::cg_event_types::MOUSE_MOVED
+        | 1 << super::cg_event_types::SCROLL_WHEEL;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -540,9 +531,33 @@ impl CGEventTapDevice {
 
 impl Drop for CGEventTapDevice {
     fn drop(&mut self) {
-        if self.is_running() {
-            self.stop();
+        self.running
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        clear_sender();
+
+        {
+            let mut guard = self.run_loop_source.lock().unwrap();
+            if let Some(source) = guard.take() {
+                unsafe {
+                    let rl = CFRunLoopGetMain();
+                    CFRunLoopRemoveSource(rl, source, std::ptr::null());
+                    CFRunLoopSourceInvalidate(source);
+                    CFRelease(source);
+                }
+            }
         }
+
+        {
+            let mut guard = self.tap_port.lock().unwrap();
+            if let Some(tap) = guard.take() {
+                unsafe {
+                    CGEventTapEnable(tap, false);
+                    CFRelease(tap);
+                }
+            }
+        }
+
+        debug!("CGEventTapDevice dropped and resources cleaned up");
     }
 }
 

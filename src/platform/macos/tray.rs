@@ -10,6 +10,7 @@
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
 use tracing::{debug, error, info, warn};
@@ -143,7 +144,7 @@ pub struct RealTrayApi {
     active: AtomicBool,
     command_sender: Sender<AppCommand>,
     command_receiver: Receiver<AppCommand>,
-    status_item: RefCell<Option<id>>,
+    status_item: Mutex<Option<id>>,
 }
 
 impl RealTrayApi {
@@ -155,7 +156,7 @@ impl RealTrayApi {
             active: AtomicBool::new(true),
             command_sender: sender,
             command_receiver: receiver,
-            status_item: RefCell::new(None),
+            status_item: Mutex::new(None),
         }
     }
 
@@ -212,7 +213,7 @@ impl RealTrayApi {
             // Attach menu to status item
             let _: () = msg_send![status_item, setMenu: menu];
 
-            *self.status_item.borrow_mut() = Some(status_item);
+            *self.status_item.lock().unwrap() = Some(status_item);
         }
 
         info!("Tray icon created with menu");
@@ -226,13 +227,13 @@ impl RealTrayApi {
         }
 
         unsafe {
-            if let Some(status_item) = *self.status_item.borrow() {
+            if let Some(status_item) = *self.status_item.lock().unwrap() {
                 let status_bar = NSStatusBar::systemStatusBar(nil);
                 let _: () = msg_send![status_bar, removeStatusItem: status_item];
             }
         }
 
-        *self.status_item.borrow_mut() = None;
+        *self.status_item.lock().unwrap() = None;
         self.registered.store(false, Ordering::SeqCst);
         info!("RealTrayApi unregistered");
         Ok(())
@@ -245,7 +246,11 @@ impl Default for RealTrayApi {
     }
 }
 
-// SAFETY: RealTrayApi is Send + Sync
+// SAFETY: RealTrayApi is Send + Sync.
+// All shared mutable state is protected by atomic operations (AtomicBool)
+// or Mutex (status_item). The `id` pointer in status_item is only accessed
+// on the main thread via the NSApplication event loop, and the Mutex
+// provides the necessary synchronization boundary.
 unsafe impl Send for RealTrayApi {}
 unsafe impl Sync for RealTrayApi {}
 
@@ -275,7 +280,7 @@ impl TrayApi for RealTrayApi {
     async fn show(&self) -> Result<()> {
         self.visible.store(true, Ordering::SeqCst);
         unsafe {
-            if let Some(status_item) = *self.status_item.borrow() {
+            if let Some(status_item) = *self.status_item.lock().unwrap() {
                 let _: () = msg_send![status_item, setVisible: YES];
             }
         }
@@ -285,7 +290,7 @@ impl TrayApi for RealTrayApi {
     async fn hide(&self) -> Result<()> {
         self.visible.store(false, Ordering::SeqCst);
         unsafe {
-            if let Some(status_item) = *self.status_item.borrow() {
+            if let Some(status_item) = *self.status_item.lock().unwrap() {
                 let _: () = msg_send![status_item, setVisible: NO];
             }
         }

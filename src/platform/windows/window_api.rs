@@ -250,28 +250,45 @@ impl WindowApi for RealWindowApi {
                 ..Default::default()
             };
 
-            // GetMonitorInfoW returns BOOL, use as_bool() to check success
+            if !GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
+                return None;
+            }
+
+            let rect = &monitor_info.rcMonitor;
+            Some(MonitorInfo {
+                x: rect.left,
+                y: rect.top,
+                width: rect.right - rect.left,
+                height: rect.bottom - rect.top,
+            })
+        }
+    }
+
+    fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea> {
+        unsafe {
+            let hmonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if hmonitor.is_invalid() {
+                return None;
+            }
+
+            use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITORINFO};
+            let mut monitor_info = MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                ..Default::default()
+            };
+
             if !GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
                 return None;
             }
 
             let work_area = &monitor_info.rcWork;
-            Some(MonitorInfo {
+            Some(MonitorWorkArea {
                 x: work_area.left,
                 y: work_area.top,
                 width: work_area.right - work_area.left,
                 height: work_area.bottom - work_area.top,
             })
         }
-    }
-
-    fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea> {
-        self.get_monitor_info(hwnd).map(|info| MonitorWorkArea {
-            x: info.x,
-            y: info.y,
-            width: info.width,
-            height: info.height,
-        })
     }
 
     fn is_window(&self, hwnd: HWND) -> bool {

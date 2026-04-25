@@ -71,11 +71,10 @@ impl TrayIconData {
         }
         .expect("Failed to load icon");
 
-        let mut tooltip: Vec<u16> = unsafe { w!("wakem").as_wide() }.to_vec();
-        tooltip.resize(128, 0);
-        tooltip.pop();
-        tooltip.push(0);
-        let tooltip: [u16; 128] = tooltip.try_into().unwrap();
+        let mut tooltip = [0u16; 128];
+        let src: Vec<u16> = unsafe { w!("wakem").as_wide() }.to_vec();
+        let copy_len = src.len().min(tooltip.len() - 1);
+        tooltip[..copy_len].copy_from_slice(&src[..copy_len]);
 
         Self {
             data: NOTIFYICONDATAW {
@@ -319,10 +318,12 @@ pub struct TrayIcon {
 }
 
 // SAFETY: TrayIcon contains HWND and HICON which are raw pointers.
-// They are only used from the main thread and are safe to send/sync
-// as long as they are not accessed concurrently.
+// These are thread-affine Windows handles that must only be used from
+// the thread that created them. TrayIcon is safe to Send (transfer
+// ownership to another thread) but NOT safe to Sync (shared access
+// from multiple threads) because concurrent access to Windows UI
+// handles is undefined behavior.
 unsafe impl Send for TrayIcon {}
-unsafe impl Sync for TrayIcon {}
 
 impl TrayIcon {
     /// Create new tray icon
@@ -347,11 +348,10 @@ impl TrayIcon {
         }
         .expect("Failed to load icon resource");
 
-        let mut tooltip: Vec<u16> = unsafe { w!("wakem").as_wide() }.to_vec();
-        tooltip.resize(128, 0);
-        tooltip.pop();
-        tooltip.push(0);
-        let tooltip: [u16; 128] = tooltip.try_into().unwrap();
+        let mut tooltip = [0u16; 128];
+        let src: Vec<u16> = unsafe { w!("wakem").as_wide() }.to_vec();
+        let copy_len = src.len().min(tooltip.len() - 1);
+        tooltip[..copy_len].copy_from_slice(&src[..copy_len]);
 
         NOTIFYICONDATAW {
             uID: WM_USER_TRAYICON,
@@ -527,9 +527,11 @@ struct TrayIconInner {
     active: bool,
 }
 
-// SAFETY: HWND is just a pointer, and we only use it from one thread at a time
+// SAFETY: TrayIconInner wraps TrayIcon (which is Send) and HWND.
+// It is safe to Send but not Sync, as Windows UI handles are
+// thread-affine. The tokio::sync::Mutex in RealTrayApi provides
+// the necessary synchronization for shared access.
 unsafe impl Send for TrayIconInner {}
-unsafe impl Sync for TrayIconInner {}
 
 impl Default for RealTrayApi {
     fn default() -> Self {

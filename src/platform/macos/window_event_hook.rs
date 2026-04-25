@@ -6,6 +6,7 @@
 //! Performance: < 2ms per poll (vs 100-200ms with AppleScript)
 #![cfg(target_os = "macos")]
 
+use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -46,6 +47,7 @@ pub struct MacosWindowEventHook {
     running: Arc<AtomicBool>,
     shutdown_flag: Arc<AtomicBool>,
     poll_interval_ms: u64,
+    thread_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl MacosWindowEventHook {
@@ -58,20 +60,20 @@ impl MacosWindowEventHook {
             running: Arc::new(AtomicBool::new(false)),
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             poll_interval_ms: 200,
+            thread_handle: None,
         }
     }
 
-    /// Create a new window event hook with custom event sender
     pub fn with_sender(event_sender: Sender<MacosWindowEvent>) -> Self {
         Self {
             event_sender,
             running: Arc::new(AtomicBool::new(false)),
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             poll_interval_ms: 200,
+            thread_handle: None,
         }
     }
 
-    /// Create a new window event hook with custom poll interval
     pub fn with_interval(
         event_sender: Sender<MacosWindowEvent>,
         interval_ms: u64,
@@ -81,11 +83,11 @@ impl MacosWindowEventHook {
             running: Arc::new(AtomicBool::new(false)),
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             poll_interval_ms: interval_ms,
+            thread_handle: None,
         }
     }
 
-    /// Start monitoring window events in background thread
-    pub fn start(&mut self) -> Result<(), String> {
+    pub fn start(&mut self) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -98,7 +100,6 @@ impl MacosWindowEventHook {
         let is_running = self.running.clone();
         let poll_interval = self.poll_interval_ms;
 
-        // Spawn background thread to poll for foreground window changes
         let handle = std::thread::spawn(move || {
             use std::time::Duration;
 
@@ -107,10 +108,8 @@ impl MacosWindowEventHook {
             let mut last_window_count = 0;
 
             while !shutdown.load(Ordering::SeqCst) {
-                // Query current frontmost application using native APIs
                 match get_frontmost_app_info() {
                     Ok((current_process, current_title, current_window_count)) => {
-                        // Detect foreground window change
                         if !current_process.is_empty() {
                             if current_process != last_process
                                 || current_title != last_title
@@ -133,7 +132,6 @@ impl MacosWindowEventHook {
                                 last_title = current_title;
                             }
 
-                            // Detect window count changes (new window or closed window)
                             if current_window_count != last_window_count {
                                 if current_window_count > last_window_count {
                                     let _ =
@@ -158,7 +156,6 @@ impl MacosWindowEventHook {
                     }
                 }
 
-                // Poll at configured interval
                 std::thread::sleep(Duration::from_millis(poll_interval));
             }
 
@@ -166,17 +163,22 @@ impl MacosWindowEventHook {
             debug!("MacosWindowEventHook thread stopped");
         });
 
+        self.thread_handle = Some(handle);
         info!("MacosWindowEventHook started (using native APIs)");
-        let _ = handle; // Keep thread alive
 
         Ok(())
     }
 
-    /// Stop the event hook
     pub fn stop(&mut self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
+
+        if let Some(handle) = self.thread_handle.take() {
+            let _ = handle.join();
+            debug!("MacosWindowEventHook thread joined");
+        }
+
         self.running.store(false, Ordering::SeqCst);
-        debug!("MacosWindowEventHook stop requested");
+        debug!("MacosWindowEventHook stopped");
     }
 
     /// Check if the hook is currently running
@@ -218,12 +220,11 @@ impl Drop for MacosWindowEventHook {
 
 /// Get frontmost application info using native APIs
 /// Returns: (process_name, window_title, window_count)
-fn get_frontmost_app_info() -> Result<(String, String, usize), String> {
+fn get_frontmost_app_info() -> Result<(String, String, usize)> {
     use crate::platform::macos::native_api::cg_window::get_on_screen_windows;
 
-    // Get all on-screen windows using Core Graphics
     let windows = get_on_screen_windows()
-        .map_err(|e| format!("Failed to get window list: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to get window list: {}", e))?;
 
     // Find the frontmost window (highest layer, most recent in that layer)
     let frontmost = windows
@@ -250,7 +251,7 @@ fn get_frontmost_app_info() -> Result<(String, String, usize), String> {
 
         Ok((process_name, window_title, window_count))
     } else {
-        Err("No frontmost window found".to_string())
+        Err(anyhow::anyhow!("No frontmost window found"))
     }
 }
 

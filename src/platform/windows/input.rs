@@ -35,28 +35,22 @@ thread_local! {
 pub struct RawInputDevice {
     hwnd: HWND,
     #[allow(dead_code)]
-    event_sender: Sender<InputEvent>,
-    #[allow(dead_code)]
     modifier_state: ModifierState,
     running: bool,
 }
 
 impl RawInputDevice {
-    /// Create and initialize Raw Input device
     pub fn new(event_sender: Sender<InputEvent>) -> Result<Self> {
-        // Set thread-local sender
         CURRENT_SENDER.with(|s| {
-            *s.borrow_mut() = Some(event_sender.clone());
+            *s.borrow_mut() = Some(event_sender);
         });
 
         let hwnd = Self::create_message_window()?;
 
-        // Register Raw Input devices
         Self::register_devices(hwnd)?;
 
         Ok(Self {
             hwnd,
-            event_sender,
             modifier_state: ModifierState::default(),
             running: false,
         })

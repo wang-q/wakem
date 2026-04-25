@@ -1,6 +1,5 @@
 //! Windows window manager implementation
 #![cfg(target_os = "windows")]
-#![allow(dead_code)]
 
 use anyhow::Result;
 use tracing::debug;
