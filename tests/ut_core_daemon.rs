@@ -386,10 +386,13 @@ macro3 = []
 async fn test_delete_macro() {
     let state = ServerState::new(ShutdownSignal::new());
 
-    // First add a macro
+    // First add a macro with a test-specific instance_id to avoid overwriting user config
     let config_str = r#"
 [macros]
 temp_macro = []
+
+[network]
+instance_id = 999
 "#;
 
     let config: Config = toml::from_str(config_str).unwrap();
@@ -399,10 +402,13 @@ temp_macro = []
     let macros = state.get_macros().await;
     assert!(macros.contains(&"temp_macro".to_string()));
 
-    // Delete macro
+    // Delete macro - should succeed without affecting user config
     let result = state.delete_macro("temp_macro").await;
-    // Note: This may fail because it involves file operations, we verify it does not panic
-    let _ = result;
+    assert!(result.is_ok(), "Delete macro should succeed");
+
+    // Verify macro is deleted
+    let macros = state.get_macros().await;
+    assert!(!macros.contains(&"temp_macro".to_string()));
 }
 
 /// Test Delete non-existent macro (error handling)
@@ -425,19 +431,21 @@ async fn test_delete_nonexistent_macro() {
 async fn test_bind_macro() {
     let state = ServerState::new(ShutdownSignal::new());
 
-    // First add a macro
+    // First add a macro with a test-specific instance_id to avoid overwriting user config
     let config_str = r#"
 [macros]
 my_macro = []
+
+[network]
+instance_id = 999
 "#;
 
     let config: Config = toml::from_str(config_str).unwrap();
     let _ = state.load_config(config).await;
 
-    // Bind macro
+    // Bind macro - should succeed without affecting user config
     let result = state.bind_macro("my_macro", "F5").await;
-    // May fail (file operation), but should not panic
-    let _ = result;
+    assert!(result.is_ok(), "Bind macro should succeed");
 }
 
 /// Test Bind non-existent macro (error handling)

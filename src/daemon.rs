@@ -833,11 +833,14 @@ impl ServerState {
         // Also remove bindings
         config.macro_bindings.retain(|_, v| v != name);
 
-        // Save to file
-        let config_path =
+        // Save to file (best effort - don't fail if file operations fail)
+        if let Some(config_path) =
             crate::config::resolve_config_file_path(None, config.network.instance_id)
-                .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
-        config.save_to_file(&config_path)?;
+        {
+            if let Err(e) = config.save_to_file(&config_path) {
+                warn!("Failed to save config to file: {}", e);
+            }
+        }
 
         info!("Macro '{}' deleted", name);
         Ok(())
@@ -857,11 +860,14 @@ impl ServerState {
             .macro_bindings
             .insert(trigger.to_string(), macro_name.to_string());
 
-        // Save to file
-        let config_path =
+        // Save to file (best effort - don't fail if file operations fail)
+        if let Some(config_path) =
             crate::config::resolve_config_file_path(None, config.network.instance_id)
-                .ok_or_else(|| anyhow::anyhow!("Config path not found"))?;
-        config.save_to_file(&config_path)?;
+        {
+            if let Err(e) = config.save_to_file(&config_path) {
+                warn!("Failed to save config to file: {}", e);
+            }
+        }
 
         info!("Macro '{}' bound to '{}'", macro_name, trigger);
         Ok(())
