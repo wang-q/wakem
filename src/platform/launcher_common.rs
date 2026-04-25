@@ -4,7 +4,6 @@
 
 use crate::types::LaunchAction;
 use anyhow::Result;
-use std::path::Path;
 use std::process::Command;
 use tracing::{debug, info};
 
@@ -27,15 +26,8 @@ impl CommonLauncher {
         debug!("Args: {:?}", action.args);
         debug!("Working dir: {:?}", action.working_dir);
 
-        // Check program path
-        let program = if Path::new(&action.program).exists() {
-            action.program.clone()
-        } else {
-            // Try to find in PATH
-            action.program.clone()
-        };
+        let program = action.program.clone();
 
-        // Use std::process::Command to launch program
         let mut cmd = Command::new(&program);
         cmd.args(&action.args);
 
@@ -43,12 +35,10 @@ impl CommonLauncher {
             cmd.current_dir(dir);
         }
 
-        // Set environment variables
         for (key, value) in &action.env_vars {
             cmd.env(key, value);
         }
 
-        // Launch asynchronously, don't wait
         match cmd.spawn() {
             Ok(child) => {
                 info!(
@@ -103,6 +93,46 @@ impl Default for CommonLauncher {
     }
 }
 
+/// Cross-platform program launcher
+///
+/// Thin wrapper around [CommonLauncher] providing a unified API.
+/// Platform-specific extensions (e.g., macOS `open`) are added
+/// via conditional impl blocks.
+#[derive(Debug, Clone)]
+pub struct Launcher {
+    inner: CommonLauncher,
+}
+
+impl Launcher {
+    /// Create a new launcher
+    pub fn new() -> Self {
+        Self {
+            inner: CommonLauncher::new(),
+        }
+    }
+
+    /// Execute launch action
+    pub fn launch(&self, action: &LaunchAction) -> Result<()> {
+        self.inner.launch(action)
+    }
+
+    /// Create a simple launch action from string
+    pub fn create_action(program: impl Into<String>) -> LaunchAction {
+        CommonLauncher::create_action(program)
+    }
+
+    /// Parse from command line string (e.g., "notepad.exe file.txt")
+    pub fn parse_command(command: &str) -> LaunchAction {
+        CommonLauncher::parse_command(command)
+    }
+}
+
+impl Default for Launcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +181,30 @@ mod tests {
     #[test]
     fn test_launcher_default() {
         let _launcher = CommonLauncher::default();
+    }
+
+    #[test]
+    fn test_launcher_wrapper_creation() {
+        let launcher = Launcher::new();
+        let _cloned = launcher.clone();
+    }
+
+    #[test]
+    fn test_launcher_wrapper_default() {
+        let _launcher = Launcher::default();
+    }
+
+    #[test]
+    fn test_launcher_wrapper_parse_command() {
+        let action = Launcher::parse_command("notepad.exe file.txt");
+        assert_eq!(action.program, "notepad.exe");
+        assert_eq!(action.args, vec!["file.txt"]);
+    }
+
+    #[test]
+    fn test_launcher_wrapper_create_action() {
+        let action = Launcher::create_action("calc.exe");
+        assert_eq!(action.program, "calc.exe");
+        assert!(action.args.is_empty());
     }
 }

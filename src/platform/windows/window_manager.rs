@@ -14,13 +14,13 @@ use windows_core::BOOL;
 
 // Import Edge and Alignment from types
 use super::window_api::{RealWindowApi, WindowApi};
+#[allow(unused_imports)]
 pub use crate::types::{Alignment, Edge};
-
 // Import common window manager and shared types
 use crate::platform::traits::{
     MonitorInfo, MonitorWorkArea, WindowFrame, WindowInfoProvider,
 };
-use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
+use crate::platform::window_manager_common::CommonWindowApi;
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]
@@ -178,48 +178,6 @@ impl<A: WindowApi> WindowManager<A> {
         Ok(())
     }
 
-    /// Move window to center
-    pub fn move_to_center(&self, hwnd: HWND) -> Result<()> {
-        CommonWindowManager::move_to_center(self, hwnd)
-    }
-
-    /// Move window to edge
-    pub fn move_to_edge(&self, hwnd: HWND, edge: Edge) -> Result<()> {
-        CommonWindowManager::move_to_edge(self, hwnd, edge)
-    }
-
-    /// Set window to half screen
-    pub fn set_half_screen(&self, hwnd: HWND, edge: Edge) -> Result<()> {
-        CommonWindowManager::set_half_screen(self, hwnd, edge)
-    }
-
-    /// Loop adjust window width
-    pub fn loop_width(&self, hwnd: HWND, align: Alignment) -> Result<()> {
-        CommonWindowManager::loop_width(self, hwnd, align)
-    }
-
-    /// Loop adjust window height
-    pub fn loop_height(&self, hwnd: HWND, align: Alignment) -> Result<()> {
-        CommonWindowManager::loop_height(self, hwnd, align)
-    }
-
-    /// Set fixed ratio window (centered) with loop support
-    /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
-    pub fn set_fixed_ratio(
-        &self,
-        hwnd: HWND,
-        ratio: f32,
-        scale_index: usize,
-    ) -> Result<()> {
-        CommonWindowManager::set_fixed_ratio(self, hwnd, ratio, scale_index)
-    }
-
-    /// Set native ratio window (based on screen ratio) with loop support
-    /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
-    pub fn set_native_ratio(&self, hwnd: HWND, scale_index: usize) -> Result<()> {
-        CommonWindowManager::set_native_ratio(self, hwnd, scale_index)
-    }
-
     /// Minimize window
     pub fn minimize_window(&self, hwnd: HWND) -> Result<()> {
         self.api.minimize_window(hwnd)
@@ -238,11 +196,6 @@ impl<A: WindowApi> WindowManager<A> {
     /// Close window
     pub fn close_window(&self, hwnd: HWND) -> Result<()> {
         self.api.close_window(hwnd)
-    }
-
-    /// Toggle topmost state
-    pub fn toggle_topmost(&self, hwnd: HWND) -> Result<bool> {
-        CommonWindowManager::toggle_topmost(self, hwnd)
     }
 }
 

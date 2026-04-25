@@ -5,6 +5,7 @@ mod integration_tests {
     use std::process::Command;
     use std::thread;
     use std::time::Duration;
+    use wakem::platform::window_manager_common::CommonWindowApi;
     use wakem::platform::windows::window_api::WindowApi;
     use wakem::platform::windows::WindowManager;
     use wakem::platform::WindowFrame;

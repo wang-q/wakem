@@ -12,11 +12,7 @@ use crate::constants::{
 };
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
-#[cfg(target_os = "windows")]
-use crate::platform::windows::Launcher;
-
-#[cfg(target_os = "macos")]
-use crate::platform::macos::Launcher;
+use crate::platform::launcher_common::Launcher;
 
 /// Global configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

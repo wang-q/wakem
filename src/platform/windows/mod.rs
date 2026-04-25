@@ -18,7 +18,7 @@ pub use input::RawInputDevice as LegacyRawInputDevice;
 pub use input_device::RawInputDevice;
 pub use launcher::Launcher;
 #[allow(unused_imports)]
-pub use output_device::{SendInputDevice, WindowsOutputDevice};
+pub use output_device::SendInputDevice;
 #[allow(unused_imports)]
 pub use tray::{
     run_tray_message_loop, stop_tray, RealTrayApi, TrayApi, TrayIcon, TrayManager,

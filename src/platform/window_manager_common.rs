@@ -16,7 +16,7 @@ pub struct CommonWindowManager;
 
 /// Trait for window API operations needed by common window manager
 pub trait CommonWindowApi {
-    type WindowId;
+    type WindowId: Copy;
     type WindowInfo: WindowInfoProvider;
 
     /// Get window information
@@ -38,6 +38,75 @@ pub trait CommonWindowApi {
     fn is_maximized(&self, window: Self::WindowId) -> bool;
     /// Set window topmost state
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+
+    /// Move window to center of its current monitor
+    fn move_to_center(&self, window: Self::WindowId) -> Result<()>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::move_to_center(self, window)
+    }
+
+    /// Move window to edge of screen
+    fn move_to_edge(&self, window: Self::WindowId, edge: Edge) -> Result<()>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::move_to_edge(self, window, edge)
+    }
+
+    /// Set window to half screen (left/right/top/bottom)
+    fn set_half_screen(&self, window: Self::WindowId, edge: Edge) -> Result<()>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::set_half_screen(self, window, edge)
+    }
+
+    /// Loop through common widths for the current window position
+    fn loop_width(&self, window: Self::WindowId, align: Alignment) -> Result<()>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::loop_width(self, window, align)
+    }
+
+    /// Loop through common heights for the current window position
+    fn loop_height(&self, window: Self::WindowId, align: Alignment) -> Result<()>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::loop_height(self, window, align)
+    }
+
+    /// Set window to a fixed aspect ratio and scale it up/down cyclically
+    fn set_fixed_ratio(
+        &self,
+        window: Self::WindowId,
+        ratio: f32,
+        scale_index: usize,
+    ) -> Result<()>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::set_fixed_ratio(self, window, ratio, scale_index)
+    }
+
+    /// Set window to its "native" content ratio and cycle sizes
+    fn set_native_ratio(&self, window: Self::WindowId, scale_index: usize) -> Result<()>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::set_native_ratio(self, window, scale_index)
+    }
+
+    /// Toggle window topmost state, returns the new state
+    fn toggle_topmost(&self, window: Self::WindowId) -> Result<bool>
+    where
+        Self: Sized,
+    {
+        CommonWindowManager::toggle_topmost(self, window)
+    }
 }
 
 impl CommonWindowManager {

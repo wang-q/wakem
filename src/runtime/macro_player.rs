@@ -12,7 +12,7 @@ use crate::types::key_codes::{
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
 #[cfg(all(target_os = "windows", not(test)))]
-use crate::platform::windows::WindowsOutputDevice as OutputDevice;
+use crate::platform::windows::SendInputDevice as OutputDevice;
 
 #[cfg(all(target_os = "windows", test))]
 use crate::platform::windows::MockOutputDevice as OutputDevice;

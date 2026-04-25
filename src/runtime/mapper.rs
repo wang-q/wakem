@@ -378,6 +378,7 @@ impl KeyMapper {
         preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
+        use crate::platform::window_manager_common::CommonWindowApi;
         use crate::types::{MonitorDirection, WindowAction};
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
@@ -667,6 +668,7 @@ impl KeyMapper {
         wm: &RealMacosWindowManager,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
+        use crate::platform::window_manager_common::CommonWindowApi;
         use crate::types::{Edge, MonitorDirection, WindowAction};
 
         info!(?action, "execute_window_action_internal called");
@@ -674,7 +676,7 @@ impl KeyMapper {
             WindowAction::Center => {
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| wm.move_to_center(1))??;
+                    .map(|_| CommonWindowApi::move_to_center(&wm, 1))??;
             }
             WindowAction::MoveToEdge(edge) => {
                 use crate::platform::macos::window_manager::MonitorDirection as MacosMonitorDirection;
@@ -686,25 +688,24 @@ impl KeyMapper {
                 };
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| wm.move_to_edge(1, macos_direction))??;
+                    .map(|_| wm.move_to_edge_direction(1, macos_direction))??;
             }
             WindowAction::HalfScreen(edge) => {
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| wm.set_half_screen(1, *edge))??;
+                    .map(|_| CommonWindowApi::set_half_screen(&wm, 1, *edge))??;
             }
             WindowAction::LoopWidth(_) => {
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| wm.loop_width(1))??;
+                    .map(|_| wm.loop_width_default(1))??;
             }
             WindowAction::LoopHeight(_) => {
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| wm.loop_height(1))??;
+                    .map(|_| wm.loop_height_default(1))??;
             }
             WindowAction::FixedRatio { ratio, .. } => {
-                // Convert f64 ratio to u32 fraction (e.g., 1.333 -> 4/3)
                 let (ratio_w, ratio_h) = if *ratio >= 1.0 {
                     ((*ratio * 100.0) as u32, 100u32)
                 } else {
@@ -712,12 +713,12 @@ impl KeyMapper {
                 };
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| wm.set_fixed_ratio(1, ratio_w, ratio_h))??;
+                    .map(|_| wm.set_fixed_ratio_u32(1, ratio_w, ratio_h))??;
             }
             WindowAction::NativeRatio { .. } => {
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| wm.set_native_ratio(1))??;
+                    .map(|_| CommonWindowApi::set_native_ratio(&wm, 1, 0))??;
             }
             WindowAction::SwitchToNextWindow => {
                 wm.switch_to_next_window_of_same_process(1)?;
@@ -773,7 +774,7 @@ impl KeyMapper {
                 }
             }
             WindowAction::ToggleTopmost => {
-                wm.toggle_topmost(1)?;
+                CommonWindowApi::toggle_topmost(&wm, 1)?;
             }
             WindowAction::ShowDebugInfo => match wm.get_foreground_window_info() {
                 Some(Ok(info)) => {

@@ -192,64 +192,40 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
             .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
     }
 
-    /// Move window to center of screen or monitor
-    pub fn move_to_center(&self, window: WindowId) -> Result<()> {
-        CommonWindowManager::move_to_center(self, window)
-    }
-
-    /// Move window to edge of screen
-    pub fn move_to_edge(
+    /// Move window to edge of screen (macOS convenience using EdgeDirection)
+    pub fn move_to_edge_direction(
         &self,
         window: WindowId,
         direction: EdgeDirection,
     ) -> Result<()> {
-        // Convert EdgeDirection to Edge for common implementation
         let edge = match direction {
             EdgeDirection::Left => Edge::Left,
             EdgeDirection::Right => Edge::Right,
             EdgeDirection::Up => Edge::Top,
             EdgeDirection::Down => Edge::Bottom,
         };
-        CommonWindowManager::move_to_edge(self, window, edge)
+        <Self as CommonWindowApi>::move_to_edge(self, window, edge)
     }
 
-    /// Set window to half screen (left/right/top/bottom)
-    pub fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()> {
-        CommonWindowManager::set_half_screen(self, window, edge)
+    /// Loop through common widths (defaults to left alignment)
+    pub fn loop_width_default(&self, window: WindowId) -> Result<()> {
+        <Self as CommonWindowApi>::loop_width(self, window, Alignment::Left)
     }
 
-    /// Loop through common widths for the current window position
-    pub fn loop_width(&self, window: WindowId) -> Result<()> {
-        // Default to left alignment for macOS
-        CommonWindowManager::loop_width(self, window, Alignment::Left)
+    /// Loop through common heights (defaults to top alignment)
+    pub fn loop_height_default(&self, window: WindowId) -> Result<()> {
+        <Self as CommonWindowApi>::loop_height(self, window, Alignment::Top)
     }
 
-    /// Loop through common heights for the current window position
-    pub fn loop_height(&self, window: WindowId) -> Result<()> {
-        // Default to top alignment for macOS
-        CommonWindowManager::loop_height(self, window, Alignment::Top)
-    }
-
-    /// Set window to a fixed aspect ratio and scale it up/down cyclically
-    pub fn set_fixed_ratio(
+    /// Set window to a fixed aspect ratio (macOS convenience using integer ratio)
+    pub fn set_fixed_ratio_u32(
         &self,
         window: WindowId,
         ratio_w: u32,
         ratio_h: u32,
     ) -> Result<()> {
         let ratio = ratio_w as f32 / ratio_h as f32;
-        CommonWindowManager::set_fixed_ratio(self, window, ratio, 0)
-    }
-
-    /// Set window to its "native" content ratio (e.g., video 16:9) and cycle sizes
-    pub fn set_native_ratio(&self, window: WindowId) -> Result<()> {
-        CommonWindowManager::set_native_ratio(self, window, 0)
-    }
-
-    /// Toggle topmost state
-    pub fn toggle_topmost(&self, window: WindowId) -> Result<()> {
-        CommonWindowManager::toggle_topmost(self, window)?;
-        Ok(())
+        <Self as CommonWindowApi>::set_fixed_ratio(self, window, ratio, 0)
     }
 
     /// Switch to the next window of the same process (Cmd+~ equivalent on macOS)
@@ -388,10 +364,9 @@ mod tests {
     fn test_move_to_center() {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
-        mgr.move_to_center(1).unwrap();
+        CommonWindowApi::move_to_center(&mgr, 1).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
-        // Should be centered on 1920x1080 display: x=(1920-800)/2=560, y=(1080-600)/2=240
         assert_eq!(info.x, 560);
         assert_eq!(info.y, 240);
     }
@@ -400,12 +375,12 @@ mod tests {
     fn test_set_half_screen_left() {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
-        mgr.set_half_screen(1, Edge::Left).unwrap();
+        CommonWindowApi::set_half_screen(&mgr, 1, Edge::Left).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.x, 0);
         assert_eq!(info.y, 0);
-        assert_eq!(info.width, 960); // 1920/2
+        assert_eq!(info.width, 960);
         assert_eq!(info.height, 1080);
     }
 
@@ -413,12 +388,11 @@ mod tests {
     fn test_set_half_screen_right() {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
-        mgr.set_half_screen(1, Edge::Right).unwrap();
+        CommonWindowApi::set_half_screen(&mgr, 1, Edge::Right).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
-        assert_eq!(info.width, 960); // 1920/2
+        assert_eq!(info.width, 960);
         assert_eq!(info.height, 1080);
-        // Right side: x = 1920 - 960 = 960
         assert_eq!(info.x, 960);
     }
 
@@ -426,11 +400,11 @@ mod tests {
     fn test_set_half_screen_top() {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
-        mgr.set_half_screen(1, Edge::Top).unwrap();
+        CommonWindowApi::set_half_screen(&mgr, 1, Edge::Top).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.width, 1920);
-        assert_eq!(info.height, 540); // 1080/2
+        assert_eq!(info.height, 540);
         assert_eq!(info.x, 0);
         assert_eq!(info.y, 0);
     }
@@ -439,12 +413,12 @@ mod tests {
     fn test_set_half_screen_bottom() {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
-        mgr.set_half_screen(1, Edge::Bottom).unwrap();
+        CommonWindowApi::set_half_screen(&mgr, 1, Edge::Bottom).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.width, 1920);
-        assert_eq!(info.height, 540); // 1080/2
-        assert_eq!(info.y, 540); // 1080 - 540
+        assert_eq!(info.height, 540);
+        assert_eq!(info.y, 540);
     }
 
     #[test]
@@ -452,8 +426,7 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
-        // Initial width 800 should jump to next preset > 800
-        mgr.loop_width(1).unwrap();
+        mgr.loop_width_default(1).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert!(info.width > 800);
     }
@@ -463,8 +436,7 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
-        // Initial height 600 should jump to next preset > 600
-        mgr.loop_height(1).unwrap();
+        mgr.loop_height_default(1).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert!(info.height > 600);
     }
@@ -474,11 +446,10 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
-        mgr.set_fixed_ratio(1, 16, 9).unwrap();
+        mgr.set_fixed_ratio_u32(1, 16, 9).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
 
         let ratio = info.width as f64 / info.height as f64;
-        // Should be approximately 16:9
         assert!((ratio - 16.0 / 9.0).abs() < 0.01);
     }
 
@@ -487,11 +458,9 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
-        // Initially not maximized (not topmost)
         assert!(!mgr.api.is_maximized(1));
 
-        mgr.toggle_topmost(1).unwrap();
-        // toggle_topmost completed without error
+        CommonWindowApi::toggle_topmost(&mgr, 1).unwrap();
         assert!(mgr.api.is_window_valid(1));
     }
 
@@ -522,23 +491,22 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
-        // Initial position: (100, 100), size: 800x600
-        mgr.move_to_edge(1, EdgeDirection::Left).unwrap();
+        mgr.move_to_edge_direction(1, EdgeDirection::Left).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.x, 0);
         assert_eq!(info.y, 100);
 
-        mgr.move_to_edge(1, EdgeDirection::Right).unwrap();
+        mgr.move_to_edge_direction(1, EdgeDirection::Right).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
-        assert_eq!(info.x, 1120); // 1920 - 800
+        assert_eq!(info.x, 1120);
 
-        mgr.move_to_edge(1, EdgeDirection::Up).unwrap();
+        mgr.move_to_edge_direction(1, EdgeDirection::Up).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.y, 0);
 
-        mgr.move_to_edge(1, EdgeDirection::Down).unwrap();
+        mgr.move_to_edge_direction(1, EdgeDirection::Down).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
-        assert_eq!(info.y, 480); // 1080 - 600
+        assert_eq!(info.y, 480);
     }
 
     #[test]
