@@ -63,13 +63,33 @@ impl InputDeviceBase {
         }
     }
 
-    /// Create a base with a pre-existing sender (receiver is unused)
+    /// Create a base with a pre-existing sender.
+    ///
+    /// Note: The internal `event_receiver` is disconnected (its sender is
+    /// immediately dropped), so `try_recv_event()` will always return `None`.
+    /// Use this when the caller manages their own receiver and reads events
+    /// directly from the channel paired with `event_sender`.
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Self {
-        let (_, receiver) = channel();
         Self {
             modifier_state: ModifierState::default(),
             running: false,
-            event_receiver: receiver,
+            event_receiver: channel().1,
+            event_sender,
+        }
+    }
+
+    /// Create a base with a matched sender/receiver pair.
+    ///
+    /// Both `try_recv_event()` and the external receiver will receive
+    /// events sent through `event_sender`.
+    pub fn with_channel(
+        event_sender: Sender<InputEvent>,
+        event_receiver: Receiver<InputEvent>,
+    ) -> Self {
+        Self {
+            modifier_state: ModifierState::default(),
+            running: false,
+            event_receiver,
             event_sender,
         }
     }

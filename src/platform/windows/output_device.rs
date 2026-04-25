@@ -168,64 +168,13 @@ impl OutputDeviceTrait for SendInputDevice {
 
         match action {
             SystemAction::VolumeUp => {
-                let mut input = INPUT {
-                    r#type: INPUT_KEYBOARD,
-                    ..Default::default()
-                };
-                input.Anonymous.ki.wVk = VIRTUAL_KEY(0xAF);
-                input.Anonymous.ki.wScan = 0;
-                input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
-                input.Anonymous.ki.time = 0;
-                input.Anonymous.ki.dwExtraInfo = 0;
-                unsafe {
-                    SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-                }
-                unsafe {
-                    input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
-                }
-                unsafe {
-                    SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-                }
+                self.send_vk_press_release(0xAF);
             }
             SystemAction::VolumeDown => {
-                let mut input = INPUT {
-                    r#type: INPUT_KEYBOARD,
-                    ..Default::default()
-                };
-                input.Anonymous.ki.wVk = VIRTUAL_KEY(0xAE);
-                input.Anonymous.ki.wScan = 0;
-                input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
-                input.Anonymous.ki.time = 0;
-                input.Anonymous.ki.dwExtraInfo = 0;
-                unsafe {
-                    SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-                }
-                unsafe {
-                    input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
-                }
-                unsafe {
-                    SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-                }
+                self.send_vk_press_release(0xAE);
             }
             SystemAction::VolumeMute => {
-                let mut input = INPUT {
-                    r#type: INPUT_KEYBOARD,
-                    ..Default::default()
-                };
-                input.Anonymous.ki.wVk = VIRTUAL_KEY(0xAD);
-                input.Anonymous.ki.wScan = 0;
-                input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
-                input.Anonymous.ki.time = 0;
-                input.Anonymous.ki.dwExtraInfo = 0;
-                unsafe {
-                    SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-                }
-                unsafe {
-                    input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
-                }
-                unsafe {
-                    SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
-                }
+                self.send_vk_press_release(0xAD);
             }
             _ => {
                 warn!("System action not implemented on Windows: {:?}", action);
@@ -233,6 +182,29 @@ impl OutputDeviceTrait for SendInputDevice {
         }
 
         Ok(())
+    }
+}
+
+impl SendInputDevice {
+    fn send_vk_press_release(&self, vk: u16) {
+        let mut input = INPUT {
+            r#type: INPUT_KEYBOARD,
+            ..Default::default()
+        };
+        input.Anonymous.ki.wVk = VIRTUAL_KEY(vk);
+        input.Anonymous.ki.wScan = 0;
+        input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
+        input.Anonymous.ki.time = 0;
+        input.Anonymous.ki.dwExtraInfo = 0;
+        unsafe {
+            SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+        }
+        unsafe {
+            input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
+        }
+        unsafe {
+            SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+        }
     }
 }
 

@@ -246,7 +246,7 @@ impl<A: WindowApi> CommonWindowApi for WindowManager<A> {
     }
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.api.is_topmost(window)
+        self.api.is_zoomed(window)
     }
 
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
@@ -480,31 +480,8 @@ impl RealWindowManager {
         Ok(pid)
     }
 
-    /// Get process image name by PID (e.g., "explorer.exe", "Code.exe")
     unsafe fn get_process_name_by_pid(&self, pid: u32) -> Result<String> {
-        use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
-        use windows::Win32::System::Threading::{
-            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-        };
-
-        let handle =
-            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
-                .map_err(|e| anyhow::anyhow!("Failed to open process {}: {}", pid, e))?;
-
-        let mut buffer = [0u16; 260];
-        let len = GetModuleBaseNameW(handle, None, &mut buffer);
-
-        CloseHandle(handle).ok();
-
-        if len == 0 {
-            return Err(anyhow::anyhow!(
-                "Failed to get process name for PID {}",
-                pid
-            ));
-        }
-
-        Ok(String::from_utf16_lossy(&buffer[..len as usize]))
+        super::get_process_name_by_pid(pid)
     }
 
     /// Get all visible windows belonging to the same application (by process name)

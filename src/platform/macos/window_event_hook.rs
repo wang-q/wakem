@@ -195,11 +195,9 @@ impl MacosWindowEventHook {
     }
 
     /// Create a new channel and return the receiver
-    pub fn create_receiver(&self) -> Receiver<MacosWindowEvent> {
+    pub fn create_receiver(&mut self) -> Receiver<MacosWindowEvent> {
         let (sender, receiver) = channel();
-        // Note: This replaces the existing sender
-        // In practice, you'd want to store the sender properly
-        drop(sender);
+        self.event_sender = sender;
         receiver
     }
 }

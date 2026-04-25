@@ -46,11 +46,14 @@ pub use crate::platform::tray_common::menu_ids;
 /// Callback type for command handling
 type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
 
-/// Global tray icon storage
-static mut TRAY_ICON: Option<TrayIconData> = None;
-static mut CMD_CALLBACK: Option<CommandCallback> = None;
-static mut TRAY_HWND: Option<HWND> = None;
-static mut MAIN_THREAD_ID: Option<u32> = None;
+use std::cell::RefCell;
+
+thread_local! {
+    static TRAY_ICON: RefCell<Option<TrayIconData>> = const { RefCell::new(None) };
+    static CMD_CALLBACK: RefCell<Option<CommandCallback>> = const { RefCell::new(None) };
+    static TRAY_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
+    static MAIN_THREAD_ID: RefCell<Option<u32>> = const { RefCell::new(None) };
+}
 
 /// Tray icon data structure
 struct TrayIconData {
@@ -167,9 +170,11 @@ unsafe extern "system" fn window_proc(
             let mouse_msg = lparam.0 as u32;
             if mouse_msg == WM_LBUTTONUP || mouse_msg == WM_RBUTTONUP {
                 debug!("Tray icon clicked");
-                if let Some(ref tray) = TRAY_ICON {
-                    tray.show_menu();
-                }
+                TRAY_ICON.with(|t| {
+                    if let Some(ref tray) = *t.borrow() {
+                        tray.show_menu();
+                    }
+                });
             }
             LRESULT(0)
         }
@@ -177,15 +182,17 @@ unsafe extern "system" fn window_proc(
             let id = wparam.0 as u32 & 0xffff;
             debug!("Menu command: id={}", id);
 
-            if let Some(ref callback) = CMD_CALLBACK {
-                match id {
-                    menu_ids::TOGGLE_ACTIVE => callback(AppCommand::ToggleActive),
-                    menu_ids::RELOAD => callback(AppCommand::ReloadConfig),
-                    menu_ids::OPEN_CONFIG => callback(AppCommand::OpenConfigFolder),
-                    menu_ids::EXIT => callback(AppCommand::Exit),
-                    _ => {}
+            CMD_CALLBACK.with(|c| {
+                if let Some(ref callback) = *c.borrow() {
+                    match id {
+                        menu_ids::TOGGLE_ACTIVE => callback(AppCommand::ToggleActive),
+                        menu_ids::RELOAD => callback(AppCommand::ReloadConfig),
+                        menu_ids::OPEN_CONFIG => callback(AppCommand::OpenConfigFolder),
+                        menu_ids::EXIT => callback(AppCommand::Exit),
+                        _ => {}
+                    }
                 }
-            }
+            });
             LRESULT(0)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
@@ -201,10 +208,10 @@ where
     F: Fn(AppCommand) + Send + 'static,
 {
     unsafe {
-        // Store callback
-        CMD_CALLBACK = Some(Box::new(callback));
+        CMD_CALLBACK.with(|c| {
+            *c.borrow_mut() = Some(Box::new(callback));
+        });
 
-        // Create window
         let class_name = w!("WakemTrayWindow");
         let hinstance = GetModuleHandleW(None)?;
         let hcursor = LoadCursorW(None, IDC_ARROW)?;
@@ -242,19 +249,20 @@ where
 
         debug!("Window created: {:?}", hwnd);
 
-        // Store window handle for later use
-        TRAY_HWND = Some(hwnd);
+        TRAY_HWND.with(|h| {
+            *h.borrow_mut() = Some(hwnd);
+        });
+        MAIN_THREAD_ID.with(|t| {
+            *t.borrow_mut() =
+                Some(windows::Win32::System::Threading::GetCurrentThreadId());
+        });
 
-        // Store main thread ID for stop_tray()
-        MAIN_THREAD_ID = Some(windows::Win32::System::Threading::GetCurrentThreadId());
+        let mut tray_data = TrayIconData::create();
+        tray_data.register(hwnd);
+        TRAY_ICON.with(|t| {
+            *t.borrow_mut() = Some(tray_data);
+        });
 
-        // Create and register tray icon
-        TRAY_ICON = Some(TrayIconData::create());
-        if let Some(ref mut tray) = TRAY_ICON {
-            tray.register(hwnd);
-        }
-
-        // Message loop
         debug!("Starting message loop");
         let mut msg: MSG = std::mem::zeroed();
 
@@ -265,7 +273,7 @@ where
                     error!("GetMessageW failed");
                     break;
                 }
-                0 => break, // WM_QUIT
+                0 => break,
                 _ => {
                     let _ = TranslateMessage(&msg);
                     DispatchMessageW(&msg);
@@ -281,26 +289,27 @@ where
 /// Post a quit message to stop the message loop
 pub fn stop_tray() {
     unsafe {
-        // Send WM_CLOSE to the window first (graceful shutdown)
-        if let Some(hwnd) = TRAY_HWND {
-            let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
-                Some(hwnd),
-                windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
-                WPARAM(0),
-                LPARAM(0),
-            );
-        }
+        TRAY_HWND.with(|h| {
+            if let Some(hwnd) = *h.borrow() {
+                let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
+                    Some(hwnd),
+                    windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
+                    WPARAM(0),
+                    LPARAM(0),
+                );
+            }
+        });
 
-        // Post WM_QUIT directly to the main thread's message queue
-        // This ensures GetMessageW returns 0 and the message loop exits
-        if let Some(thread_id) = MAIN_THREAD_ID {
-            let _ = windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW(
-                thread_id,
-                windows::Win32::UI::WindowsAndMessaging::WM_QUIT,
-                WPARAM(0),
-                LPARAM(0),
-            );
-        }
+        MAIN_THREAD_ID.with(|t| {
+            if let Some(thread_id) = *t.borrow() {
+                let _ = windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW(
+                    thread_id,
+                    windows::Win32::UI::WindowsAndMessaging::WM_QUIT,
+                    WPARAM(0),
+                    LPARAM(0),
+                );
+            }
+        });
     }
 }
 

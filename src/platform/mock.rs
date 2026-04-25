@@ -187,20 +187,6 @@ impl Default for MockInputDevice {
     }
 }
 
-/// Trait for input device operations (platform-agnostic)
-pub trait InputDeviceOps {
-    /// Register the device
-    fn register(&mut self) -> Result<()>;
-    /// Unregister the device
-    fn unregister(&mut self);
-    /// Poll for events (non-blocking)
-    fn poll_event(&mut self) -> Option<InputEvent>;
-    /// Check if the device is running
-    fn is_running(&self) -> bool;
-    /// Stop the device
-    fn stop(&mut self);
-}
-
 impl InputDeviceTrait for MockInputDevice {
     fn register(&mut self) -> Result<()> {
         *self.running.borrow_mut() = true;

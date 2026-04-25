@@ -497,7 +497,6 @@ impl CGEventTapDevice {
             .store(false, std::sync::atomic::Ordering::SeqCst);
         clear_sender();
 
-        // Remove run loop source
         {
             let mut guard = self.run_loop_source.lock().unwrap();
             if let Some(source) = guard.take() {
@@ -505,16 +504,18 @@ impl CGEventTapDevice {
                     let rl = CFRunLoopGetMain();
                     CFRunLoopRemoveSource(rl, source, std::ptr::null());
                     CFRunLoopSourceInvalidate(source);
+                    CFRelease(source);
                 }
             }
         }
 
-        // Disable and release tap port
         {
             let mut guard = self.tap_port.lock().unwrap();
             if let Some(tap) = guard.take() {
-                unsafe { CGEventTapEnable(tap, false) };
-                // Note: Don't release here as it may still be in use by run loop
+                unsafe {
+                    CGEventTapEnable(tap, false);
+                    CFRelease(tap);
+                }
             }
         }
 

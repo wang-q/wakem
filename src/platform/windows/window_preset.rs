@@ -77,49 +77,12 @@ unsafe fn get_window_process_id(hwnd: HWND) -> Result<u32> {
 }
 
 unsafe fn get_process_name_by_pid(pid: u32) -> Result<String> {
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-    };
-
-    let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
-        .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
-
-    let mut buffer = [0u16; 260];
-    let len = GetModuleBaseNameW(handle, None, &mut buffer);
-
-    CloseHandle(handle).ok();
-
-    if len == 0 {
-        return Err(anyhow::anyhow!("Failed to get process name"));
-    }
-
-    Ok(String::from_utf16_lossy(&buffer[..len as usize]))
+    super::get_process_name_by_pid(pid)
 }
 
 unsafe fn get_window_executable_path(hwnd: HWND) -> Result<String> {
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-    };
-
     let pid = get_window_process_id(hwnd)?;
-
-    let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
-        .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
-
-    let mut buffer = [0u16; 260];
-    let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
-
-    CloseHandle(handle).ok();
-
-    if len == 0 {
-        return Err(anyhow::anyhow!("Failed to get executable path"));
-    }
-
-    Ok(String::from_utf16_lossy(&buffer[..len as usize]))
+    super::get_executable_path_by_pid(pid)
 }
 
 /// Windows window preset manager (type alias for the common manager)

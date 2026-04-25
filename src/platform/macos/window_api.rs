@@ -202,7 +202,7 @@ impl MacosWindowApi for RealMacosWindowApi {
             let bounds = unsafe { CGDisplayBounds(main.id) };
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
-                y: bounds.origin.x as i32,
+                y: bounds.origin.y as i32,
                 width: bounds.size.width as i32,
                 height: bounds.size.height as i32,
             });
@@ -297,6 +297,7 @@ pub struct MockMacosWindowApi {
     >,
     foreground: std::sync::Mutex<Option<WindowId>>,
     monitors: std::sync::Mutex<Vec<MonitorInfo>>,
+    minimized: std::sync::Mutex<std::collections::HashSet<WindowId>>,
 }
 
 #[cfg(test)]
@@ -326,6 +327,7 @@ impl MockMacosWindowApi {
                 width: 1920,
                 height: 1080,
             }]),
+            minimized: std::sync::Mutex::new(std::collections::HashSet::new()),
         }
     }
 
@@ -338,16 +340,10 @@ impl MockMacosWindowApi {
     }
 
     pub fn set_minimized(&self, id: WindowId, minimized: bool) {
-        if let Some(info) = self.windows.lock().unwrap().get_mut(&id) {
-            if minimized {
-                info.title = format!("[MINIMIZED]{}", info.title);
-            } else {
-                info.title = info
-                    .title
-                    .strip_prefix("[MINIMIZED]")
-                    .unwrap_or(&info.title)
-                    .to_string();
-            }
+        if minimized {
+            self.minimized.lock().unwrap().insert(id);
+        } else {
+            self.minimized.lock().unwrap().remove(&id);
         }
     }
 }
@@ -457,12 +453,7 @@ impl MacosWindowApi for MockMacosWindowApi {
     }
 
     fn is_minimized(&self, window: WindowId) -> bool {
-        self.windows
-            .lock()
-            .unwrap()
-            .get(&window)
-            .map(|info| info.title.starts_with("[MINIMIZED]"))
-            .unwrap_or(false)
+        self.minimized.lock().unwrap().contains(&window)
     }
 
     fn is_maximized(&self, window: WindowId) -> bool {

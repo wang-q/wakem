@@ -572,6 +572,9 @@ struct EnumContext<'a> {
 
 #[allow(dead_code)]
 unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    if lparam.0 == 0 {
+        return BOOL(0);
+    }
     let context = &mut *(lparam.0 as *mut EnumContext);
 
     // Check visibility if required

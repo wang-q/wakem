@@ -2,11 +2,6 @@
 #![cfg(target_os = "windows")]
 
 use tracing::debug;
-use windows::Win32::Foundation::CloseHandle;
-use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
-use windows::Win32::System::Threading::{
-    OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
 };
@@ -84,40 +79,12 @@ impl WindowContext {
         }
     }
 
-    /// Get process name by process ID
     unsafe fn get_process_name_by_pid(pid: u32) -> Option<String> {
-        let handle =
-            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
-
-        let mut buffer = [0u16; 260];
-        let len = GetModuleBaseNameW(handle, None, &mut buffer);
-
-        CloseHandle(handle).ok();
-
-        if len == 0 {
-            return None;
-        }
-
-        Some(String::from_utf16_lossy(&buffer[..len as usize]))
+        super::get_process_name_by_pid(pid).ok()
     }
 
-    /// Get executable path by process ID
     unsafe fn get_executable_path_by_pid(pid: u32) -> Option<String> {
-        use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
-
-        let handle =
-            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
-
-        let mut buffer = [0u16; 260];
-        let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
-
-        CloseHandle(handle).ok();
-
-        if len == 0 {
-            return None;
-        }
-
-        Some(String::from_utf16_lossy(&buffer[..len as usize]))
+        super::get_executable_path_by_pid(pid).ok()
     }
 
     /// Check if matches given context conditions using wildcard matching.
