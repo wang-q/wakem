@@ -41,6 +41,58 @@ fn window_frame_from_rect(rect: &RECT) -> WindowFrame {
     )
 }
 
+/// Enumerate all monitors using EnumDisplayMonitors.
+///
+/// Returns monitor rectangles (full area including taskbar) as `MonitorInfo`.
+unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
+    use windows::Win32::Graphics::Gdi::{
+        EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
+    };
+
+    struct EnumData {
+        monitors: Vec<MonitorInfo>,
+    }
+
+    unsafe extern "system" fn enum_callback(
+        hmonitor: HMONITOR,
+        _hdc: HDC,
+        _rect: *mut RECT,
+        lparam: LPARAM,
+    ) -> BOOL {
+        let data = &mut *(lparam.0 as *mut EnumData);
+
+        let mut monitor_info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+
+        if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
+            let monitor_rect = &monitor_info.rcMonitor;
+            data.monitors.push(MonitorInfo {
+                x: monitor_rect.left,
+                y: monitor_rect.top,
+                width: monitor_rect.right - monitor_rect.left,
+                height: monitor_rect.bottom - monitor_rect.top,
+            });
+        }
+
+        BOOL(1)
+    }
+
+    let mut data = EnumData {
+        monitors: Vec::new(),
+    };
+
+    let _ = EnumDisplayMonitors(
+        None,
+        None,
+        Some(enum_callback),
+        LPARAM(&mut data as *mut _ as isize),
+    );
+
+    data.monitors
+}
+
 /// Window information
 #[derive(Debug, Clone)]
 pub struct WindowInfo {
@@ -221,24 +273,24 @@ impl<A: WindowApi> CommonWindowApi for WindowManager<A> {
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        // Get foreground window to determine current monitor
-        if let Some(hwnd) = self.api.get_foreground_window() {
-            if let Some(work_area) = self.api.get_monitor_work_area(hwnd) {
-                return vec![MonitorInfo {
-                    x: work_area.x,
-                    y: work_area.y,
-                    width: work_area.width,
-                    height: work_area.height,
-                }];
-            }
+        #[cfg(not(test))]
+        {
+            unsafe { enumerate_all_monitors() }
         }
-        // Fallback to default monitor
-        vec![MonitorInfo {
-            x: 0,
-            y: 0,
-            width: 1920,
-            height: 1080,
-        }]
+        #[cfg(test)]
+        {
+            if let Some(hwnd) = self.api.get_foreground_window() {
+                if let Some(monitor) = self.api.get_monitor_info(hwnd) {
+                    return vec![monitor];
+                }
+            }
+            vec![MonitorInfo {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            }]
+        }
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
@@ -264,7 +316,7 @@ impl RealWindowManager {
     ) -> Result<()> {
         unsafe {
             // Get all monitors
-            let monitors = self.get_all_monitors();
+            let monitors = enumerate_all_monitors();
             if monitors.len() < 2 {
                 debug!("Only one monitor, nothing to do");
                 return Ok(());
@@ -323,56 +375,6 @@ impl RealWindowManager {
 
             Ok(())
         }
-    }
-
-    /// Get all monitor information
-    unsafe fn get_all_monitors(&self) -> Vec<MonitorInfo> {
-        use windows::Win32::Graphics::Gdi::{
-            EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
-        };
-
-        struct EnumData {
-            monitors: Vec<MonitorInfo>,
-        }
-
-        unsafe extern "system" fn enum_callback(
-            hmonitor: HMONITOR,
-            _hdc: HDC,
-            _rect: *mut RECT,
-            lparam: LPARAM,
-        ) -> BOOL {
-            let data = &mut *(lparam.0 as *mut EnumData);
-
-            let mut monitor_info = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                ..Default::default()
-            };
-
-            if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
-                let work_area = &monitor_info.rcWork;
-                data.monitors.push(MonitorInfo {
-                    x: work_area.left,
-                    y: work_area.top,
-                    width: work_area.right - work_area.left,
-                    height: work_area.bottom - work_area.top,
-                });
-            }
-
-            BOOL(1) // Continue enumeration
-        }
-
-        let mut data = EnumData {
-            monitors: Vec::new(),
-        };
-
-        let _ = EnumDisplayMonitors(
-            None,
-            None,
-            Some(enum_callback),
-            LPARAM(&mut data as *mut _ as isize),
-        );
-
-        data.monitors
     }
 
     /// Get the index of the monitor where the window is currently located

@@ -134,6 +134,16 @@ pub fn get_frontmost_window_info() -> Result<Option<CGWindowInfo>> {
         .find(|w| w.layer == 0 && !w.name.is_empty()))
 }
 
+/// Get window info by CGWindowNumber
+///
+/// Searches the on-screen window list for a window matching the given number.
+/// Returns `Ok(None)` if no window with that number is found.
+pub fn get_window_info_by_number(number: i64) -> Result<Option<CGWindowInfo>> {
+    let windows = get_on_screen_windows()?;
+
+    Ok(windows.into_iter().find(|w| w.number == number))
+}
+
 // ============================================================================
 // FFI bindings for Core Graphics functions
 // ============================================================================
@@ -313,24 +323,21 @@ mod tests {
         match get_on_screen_windows() {
             Ok(windows) => {
                 if windows.is_empty() {
-                    eprintln!(
-                        "Note: No on-screen windows (may be headless environment)"
-                    );
+                    debug!("Note: No on-screen windows (may be headless environment)");
                     return;
                 }
 
-                // Verify we got expected fields
                 let first = &windows[0];
                 if first.pid > 0 {
                     assert!(first.width > 0, "Width should be positive");
                     assert!(first.height > 0, "Height should be positive");
                     assert!(first.number >= 0, "Window number should be non-negative");
                 } else {
-                    eprintln!("Note: Window PID is invalid (FFI parsing issue)");
+                    debug!("Note: Window PID is invalid (FFI parsing issue)");
                 }
             }
             Err(e) => {
-                eprintln!("Note: Failed to get windows (may need GUI): {}", e);
+                debug!("Note: Failed to get windows (may need GUI): {}", e);
             }
         }
     }
@@ -356,14 +363,14 @@ mod tests {
                             info.height
                         );
                     } else {
-                        eprintln!("Note: Frontmost window has invalid data (FFI issue)");
+                        debug!("Note: Frontmost window has invalid data (FFI issue)");
                     }
                 } else {
-                    eprintln!("Note: No frontmost window found (may be headless)");
+                    debug!("Note: No frontmost window found (may be headless)");
                 }
             }
             Err(e) => {
-                eprintln!("Note: Failed to get frontmost window: {}", e);
+                debug!("Note: Failed to get frontmost window: {}", e);
             }
         }
     }

@@ -71,7 +71,50 @@ pub fn get_main_display_bounds(
 pub fn get_main_display_height() -> f64 {
     match get_main_display_bounds() {
         Ok(bounds) => bounds.size.height,
-        Err(_) => 1080.0, // Fallback default
+        Err(_) => 1080.0,
+    }
+}
+
+/// Get the visible frame (work area) for a specific screen using NSScreen.
+///
+/// Returns `(x, y, width, height)` in Windows-style coordinates (top-left origin).
+/// The visible frame excludes the Dock and menu bar areas.
+///
+/// Falls back to CGDisplay bounds minus estimated deductions if NSScreen is unavailable.
+pub fn get_screen_visible_frame(screen_index: usize) -> Option<(i32, i32, i32, i32)> {
+    unsafe {
+        use cocoa::appkit::NSScreen;
+        use cocoa::base::{id, nil};
+        use cocoa::foundation::NSArray;
+        use objc::{class, msg_send, sel, sel_impl};
+
+        let screens: id = msg_send![class!(NSScreen), screens];
+        if screens == nil {
+            return None;
+        }
+
+        let count: usize = msg_send![screens, count];
+        if screen_index >= count {
+            return None;
+        }
+
+        let screen: id = msg_send![screens, objectAtIndex:screen_index];
+        if screen == nil {
+            return None;
+        }
+
+        let visible_frame: core_graphics::geometry::CGRect =
+            msg_send![screen, visibleFrame];
+
+        let screen_height = get_main_display_height();
+
+        let windows_x = visible_frame.origin.x as i32;
+        let windows_y =
+            (screen_height - visible_frame.origin.y - visible_frame.size.height) as i32;
+        let width = visible_frame.size.width as i32;
+        let height = visible_frame.size.height as i32;
+
+        Some((windows_x, windows_y, width, height))
     }
 }
 
@@ -89,12 +132,10 @@ mod tests {
                 debug!("Got valid PID: {}", pid_val);
             }
             Some(pid_val) => {
-                eprintln!("Note: Got invalid PID {} (FFI parsing issue?)", pid_val);
+                debug!("Note: Got invalid PID {} (FFI parsing issue?)", pid_val);
             }
             None => {
-                eprintln!(
-                    "Note: No frontmost application (may be headless environment)"
-                );
+                debug!("Note: No frontmost application (may be headless environment)");
             }
         }
     }

@@ -345,6 +345,13 @@ pub enum MenuAction {
 }
 
 /// Window API trait - low-level window operations
+///
+/// # Deprecation Notice
+///
+/// This trait is deprecated in favor of [WindowManagerTrait], which provides
+/// the identical method set. The two traits were created separately but have
+/// converged to the same interface. New code should use [WindowManagerTrait].
+#[deprecated(since = "0.1.2", note = "Use WindowManagerTrait instead")]
 #[allow(dead_code)]
 pub trait WindowApiTrait: Send + Sync {
     /// Get the currently focused window

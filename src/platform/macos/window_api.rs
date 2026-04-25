@@ -17,6 +17,19 @@ use core_graphics::display::{CGDisplay, CGDisplayBounds};
 use tracing::debug;
 
 /// macOS Window API trait
+///
+/// # Current Limitations
+///
+/// The `RealMacosWindowApi` implementation currently operates on the frontmost
+/// application's main window for all manipulation methods (`set_window_pos`,
+/// `minimize_window`, `maximize_window`, etc.). The `window: WindowId` parameter
+/// is used for informational queries (e.g., `get_window_info`) but manipulation
+/// methods always target the frontmost app. This is due to AXUIElement requiring
+/// a PID to create an application reference, and the current implementation
+/// resolves the frontmost app via NSWorkspace.
+///
+/// Future improvements should support targeting specific windows by their
+/// CGWindowNumber using `AXUIElementCopyAttributeValues` with `kAXWindowsAttribute`.
 pub trait MacosWindowApi {
     fn get_foreground_window(&self) -> Option<WindowId>;
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
@@ -50,6 +63,13 @@ pub trait MacosWindowApi {
 /// - NSWorkspace: < 0.5ms for app info
 /// - CGWindowList: < 2ms for window metadata
 /// - AXUIElement: < 10ms for window manipulation
+///
+/// # Window Identification
+///
+/// Uses `CGWindowNumber` (from `kCGWindowNumber`) as the `WindowId`.
+/// This is a unique system-wide identifier assigned by Core Graphics.
+/// Note: manipulation methods currently target the frontmost app's main
+/// window regardless of the passed `WindowId`.
 #[derive(Clone, Default)]
 pub struct RealMacosWindowApi;
 
@@ -61,12 +81,42 @@ impl RealMacosWindowApi {
 
 impl MacosWindowApi for RealMacosWindowApi {
     fn get_foreground_window(&self) -> Option<WindowId> {
-        // Return a dummy ID (1), as we always operate on the frontmost window
-        Some(1)
+        cg_window::get_frontmost_window_info()
+            .ok()
+            .flatten()
+            .map(|info| info.number as WindowId)
     }
 
-    fn get_window_info(&self, _window: WindowId) -> Result<WindowInfo> {
-        // Use CGWindowList to get frontmost window info (< 2ms)
+    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
+        let target_number = window as i64;
+
+        if target_number > 0 {
+            if let Ok(Some(winfo)) = cg_window::get_window_info_by_number(target_number)
+            {
+                debug!(
+                    "Got window info by number {}: {} ({}) at ({}, {}) {}x{}",
+                    target_number,
+                    winfo.name,
+                    winfo.owner_name,
+                    winfo.x,
+                    winfo.y,
+                    winfo.width,
+                    winfo.height
+                );
+
+                return Ok(WindowInfo {
+                    id: window,
+                    title: winfo.name,
+                    process_name: winfo.owner_name,
+                    executable_path: None,
+                    x: winfo.x,
+                    y: winfo.y,
+                    width: winfo.width as i32,
+                    height: winfo.height as i32,
+                });
+            }
+        }
+
         match cg_window::get_frontmost_window_info() {
             Ok(Some(info)) => {
                 debug!(
@@ -75,7 +125,7 @@ impl MacosWindowApi for RealMacosWindowApi {
                 );
 
                 Ok(WindowInfo {
-                    id: _window,
+                    id: window,
                     title: info.name,
                     process_name: info.owner_name,
                     executable_path: None,
@@ -212,18 +262,25 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
+        if let Some((x, y, width, height)) =
+            ns_workspace::get_screen_visible_frame(monitor_index)
+        {
+            return Some(MonitorWorkArea {
+                x,
+                y,
+                width,
+                height,
+            });
+        }
+
         let monitors = self.get_monitors();
         let monitor = monitors.get(monitor_index)?;
-
-        // Estimate dock height (typically ~68px) and menu bar height (~25px)
-        let dock_height = 68;
-        let menu_bar_height = 25;
 
         Some(MonitorWorkArea {
             x: monitor.x,
             y: monitor.y,
             width: monitor.width,
-            height: monitor.height - dock_height - menu_bar_height,
+            height: monitor.height,
         })
     }
 
@@ -248,7 +305,13 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn is_window_valid(&self, window: WindowId) -> bool {
-        window != 0
+        if window == 0 {
+            return false;
+        }
+        cg_window::get_window_info_by_number(window as i64)
+            .ok()
+            .flatten()
+            .is_some()
     }
 
     fn is_minimized(&self, _window: WindowId) -> bool {
@@ -265,17 +328,21 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn is_maximized(&self, _window: WindowId) -> bool {
-        // Check if window fills most of the screen area
-        if let Ok(info) = self.get_window_info(_window) {
-            let monitors = self.get_monitors();
-            if let Some(monitor) = monitors.first() {
-                let threshold = 0.95;
-                let width_ratio = info.width as f64 / monitor.width as f64;
-                let height_ratio = info.height as f64 / monitor.height as f64;
-                return width_ratio >= threshold && height_ratio >= threshold;
-            }
-        }
-        false
+        let info = match self.get_window_info(_window) {
+            Ok(info) => info,
+            Err(_) => return false,
+        };
+
+        let work_area = match self.get_monitor_work_area(0) {
+            Some(wa) => wa,
+            None => return false,
+        };
+
+        let width_ratio = info.width as f64 / work_area.width as f64;
+        let height_ratio = info.height as f64 / work_area.height as f64;
+
+        let threshold = 0.95;
+        width_ratio >= threshold && height_ratio >= threshold
     }
 
     fn get_window_state(&self, window: WindowId) -> WindowState {
@@ -432,7 +499,7 @@ impl MacosWindowApi for MockMacosWindowApi {
             x: m.x,
             y: m.y,
             width: m.width,
-            height: m.height - 93, // Subtract estimated dock+menu bar
+            height: m.height,
         })
     }
 
@@ -509,13 +576,13 @@ mod tests {
                 if !info.process_name.is_empty() {
                     debug!("Frontmost window: {} ({})", info.title, info.process_name);
                 } else {
-                    eprintln!(
+                    debug!(
                         "Note: Got window info but fields empty (FFI issue or headless)"
                     );
                 }
             }
             Err(e) => {
-                eprintln!(
+                debug!(
                     "Note: May fail if no window or no accessibility permission: {}",
                     e
                 );

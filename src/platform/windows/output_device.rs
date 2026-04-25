@@ -185,6 +185,7 @@ impl OutputDeviceTrait for SendInputDevice {
     }
 }
 
+#[cfg(not(test))]
 impl SendInputDevice {
     fn send_vk_press_release(&self, vk: u16) {
         let mut input = INPUT {

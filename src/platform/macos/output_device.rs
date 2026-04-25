@@ -18,87 +18,11 @@ impl MacosOutputDevice {
     }
 
     /// Convert Windows-style virtual key to macOS CGKeyCode
+    ///
+    /// Uses the `keyboard-codes` crate via [crate::platform::macos::input::virtual_key_to_keycode]
+    /// for cross-platform mapping consistency. Falls back to passthrough for unknown keys.
     fn virtual_key_to_cg_keycode(virtual_key: u16) -> u16 {
-        match virtual_key {
-            0x41 => 0x00,
-            0x53 => 0x01,
-            0x44 => 0x02,
-            0x46 => 0x03,
-            0x48 => 0x04,
-            0x47 => 0x05,
-            0x5A => 0x06,
-            0x58 => 0x07,
-            0x43 => 0x08,
-            0x56 => 0x09,
-            0x42 => 0x0B,
-            0x51 => 0x0C,
-            0x57 => 0x0D,
-            0x45 => 0x0E,
-            0x52 => 0x0F,
-            0x59 => 0x10,
-            0x54 => 0x11,
-            0x31 => 0x12,
-            0x32 => 0x13,
-            0x33 => 0x14,
-            0x34 => 0x15,
-            0x36 => 0x16,
-            0x35 => 0x17,
-            0x3D => 0x18,
-            0x39 => 0x19,
-            0x37 => 0x1A,
-            0x2D => 0x1B,
-            0x38 => 0x1C,
-            0x30 => 0x1D,
-            0x5D => 0x1E,
-            0x4F => 0x1F,
-            0x55 => 0x20,
-            0x5B => 0x21,
-            0x49 => 0x22,
-            0x50 => 0x23,
-            0x0D => 0x24,
-            0x4C => 0x25,
-            0x4A => 0x26,
-            0xDE => 0x27,
-            0x4B => 0x28,
-            0x3B => 0x29,
-            0xDC => 0x2A,
-            0xBC => 0x2B,
-            0xBF => 0x2C,
-            0x4E => 0x2D,
-            0x4D => 0x2E,
-            0xBE => 0x2F,
-            0x09 => 0x30,
-            0x20 => 0x31,
-            0xC0 => 0x32,
-            0x08 => 0x33,
-            0x1B => 0x35,
-            0x14 => 0x3A,
-            0x70 => 0x7A,
-            0x71 => 0x78,
-            0x72 => 0x63,
-            0x73 => 0x76,
-            0x74 => 0x60,
-            0x75 => 0x61,
-            0x76 => 0x62,
-            0x77 => 0x64,
-            0x78 => 0x65,
-            0x79 => 0x6D,
-            0x7A => 0x67,
-            0x7B => 0x6F,
-            0x24 => 0x72,
-            0x23 => 0x73,
-            0x21 => 0x74,
-            0x22 => 0x79,
-            0x25 => 0x7B,
-            0x26 => 0x7E,
-            0x27 => 0x7C,
-            0x28 => 0x7D,
-            0xA0 | 0xA1 | 0x10 => 0x38,
-            0xA2 | 0xA3 | 0x11 => 0x3B,
-            0xA4 | 0xA5 | 0x12 => 0x3A,
-            0x5C => 0x37,
-            _ => virtual_key,
-        }
+        crate::platform::macos::input::virtual_key_to_keycode(virtual_key)
     }
 }
 
@@ -221,64 +145,34 @@ impl OutputDeviceTrait for MacosOutputDevice {
             CGEvent, CGEventTapLocation, CGEventType, CGMouseButton,
         };
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+        use core_graphics::geometry::CGPoint;
 
         let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
             .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
 
-        // Get current mouse position for scroll event
         let current = CGEvent::new(source.clone())
             .map_err(|e| anyhow::anyhow!("Failed to create event: {:?}", e))?;
         let point = current.location();
 
-        // On macOS, scroll events are created using mouse events with scroll types
-        // CGEventType::ScrollWheel for vertical, we use NSEvent for horizontal
-        let event_type = if horizontal {
-            // For horizontal scroll, we simulate Shift+ScrollWheel
-            // First press Shift
-            let shift_event = CGEvent::new_keyboard_event(source.clone(), 0x38, true)
-                .map_err(|e| {
-                    anyhow::anyhow!("Failed to create shift down event: {:?}", e)
-                })?;
-            shift_event.post(CGEventTapLocation::HID);
+        let event = CGEvent::new_mouse_event(
+            source,
+            CGEventType::ScrollWheel,
+            point,
+            CGMouseButton::Left,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to create scroll event: {:?}", e))?;
 
-            // Then scroll
-            let scroll_event = CGEvent::new_mouse_event(
-                source.clone(),
-                CGEventType::ScrollWheel,
-                point,
-                CGMouseButton::Left,
-            )
-            .map_err(|e| anyhow::anyhow!("Failed to create scroll event: {:?}", e))?;
-            scroll_event.set_integer_value_field(
+        if horizontal {
+            event.set_integer_value_field(
+                core_graphics::event::EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_2,
+                delta as i64,
+            );
+        } else {
+            event.set_integer_value_field(
                 core_graphics::event::EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_1,
                 delta as i64,
             );
-            scroll_event.post(CGEventTapLocation::HID);
-
-            // Release Shift
-            let shift_up = CGEvent::new_keyboard_event(source.clone(), 0x38, false)
-                .map_err(|e| {
-                    anyhow::anyhow!("Failed to create shift up event: {:?}", e)
-                })?;
-            shift_up.post(CGEventTapLocation::HID);
-
-            debug!("Sent horizontal mouse wheel: delta={}", delta);
-            return Ok(());
-        } else {
-            CGEventType::ScrollWheel
-        };
-
-        let event =
-            CGEvent::new_mouse_event(source, event_type, point, CGMouseButton::Left)
-                .map_err(|e| {
-                    anyhow::anyhow!("Failed to create scroll event: {:?}", e)
-                })?;
-
-        // Set scroll delta
-        event.set_integer_value_field(
-            core_graphics::event::EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_1,
-            delta as i64,
-        );
+        }
 
         event.post(CGEventTapLocation::HID);
         debug!(

@@ -126,7 +126,7 @@ mod tests {
                 );
             }
             None => {
-                eprintln!("Note: No frontmost window or no accessibility permission");
+                debug!("Note: No frontmost window or no accessibility permission");
             }
         }
     }
@@ -217,10 +217,10 @@ mod tests {
                 debug!("Frontmost app PID: {}", pid_val);
             }
             Some(pid_val) => {
-                eprintln!("Note: Got invalid PID {} (FFI issue or headless)", pid_val);
+                debug!("Note: Got invalid PID {} (FFI issue or headless)", pid_val);
             }
             None => {
-                eprintln!("No frontmost application found (headless?)");
+                debug!("No frontmost application found (headless?)");
             }
         }
     }
@@ -233,7 +233,7 @@ mod tests {
             assert!(!app_name.is_empty(), "App name should not be empty");
             debug!("Frontmost app name: {}", app_name);
         } else {
-            eprintln!("No frontmost application name found");
+            debug!("No frontmost application name found");
         }
     }
 

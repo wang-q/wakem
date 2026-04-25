@@ -296,6 +296,15 @@ impl TrayApi for MockTrayApi {
 
     async fn show_menu(&self) -> Result<u32> {
         let mut s = self.state.lock().unwrap();
+        if let Some(action) = s.menu_actions.pop_front() {
+            return Ok(match action {
+                MenuAction::ToggleActive => menu_ids::TOGGLE_ACTIVE,
+                MenuAction::Reload => menu_ids::RELOAD,
+                MenuAction::OpenConfig => menu_ids::OPEN_CONFIG,
+                MenuAction::Exit => menu_ids::EXIT,
+                MenuAction::None => 0,
+            });
+        }
         if s.menu_index < s.menu_selections.len() {
             let selection = s.menu_selections[s.menu_index];
             s.menu_index += 1;
