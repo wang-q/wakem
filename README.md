@@ -8,7 +8,7 @@ Current release: 0.1.2
 
 ### 1. Installation
 
-#### Using Install Script (Recommended)
+#### Using Install Script
 
 **Windows:**
 
