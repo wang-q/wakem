@@ -436,21 +436,10 @@ impl ServerState {
             let mapper = self.mapper.read().await;
             #[cfg(target_os = "windows")]
             let context: Option<crate::platform::traits::WindowContext> =
-                crate::platform::windows::WindowContext::get_current().map(|ctx| {
-                    crate::platform::traits::WindowContext {
-                        process_name: ctx.process_name,
-                        window_class: ctx.window_class,
-                        window_title: ctx.window_title,
-                        executable_path: if ctx.executable_path.is_empty() {
-                            None
-                        } else {
-                            Some(ctx.executable_path)
-                        },
-                    }
-                });
+                crate::platform::windows::context::get_current();
             #[cfg(target_os = "macos")]
             let context: Option<crate::platform::traits::WindowContext> =
-                crate::platform::macos::WindowContext::get_current();
+                crate::platform::macos::context::get_current();
             #[cfg(not(any(target_os = "windows", target_os = "macos")))]
             let context: Option<crate::platform::traits::WindowContext> = None;
             mapper.process_event_with_context(&event, context.as_ref())

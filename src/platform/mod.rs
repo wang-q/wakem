@@ -55,8 +55,8 @@ pub mod macos;
 #[allow(unused_imports)]
 pub use windows::{
     Launcher, MonitorDirection, MonitorInfo as WindowsMonitorInfo, RawInputDevice,
-    RealWindowApi, SendInputDevice, TrayIcon, WindowContext as WindowsWindowContext,
-    WindowEvent, WindowEventHook, WindowManager, WindowPresetManager,
+    RealWindowApi, SendInputDevice, TrayIcon, WindowEvent, WindowEventHook,
+    WindowManager, WindowPresetManager,
 };
 
 // Platform-specific type aliases

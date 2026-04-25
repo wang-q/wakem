@@ -12,7 +12,8 @@ pub mod window_manager;
 pub mod window_preset;
 
 // Re-export types for backward compatibility
-pub use context::WindowContext;
+#[allow(unused_imports)]
+pub use context::get_current as get_window_context;
 pub use input::RawInputDevice as LegacyRawInputDevice;
 #[allow(unused_imports)]
 pub use input_device::RawInputDevice;

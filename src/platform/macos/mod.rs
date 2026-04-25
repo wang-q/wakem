@@ -17,7 +17,8 @@ pub mod window_manager;
 pub mod window_preset;
 
 // Re-export types for backward compatibility and convenience
-pub use context::WindowContext;
+#[allow(unused_imports)]
+pub use context::get_current as get_window_context;
 pub use input::CGEventTapDevice as MacosEventTap;
 pub use input_device::{InputDevice, InputDeviceFactory, MacosInputDevice};
 pub use launcher::Launcher;
