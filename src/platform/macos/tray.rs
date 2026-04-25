@@ -21,22 +21,12 @@ use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 
-// Re-export shared tray types from platform::traits
+// Re-export shared tray types
 pub use crate::platform::traits::{AppCommand, MenuAction};
-
-/// Tray icon trait for abstraction
-#[async_trait::async_trait]
-pub trait TrayApi: Send + Sync {
-    async fn register(&self) -> Result<()>;
-    async fn unregister(&self) -> Result<()>;
-    async fn show_notification(&self, title: &str, message: &str) -> Result<()>;
-    async fn set_tooltip(&self, tooltip: &str) -> Result<()>;
-    async fn set_icon(&self, icon_path: Option<&str>) -> Result<()>;
-    async fn show(&self) -> Result<()>;
-    async fn hide(&self) -> Result<()>;
-    async fn set_active_status(&self, active: bool) -> Result<()>;
-    fn is_registered(&self) -> bool;
-}
+// Import unified TrayApi trait from tray_common
+pub use crate::platform::tray_common::TrayApi;
+// Re-export menu ID constants from tray_common
+use crate::platform::tray_common::menu_ids;
 
 /// Global callback storage for menu actions
 thread_local! {
@@ -62,11 +52,11 @@ fn call_global_callback(cmd: AppCommand) {
     });
 }
 
-/// Menu item tag constants
-const MENU_TAG_TOGGLE: i64 = 100;
-const MENU_TAG_RELOAD: i64 = 101;
-const MENU_TAG_OPEN_CONFIG: i64 = 102;
-const MENU_TAG_EXIT: i64 = 103;
+/// Menu item tag constants (from tray_common::menu_ids, cast to i64 for Cocoa)
+const MENU_TAG_TOGGLE: i64 = menu_ids::TOGGLE_ACTIVE as i64;
+const MENU_TAG_RELOAD: i64 = menu_ids::RELOAD as i64;
+const MENU_TAG_OPEN_CONFIG: i64 = menu_ids::OPEN_CONFIG as i64;
+const MENU_TAG_EXIT: i64 = menu_ids::EXIT as i64;
 
 /// Create a custom Objective-C class for handling menu actions
 fn create_menu_target_class() -> &'static Class {
@@ -261,7 +251,7 @@ unsafe impl Sync for RealTrayApi {}
 
 #[async_trait::async_trait]
 impl TrayApi for RealTrayApi {
-    async fn register(&self) -> Result<()> {
+    async fn register(&self, _hwnd: Option<isize>) -> Result<()> {
         self.register_blocking()
     }
 
@@ -302,7 +292,7 @@ impl TrayApi for RealTrayApi {
         Ok(())
     }
 
-    async fn set_active_status(&self, active: bool) -> Result<()> {
+    async fn set_active(&self, active: bool) -> Result<()> {
         self.active.store(active, Ordering::SeqCst);
         debug!("Set active status: {}", active);
         Ok(())
@@ -324,7 +314,7 @@ impl<T: TrayApi> TrayIconWrapper<T> {
     }
 
     pub async fn register(&self) -> Result<()> {
-        self.api.register().await
+        self.api.register(None).await
     }
 
     pub async fn unregister(&self) -> Result<()> {
@@ -566,7 +556,7 @@ impl Default for MockTrayApi {
 #[cfg(test)]
 #[async_trait::async_trait]
 impl TrayApi for MockTrayApi {
-    async fn register(&self) -> Result<()> {
+    async fn register(&self, _hwnd: Option<isize>) -> Result<()> {
         *self.registered.lock().unwrap() = true;
         Ok(())
     }
@@ -603,7 +593,7 @@ impl TrayApi for MockTrayApi {
         Ok(())
     }
 
-    async fn set_active_status(&self, active: bool) -> Result<()> {
+    async fn set_active(&self, active: bool) -> Result<()> {
         *self.active.lock().unwrap() = active;
         Ok(())
     }
@@ -635,7 +625,7 @@ mod tests {
         let api = MockTrayApi::new();
         assert!(!api.is_registered());
 
-        api.register().await.unwrap();
+        api.register(None).await.unwrap();
         assert!(api.is_registered());
 
         api.unregister().await.unwrap();

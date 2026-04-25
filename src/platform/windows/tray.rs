@@ -38,14 +38,10 @@ const WM_USER_TRAYICON: u32 = 6000;
 const WM_LBUTTONUP: u32 = 0x0202;
 const WM_RBUTTONUP: u32 = 0x0205;
 
-/// Menu item IDs
-pub const IDM_TOGGLE_ACTIVE: u32 = 100;
-pub const IDM_RELOAD: u32 = 101;
-pub const IDM_OPEN_CONFIG: u32 = 102;
-pub const IDM_EXIT: u32 = 103;
-
 // Re-export shared tray types from platform::traits
-pub use crate::platform::traits::{AppCommand, MenuAction};
+pub use crate::platform::traits::AppCommand;
+// Re-export menu ID constants from tray_common
+pub use crate::platform::tray_common::menu_ids;
 
 /// Callback type for command handling
 type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
@@ -111,20 +107,24 @@ impl TrayIconData {
             let _ = AppendMenuW(
                 hmenu,
                 MF_STRING,
-                IDM_TOGGLE_ACTIVE as usize,
+                menu_ids::TOGGLE_ACTIVE as usize,
                 w!("Enable/Disable"),
             );
             let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
-            let _ =
-                AppendMenuW(hmenu, MF_STRING, IDM_RELOAD as usize, w!("Reload Config"));
             let _ = AppendMenuW(
                 hmenu,
                 MF_STRING,
-                IDM_OPEN_CONFIG as usize,
+                menu_ids::RELOAD as usize,
+                w!("Reload Config"),
+            );
+            let _ = AppendMenuW(
+                hmenu,
+                MF_STRING,
+                menu_ids::OPEN_CONFIG as usize,
                 w!("Open Config Folder"),
             );
             let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
-            let _ = AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Exit"));
+            let _ = AppendMenuW(hmenu, MF_STRING, menu_ids::EXIT as usize, w!("Exit"));
 
             // Display menu - do NOT use TPM_RETURNCMD as it prevents WM_COMMAND from being sent
             let _ = TrackPopupMenu(
@@ -179,10 +179,10 @@ unsafe extern "system" fn window_proc(
 
             if let Some(ref callback) = CMD_CALLBACK {
                 match id {
-                    IDM_TOGGLE_ACTIVE => callback(AppCommand::ToggleActive),
-                    IDM_RELOAD => callback(AppCommand::ReloadConfig),
-                    IDM_OPEN_CONFIG => callback(AppCommand::OpenConfigFolder),
-                    IDM_EXIT => callback(AppCommand::Exit),
+                    menu_ids::TOGGLE_ACTIVE => callback(AppCommand::ToggleActive),
+                    menu_ids::RELOAD => callback(AppCommand::ReloadConfig),
+                    menu_ids::OPEN_CONFIG => callback(AppCommand::OpenConfigFolder),
+                    menu_ids::EXIT => callback(AppCommand::Exit),
                     _ => {}
                 }
             }
@@ -448,7 +448,7 @@ impl TrayIcon {
             AppendMenuW(
                 hmenu,
                 MF_STRING,
-                IDM_TOGGLE_ACTIVE as usize,
+                menu_ids::TOGGLE_ACTIVE as usize,
                 w!("Enable/Disable"),
             )
             .map_err(|_| anyhow!("Failed to append menu item"))?;
@@ -458,14 +458,19 @@ impl TrayIcon {
                 .map_err(|_| anyhow!("Failed to append separator"))?;
 
             // Reload config
-            AppendMenuW(hmenu, MF_STRING, IDM_RELOAD as usize, w!("Reload Config"))
-                .map_err(|_| anyhow!("Failed to append menu item"))?;
+            AppendMenuW(
+                hmenu,
+                MF_STRING,
+                menu_ids::RELOAD as usize,
+                w!("Reload Config"),
+            )
+            .map_err(|_| anyhow!("Failed to append menu item"))?;
 
             // Open config folder
             AppendMenuW(
                 hmenu,
                 MF_STRING,
-                IDM_OPEN_CONFIG as usize,
+                menu_ids::OPEN_CONFIG as usize,
                 w!("Open Config Folder"),
             )
             .map_err(|_| anyhow!("Failed to append menu item"))?;
@@ -475,7 +480,7 @@ impl TrayIcon {
                 .map_err(|_| anyhow!("Failed to append separator"))?;
 
             // Exit
-            AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Exit"))
+            AppendMenuW(hmenu, MF_STRING, menu_ids::EXIT as usize, w!("Exit"))
                 .map_err(|_| anyhow!("Failed to append menu item"))?;
 
             Ok(hmenu)
@@ -538,7 +543,9 @@ impl RealTrayApi {
 
 #[async_trait]
 impl TrayApi for RealTrayApi {
-    async fn register(&self, hwnd: isize) -> Result<()> {
+    async fn register(&self, hwnd: Option<isize>) -> Result<()> {
+        let hwnd = hwnd
+            .ok_or_else(|| anyhow::anyhow!("Windows tray registration requires hwnd"))?;
         let mut inner = self.inner.lock().await;
         let hwnd_ptr = HWND(hwnd as *mut std::ffi::c_void);
         inner.hwnd = hwnd_ptr;
@@ -626,10 +633,10 @@ impl MockTrayApi {
 
 #[async_trait]
 impl TrayApi for MockTrayApi {
-    async fn register(&self, hwnd: isize) -> Result<()> {
+    async fn register(&self, hwnd: Option<isize>) -> Result<()> {
         let mut state = self.state.lock().await;
         state.registered = true;
-        state.hwnd = hwnd;
+        state.hwnd = hwnd.unwrap_or(0);
         Ok(())
     }
 
@@ -697,6 +704,7 @@ pub use crate::platform::tray_common::TrayManager;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::traits::MenuAction;
 
     #[test]
     fn test_tray_icon_creation() {

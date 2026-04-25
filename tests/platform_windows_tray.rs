@@ -2,24 +2,23 @@
 
 #[cfg(all(test, target_os = "windows"))]
 mod tray_tests {
-    use wakem::platform::windows::tray::{
-        MenuAction, MockTrayApi, TrayApi, TrayManager, IDM_EXIT, IDM_OPEN_CONFIG,
-        IDM_RELOAD, IDM_TOGGLE_ACTIVE,
-    };
+    use wakem::platform::traits::MenuAction;
+    use wakem::platform::tray_common::menu_ids;
+    use wakem::platform::windows::tray::{MockTrayApi, TrayApi, TrayManager};
 
     #[tokio::test]
     async fn test_mock_tray_api_register() {
         let api = MockTrayApi::new();
         assert!(!api.is_registered());
 
-        api.register(12345).await.unwrap();
+        api.register(Some(12345)).await.unwrap();
         assert!(api.is_registered());
     }
 
     #[tokio::test]
     async fn test_mock_tray_api_unregister() {
         let api = MockTrayApi::new();
-        api.register(12345).await.unwrap();
+        api.register(Some(12345)).await.unwrap();
         assert!(api.is_registered());
 
         api.unregister().await.unwrap();
@@ -55,13 +54,13 @@ mod tray_tests {
     #[tokio::test]
     async fn test_mock_tray_api_menu_selection() {
         let api = MockTrayApi::new();
-        api.set_menu_selections(vec![IDM_TOGGLE_ACTIVE, IDM_EXIT]);
+        api.set_menu_selections(vec![menu_ids::TOGGLE_ACTIVE, menu_ids::EXIT]);
 
         let result1 = api.show_menu().await.unwrap();
-        assert_eq!(result1, IDM_TOGGLE_ACTIVE);
+        assert_eq!(result1, menu_ids::TOGGLE_ACTIVE);
 
         let result2 = api.show_menu().await.unwrap();
-        assert_eq!(result2, IDM_EXIT);
+        assert_eq!(result2, menu_ids::EXIT);
 
         let result3 = api.show_menu().await.unwrap();
         assert_eq!(result3, 0);
@@ -85,7 +84,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         let manager = TrayManager::new(api);
 
-        manager.init(12345).await.unwrap();
+        manager.init(Some(12345)).await.unwrap();
         assert!(manager.api.is_registered());
     }
 
@@ -94,7 +93,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         let manager = TrayManager::new(api);
 
-        manager.init(12345).await.unwrap();
+        manager.init(Some(12345)).await.unwrap();
         assert!(manager.api.is_registered());
 
         manager.cleanup().await.unwrap();
@@ -118,7 +117,7 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_show_context_menu_toggle() {
         let api = MockTrayApi::new();
-        api.set_menu_selections(vec![IDM_TOGGLE_ACTIVE]);
+        api.set_menu_selections(vec![menu_ids::TOGGLE_ACTIVE]);
 
         let manager = TrayManager::new(api);
         let action = manager.show_context_menu().await.unwrap();
@@ -129,7 +128,7 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_show_context_menu_reload() {
         let api = MockTrayApi::new();
-        api.set_menu_selections(vec![IDM_RELOAD]);
+        api.set_menu_selections(vec![menu_ids::RELOAD]);
 
         let manager = TrayManager::new(api);
         let action = manager.show_context_menu().await.unwrap();
@@ -140,7 +139,7 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_show_context_menu_open_config() {
         let api = MockTrayApi::new();
-        api.set_menu_selections(vec![IDM_OPEN_CONFIG]);
+        api.set_menu_selections(vec![menu_ids::OPEN_CONFIG]);
 
         let manager = TrayManager::new(api);
         let action = manager.show_context_menu().await.unwrap();
@@ -151,7 +150,7 @@ mod tray_tests {
     #[tokio::test]
     async fn test_tray_manager_show_context_menu_exit() {
         let api = MockTrayApi::new();
-        api.set_menu_selections(vec![IDM_EXIT]);
+        api.set_menu_selections(vec![menu_ids::EXIT]);
 
         let manager = TrayManager::new(api);
         let action = manager.show_context_menu().await.unwrap();
@@ -192,10 +191,10 @@ mod tray_tests {
 
     #[test]
     fn test_menu_ids() {
-        assert_eq!(IDM_TOGGLE_ACTIVE, 100);
-        assert_eq!(IDM_RELOAD, 101);
-        assert_eq!(IDM_OPEN_CONFIG, 102);
-        assert_eq!(IDM_EXIT, 103);
+        assert_eq!(menu_ids::TOGGLE_ACTIVE, 100);
+        assert_eq!(menu_ids::RELOAD, 101);
+        assert_eq!(menu_ids::OPEN_CONFIG, 102);
+        assert_eq!(menu_ids::EXIT, 103);
     }
 }
 

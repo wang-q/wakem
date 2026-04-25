@@ -9,41 +9,12 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
-use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo};
+use crate::platform::traits::{
+    MonitorInfo, MonitorWorkArea, WindowId, WindowInfo, WindowState,
+};
 use anyhow::{anyhow, Result};
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
 use tracing::debug;
-
-/// Monitor work area (usable area excluding dock/menu bar)
-#[derive(Debug, Clone)]
-pub struct MonitorWorkArea {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-/// Window state enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowState {
-    Normal,
-    Minimized,
-    Maximized,
-    FullScreen,
-}
-
-/// Window operation types
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WindowOperation {
-    Move(i32, i32),
-    Resize(i32, i32),
-    MoveAndResize(i32, i32, i32, i32),
-    Minimize,
-    Maximize,
-    Restore,
-    Close,
-    SetTopmost(bool),
-}
 
 /// macOS Window API trait
 pub trait MacosWindowApi {

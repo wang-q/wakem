@@ -1,41 +1,84 @@
 //! Common tray manager implementation
 //!
-//! This module provides a platform-agnostic tray manager that works
-//! with any platform's TrayApi implementation.
+//! This module provides a platform-agnostic tray API trait and manager
+//! that works across Windows and macOS platforms.
 
 use crate::platform::traits::MenuAction;
 use anyhow::Result;
 use async_trait::async_trait;
 
 /// Tray API trait - abstracts platform-specific tray operations
+///
+/// Unified trait supporting both Windows (hwnd-based registration) and
+/// macOS (NSStatusItem-based registration) tray implementations.
+///
+/// Platform-specific methods (set_tooltip, set_icon, show, hide) have
+/// default no-op implementations so only platforms that need them override.
 #[async_trait]
 pub trait TrayApi: Send + Sync {
-    /// Register tray icon
-    async fn register(&self, hwnd: isize) -> Result<()>;
+    /// Register tray icon.
+    ///
+    /// On Windows, pass `Some(hwnd)` for the message window handle.
+    /// On macOS, pass `None` (no handle needed).
+    async fn register(&self, hwnd: Option<isize>) -> Result<()>;
 
     /// Unregister tray icon
     async fn unregister(&self) -> Result<()>;
 
-    /// Show balloon notification
+    /// Show balloon/notification
     async fn show_notification(&self, title: &str, message: &str) -> Result<()>;
 
-    /// Show context menu, return selected menu item ID
-    async fn show_menu(&self) -> Result<u32>;
+    /// Show context menu, return selected menu item ID.
+    /// Default returns 0 (no selection).
+    async fn show_menu(&self) -> Result<u32> {
+        Ok(0)
+    }
 
-    /// Set active status
+    /// Set active/enabled status
     async fn set_active(&self, active: bool) -> Result<()>;
 
-    /// Get active status
-    async fn is_active(&self) -> bool;
+    /// Alias for set_active (macOS naming convention compatibility)
+    async fn set_active_status(&self, active: bool) -> Result<()> {
+        self.set_active(active).await
+    }
+
+    /// Get active status. Default returns true.
+    async fn is_active(&self) -> bool {
+        true
+    }
+
+    /// Set tooltip text. Default no-op (Windows uses NOTIFYICONDATA tip).
+    async fn set_tooltip(&self, _tooltip: &str) -> Result<()> {
+        Ok(())
+    }
+
+    /// Set icon from path. Default no-op.
+    async fn set_icon(&self, _icon_path: Option<&str>) -> Result<()> {
+        Ok(())
+    }
+
+    /// Show tray icon. Default no-op.
+    async fn show(&self) -> Result<()> {
+        Ok(())
+    }
+
+    /// Hide tray icon. Default no-op.
+    async fn hide(&self) -> Result<()> {
+        Ok(())
+    }
 
     /// Get sent notifications (for testing only)
-    fn get_notifications(&self) -> Vec<(String, String)>;
+    fn get_notifications(&self) -> Vec<(String, String)> {
+        Vec::new()
+    }
 
     /// Check if registered (for testing only)
-    fn is_registered(&self) -> bool;
+    fn is_registered(&self) -> bool {
+        false
+    }
 
     /// Preset menu selections (for testing only)
-    fn set_menu_selections(&self, selections: Vec<u32>);
+    fn set_menu_selections(&self, _selections: Vec<u32>) {}
 }
 
 /// Tray icon manager - works with any TrayApi implementation
@@ -47,14 +90,23 @@ pub struct TrayManager<T: TrayApi> {
 }
 
 impl<T: TrayApi> TrayManager<T> {
-    /// Create a new tray manager with the given API implementation
     pub fn new(api: T) -> Self {
         Self { api }
     }
 
-    /// Initialize tray icon with the given window handle
-    pub async fn init(&self, hwnd: isize) -> Result<()> {
+    /// Initialize tray icon with optional window handle
+    pub async fn init(&self, hwnd: Option<isize>) -> Result<()> {
         self.api.register(hwnd).await
+    }
+
+    /// Initialize with window handle (convenience for Windows)
+    pub async fn init_with_hwnd(&self, hwnd: isize) -> Result<()> {
+        self.api.register(Some(hwnd)).await
+    }
+
+    /// Initialize without window handle (convenience for macOS)
+    pub async fn init_no_handle(&self) -> Result<()> {
+        self.api.register(None).await
     }
 
     /// Cleanup tray icon
@@ -89,13 +141,9 @@ impl<T: TrayApi> TrayManager<T> {
 
 /// Menu ID constants for standard tray menu items
 pub mod menu_ids {
-    /// Toggle active state
     pub const TOGGLE_ACTIVE: u32 = 100;
-    /// Reload configuration
     pub const RELOAD: u32 = 101;
-    /// Open config folder
     pub const OPEN_CONFIG: u32 = 102;
-    /// Exit application
     pub const EXIT: u32 = 103;
 }
 

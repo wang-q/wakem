@@ -254,32 +254,7 @@ impl InputDevice for MacosInputDevice {
 }
 
 /// Input device factory
-pub struct InputDeviceFactory;
-
-impl InputDeviceFactory {
-    /// Create default input device (keyboard + mouse)
-    pub fn create_default() -> Result<MacosInputDevice> {
-        MacosInputDevice::new(InputDeviceConfig::default())
-    }
-
-    /// Create keyboard-only input device
-    pub fn create_keyboard_only() -> Result<MacosInputDevice> {
-        MacosInputDevice::new(InputDeviceConfig {
-            capture_keyboard: true,
-            capture_mouse: false,
-            block_legacy_input: true,
-        })
-    }
-
-    /// Create a mouse-only input device
-    pub fn create_mouse_only() -> Result<MacosInputDevice> {
-        MacosInputDevice::new(InputDeviceConfig {
-            capture_keyboard: false,
-            capture_mouse: true,
-            block_legacy_input: true,
-        })
-    }
-}
+pub use crate::platform::input_device_common::InputDeviceFactory;
 
 /// Implement InputDeviceTrait for MacosInputDevice (platform-agnostic trait)
 impl InputDeviceTrait for MacosInputDevice {

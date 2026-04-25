@@ -27,9 +27,7 @@ pub use tray::{
     run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, MenuAction,
     RealTrayApi, TrayApi, TrayIconWrapper as TrayIcon, TrayManager,
 };
-pub use window_api::{
-    MacosWindowApi, MonitorWorkArea, RealMacosWindowApi, WindowOperation, WindowState,
-};
+pub use window_api::{MacosWindowApi, MonitorWorkArea, RealMacosWindowApi, WindowState};
 pub use window_event_hook::{MacosWindowEvent, MacosWindowEventHook};
 pub use window_manager::{
     EdgeDirection, MacosWindowFrame, MacosWindowManager, MonitorDirection,

@@ -18,6 +18,7 @@
 use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 
+use crate::platform::traits::InputDeviceConfig;
 use crate::types::{
     InputEvent, KeyEvent, KeyState, MouseButton, MouseEvent, MouseEventType,
 };
@@ -374,24 +375,6 @@ pub struct CGEventTapDevice {
 // The raw pointers are only accessed behind Mutex locks.
 unsafe impl Send for CGEventTapDevice {}
 unsafe impl Sync for CGEventTapDevice {}
-
-/// Configuration for the input device
-#[derive(Debug, Clone)]
-pub struct InputDeviceConfig {
-    pub capture_keyboard: bool,
-    pub capture_mouse: bool,
-    pub block_legacy_input: bool,
-}
-
-impl Default for InputDeviceConfig {
-    fn default() -> Self {
-        Self {
-            capture_keyboard: true,
-            capture_mouse: true,
-            block_legacy_input: false,
-        }
-    }
-}
 
 impl CGEventTapDevice {
     /// Create a new CGEventTap device
