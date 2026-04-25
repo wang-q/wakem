@@ -193,6 +193,28 @@ pub struct MonitorInfo {
     pub height: i32,
 }
 
+/// Monitor work area (usable screen area excluding taskbar/dock)
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+pub struct MonitorWorkArea {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl MonitorWorkArea {
+    /// Create a new monitor work area
+    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
 /// Trait for window information needed by common operations
 pub trait WindowInfoProvider {
     /// Get window position X
@@ -264,6 +286,34 @@ impl WindowInfoProvider for WindowInfo {
     fn height(&self) -> i32 {
         self.height
     }
+}
+
+/// Window state enumeration
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowState {
+    /// Normal window state
+    Normal,
+    /// Window is minimized
+    Minimized,
+    /// Window is maximized
+    Maximized,
+    /// Window is in fullscreen mode
+    FullScreen,
+}
+
+/// Window operation types
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowOperation {
+    /// Minimize window
+    Minimize,
+    /// Maximize window
+    Maximize,
+    /// Restore window
+    Restore,
+    /// Close window
+    Close,
+    /// Toggle topmost state
+    ToggleTopmost,
 }
 
 /// Application commands sent from tray menu

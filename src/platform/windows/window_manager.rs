@@ -13,11 +13,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use windows_core::BOOL;
 
 // Import Edge and Alignment from types
-use super::window_api::{MonitorWorkArea, RealWindowApi, WindowApi};
+use super::window_api::{RealWindowApi, WindowApi};
 pub use crate::types::{Alignment, Edge};
 
-// Import common window manager
-use crate::platform::traits::{MonitorInfo, WindowInfoProvider};
+// Import common window manager and shared types
+use crate::platform::traits::{MonitorInfo, MonitorWorkArea, WindowFrame, WindowInfoProvider};
 use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
 
 /// Monitor direction (for moving between displays)
@@ -29,36 +29,14 @@ pub enum MonitorDirection {
     Index(i32),
 }
 
-/// Window frame information
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-pub struct WindowFrame {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-impl WindowFrame {
-    /// Create new window frame
-    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-
-    /// Create from RECT
-    pub fn from_rect(rect: &RECT) -> Self {
-        Self {
-            x: rect.left,
-            y: rect.top,
-            width: rect.right - rect.left,
-            height: rect.bottom - rect.top,
-        }
-    }
+/// Create WindowFrame from RECT
+fn window_frame_from_rect(rect: &RECT) -> WindowFrame {
+    WindowFrame::new(
+        rect.left,
+        rect.top,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+    )
 }
 
 /// Window information
@@ -859,7 +837,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(100, 200, 800, 600));
         api.set_monitor_info(
             hwnd,
-            super::super::window_api::MonitorInfo {
+            MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -885,7 +863,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(0, 0, 800, 600));
         api.set_monitor_info(
             hwnd,
-            super::super::window_api::MonitorInfo {
+            MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -910,7 +888,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
         api.set_monitor_info(
             hwnd,
-            super::super::window_api::MonitorInfo {
+            MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -939,7 +917,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
         api.set_monitor_info(
             hwnd,
-            super::super::window_api::MonitorInfo {
+            MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -972,7 +950,7 @@ mod tests {
         // Set all data before creating WindowManager
         api.set_monitor_info(
             hwnd,
-            super::super::window_api::MonitorInfo {
+            MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -999,7 +977,7 @@ mod tests {
         // Set all data before creating WindowManager
         api.set_monitor_info(
             hwnd,
-            super::super::window_api::MonitorInfo {
+            MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,

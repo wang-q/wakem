@@ -15,23 +15,27 @@ pub mod window_preset;
 pub use context::WindowContext;
 pub use input::RawInputDevice as LegacyRawInputDevice;
 #[allow(unused_imports)]
-pub use input_device::{InputDevice, InputDeviceFactory, RawInputDevice};
+pub use input_device::RawInputDevice;
 pub use launcher::Launcher;
 #[allow(unused_imports)]
-pub use output_device::{OutputDevice, SendInputDevice, WindowsOutputDevice};
+pub use output_device::{SendInputDevice, WindowsOutputDevice};
 #[allow(unused_imports)]
 pub use tray::{
-    run_tray_message_loop, stop_tray, AppCommand, MenuAction, MockTrayApi, RealTrayApi,
-    TrayApi, TrayIcon, TrayManager,
+    run_tray_message_loop, stop_tray, RealTrayApi, TrayApi, TrayIcon, TrayManager,
 };
 #[allow(unused_imports)]
-pub use window_api::{
-    MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi, WindowOperation, WindowState,
-};
+pub use window_api::RealWindowApi;
 
 // Re-export shared types from platform::traits
 #[allow(unused_imports)]
-pub use crate::platform::traits::InputDeviceConfig;
+pub use crate::platform::traits::{
+    AppCommand, InputDeviceConfig, MenuAction, MonitorInfo, MonitorWorkArea, WindowFrame,
+    WindowOperation, WindowState,
+};
+
+// Re-export WindowPreset from config
+#[allow(unused_imports)]
+pub use crate::config::WindowPreset;
 
 // Mock implementations are only exported during tests
 #[cfg(test)]
@@ -40,12 +44,12 @@ pub use crate::platform::mock::MockInputDevice;
 #[cfg(test)]
 pub use crate::platform::mock::MockOutputDevice;
 #[cfg(test)]
-pub use output_device::MockOutputEvent;
+// MockOutputEvent is now in platform::mock
 #[cfg(test)]
 pub use window_api::MockWindowApi;
 
 pub use window_event_hook::{WindowEvent, WindowEventHook};
-pub use window_manager::{MonitorDirection, WindowFrame, WindowManager};
+pub use window_manager::{MonitorDirection, WindowManager};
 pub use window_preset::WindowPresetManager;
 
 /// Get current modifier state for Windows

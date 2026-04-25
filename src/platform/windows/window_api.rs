@@ -16,29 +16,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows_core::BOOL;
 
-use super::WindowFrame;
+use crate::platform::traits::{MonitorInfo, MonitorWorkArea, WindowFrame};
 
-/// Monitor information
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct MonitorInfo {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-/// Monitor work area information
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-pub struct MonitorWorkArea {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-/// Window operation log
+/// Window operation log (Windows-specific)
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum WindowOperation {
@@ -83,10 +63,10 @@ pub enum WindowOperation {
     },
 }
 
-/// Window state
+/// Window state (Windows-specific implementation details)
 #[derive(Debug, Clone, Copy, Default)]
 #[allow(dead_code)]
-pub struct WindowState {
+pub struct WindowStateDetail {
     pub minimized: bool,
     pub maximized: bool,
     pub topmost: bool,
@@ -226,7 +206,12 @@ impl WindowApi for RealWindowApi {
         unsafe {
             let mut rect = RECT::default();
             GetWindowRect(hwnd, &mut rect).ok()?;
-            Some(WindowFrame::from_rect(&rect))
+            Some(WindowFrame::new(
+                rect.left,
+                rect.top,
+                rect.right - rect.left,
+                rect.bottom - rect.top,
+            ))
         }
     }
 
@@ -643,7 +628,7 @@ pub struct MockWindowApi {
     pub foreground_window: RefCell<Option<HWND>>,
     pub window_rects: RefCell<HashMap<isize, WindowFrame>>,
     pub monitor_info: RefCell<HashMap<isize, MonitorInfo>>,
-    pub window_states: RefCell<HashMap<isize, WindowState>>,
+    pub window_states: RefCell<HashMap<isize, WindowStateDetail>>,
     pub operations_log: RefCell<Vec<WindowOperation>>,
 }
 
@@ -674,7 +659,7 @@ impl MockWindowApi {
         self.monitor_info.borrow_mut().insert(hwnd.0 as isize, info);
     }
 
-    pub fn set_window_state(&self, hwnd: HWND, state: WindowState) {
+    pub fn set_window_state(&self, hwnd: HWND, state: WindowStateDetail) {
         self.window_states
             .borrow_mut()
             .insert(hwnd.0 as isize, state);

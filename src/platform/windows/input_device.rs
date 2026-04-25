@@ -2,26 +2,11 @@
 #![cfg(target_os = "windows")]
 #![allow(dead_code)]
 
-use crate::platform::traits::InputDeviceConfig;
+use crate::platform::traits::{InputDeviceConfig, InputDeviceTrait};
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use tracing::debug;
-
-/// Abstract interface for input device
-#[allow(dead_code)]
-pub trait InputDevice {
-    /// Register the device
-    fn register(&mut self) -> Result<()>;
-    /// Unregister the device
-    fn unregister(&mut self);
-    /// Poll for events (non-blocking)
-    fn poll_event(&mut self) -> Option<InputEvent>;
-    /// Check if the device is running
-    fn is_running(&self) -> bool;
-    /// Stop the device
-    fn stop(&mut self);
-}
 
 /// Real Raw Input device implementation
 #[allow(dead_code)]
@@ -32,7 +17,7 @@ pub struct RawInputDevice {
     modifier_state: ModifierState,
     running: bool,
     #[allow(dead_code)]
-    hwnd: Option<windows::Win32::Foundation::HWND>,
+    hwnd: Option<isize>, // Store as isize for Send safety
 }
 
 impl RawInputDevice {
@@ -58,7 +43,7 @@ impl RawInputDevice {
     }
 }
 
-impl InputDevice for RawInputDevice {
+impl InputDeviceTrait for RawInputDevice {
     fn register(&mut self) -> Result<()> {
         debug!("Registering Raw Input device");
         self.running = true;
@@ -96,36 +81,6 @@ impl InputDevice for RawInputDevice {
 
     fn stop(&mut self) {
         self.running = false;
-    }
-}
-
-/// Input device factory
-#[allow(dead_code)]
-pub struct InputDeviceFactory;
-
-#[allow(dead_code)]
-impl InputDeviceFactory {
-    /// Create default input device
-    pub fn create_default() -> Result<RawInputDevice> {
-        RawInputDevice::new(InputDeviceConfig::default())
-    }
-
-    /// Create keyboard-only input device
-    pub fn create_keyboard_only() -> Result<RawInputDevice> {
-        RawInputDevice::new(InputDeviceConfig {
-            capture_keyboard: true,
-            capture_mouse: false,
-            block_legacy_input: true,
-        })
-    }
-
-    /// Create a mouse-only input device
-    pub fn create_mouse_only() -> Result<RawInputDevice> {
-        RawInputDevice::new(InputDeviceConfig {
-            capture_keyboard: false,
-            capture_mouse: true,
-            block_legacy_input: true,
-        })
     }
 }
 

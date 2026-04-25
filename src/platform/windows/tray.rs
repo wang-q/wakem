@@ -497,37 +497,8 @@ impl Drop for TrayIcon {
     }
 }
 
-/// Tray icon operation trait - used to abstract Windows API calls for easier testing
-#[allow(dead_code)]
-#[async_trait]
-pub trait TrayApi: Send + Sync {
-    /// Register tray icon
-    async fn register(&self, hwnd: isize) -> Result<()>;
-
-    /// Unregister tray icon
-    async fn unregister(&self) -> Result<()>;
-
-    /// Show balloon notification
-    async fn show_notification(&self, title: &str, message: &str) -> Result<()>;
-
-    /// Show context menu, return selected menu item ID
-    async fn show_menu(&self) -> Result<u32>;
-
-    /// Set active status
-    async fn set_active(&self, active: bool) -> Result<()>;
-
-    /// Get active status
-    async fn is_active(&self) -> bool;
-
-    /// Get sent notifications (for testing only)
-    fn get_notifications(&self) -> Vec<(String, String)>;
-
-    /// Check if registered (for testing only)
-    fn is_registered(&self) -> bool;
-
-    /// Preset menu selections (for testing only)
-    fn set_menu_selections(&self, selections: Vec<u32>);
-}
+// Re-export shared TrayApi trait from tray_common
+pub use crate::platform::tray_common::TrayApi;
 
 /// Real tray icon API implementation
 #[allow(dead_code)]
@@ -720,64 +691,8 @@ impl TrayApi for MockTrayApi {
     }
 }
 
-/// Tray icon manager
-#[allow(dead_code)]
-pub struct TrayManager<T: TrayApi> {
-    pub api: T,
-}
-
-impl<T: TrayApi> TrayManager<T> {
-    #[allow(dead_code)]
-    pub fn new(api: T) -> Self {
-        Self { api }
-    }
-
-    /// Initialize tray icon
-    #[allow(dead_code)]
-    pub async fn init(&self, hwnd: isize) -> Result<()> {
-        self.api.register(hwnd).await
-    }
-
-    /// Cleanup tray icon
-    #[allow(dead_code)]
-    pub async fn cleanup(&self) -> Result<()> {
-        self.api.unregister().await
-    }
-
-    /// Show notification
-    #[allow(dead_code)]
-    pub async fn notify(&self, title: &str, message: &str) -> Result<()> {
-        self.api.show_notification(title, message).await
-    }
-
-    /// Show menu and handle selection
-    #[allow(dead_code)]
-    pub async fn show_context_menu(&self) -> Result<MenuAction> {
-        let selection = self.api.show_menu().await?;
-        Ok(match selection {
-            IDM_TOGGLE_ACTIVE => MenuAction::ToggleActive,
-            IDM_RELOAD => MenuAction::Reload,
-            IDM_OPEN_CONFIG => MenuAction::OpenConfig,
-            IDM_EXIT => MenuAction::Exit,
-            _ => MenuAction::None,
-        })
-    }
-
-    /// Toggle active status
-    #[allow(dead_code)]
-    pub async fn toggle_active(&self) -> Result<bool> {
-        let current = self.api.is_active().await;
-        let new_state = !current;
-        self.api.set_active(new_state).await?;
-        Ok(new_state)
-    }
-
-    /// Get active status
-    #[allow(dead_code)]
-    pub async fn is_active(&self) -> bool {
-        self.api.is_active().await
-    }
-}
+// Re-export shared TrayManager from tray_common
+pub use crate::platform::tray_common::TrayManager;
 
 #[cfg(test)]
 mod tests {

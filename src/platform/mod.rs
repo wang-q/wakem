@@ -10,12 +10,16 @@
 //! platform-specific implementation.
 
 #[allow(dead_code)]
+pub mod input_device_common;
+#[allow(dead_code)]
 pub mod launcher_common;
 #[allow(dead_code)]
 pub mod mock;
 pub mod output_helpers;
 #[allow(dead_code)]
 pub mod traits;
+#[allow(dead_code)]
+pub mod tray_common;
 pub mod window_manager_common;
 
 // Re-export mock implementations for testing
@@ -27,9 +31,14 @@ pub use output_helpers::char_to_vk;
 // Re-export specific items from traits
 #[allow(unused_imports)]
 pub use traits::{
-    InputDeviceTrait, MonitorInfo, OutputDeviceTrait, TrayIconTrait, WindowApiTrait,
-    WindowContext, WindowId, WindowInfo, WindowManagerTrait,
+    AppCommand, InputDeviceConfig, InputDeviceTrait, MenuAction, MonitorInfo, MonitorWorkArea,
+    OutputDeviceTrait, TrayIconTrait, WindowApiTrait, WindowContext, WindowFrame, WindowId,
+    WindowInfo, WindowManagerTrait, WindowOperation, WindowState,
 };
+
+// Re-export WindowPreset from config (single source of truth)
+#[allow(unused_imports)]
+pub use crate::config::WindowPreset;
 
 // Platform-specific implementations
 #[cfg(target_os = "windows")]
@@ -57,7 +66,6 @@ pub use windows::{
     WindowContext as WindowsWindowContext,
     WindowEvent,
     WindowEventHook,
-    WindowFrame,
     // Window management
     WindowManager,
     WindowPresetManager,
