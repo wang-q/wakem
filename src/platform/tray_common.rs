@@ -182,8 +182,12 @@ impl<T: TrayApi + Default + 'static> TrayManager<T> {
 
 impl<T: TrayApi + Default + 'static> Default for TrayManager<T> {
     fn default() -> Self {
-        let (mgr, _) = Self::new();
-        mgr
+        let (sender, _) = channel();
+        Self {
+            tray: None,
+            command_sender: sender,
+            running: false,
+        }
     }
 }
 

@@ -99,33 +99,35 @@ pub trait OutputDeviceTrait: Send {
         scan_code: u16,
         virtual_key: u16,
     ) -> Result<()> {
+        use crate::platform::output_helpers::modifier_vk;
+
         if modifiers.shift {
-            self.send_key(0, 0x10, false)?;
+            self.send_key(0, modifier_vk::SHIFT, false)?;
         }
         if modifiers.ctrl {
-            self.send_key(0, 0x11, false)?;
+            self.send_key(0, modifier_vk::CONTROL, false)?;
         }
         if modifiers.alt {
-            self.send_key(0, 0x12, false)?;
+            self.send_key(0, modifier_vk::ALT, false)?;
         }
         if modifiers.meta {
-            self.send_key(0, 0x5B, false)?;
+            self.send_key(0, modifier_vk::META, false)?;
         }
 
         self.send_key(scan_code, virtual_key, false)?;
         self.send_key(scan_code, virtual_key, true)?;
 
         if modifiers.meta {
-            self.send_key(0, 0x5B, true)?;
+            self.send_key(0, modifier_vk::META, true)?;
         }
         if modifiers.alt {
-            self.send_key(0, 0x12, true)?;
+            self.send_key(0, modifier_vk::ALT, true)?;
         }
         if modifiers.ctrl {
-            self.send_key(0, 0x11, true)?;
+            self.send_key(0, modifier_vk::CONTROL, true)?;
         }
         if modifiers.shift {
-            self.send_key(0, 0x10, true)?;
+            self.send_key(0, modifier_vk::SHIFT, true)?;
         }
 
         Ok(())

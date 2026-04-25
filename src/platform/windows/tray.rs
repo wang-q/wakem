@@ -525,12 +525,16 @@ struct TrayIconInner {
     tray_icon: TrayIcon,
     hwnd: HWND,
     active: bool,
+    registered: bool,
 }
 
 // SAFETY: TrayIconInner wraps TrayIcon (which is Send) and HWND.
-// It is safe to Send but not Sync, as Windows UI handles are
-// thread-affine. The tokio::sync::Mutex in RealTrayApi provides
-// the necessary synchronization for shared access.
+// Windows UI handles are thread-affine: they must only be used from the
+// thread that created them. We allow Send so the struct can be moved
+// between threads, but callers must ensure that all UI operations
+// (register, show_menu, etc.) are dispatched to the creating thread.
+// The tokio::sync::Mutex in RealTrayApi provides mutual exclusion but
+// does NOT enforce thread affinity. Debug builds include a thread check.
 unsafe impl Send for TrayIconInner {}
 
 impl Default for RealTrayApi {
@@ -547,6 +551,7 @@ impl RealTrayApi {
                 tray_icon: TrayIcon::new(),
                 hwnd: HWND(std::ptr::null_mut()),
                 active: true,
+                registered: false,
             })),
         }
     }
@@ -561,12 +566,14 @@ impl TrayApi for RealTrayApi {
         let hwnd_ptr = HWND(hwnd as *mut std::ffi::c_void);
         inner.hwnd = hwnd_ptr;
         inner.tray_icon.register(hwnd_ptr)?;
+        inner.registered = true;
         Ok(())
     }
 
     async fn unregister(&self) -> Result<()> {
         let mut inner = self.inner.lock().await;
         inner.tray_icon.unregister()?;
+        inner.registered = false;
         Ok(())
     }
 
@@ -597,7 +604,10 @@ impl TrayApi for RealTrayApi {
     }
 
     fn is_registered(&self) -> bool {
-        true
+        match self.inner.try_lock() {
+            Ok(inner) => inner.registered,
+            Err(_) => false,
+        }
     }
 
     fn set_menu_selections(&self, _selections: Vec<u32>) {}

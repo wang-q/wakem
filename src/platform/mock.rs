@@ -9,7 +9,6 @@ use crate::types::{
     MouseEventType, SystemAction,
 };
 use anyhow::Result;
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
@@ -85,99 +84,93 @@ macro_rules! impl_test_output_device {
 }
 
 /// Mock input device for testing
+///
+/// Uses `Arc<Mutex<>>` for thread-safe interior mutability, consistent
+/// with [MockOutputDevice].
 pub struct MockInputDevice {
-    events: RefCell<VecDeque<InputEvent>>,
-    running: RefCell<bool>,
-    modifier_state: RefCell<ModifierState>,
-    captured_events: RefCell<Vec<InputEvent>>,
+    state: Arc<Mutex<MockInputState>>,
+}
+
+struct MockInputState {
+    events: VecDeque<InputEvent>,
+    running: bool,
+    modifier_state: ModifierState,
+    captured_events: Vec<InputEvent>,
 }
 
 impl MockInputDevice {
-    /// Create a new mock input device
     pub fn new() -> Self {
         Self {
-            events: RefCell::new(VecDeque::new()),
-            running: RefCell::new(false),
-            modifier_state: RefCell::new(ModifierState::default()),
-            captured_events: RefCell::new(Vec::new()),
+            state: Arc::new(Mutex::new(MockInputState {
+                events: VecDeque::new(),
+                running: false,
+                modifier_state: ModifierState::default(),
+                captured_events: Vec::new(),
+            })),
         }
     }
 
-    /// Inject a key press event
     pub fn inject_key_press(&self, scan_code: u16, virtual_key: u16) {
         let event = KeyEvent::new(scan_code, virtual_key, KeyState::Pressed);
-        self.events.borrow_mut().push_back(InputEvent::Key(event));
+        self.state.lock().unwrap().events.push_back(InputEvent::Key(event));
     }
 
-    /// Inject a key release event
     pub fn inject_key_release(&self, scan_code: u16, virtual_key: u16) {
         let event = KeyEvent::new(scan_code, virtual_key, KeyState::Released);
-        self.events.borrow_mut().push_back(InputEvent::Key(event));
+        self.state.lock().unwrap().events.push_back(InputEvent::Key(event));
     }
 
-    /// Inject a mouse move event
     pub fn inject_mouse_move(&self, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::Move, x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
     }
 
-    /// Inject a mouse button down event
     pub fn inject_mouse_button_down(&self, button: MouseButton, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::ButtonDown(button), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
     }
 
-    /// Inject a mouse button up event
     pub fn inject_mouse_button_up(&self, button: MouseButton, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::ButtonUp(button), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
     }
 
-    /// Inject a wheel event
     pub fn inject_wheel(&self, delta: i32, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::Wheel(delta), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
     }
 
-    /// Inject a horizontal wheel event
     pub fn inject_hwheel(&self, delta: i32, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::HWheel(delta), x, y);
-        self.events.borrow_mut().push_back(InputEvent::Mouse(event));
+        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
     }
 
-    /// Inject an arbitrary event
     pub fn inject_event(&self, event: InputEvent) {
-        self.events.borrow_mut().push_back(event);
+        self.state.lock().unwrap().events.push_back(event);
     }
 
-    /// Get all captured events
     pub fn get_captured_events(&self) -> Vec<InputEvent> {
-        self.captured_events.borrow().clone()
+        self.state.lock().unwrap().captured_events.clone()
     }
 
-    /// Clear captured events
     pub fn clear_captured(&self) {
-        self.captured_events.borrow_mut().clear();
+        self.state.lock().unwrap().captured_events.clear();
     }
 
-    /// Get the number of pending events
     pub fn pending_count(&self) -> usize {
-        self.events.borrow().len()
+        self.state.lock().unwrap().events.len()
     }
 
-    /// Clear all pending events
     pub fn clear(&self) {
-        self.events.borrow_mut().clear();
+        self.state.lock().unwrap().events.clear();
     }
 
-    /// Set modifier key state
     pub fn set_modifier_state(&self, state: ModifierState) {
-        *self.modifier_state.borrow_mut() = state;
+        self.state.lock().unwrap().modifier_state = state;
     }
 
-    /// Get current modifier key state
     pub fn get_modifier_state(&self) -> ModifierState {
-        *self.modifier_state.borrow()
+        self.state.lock().unwrap().modifier_state
     }
 }
 
@@ -189,28 +182,27 @@ impl Default for MockInputDevice {
 
 impl InputDeviceTrait for MockInputDevice {
     fn register(&mut self) -> Result<()> {
-        *self.running.borrow_mut() = true;
+        self.state.lock().unwrap().running = true;
         Ok(())
     }
 
     fn unregister(&mut self) {
-        *self.running.borrow_mut() = false;
+        self.state.lock().unwrap().running = false;
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
-        if !*self.running.borrow() {
+        let mut state = self.state.lock().unwrap();
+        if !state.running {
             return None;
         }
 
-        let event = self.events.borrow_mut().pop_front();
+        let event = state.events.pop_front();
 
         if let Some(ref e) = event {
-            // Record captured event
-            self.captured_events.borrow_mut().push(e.clone());
+            state.captured_events.push(e.clone());
 
-            // Update modifier key state
             if let InputEvent::Key(key_event) = e {
-                self.modifier_state.borrow_mut().apply_from_virtual_key(
+                state.modifier_state.apply_from_virtual_key(
                     key_event.virtual_key,
                     key_event.state == KeyState::Pressed,
                 );
@@ -221,11 +213,11 @@ impl InputDeviceTrait for MockInputDevice {
     }
 
     fn is_running(&self) -> bool {
-        *self.running.borrow()
+        self.state.lock().unwrap().running
     }
 
     fn stop(&mut self) {
-        *self.running.borrow_mut() = false;
+        self.state.lock().unwrap().running = false;
     }
 }
 

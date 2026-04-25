@@ -43,7 +43,7 @@ fn window_frame_from_rect(rect: &RECT) -> WindowFrame {
 /// Enumerate all monitors using EnumDisplayMonitors.
 ///
 /// Returns monitor rectangles (full area including taskbar) as `MonitorInfo`.
-unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
+pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
     use windows::Win32::Graphics::Gdi::{
         EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
     };
@@ -298,6 +298,10 @@ impl<A: WindowApi> CommonWindowApi for WindowManager<A> {
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
         self.api.is_zoomed(window)
+    }
+
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.api.is_topmost(window)
     }
 
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
@@ -923,7 +927,7 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Test 4:3 ratio, 100% scale
-        wm.set_fixed_ratio(hwnd, 4.0 / 3.0, 0).unwrap();
+        wm.set_fixed_ratio(hwnd, 4.0 / 3.0).unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         // Based on smaller side 1080, 4:3 ratio, width = 1080 * 4/3 = 1440

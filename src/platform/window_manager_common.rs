@@ -34,8 +34,10 @@ pub trait CommonWindowApi {
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     /// Check if window is valid
     fn is_window_valid(&self, window: Self::WindowId) -> bool;
-    /// Check if window is maximized (for topmost toggle)
+    /// Check if window is maximized
     fn is_maximized(&self, window: Self::WindowId) -> bool;
+    /// Check if window is topmost (always on top)
+    fn is_topmost(&self, window: Self::WindowId) -> bool;
     /// Set window topmost state
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
 
@@ -84,20 +86,19 @@ pub trait CommonWindowApi {
         &self,
         window: Self::WindowId,
         ratio: f32,
-        scale_index: usize,
     ) -> Result<()>
     where
         Self: Sized,
     {
-        CommonWindowManager::set_fixed_ratio(self, window, ratio, scale_index)
+        CommonWindowManager::set_fixed_ratio(self, window, ratio)
     }
 
     /// Set window to its "native" content ratio and cycle sizes
-    fn set_native_ratio(&self, window: Self::WindowId, scale_index: usize) -> Result<()>
+    fn set_native_ratio(&self, window: Self::WindowId) -> Result<()>
     where
         Self: Sized,
     {
-        CommonWindowManager::set_native_ratio(self, window, scale_index)
+        CommonWindowManager::set_native_ratio(self, window)
     }
 
     /// Toggle window topmost state, returns the new state
@@ -247,7 +248,6 @@ impl CommonWindowManager {
         api: &A,
         window: W,
         ratio: f32,
-        _scale_index: usize,
     ) -> Result<()>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
@@ -301,7 +301,6 @@ impl CommonWindowManager {
     pub fn set_native_ratio<A, W, I>(
         api: &A,
         window: W,
-        _scale_index: usize,
     ) -> Result<()>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
@@ -363,7 +362,7 @@ impl CommonWindowManager {
             return Err(anyhow::anyhow!("Invalid window handle"));
         }
 
-        let current = api.is_maximized(window);
+        let current = api.is_topmost(window);
         let new_state = !current;
         api.set_topmost(window, new_state)?;
         debug!("Toggled topmost: {} -> {}", current, new_state);

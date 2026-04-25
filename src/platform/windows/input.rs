@@ -11,10 +11,6 @@ use std::cell::RefCell;
 use std::sync::mpsc::Sender;
 use tracing::{debug, trace};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU,
-    VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
-};
 use windows::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, RIDEV_INPUTSINK,
 };
@@ -205,37 +201,8 @@ impl RawInputDevice {
         }
     }
 
-    /// Get current modifier key state from Windows
     unsafe fn get_current_modifier_state() -> ModifierState {
-        let mut modifiers = ModifierState::new();
-
-        // Check if modifier keys are currently pressed
-        // GetAsyncKeyState returns negative value if key is currently down
-        if GetAsyncKeyState(VK_SHIFT.0 as i32) < 0
-            || GetAsyncKeyState(VK_LSHIFT.0 as i32) < 0
-            || GetAsyncKeyState(VK_RSHIFT.0 as i32) < 0
-        {
-            modifiers.shift = true;
-        }
-        if GetAsyncKeyState(VK_CONTROL.0 as i32) < 0
-            || GetAsyncKeyState(VK_LCONTROL.0 as i32) < 0
-            || GetAsyncKeyState(VK_RCONTROL.0 as i32) < 0
-        {
-            modifiers.ctrl = true;
-        }
-        if GetAsyncKeyState(VK_MENU.0 as i32) < 0
-            || GetAsyncKeyState(VK_LMENU.0 as i32) < 0
-            || GetAsyncKeyState(VK_RMENU.0 as i32) < 0
-        {
-            modifiers.alt = true;
-        }
-        if GetAsyncKeyState(VK_LWIN.0 as i32) < 0
-            || GetAsyncKeyState(VK_RWIN.0 as i32) < 0
-        {
-            modifiers.meta = true;
-        }
-
-        modifiers
+        super::get_modifier_state()
     }
 
     /// Handle Raw Input message

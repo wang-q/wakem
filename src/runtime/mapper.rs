@@ -404,11 +404,11 @@ impl KeyMapper {
                 WindowAction::LoopHeight(align) => {
                     wm.loop_height(hwnd, *align)?;
                 }
-                WindowAction::FixedRatio { ratio, scale_index } => {
-                    wm.set_fixed_ratio(hwnd, *ratio, *scale_index)?;
+                WindowAction::FixedRatio { ratio, scale_index: _ } => {
+                    wm.set_fixed_ratio(hwnd, *ratio)?;
                 }
-                WindowAction::NativeRatio { scale_index } => {
-                    wm.set_native_ratio(hwnd, *scale_index)?;
+                WindowAction::NativeRatio { scale_index: _ } => {
+                    wm.set_native_ratio(hwnd)?;
                 }
                 WindowAction::SwitchToNextWindow => {
                     wm.switch_to_next_window_of_same_process()?;
@@ -721,7 +721,7 @@ impl KeyMapper {
             WindowAction::NativeRatio { .. } => {
                 wm.get_foreground_window_info()
                     .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::set_native_ratio(&wm, 1, 0))??;
+                    .map(|_| CommonWindowApi::set_native_ratio(&wm, 1))??;
             }
             WindowAction::SwitchToNextWindow => {
                 wm.switch_to_next_window_of_same_process(1)?;

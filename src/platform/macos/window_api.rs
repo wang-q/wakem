@@ -46,6 +46,7 @@ pub trait MacosWindowApi {
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost(&self, window: WindowId) -> bool;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea>;
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
@@ -118,6 +119,12 @@ impl MacosWindowApi for RealMacosWindowApi {
                 });
             }
         }
+
+        tracing::warn!(
+            "Failed to get window info by number {}, falling back to frontmost window. \
+             The returned info may not match the requested window.",
+            target_number
+        );
 
         match cg_window::get_frontmost_window_info() {
             Ok(Some(info)) => {
@@ -233,6 +240,10 @@ impl MacosWindowApi for RealMacosWindowApi {
             debug!("Brought window to front via native API");
         }
         Ok(())
+    }
+
+    fn is_topmost(&self, _window: WindowId) -> bool {
+        false
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
@@ -490,6 +501,10 @@ impl MacosWindowApi for MockMacosWindowApi {
 
     fn set_topmost(&self, _window: WindowId, _topmost: bool) -> Result<()> {
         Ok(())
+    }
+
+    fn is_topmost(&self, _window: WindowId) -> bool {
+        false
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {

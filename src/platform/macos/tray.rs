@@ -9,7 +9,7 @@
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::Sender;
 use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
@@ -142,20 +142,15 @@ pub struct RealTrayApi {
     registered: AtomicBool,
     visible: AtomicBool,
     active: AtomicBool,
-    command_sender: Sender<AppCommand>,
-    command_receiver: Receiver<AppCommand>,
     status_item: Mutex<Option<id>>,
 }
 
 impl RealTrayApi {
     pub fn new() -> Self {
-        let (sender, receiver) = channel();
         Self {
             registered: AtomicBool::new(false),
             visible: AtomicBool::new(true),
             active: AtomicBool::new(true),
-            command_sender: sender,
-            command_receiver: receiver,
             status_item: Mutex::new(None),
         }
     }
@@ -169,6 +164,7 @@ impl RealTrayApi {
 
     /// Synchronous version of register for use in blocking context
     pub fn register_blocking(&self) -> Result<()> {
+        assert_main_thread();
         if self.registered.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -180,6 +176,7 @@ impl RealTrayApi {
     /// Create the actual tray icon with menu
     /// This must be called on the main thread before run_tray_event_loop
     pub fn create_tray_icon(&self) -> Result<()> {
+        assert_main_thread();
         unsafe {
             let _pool = NSAutoreleasePool::new(nil);
 
@@ -222,6 +219,7 @@ impl RealTrayApi {
 
     /// Synchronous version of unregister for use in blocking context
     pub fn unregister_blocking(&self) -> Result<()> {
+        assert_main_thread();
         if !self.registered.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -248,11 +246,33 @@ impl Default for RealTrayApi {
 
 // SAFETY: RealTrayApi is Send + Sync.
 // All shared mutable state is protected by atomic operations (AtomicBool)
-// or Mutex (status_item). The `id` pointer in status_item is only accessed
-// on the main thread via the NSApplication event loop, and the Mutex
-// provides the necessary synchronization boundary.
+// or Mutex (status_item). Cocoa UI operations (msg_send! on status_item)
+// must only be performed on the main thread. Methods that access Cocoa UI
+// include a main-thread assertion in debug builds to catch misuse.
+// In production, the NSApplication event loop ensures correct sequencing.
 unsafe impl Send for RealTrayApi {}
 unsafe impl Sync for RealTrayApi {}
+
+/// Assert that the current thread is the main thread (debug builds only).
+/// Cocoa UI operations must run on the main thread.
+#[cfg(debug_assertions)]
+fn assert_main_thread() {
+    use objc::runtime::Class;
+    unsafe {
+        let cls = Class::get("NSThread").expect("NSThread class not found");
+        let is_main: bool = msg_send![cls, isMainThread];
+        if !is_main {
+            tracing::error!(
+                "Cocoa UI operation called from non-main thread! \
+                 This is undefined behavior. All tray UI operations \
+                 must be dispatched to the main thread."
+            );
+        }
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn assert_main_thread() {}
 
 #[async_trait::async_trait]
 impl TrayApi for RealTrayApi {
@@ -278,6 +298,7 @@ impl TrayApi for RealTrayApi {
     }
 
     async fn show(&self) -> Result<()> {
+        assert_main_thread();
         self.visible.store(true, Ordering::SeqCst);
         unsafe {
             if let Some(status_item) = *self.status_item.lock().unwrap() {
@@ -288,6 +309,7 @@ impl TrayApi for RealTrayApi {
     }
 
     async fn hide(&self) -> Result<()> {
+        assert_main_thread();
         self.visible.store(false, Ordering::SeqCst);
         unsafe {
             if let Some(status_item) = *self.status_item.lock().unwrap() {

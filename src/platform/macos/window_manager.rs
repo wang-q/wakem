@@ -33,10 +33,10 @@ pub enum EdgeDirection {
     Down,
 }
 
-/// Backward-compatible alias for [EdgeDirection].
-///
-/// Prefer using [EdgeDirection] in new code to avoid confusion with
-/// [Windows MonitorDirection](crate::platform::windows::MonitorDirection).
+#[deprecated(
+    since = "0.1.2",
+    note = "Use EdgeDirection instead. MonitorDirection is semantically different on Windows (Next/Prev/Index)."
+)]
 pub type MonitorDirection = EdgeDirection;
 
 /// Generic macOS window manager using MacosWindowApi trait
@@ -169,6 +169,10 @@ impl<A: MacosWindowApi> CommonWindowApi for MacosWindowManager<A> {
         self.api.is_maximized(window)
     }
 
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.api.is_topmost(window)
+    }
+
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
         self.api.set_topmost(window, topmost)
     }
@@ -225,7 +229,7 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
         ratio_h: u32,
     ) -> Result<()> {
         let ratio = ratio_w as f32 / ratio_h as f32;
-        <Self as CommonWindowApi>::set_fixed_ratio(self, window, ratio, 0)
+        <Self as CommonWindowApi>::set_fixed_ratio(self, window, ratio)
     }
 
     /// Switch to the next window of the same process (Cmd+~ equivalent on macOS)

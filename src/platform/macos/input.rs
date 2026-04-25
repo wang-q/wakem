@@ -343,6 +343,16 @@ fn convert_scroll_wheel_event(event: *const c_void) -> Option<InputEvent> {
 /// Captures keyboard and mouse events at the system level.
 /// Requires Accessibility permission.
 ///
+/// # Thread Safety
+///
+/// The event tap source is added to the main CFRunLoop in [`CGEventTapDevice::run`].
+/// Cleanup ([`CGEventTapDevice::stop`] and [`Drop`]) removes the source from the
+/// main run loop. Per Core Foundation conventions, `CFRunLoopRemoveSource` should
+/// be called from the same thread that owns the run loop (the main thread).
+/// Calling `stop()` or dropping this struct from a non-main thread will log a
+/// warning and attempt cleanup anyway, which may cause undefined behavior in
+/// rare edge cases. Prefer calling `stop()` on the main thread.
+///
 /// # Example
 ///
 /// ```ignore
@@ -360,10 +370,13 @@ pub struct CGEventTapDevice {
     running: std::sync::atomic::AtomicBool,
     tap_port: std::sync::Mutex<Option<*mut c_void>>,
     run_loop_source: std::sync::Mutex<Option<*mut c_void>>,
+    created_on_thread: std::sync::Mutex<Option<std::thread::ThreadId>>,
 }
 
 // SAFETY: CGEventTapDevice is designed to be used across threads.
 // The raw pointers are only accessed behind Mutex locks.
+// Note: CFRunLoopRemoveSource should ideally be called on the main thread;
+// see struct-level documentation for details.
 unsafe impl Send for CGEventTapDevice {}
 unsafe impl Sync for CGEventTapDevice {}
 
@@ -379,10 +392,10 @@ impl CGEventTapDevice {
             running: std::sync::atomic::AtomicBool::new(false),
             tap_port: std::sync::Mutex::new(None),
             run_loop_source: std::sync::Mutex::new(None),
+            created_on_thread: std::sync::Mutex::new(None),
         }
     }
 
-    /// Create with custom configuration
     pub fn with_config(sender: Sender<InputEvent>, config: InputDeviceConfig) -> Self {
         Self {
             config,
@@ -390,6 +403,7 @@ impl CGEventTapDevice {
             running: std::sync::atomic::AtomicBool::new(false),
             tap_port: std::sync::Mutex::new(None),
             run_loop_source: std::sync::Mutex::new(None),
+            created_on_thread: std::sync::Mutex::new(None),
         }
     }
 
@@ -458,6 +472,12 @@ impl CGEventTapDevice {
         self.running
             .store(true, std::sync::atomic::Ordering::SeqCst);
 
+        // Record which thread created the tap for cleanup safety checks
+        {
+            let mut guard = self.created_on_thread.lock().unwrap();
+            *guard = Some(std::thread::current().id());
+        }
+
         // Create run loop source and add to main run loop
         let run_loop_source =
             unsafe { CFMachPortCreateRunLoopSource(std::ptr::null(), tap_port, 0) };
@@ -487,6 +507,22 @@ impl CGEventTapDevice {
         self.running
             .store(false, std::sync::atomic::Ordering::SeqCst);
         clear_sender();
+
+        // Warn if cleanup is called from a different thread than the one
+        // that called run(). CFRunLoopRemoveSource should ideally be
+        // called on the main thread or the thread that added the source.
+        {
+            let guard = self.created_on_thread.lock().unwrap();
+            if let Some(tid) = *guard {
+                if tid != std::thread::current().id() {
+                    tracing::warn!(
+                        "CGEventTapDevice::stop() called from a different thread \
+                         than run(). CFRunLoopRemoveSource may not be thread-safe. \
+                         Prefer calling stop() on the same thread as run()."
+                    );
+                }
+            }
+        }
 
         {
             let mut guard = self.run_loop_source.lock().unwrap();
@@ -531,28 +567,29 @@ impl CGEventTapDevice {
 
 impl Drop for CGEventTapDevice {
     fn drop(&mut self) {
-        self.running
-            .store(false, std::sync::atomic::Ordering::SeqCst);
-        clear_sender();
-
-        {
-            let mut guard = self.run_loop_source.lock().unwrap();
-            if let Some(source) = guard.take() {
-                unsafe {
-                    let rl = CFRunLoopGetMain();
-                    CFRunLoopRemoveSource(rl, source, std::ptr::null());
-                    CFRunLoopSourceInvalidate(source);
-                    CFRelease(source);
+        if self.running.load(std::sync::atomic::Ordering::SeqCst) {
+            self.stop();
+        } else {
+            clear_sender();
+            // Still clean up resources even if not running
+            {
+                let mut guard = self.run_loop_source.lock().unwrap();
+                if let Some(source) = guard.take() {
+                    unsafe {
+                        let rl = CFRunLoopGetMain();
+                        CFRunLoopRemoveSource(rl, source, std::ptr::null());
+                        CFRunLoopSourceInvalidate(source);
+                        CFRelease(source);
+                    }
                 }
             }
-        }
-
-        {
-            let mut guard = self.tap_port.lock().unwrap();
-            if let Some(tap) = guard.take() {
-                unsafe {
-                    CGEventTapEnable(tap, false);
-                    CFRelease(tap);
+            {
+                let mut guard = self.tap_port.lock().unwrap();
+                if let Some(tap) = guard.take() {
+                    unsafe {
+                        CGEventTapEnable(tap, false);
+                        CFRelease(tap);
+                    }
                 }
             }
         }

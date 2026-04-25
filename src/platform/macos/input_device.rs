@@ -90,7 +90,7 @@ impl MacosInputDevice {
 
         self.base.try_recv_event()
     }
-    pub fn run_once(&mut self) -> Result<bool, String> {
+    pub fn wait_for_event(&mut self, timeout_ms: u64) -> Result<bool, String> {
         if !self.base.running {
             self.base.running = true;
         }
@@ -100,7 +100,7 @@ impl MacosInputDevice {
             match self
                 .base
                 .event_receiver
-                .recv_timeout(std::time::Duration::from_millis(100))
+                .recv_timeout(std::time::Duration::from_millis(timeout_ms))
             {
                 Ok(event) => {
                     *self.pending_event.borrow_mut() = Some(event);
@@ -115,6 +115,11 @@ impl MacosInputDevice {
 
         #[cfg(test)]
         Ok(false)
+    }
+
+    #[deprecated(since = "0.1.2", note = "Use wait_for_event() instead for clarity")]
+    pub fn run_once(&mut self) -> Result<bool, String> {
+        self.wait_for_event(100)
     }
 }
 

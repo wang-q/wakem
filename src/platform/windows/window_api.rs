@@ -233,10 +233,7 @@ impl WindowApiBase for RealWindowApi {
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = WindowApi::get_foreground_window(self);
-        fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
-            .map(|info| vec![info])
-            .unwrap_or_default()
+        unsafe { crate::platform::windows::window_manager::enumerate_all_monitors() }
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
