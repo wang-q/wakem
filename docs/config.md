@@ -356,16 +356,6 @@ modifier = "Shift"
 step = 1
 ```
 
-### Brightness Control
-
-Hold a modifier key to adjust screen brightness with the scroll wheel:
-
-```toml
-[mouse.wheel.brightness_control]
-modifier = "RightCtrl"
-step = 5
-```
-
 **Supported modifier keys**:
 - `Shift`, `LeftShift`, `RightShift`
 - `Ctrl`, `Control`, `LeftCtrl`, `RightCtrl`

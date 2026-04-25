@@ -345,7 +345,7 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{KeyEvent, KeyState};
+    use crate::types::{KeyAction, KeyEvent, KeyState};
 
     #[test]
     fn test_trigger_matches_simple_key() {
@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn test_mapping_rule_matches() {
         let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::System(crate::types::SystemAction::BrightnessUp);
+        let action = Action::Key(KeyAction::click(0x1E, 0x41));
         let rule = MappingRule::new(trigger, action);
 
         let context = ContextInfo::default();
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn test_disabled_rule_never_matches() {
         let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::System(crate::types::SystemAction::BrightnessUp);
+        let action = Action::Key(KeyAction::click(0x1E, 0x41));
         let mut rule = MappingRule::new(trigger, action);
         rule.enabled = false;
 

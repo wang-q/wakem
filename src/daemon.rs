@@ -528,17 +528,6 @@ impl ServerState {
         // Get current modifier state
         let modifiers = get_current_modifier_state();
 
-        if let Some(brightness_config) = &wheel_config.brightness_control {
-            if Self::check_modifier_match(&brightness_config.modifier, &modifiers) {
-                if delta > 0 {
-                    return Some(Action::System(
-                        crate::types::SystemAction::BrightnessUp,
-                    ));
-                }
-                return Some(Action::System(crate::types::SystemAction::BrightnessDown));
-            }
-        }
-
         // Check horizontal scroll
         if let Some(hscroll_config) = &wheel_config.horizontal_scroll {
             if Self::check_modifier_match(&hscroll_config.modifier, &modifiers) {
@@ -610,12 +599,7 @@ impl ServerState {
                 launcher.launch(&launch_action)?;
             }
             Action::Sequence(actions) => {
-                // Performance optimization: group action sequence execution to reduce lock acquisition
                 self.execute_action_sequence_optimized(&actions).await?;
-            }
-            Action::System(system_action) => {
-                let output = self.output_device.lock().await;
-                output.send_system_action(&system_action)?;
             }
             Action::Delay { milliseconds } => {
                 tokio::time::sleep(tokio::time::Duration::from_millis(milliseconds))
@@ -640,11 +624,9 @@ impl ServerState {
         let mut i = 0;
         while i < actions.len() {
             match &actions[i] {
-                // Batch process output device related actions (Key, Mouse, System)
-                Key(_) | Mouse(_) | System(_) => {
+                Key(_) | Mouse(_) => {
                     let output = self.output_device.lock().await;
 
-                    // Collect all consecutive output device actions
                     while i < actions.len() {
                         match &actions[i] {
                             Key(key_action) => {
@@ -653,17 +635,12 @@ impl ServerState {
                             Mouse(mouse_action) => {
                                 output.send_mouse_action(mouse_action)?;
                             }
-                            System(system_action) => {
-                                output.send_system_action(system_action)?;
-                            }
-                            _ => break, // Encountered non-output device action, stop batch processing
+                            _ => break,
                         }
                         i += 1;
                     }
-                    // output lock released here
                 }
 
-                // Handle window actions separately
                 Window(window_action) => {
                     let mut mapper = self.mapper.write().await;
                     mapper.execute_action(&Window(window_action.clone()))?;

@@ -5,7 +5,7 @@
 #![cfg(target_os = "windows")]
 
 use crate::platform::traits::OutputDeviceTrait;
-use crate::types::{MouseButton, SystemAction};
+use crate::types::MouseButton;
 use anyhow::Result;
 #[cfg(not(test))]
 use tracing::{debug, warn};
@@ -160,18 +160,6 @@ impl OutputDeviceTrait for SendInputDevice {
             "Sent mouse wheel: delta={}, horizontal={}",
             delta, horizontal
         );
-        Ok(())
-    }
-
-    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
-        debug!("System action requested: {:?}", action);
-
-        match action {
-            SystemAction::BrightnessUp | SystemAction::BrightnessDown => {
-                warn!("System action not implemented on Windows: {:?}", action);
-            }
-        }
-
         Ok(())
     }
 }

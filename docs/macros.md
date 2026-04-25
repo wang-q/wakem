@@ -194,13 +194,6 @@ The following window management actions are supported:
 | `working_dir` | Option\<String\> | Working directory (null means not specified) |
 | `env_vars` | Vec\<(String, String)\> | Environment variable key-value pair list |
 
-#### System Actions (SystemAction)
-
-| Action | Description |
-|--------|-------------|
-| `BrightnessUp` | Increase brightness |
-| `BrightnessDown` | Decrease brightness |
-
 #### Other Actions
 
 | Action | Description | Parameters |

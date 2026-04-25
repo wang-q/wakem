@@ -5,7 +5,7 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::traits::OutputDeviceTrait;
-use crate::types::{MouseButton, SystemAction};
+use crate::types::MouseButton;
 use anyhow::Result;
 use tracing::debug;
 
@@ -179,24 +179,6 @@ impl OutputDeviceTrait for MacosOutputDevice {
             "Sent mouse wheel: delta={}, horizontal={}",
             delta, horizontal
         );
-        Ok(())
-    }
-
-    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
-        use crate::platform::macos::native_api::display;
-
-        match action {
-            SystemAction::BrightnessUp => {
-                display::brightness_up(0.1)
-                    .map_err(|e| anyhow::anyhow!("Brightness up failed: {}", e))?;
-            }
-            SystemAction::BrightnessDown => {
-                display::brightness_down(0.1)
-                    .map_err(|e| anyhow::anyhow!("Brightness down failed: {}", e))?;
-            }
-        }
-
-        debug!("System action executed: {:?}", action);
         Ok(())
     }
 }

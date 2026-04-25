@@ -6,7 +6,7 @@
 #[allow(unused_imports)]
 use crate::platform::output_helpers::char_to_vk;
 use crate::types::{
-    InputEvent, KeyAction, ModifierState, MouseAction, MouseButton, SystemAction,
+    InputEvent, KeyAction, ModifierState, MouseAction, MouseButton,
 };
 use anyhow::Result;
 
@@ -137,7 +137,6 @@ pub trait OutputDeviceTrait: Send {
     fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()>;
     fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()>;
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()>;
-    fn send_system_action(&self, action: &SystemAction) -> Result<()>;
 }
 
 /// Window identifier type (platform-specific)

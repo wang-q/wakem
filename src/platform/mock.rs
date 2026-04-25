@@ -6,7 +6,7 @@
 use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
-    MouseEventType, SystemAction,
+    MouseEventType,
 };
 use anyhow::Result;
 use std::collections::VecDeque;
@@ -72,11 +72,6 @@ macro_rules! impl_test_output_device {
                     _delta,
                     _horizontal
                 );
-                Ok(())
-            }
-
-            fn send_system_action(&self, _action: &SystemAction) -> Result<()> {
-                tracing::debug!("[TEST MODE] Mock system action: {:?}", _action);
                 Ok(())
             }
         }
@@ -240,8 +235,6 @@ pub enum MockOutputEvent {
     MouseButton { button: MouseButton, release: bool },
     /// Mouse wheel event
     MouseWheel { delta: i32, horizontal: bool },
-    /// System action
-    SystemAction(SystemAction),
 }
 
 /// Mock output device for testing
@@ -317,14 +310,6 @@ impl OutputDeviceTrait for MockOutputDevice {
             .lock()
             .unwrap()
             .push(MockOutputEvent::MouseWheel { delta, horizontal });
-        Ok(())
-    }
-
-    fn send_system_action(&self, action: &SystemAction) -> Result<()> {
-        self.events
-            .lock()
-            .unwrap()
-            .push(MockOutputEvent::SystemAction(*action));
         Ok(())
     }
 }

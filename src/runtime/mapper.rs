@@ -362,7 +362,6 @@ impl KeyMapper {
             | Action::Mouse(_)
             | Action::Launch(_)
             | Action::Sequence(_)
-            | Action::System(_)
             | Action::Delay { .. }
             | Action::None => {
                 // These actions are handled by other components

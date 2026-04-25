@@ -510,7 +510,6 @@ pub struct WheelConfig {
     /// Horizontal scroll configuration
     #[serde(default)]
     pub horizontal_scroll: Option<WheelModifierConfig>,
-    pub brightness_control: Option<WheelModifierConfig>,
 }
 
 impl Default for WheelConfig {
@@ -521,7 +520,6 @@ impl Default for WheelConfig {
             acceleration: false,
             acceleration_multiplier: default_acceleration_multiplier(),
             horizontal_scroll: None,
-            brightness_control: None,
         }
     }
 }

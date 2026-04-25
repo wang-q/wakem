@@ -232,9 +232,6 @@ impl MacroPlayer {
             Action::Launch(launch_action) => {
                 debug!("Macro LaunchAction: {:?}", launch_action);
             }
-            Action::System(system_action) => {
-                debug!("Macro SystemAction: {:?}", system_action);
-            }
             Action::Sequence(actions) => {
                 debug!("Macro Sequence: {} actions", actions.len());
                 for sub_action in actions {
@@ -263,7 +260,7 @@ mod tests {
     use crate::types::{
         Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState,
         LaunchAction, LayerMode, Macro, MacroStep, MappingRule, ModifierState,
-        MouseAction, MouseButton, SystemAction, Trigger, WindowAction,
+        MouseAction, MouseButton, Trigger, WindowAction,
     };
 
     #[test]
@@ -735,18 +732,6 @@ mod tests {
         };
         assert_eq!(action.program, "code");
         assert_eq!(action.args, vec!["."]);
-    }
-
-    #[test]
-    fn test_system_action_variants() {
-        assert!(matches!(
-            SystemAction::BrightnessUp,
-            SystemAction::BrightnessUp
-        ));
-        assert!(matches!(
-            SystemAction::BrightnessDown,
-            SystemAction::BrightnessDown
-        ));
     }
 
     #[test]

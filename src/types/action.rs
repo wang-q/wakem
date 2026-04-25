@@ -179,13 +179,6 @@ pub struct LaunchAction {
     pub env_vars: Vec<(String, String)>,
 }
 
-/// System control action
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum SystemAction {
-    BrightnessUp,
-    BrightnessDown,
-}
-
 /// All possible action types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Action {
@@ -193,7 +186,6 @@ pub enum Action {
     Mouse(MouseAction),
     Window(WindowAction),
     Launch(LaunchAction),
-    System(SystemAction),
     /// Execute multiple actions
     Sequence(Vec<Action>),
     /// Delay (for macro playback)

@@ -17,7 +17,6 @@
 pub mod ax_element;
 pub mod cg_window;
 mod coordinate;
-pub mod display;
 pub mod notification;
 pub mod ns_workspace;
 
