@@ -32,7 +32,8 @@ pub use window_api::{
 };
 pub use window_event_hook::{MacosWindowEvent, MacosWindowEventHook};
 pub use window_manager::{
-    MacosWindowFrame, MacosWindowManager, MonitorDirection, RealMacosWindowManager,
+    EdgeDirection, MacosWindowFrame, MacosWindowManager, MonitorDirection,
+    RealMacosWindowManager,
 };
 pub use window_preset::MacosWindowPresetManager;
 

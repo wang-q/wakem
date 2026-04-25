@@ -476,27 +476,38 @@ impl WindowContext {
         Self::default()
     }
 
-    /// Check if context matches the given conditions
-    #[allow(dead_code)]
+    /// Check if context matches the given conditions using wildcard matching.
+    ///
+    /// Supports glob-style patterns: `*` matches any sequence, `?` matches single char.
     pub fn matches(
         &self,
-        process: Option<&str>,
-        class: Option<&str>,
-        title: Option<&str>,
+        process_name: Option<&str>,
+        window_class: Option<&str>,
+        window_title: Option<&str>,
+        executable_path: Option<&str>,
     ) -> bool {
-        if let Some(p) = process {
-            if !self.process_name.to_lowercase().contains(&p.to_lowercase()) {
+        use crate::config::wildcard_match;
+
+        if let Some(pattern) = process_name {
+            if !wildcard_match(&self.process_name, pattern) {
                 return false;
             }
         }
-        if let Some(c) = class {
-            if !self.window_class.to_lowercase().contains(&c.to_lowercase()) {
+        if let Some(pattern) = window_class {
+            if !wildcard_match(&self.window_class, pattern) {
                 return false;
             }
         }
-        if let Some(t) = title {
-            if !self.window_title.to_lowercase().contains(&t.to_lowercase()) {
+        if let Some(pattern) = window_title {
+            if !wildcard_match(&self.window_title, pattern) {
                 return false;
+            }
+        }
+        if let Some(pattern) = executable_path {
+            match &self.executable_path {
+                Some(path) if !wildcard_match(path, pattern) => return false,
+                None => return false,
+                _ => {}
             }
         }
         true

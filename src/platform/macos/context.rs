@@ -6,7 +6,6 @@
 //! Performance: < 5ms for get_current() (vs 180ms with AppleScript)
 #![cfg(target_os = "macos")]
 
-use crate::config::wildcard_match;
 use crate::platform::macos::native_api::{cg_window, ns_workspace};
 use crate::platform::traits::WindowContext as WindowContextTrait;
 use tracing::debug;
@@ -73,7 +72,9 @@ impl WindowContext {
         }
     }
 
-    /// Check if matches given context conditions with wildcard support
+    /// Check if matches given context conditions with wildcard support.
+    ///
+    /// Delegates to [WindowContextTrait::matches] for consistent behavior.
     pub fn matches(
         &self,
         process_name: Option<&str>,
@@ -81,33 +82,12 @@ impl WindowContext {
         window_title: Option<&str>,
         executable_path: Option<&str>,
     ) -> bool {
-        if let Some(pattern) = process_name {
-            if !wildcard_match(&self.process_name, pattern) {
-                return false;
-            }
-        }
-
-        if let Some(pattern) = window_class {
-            if !wildcard_match(&self.window_class, pattern) {
-                return false;
-            }
-        }
-
-        if let Some(pattern) = window_title {
-            if !wildcard_match(&self.window_title, pattern) {
-                return false;
-            }
-        }
-
-        if let Some(pattern) = executable_path {
-            match &self.executable_path {
-                Some(path) if !wildcard_match(path, pattern) => return false,
-                None => return false,
-                _ => {}
-            }
-        }
-
-        true
+        self.to_platform_context().matches(
+            process_name,
+            window_class,
+            window_title,
+            executable_path,
+        )
     }
 }
 

@@ -5,7 +5,9 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
-use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTrait};
+use crate::platform::traits::{
+    MonitorInfo, WindowFrame, WindowId, WindowInfo, WindowManagerTrait,
+};
 use crate::types::Edge;
 use anyhow::Result;
 use tracing::debug;
@@ -15,48 +17,27 @@ use crate::platform::traits::WindowInfoProvider;
 use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
 use crate::types::Alignment;
 
-/// Monitor direction for window movement
+/// Backward-compatible alias for [WindowFrame]
+pub type MacosWindowFrame = WindowFrame;
+
+/// Edge direction for moving windows to screen edges.
+///
+/// Note: This is semantically different from [Windows MonitorDirection](crate::platform::windows::MonitorDirection)
+/// which represents monitor switching (Next/Prev/Index). This type represents
+/// directional edge snapping (Left/Right/Up/Down).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MonitorDirection {
+pub enum EdgeDirection {
     Left,
     Right,
     Up,
     Down,
 }
 
-/// Window frame with position and size
-#[derive(Debug, Clone)]
-pub struct MacosWindowFrame {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-impl MacosWindowFrame {
-    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-
-    /// Calculate aspect ratio (width / height)
-    pub fn aspect_ratio(&self) -> f64 {
-        if self.height > 0 {
-            self.width as f64 / self.height as f64
-        } else {
-            0.0
-        }
-    }
-
-    /// Check if frame is valid (positive dimensions)
-    pub fn is_valid(&self) -> bool {
-        self.width > 0 && self.height > 0
-    }
-}
+/// Backward-compatible alias for [EdgeDirection].
+///
+/// Prefer using [EdgeDirection] in new code to avoid confusion with
+/// [Windows MonitorDirection](crate::platform::windows::MonitorDirection).
+pub type MonitorDirection = EdgeDirection;
 
 /// Generic macOS window manager using MacosWindowApi trait
 pub struct MacosWindowManager<A: MacosWindowApi> {
@@ -220,14 +201,14 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
     pub fn move_to_edge(
         &self,
         window: WindowId,
-        direction: MonitorDirection,
+        direction: EdgeDirection,
     ) -> Result<()> {
-        // Convert MonitorDirection to Edge for common implementation
+        // Convert EdgeDirection to Edge for common implementation
         let edge = match direction {
-            MonitorDirection::Left => Edge::Left,
-            MonitorDirection::Right => Edge::Right,
-            MonitorDirection::Up => Edge::Top,
-            MonitorDirection::Down => Edge::Bottom,
+            EdgeDirection::Left => Edge::Left,
+            EdgeDirection::Right => Edge::Right,
+            EdgeDirection::Up => Edge::Top,
+            EdgeDirection::Down => Edge::Bottom,
         };
         CommonWindowManager::move_to_edge(self, window, edge)
     }
@@ -542,20 +523,20 @@ mod tests {
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
         // Initial position: (100, 100), size: 800x600
-        mgr.move_to_edge(1, MonitorDirection::Left).unwrap();
+        mgr.move_to_edge(1, EdgeDirection::Left).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.x, 0);
         assert_eq!(info.y, 100);
 
-        mgr.move_to_edge(1, MonitorDirection::Right).unwrap();
+        mgr.move_to_edge(1, EdgeDirection::Right).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.x, 1120); // 1920 - 800
 
-        mgr.move_to_edge(1, MonitorDirection::Up).unwrap();
+        mgr.move_to_edge(1, EdgeDirection::Up).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.y, 0);
 
-        mgr.move_to_edge(1, MonitorDirection::Down).unwrap();
+        mgr.move_to_edge(1, EdgeDirection::Down).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.y, 480); // 1080 - 600
     }

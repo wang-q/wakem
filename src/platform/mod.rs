@@ -31,9 +31,9 @@ pub use output_helpers::char_to_vk;
 // Re-export specific items from traits
 #[allow(unused_imports)]
 pub use traits::{
-    AppCommand, InputDeviceConfig, InputDeviceTrait, MenuAction, MonitorInfo, MonitorWorkArea,
-    OutputDeviceTrait, TrayIconTrait, WindowApiTrait, WindowContext, WindowFrame, WindowId,
-    WindowInfo, WindowManagerTrait, WindowOperation, WindowState,
+    AppCommand, InputDeviceConfig, InputDeviceTrait, MenuAction, MonitorInfo,
+    MonitorWorkArea, OutputDeviceTrait, TrayIconTrait, WindowApiTrait, WindowContext,
+    WindowFrame, WindowId, WindowInfo, WindowManagerTrait, WindowOperation, WindowState,
 };
 
 // Re-export WindowPreset from config (single source of truth)

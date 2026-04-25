@@ -29,8 +29,8 @@ pub use window_api::RealWindowApi;
 // Re-export shared types from platform::traits
 #[allow(unused_imports)]
 pub use crate::platform::traits::{
-    AppCommand, InputDeviceConfig, MenuAction, MonitorInfo, MonitorWorkArea, WindowFrame,
-    WindowOperation, WindowState,
+    AppCommand, InputDeviceConfig, MenuAction, MonitorInfo, MonitorWorkArea,
+    WindowFrame, WindowOperation, WindowState,
 };
 
 // Re-export WindowPreset from config

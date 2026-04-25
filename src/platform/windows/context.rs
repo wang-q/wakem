@@ -11,8 +11,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
 };
 
-use crate::config::wildcard_match;
-
 /// Window context information
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
@@ -122,7 +120,9 @@ impl WindowContext {
         Some(String::from_utf16_lossy(&buffer[..len as usize]))
     }
 
-    /// Check if matches given context conditions
+    /// Check if matches given context conditions using wildcard matching.
+    ///
+    /// Delegates to [crate::platform::traits::WindowContext::matches] for consistent behavior.
     #[allow(dead_code)]
     pub fn matches(
         &self,
@@ -131,31 +131,15 @@ impl WindowContext {
         window_title: Option<&str>,
         executable_path: Option<&str>,
     ) -> bool {
-        if let Some(pattern) = window_class {
-            if !wildcard_match(&self.window_class, pattern) {
-                return false;
-            }
-        }
+        use crate::platform::traits::WindowContext as TraitContext;
 
-        if let Some(pattern) = process_name {
-            if !wildcard_match(&self.process_name, pattern) {
-                return false;
-            }
-        }
-
-        if let Some(pattern) = window_title {
-            if !wildcard_match(&self.window_title, pattern) {
-                return false;
-            }
-        }
-
-        if let Some(pattern) = executable_path {
-            if !wildcard_match(&self.executable_path, pattern) {
-                return false;
-            }
-        }
-
-        true
+        let trait_ctx = TraitContext {
+            process_name: self.process_name.clone(),
+            window_class: self.window_class.clone(),
+            window_title: self.window_title.clone(),
+            executable_path: Some(self.executable_path.clone()),
+        };
+        trait_ctx.matches(process_name, window_class, window_title, executable_path)
     }
 }
 

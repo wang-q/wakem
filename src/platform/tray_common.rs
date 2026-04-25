@@ -4,8 +4,8 @@
 //! with any platform's TrayApi implementation.
 
 use crate::platform::traits::MenuAction;
-use async_trait::async_trait;
 use anyhow::Result;
+use async_trait::async_trait;
 
 /// Tray API trait - abstracts platform-specific tray operations
 #[async_trait]
@@ -116,9 +116,15 @@ mod tests {
 
     #[test]
     fn test_menu_id_to_action() {
-        assert_eq!(menu_id_to_action(menu_ids::TOGGLE_ACTIVE), MenuAction::ToggleActive);
+        assert_eq!(
+            menu_id_to_action(menu_ids::TOGGLE_ACTIVE),
+            MenuAction::ToggleActive
+        );
         assert_eq!(menu_id_to_action(menu_ids::RELOAD), MenuAction::Reload);
-        assert_eq!(menu_id_to_action(menu_ids::OPEN_CONFIG), MenuAction::OpenConfig);
+        assert_eq!(
+            menu_id_to_action(menu_ids::OPEN_CONFIG),
+            MenuAction::OpenConfig
+        );
         assert_eq!(menu_id_to_action(menu_ids::EXIT), MenuAction::Exit);
         assert_eq!(menu_id_to_action(999), MenuAction::None);
     }
