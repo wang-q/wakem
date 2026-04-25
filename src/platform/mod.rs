@@ -10,10 +10,13 @@
 //! platform-specific implementation.
 
 #[allow(dead_code)]
+pub mod launcher_common;
+#[allow(dead_code)]
 pub mod mock;
 pub mod output_helpers;
 #[allow(dead_code)]
 pub mod traits;
+pub mod window_manager_common;
 
 // Re-export mock implementations for testing
 #[allow(unused_imports)]

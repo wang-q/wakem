@@ -44,25 +44,8 @@ pub const IDM_RELOAD: u32 = 101;
 pub const IDM_OPEN_CONFIG: u32 = 102;
 pub const IDM_EXIT: u32 = 103;
 
-/// Application commands
-#[derive(Debug, Clone, Copy)]
-pub enum AppCommand {
-    ToggleActive,
-    ReloadConfig,
-    OpenConfigFolder,
-    Exit,
-}
-
-/// Menu action
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuAction {
-    None,
-    ToggleActive,
-    Reload,
-    OpenConfig,
-    Exit,
-}
+// Re-export shared tray types from platform::traits
+pub use crate::platform::traits::{AppCommand, MenuAction};
 
 /// Callback type for command handling
 type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;

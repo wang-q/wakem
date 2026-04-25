@@ -10,6 +10,11 @@ use crate::types::Edge;
 use anyhow::Result;
 use tracing::debug;
 
+// Import common window manager
+use crate::platform::traits::WindowInfoProvider;
+use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
+use crate::types::Alignment;
+
 /// Monitor direction for window movement
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MonitorDirection {
@@ -151,6 +156,43 @@ impl<A: MacosWindowApi + Send + Sync> WindowManagerTrait for MacosWindowManager<
     }
 }
 
+// Implement CommonWindowApi for MacosWindowManager to use common window manager logic
+impl<A: MacosWindowApi> CommonWindowApi for MacosWindowManager<A> {
+    type WindowId = WindowId;
+    type WindowInfo = WindowInfo;
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
+        self.api.get_window_info(window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        self.api.set_window_pos(window, x, y, width, height)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.api.get_monitors()
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.api.is_window_valid(window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.api.is_maximized(window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.api.set_topmost(window, topmost)
+    }
+}
+
 /// Additional macOS-specific window management features
 impl<A: MacosWindowApi> MacosWindowManager<A> {
     /// Get foreground window info
@@ -171,18 +213,7 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
 
     /// Move window to center of screen or monitor
     pub fn move_to_center(&self, window: WindowId) -> Result<()> {
-        let info = self.api.get_window_info(window)?;
-        let monitors = self.api.get_monitors();
-
-        if let Some(monitor) = monitors.first() {
-            let new_x = monitor.x + (monitor.width - info.width) / 2;
-            let new_y = monitor.y + (monitor.height - info.height) / 2;
-            self.api
-                .set_window_pos(window, new_x, new_y, info.width, info.height)?;
-            debug!("Moved window to center: ({}, {})", new_x, new_y);
-        }
-
-        Ok(())
+        CommonWindowManager::move_to_center(self, window)
     }
 
     /// Move window to edge of screen
@@ -191,117 +222,31 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
         window: WindowId,
         direction: MonitorDirection,
     ) -> Result<()> {
-        let info = self.api.get_window_info(window)?;
-        let monitors = self.api.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-
-        let (new_x, new_y) = match direction {
-            MonitorDirection::Left => (monitor.x, info.y),
-            MonitorDirection::Right => (monitor.x + monitor.width - info.width, info.y),
-            MonitorDirection::Up => (info.x, monitor.y),
-            MonitorDirection::Down => (info.x, monitor.y + monitor.height - info.height),
+        // Convert MonitorDirection to Edge for common implementation
+        let edge = match direction {
+            MonitorDirection::Left => Edge::Left,
+            MonitorDirection::Right => Edge::Right,
+            MonitorDirection::Up => Edge::Top,
+            MonitorDirection::Down => Edge::Bottom,
         };
-
-        self.api
-            .set_window_pos(window, new_x, new_y, info.width, info.height)?;
-        debug!(
-            "Moved window to {:?} edge: ({}, {})",
-            direction, new_x, new_y
-        );
-        Ok(())
+        CommonWindowManager::move_to_edge(self, window, edge)
     }
 
     /// Set window to half screen (left/right/top/bottom)
     pub fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()> {
-        let _info = self.api.get_window_info(window)?;
-        let monitors = self.api.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-
-        let (new_x, new_y, new_width, new_height) = match edge {
-            Edge::Left => (monitor.x, monitor.y, monitor.width / 2, monitor.height),
-            Edge::Right => {
-                let w = monitor.width / 2;
-                (monitor.x + monitor.width - w, monitor.y, w, monitor.height)
-            }
-            Edge::Top => (monitor.x, monitor.y, monitor.width, monitor.height / 2),
-            Edge::Bottom => {
-                let h = monitor.height / 2;
-                (monitor.x, monitor.y + monitor.height - h, monitor.width, h)
-            }
-        };
-
-        self.api
-            .set_window_pos(window, new_x, new_y, new_width, new_height)?;
-        debug!(
-            "Set half screen ({:?}): {}x{} at ({}, {})",
-            edge, new_width, new_height, new_x, new_y
-        );
-        Ok(())
+        CommonWindowManager::set_half_screen(self, window, edge)
     }
 
     /// Loop through common widths for the current window position
     pub fn loop_width(&self, window: WindowId) -> Result<()> {
-        let info = self.api.get_window_info(window)?;
-        let monitors = self.api.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-
-        // Common width presets in order
-        let preset_widths = [
-            monitor.width / 4,
-            monitor.width / 3,
-            monitor.width / 2,
-            (monitor.width * 3) / 5,
-            (monitor.width * 7) / 10,
-            monitor.width,
-        ];
-
-        let target = if let Some(next) = preset_widths.iter().find(|&&w| w > info.width)
-        {
-            *next
-        } else {
-            preset_widths[0]
-        };
-
-        self.api
-            .set_window_pos(window, info.x, info.y, target, info.height)?;
-        debug!("Looped width to {}", target);
-        Ok(())
+        // Default to left alignment for macOS
+        CommonWindowManager::loop_width(self, window, Alignment::Left)
     }
 
     /// Loop through common heights for the current window position
     pub fn loop_height(&self, window: WindowId) -> Result<()> {
-        let info = self.api.get_window_info(window)?;
-        let monitors = self.api.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-
-        let preset_heights = [
-            monitor.height / 4,
-            monitor.height / 3,
-            monitor.height / 2,
-            (monitor.height * 3) / 5,
-            (monitor.height * 7) / 10,
-            monitor.height,
-        ];
-
-        let target =
-            if let Some(next) = preset_heights.iter().find(|&&h| h > info.height) {
-                *next
-            } else {
-                preset_heights[0]
-            };
-
-        self.api
-            .set_window_pos(window, info.x, info.y, info.width, target)?;
-        debug!("Looped height to {}", target);
-        Ok(())
+        // Default to top alignment for macOS
+        CommonWindowManager::loop_height(self, window, Alignment::Top)
     }
 
     /// Set window to a fixed aspect ratio and scale it up/down cyclically
@@ -311,60 +256,18 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
         ratio_w: u32,
         ratio_h: u32,
     ) -> Result<()> {
-        let info = self.api.get_window_info(window)?;
-        let monitors = self.api.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-
-        let current_area = info.width as u64 * info.height as u64;
-
-        // Generate size candidates based on fixed ratio
-        let mut candidates: Vec<(i32, i32)> = Vec::new();
-        for base in (100..=monitor.width).step_by(50) {
-            let w = base;
-            let h = (base as u64 * ratio_h as u64 / ratio_w as u64) as i32;
-            if w <= monitor.width && h <= monitor.height && w > 0 && h > 0 {
-                candidates.push((w, h));
-            }
-        }
-
-        // Find next candidate larger than current area
-        let next_size = candidates
-            .iter()
-            .filter(|&&(w, h)| (w as u64 * h as u64) > current_area)
-            .min_by_key(|&&(w, h)| w as u64 * h as u64);
-
-        let (new_w, new_h) = match next_size {
-            Some(size) => *size,
-            None => candidates
-                .first()
-                .copied()
-                .unwrap_or((info.width, info.height)),
-        };
-
-        let new_x = monitor.x + (monitor.width - new_w) / 2;
-        let new_y = monitor.y + (monitor.height - new_h) / 2;
-
-        self.api
-            .set_window_pos(window, new_x, new_y, new_w, new_h)?;
-        debug!(
-            "Set fixed ratio {}:{} -> {}x{}",
-            ratio_w, ratio_h, new_w, new_h
-        );
-        Ok(())
+        let ratio = ratio_w as f32 / ratio_h as f32;
+        CommonWindowManager::set_fixed_ratio(self, window, ratio, 0)
     }
 
     /// Set window to its "native" content ratio (e.g., video 16:9) and cycle sizes
     pub fn set_native_ratio(&self, window: WindowId) -> Result<()> {
-        self.set_fixed_ratio(window, 16, 9)
+        CommonWindowManager::set_native_ratio(self, window, 0)
     }
 
     /// Toggle topmost state
     pub fn toggle_topmost(&self, window: WindowId) -> Result<()> {
-        let is_top = self.api.is_maximized(window);
-        self.api.set_topmost(window, !is_top)?;
-        debug!("Toggled topmost: {}", !is_top);
+        CommonWindowManager::toggle_topmost(self, window)?;
         Ok(())
     }
 

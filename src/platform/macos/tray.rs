@@ -21,24 +21,8 @@ use objc::declare::ClassDecl;
 use objc::runtime::{Class, Object, Protocol, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 
-/// Application commands sent from tray menu
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppCommand {
-    ToggleActive,
-    ReloadConfig,
-    OpenConfigFolder,
-    Exit,
-}
-
-/// Menu action results from user interaction
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuAction {
-    None,
-    ToggleActive,
-    Reload,
-    OpenConfig,
-    Exit,
-}
+// Re-export shared tray types from platform::traits
+pub use crate::platform::traits::{AppCommand, MenuAction};
 
 /// Tray icon trait for abstraction
 #[async_trait::async_trait]

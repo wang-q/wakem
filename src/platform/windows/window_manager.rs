@@ -13,8 +13,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use windows_core::BOOL;
 
 // Import Edge and Alignment from types
-use super::window_api::{MonitorInfo, MonitorWorkArea, RealWindowApi, WindowApi};
+use super::window_api::{MonitorWorkArea, RealWindowApi, WindowApi};
 pub use crate::types::{Alignment, Edge};
+
+// Import common window manager
+use crate::platform::traits::{MonitorInfo, WindowInfoProvider};
+use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]
@@ -64,6 +68,24 @@ pub struct WindowInfo {
     pub title: String,
     pub frame: WindowFrame,
     pub work_area: MonitorWorkArea,
+}
+
+impl WindowInfoProvider for WindowInfo {
+    fn x(&self) -> i32 {
+        self.frame.x
+    }
+
+    fn y(&self) -> i32 {
+        self.frame.y
+    }
+
+    fn width(&self) -> i32 {
+        self.frame.width
+    }
+
+    fn height(&self) -> i32 {
+        self.frame.height
+    }
 }
 
 #[allow(dead_code)]
@@ -178,133 +200,27 @@ impl<A: WindowApi> WindowManager<A> {
 
     /// Move window to center
     pub fn move_to_center(&self, hwnd: HWND) -> Result<()> {
-        let info = self.get_window_info(hwnd)?;
-
-        let new_x = info.work_area.x + (info.work_area.width - info.frame.width) / 2;
-        let new_y = info.work_area.y + (info.work_area.height - info.frame.height) / 2;
-
-        let new_frame =
-            WindowFrame::new(new_x, new_y, info.frame.width, info.frame.height);
-        self.set_window_frame(hwnd, &new_frame)
+        CommonWindowManager::move_to_center(self, hwnd)
     }
 
     /// Move window to edge
     pub fn move_to_edge(&self, hwnd: HWND, edge: Edge) -> Result<()> {
-        let info = self.get_window_info(hwnd)?;
-
-        let (new_x, new_y) = match edge {
-            Edge::Left => (info.work_area.x, info.frame.y),
-            Edge::Right => (
-                info.work_area.x + info.work_area.width - info.frame.width,
-                info.frame.y,
-            ),
-            Edge::Top => (info.frame.x, info.work_area.y),
-            Edge::Bottom => (
-                info.frame.x,
-                info.work_area.y + info.work_area.height - info.frame.height,
-            ),
-        };
-
-        let new_frame =
-            WindowFrame::new(new_x, new_y, info.frame.width, info.frame.height);
-        self.set_window_frame(hwnd, &new_frame)
+        CommonWindowManager::move_to_edge(self, hwnd, edge)
     }
 
     /// Set window to half screen
     pub fn set_half_screen(&self, hwnd: HWND, edge: Edge) -> Result<()> {
-        let info = self.get_window_info(hwnd)?;
-
-        let (new_x, new_y, new_width, new_height) = match edge {
-            Edge::Left => (
-                info.work_area.x,
-                info.work_area.y,
-                info.work_area.width / 2,
-                info.work_area.height,
-            ),
-            Edge::Right => {
-                let width = info.work_area.width / 2;
-                (
-                    info.work_area.x + info.work_area.width - width,
-                    info.work_area.y,
-                    width,
-                    info.work_area.height,
-                )
-            }
-            Edge::Top => (
-                info.work_area.x,
-                info.work_area.y,
-                info.work_area.width,
-                info.work_area.height / 2,
-            ),
-            Edge::Bottom => {
-                let height = info.work_area.height / 2;
-                (
-                    info.work_area.x,
-                    info.work_area.y + info.work_area.height - height,
-                    info.work_area.width,
-                    height,
-                )
-            }
-        };
-
-        let new_frame = WindowFrame::new(new_x, new_y, new_width, new_height);
-        self.set_window_frame(hwnd, &new_frame)
+        CommonWindowManager::set_half_screen(self, hwnd, edge)
     }
 
     /// Loop adjust window width
     pub fn loop_width(&self, hwnd: HWND, align: Alignment) -> Result<()> {
-        const WIDTH_RATIOS: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
-
-        let info = self.get_window_info(hwnd)?;
-        let current_ratio = info.frame.width as f32 / info.work_area.width as f32;
-
-        // Find next ratio
-        let mut next_ratio = WIDTH_RATIOS[0];
-        for (i, ratio) in WIDTH_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.01 {
-                next_ratio = WIDTH_RATIOS[(i + 1) % WIDTH_RATIOS.len()];
-                break;
-            }
-        }
-
-        let new_width = (info.work_area.width as f32 * next_ratio) as i32;
-        let new_x = match align {
-            Alignment::Left => info.work_area.x,
-            Alignment::Right => info.work_area.x + info.work_area.width - new_width,
-            _ => info.frame.x,
-        };
-
-        let new_frame =
-            WindowFrame::new(new_x, info.frame.y, new_width, info.frame.height);
-        self.set_window_frame(hwnd, &new_frame)
+        CommonWindowManager::loop_width(self, hwnd, align)
     }
 
     /// Loop adjust window height
     pub fn loop_height(&self, hwnd: HWND, align: Alignment) -> Result<()> {
-        const HEIGHT_RATIOS: [f32; 3] = [0.75, 0.5, 0.25];
-
-        let info = self.get_window_info(hwnd)?;
-        let current_ratio = info.frame.height as f32 / info.work_area.height as f32;
-
-        // Find next ratio
-        let mut next_ratio = HEIGHT_RATIOS[0];
-        for (i, ratio) in HEIGHT_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.01 {
-                next_ratio = HEIGHT_RATIOS[(i + 1) % HEIGHT_RATIOS.len()];
-                break;
-            }
-        }
-
-        let new_height = (info.work_area.height as f32 * next_ratio) as i32;
-        let new_y = match align {
-            Alignment::Top => info.work_area.y,
-            Alignment::Bottom => info.work_area.y + info.work_area.height - new_height,
-            _ => info.frame.y,
-        };
-
-        let new_frame =
-            WindowFrame::new(info.frame.x, new_y, info.frame.width, new_height);
-        self.set_window_frame(hwnd, &new_frame)
+        CommonWindowManager::loop_height(self, hwnd, align)
     }
 
     /// Set fixed ratio window (centered) with loop support
@@ -313,80 +229,15 @@ impl<A: WindowApi> WindowManager<A> {
         &self,
         hwnd: HWND,
         ratio: f32,
-        _scale_index: usize, // Kept for API compatibility, but auto-detected
+        scale_index: usize,
     ) -> Result<()> {
-        const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
-
-        let info = self.get_window_info(hwnd)?;
-
-        // Calculate base size based on the smaller side of work area
-        let base_size = std::cmp::min(info.work_area.width, info.work_area.height);
-        let base_width = (base_size as f32 * ratio) as i32;
-        let base_height = base_size;
-
-        // Calculate current scale based on window size
-        let current_width_ratio = info.frame.width as f32 / base_width as f32;
-        let current_height_ratio = info.frame.height as f32 / base_height as f32;
-        let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
-
-        // Find next scale (loop through SCALES array)
-        let mut next_scale = SCALES[0];
-        for (i, scale) in SCALES.iter().enumerate() {
-            if (current_scale - scale).abs() < 0.05 {
-                // Found current scale, move to next
-                next_scale = SCALES[(i + 1) % SCALES.len()];
-                break;
-            }
-        }
-
-        let new_width = (base_width as f32 * next_scale) as i32;
-        let new_height = (base_height as f32 * next_scale) as i32;
-
-        // Center
-        let new_x = info.work_area.x + (info.work_area.width - new_width) / 2;
-        let new_y = info.work_area.y + (info.work_area.height - new_height) / 2;
-
-        let new_frame = WindowFrame::new(new_x, new_y, new_width, new_height);
-        self.set_window_frame(hwnd, &new_frame)
+        CommonWindowManager::set_fixed_ratio(self, hwnd, ratio, scale_index)
     }
 
     /// Set native ratio window (based on screen ratio) with loop support
     /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
-    pub fn set_native_ratio(&self, hwnd: HWND, _scale_index: usize) -> Result<()> {
-        const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
-
-        let info = self.get_window_info(hwnd)?;
-
-        // Calculate base size based on screen aspect ratio
-        let screen_ratio = info.work_area.width as f32 / info.work_area.height as f32;
-        let base_size = std::cmp::min(info.work_area.width, info.work_area.height);
-        let base_width = (base_size as f32 * screen_ratio) as i32;
-        let base_height = base_size;
-
-        // Calculate current scale based on window size
-        let current_width_ratio = info.frame.width as f32 / base_width as f32;
-        let current_height_ratio = info.frame.height as f32 / base_height as f32;
-        let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
-
-        // Find next scale (loop through SCALES array)
-        let mut next_scale = SCALES[0];
-        for (i, scale) in SCALES.iter().enumerate() {
-            if (current_scale - scale).abs() < 0.05 {
-                // Found current scale, move to next
-                next_scale = SCALES[(i + 1) % SCALES.len()];
-                break;
-            }
-        }
-
-        let new_width = (base_width as f32 * next_scale) as i32;
-        let new_height = (base_height as f32 * next_scale) as i32;
-
-        // Center
-        let new_x = info.work_area.x + (info.work_area.width - new_width) / 2;
-        let new_y = info.work_area.y + (info.work_area.height - new_height) / 2;
-
-        let new_frame = WindowFrame::new(new_x, new_y, new_width, new_height);
-        self.set_window_frame(hwnd, &new_frame)
+    pub fn set_native_ratio(&self, hwnd: HWND, scale_index: usize) -> Result<()> {
+        CommonWindowManager::set_native_ratio(self, hwnd, scale_index)
     }
 
     /// Minimize window
@@ -411,16 +262,62 @@ impl<A: WindowApi> WindowManager<A> {
 
     /// Toggle topmost state
     pub fn toggle_topmost(&self, hwnd: HWND) -> Result<bool> {
-        // Check window is valid
-        if !self.api.is_window(hwnd) {
-            return Err(anyhow::anyhow!("Invalid window handle"));
-        }
+        CommonWindowManager::toggle_topmost(self, hwnd)
+    }
+}
 
-        // Get current state and toggle
-        let current = self.api.is_topmost(hwnd);
-        let new_state = !current;
-        self.api.set_topmost(hwnd, new_state)?;
-        Ok(new_state)
+// Implement CommonWindowApi for WindowManager to use common window manager logic
+impl<A: WindowApi> CommonWindowApi for WindowManager<A> {
+    type WindowId = HWND;
+    type WindowInfo = WindowInfo;
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
+        self.get_window_info(window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        let frame = WindowFrame::new(x, y, width, height);
+        self.set_window_frame(window, &frame)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        // Get foreground window to determine current monitor
+        if let Some(hwnd) = self.api.get_foreground_window() {
+            if let Some(work_area) = self.api.get_monitor_work_area(hwnd) {
+                return vec![MonitorInfo {
+                    x: work_area.x,
+                    y: work_area.y,
+                    width: work_area.width,
+                    height: work_area.height,
+                }];
+            }
+        }
+        // Fallback to default monitor
+        vec![MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        }]
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.api.is_window(window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.api.is_topmost(window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.api.set_topmost(window, topmost)
     }
 }
 
@@ -962,7 +859,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(100, 200, 800, 600));
         api.set_monitor_info(
             hwnd,
-            MonitorInfo {
+            super::super::window_api::MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -988,7 +885,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(0, 0, 800, 600));
         api.set_monitor_info(
             hwnd,
-            MonitorInfo {
+            super::super::window_api::MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -1013,7 +910,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
         api.set_monitor_info(
             hwnd,
-            MonitorInfo {
+            super::super::window_api::MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -1042,7 +939,7 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
         api.set_monitor_info(
             hwnd,
-            MonitorInfo {
+            super::super::window_api::MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -1075,7 +972,7 @@ mod tests {
         // Set all data before creating WindowManager
         api.set_monitor_info(
             hwnd,
-            MonitorInfo {
+            super::super::window_api::MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,
@@ -1102,7 +999,7 @@ mod tests {
         // Set all data before creating WindowManager
         api.set_monitor_info(
             hwnd,
-            MonitorInfo {
+            super::super::window_api::MonitorInfo {
                 x: 0,
                 y: 0,
                 width: 1920,

@@ -1,90 +1,38 @@
 //! Windows program launcher implementation
 #![cfg(target_os = "windows")]
 
+use crate::platform::launcher_common::CommonLauncher;
 use crate::types::LaunchAction;
 use anyhow::Result;
-use std::path::Path;
-use std::process::Command;
-use tracing::{debug, info};
 
-/// Program launcher
+/// Program launcher (Windows-specific wrapper)
 #[allow(dead_code)]
-pub struct Launcher;
+#[derive(Debug, Clone)]
+pub struct Launcher {
+    inner: CommonLauncher,
+}
 
 #[allow(dead_code)]
 impl Launcher {
     pub fn new() -> Self {
-        Self
+        Self {
+            inner: CommonLauncher::new(),
+        }
     }
 
     /// Execute launch action
     pub fn launch(&self, action: &LaunchAction) -> Result<()> {
-        info!("Launching program: {}", action.program);
-        debug!("Args: {:?}", action.args);
-        debug!("Working dir: {:?}", action.working_dir);
-
-        // Check program path
-        let program = if Path::new(&action.program).exists() {
-            action.program.clone()
-        } else {
-            // Try to find in PATH
-            action.program.clone()
-        };
-
-        // Use std::process::Command to launch program
-        let mut cmd = Command::new(&program);
-        cmd.args(&action.args);
-
-        if let Some(ref dir) = action.working_dir {
-            cmd.current_dir(dir);
-        }
-
-        // Launch asynchronously, don't wait
-        match cmd.spawn() {
-            Ok(child) => {
-                info!(
-                    "Program launched successfully: {} (pid: {:?})",
-                    action.program,
-                    child.id()
-                );
-                Ok(())
-            }
-            Err(e) => Err(anyhow::anyhow!(
-                "Failed to launch program {}: {}",
-                action.program,
-                e
-            )),
-        }
+        self.inner.launch(action)
     }
 
     /// Create a simple launch action from string
     pub fn create_action(program: impl Into<String>) -> LaunchAction {
-        LaunchAction {
-            program: program.into(),
-            args: Vec::new(),
-            working_dir: None,
-            env_vars: Vec::new(),
-        }
+        CommonLauncher::create_action(program)
     }
 
     /// Parse from command line string (e.g., "notepad.exe file.txt")
     pub fn parse_command(command: &str) -> LaunchAction {
-        let parts: Vec<&str> = command.split_whitespace().collect();
-        if parts.is_empty() {
-            return LaunchAction {
-                program: String::new(),
-                args: Vec::new(),
-                working_dir: None,
-                env_vars: Vec::new(),
-            };
-        }
-
-        LaunchAction {
-            program: parts[0].to_string(),
-            args: parts[1..].iter().map(|s| s.to_string()).collect(),
-            working_dir: None,
-            env_vars: Vec::new(),
-        }
+        CommonLauncher::parse_command(command)
     }
 }
 

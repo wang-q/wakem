@@ -215,46 +215,8 @@ impl OutputDevice for SendInputDevice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::output_helpers::char_to_vk;
 
-    // --- char_to_vk tests (shared logic) ---
-
-    #[test]
-    fn test_char_to_vk_lowercase() {
-        assert_eq!(char_to_vk('a'), Some(0x41));
-        assert_eq!(char_to_vk('b'), Some(0x42));
-        assert_eq!(char_to_vk('m'), Some(0x4D));
-        assert_eq!(char_to_vk('z'), Some(0x5A));
-    }
-
-    #[test]
-    fn test_char_to_vk_uppercase() {
-        assert_eq!(char_to_vk('A'), Some(0x41));
-        assert_eq!(char_to_vk('Z'), Some(0x5A));
-    }
-
-    #[test]
-    fn test_char_to_vk_digits() {
-        assert_eq!(char_to_vk('0'), Some(0x30));
-        assert_eq!(char_to_vk('5'), Some(0x35));
-        assert_eq!(char_to_vk('9'), Some(0x39));
-    }
-
-    #[test]
-    fn test_char_to_vk_special() {
-        assert_eq!(char_to_vk(' '), Some(0x20));
-        assert_eq!(char_to_vk('\t'), Some(0x09));
-        assert_eq!(char_to_vk('\n'), Some(0x0D));
-        assert_eq!(char_to_vk('\r'), Some(0x0D));
-    }
-
-    #[test]
-    fn test_char_to_vk_unsupported() {
-        assert_eq!(char_to_vk('@'), None);
-        assert_eq!(char_to_vk('#'), None);
-        assert_eq!(char_to_vk('中'), None);
-        assert_eq!(char_to_vk('é'), None);
-    }
+    // Note: char_to_vk tests are in platform::output_helpers module
 
     // --- SendInputDevice lifecycle (no side effects) ---
 

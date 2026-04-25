@@ -193,6 +193,107 @@ pub struct MonitorInfo {
     pub height: i32,
 }
 
+/// Trait for window information needed by common operations
+pub trait WindowInfoProvider {
+    /// Get window position X
+    fn x(&self) -> i32;
+    /// Get window position Y
+    fn y(&self) -> i32;
+    /// Get window width
+    fn width(&self) -> i32;
+    /// Get window height
+    fn height(&self) -> i32;
+}
+
+/// Window frame with position and size
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+pub struct WindowFrame {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl WindowFrame {
+    /// Create a new window frame
+    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    /// Calculate aspect ratio (width / height)
+    pub fn aspect_ratio(&self) -> f64 {
+        if self.height > 0 {
+            self.width as f64 / self.height as f64
+        } else {
+            0.0
+        }
+    }
+
+    /// Check if frame is valid (positive dimensions)
+    pub fn is_valid(&self) -> bool {
+        self.width > 0 && self.height > 0
+    }
+
+    /// Calculate centered position within a monitor
+    pub fn center_in(&self, monitor: &MonitorInfo) -> (i32, i32) {
+        let x = monitor.x + (monitor.width - self.width) / 2;
+        let y = monitor.y + (monitor.height - self.height) / 2;
+        (x, y)
+    }
+}
+
+impl WindowInfoProvider for WindowInfo {
+    fn x(&self) -> i32 {
+        self.x
+    }
+
+    fn y(&self) -> i32 {
+        self.y
+    }
+
+    fn width(&self) -> i32 {
+        self.width
+    }
+
+    fn height(&self) -> i32 {
+        self.height
+    }
+}
+
+/// Application commands sent from tray menu
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppCommand {
+    /// Toggle active state
+    ToggleActive,
+    /// Reload configuration
+    ReloadConfig,
+    /// Open config folder
+    OpenConfigFolder,
+    /// Exit application
+    Exit,
+}
+
+/// Menu action results from user interaction
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuAction {
+    /// No action
+    None,
+    /// Toggle active state
+    ToggleActive,
+    /// Reload configuration
+    Reload,
+    /// Open config folder
+    OpenConfig,
+    /// Exit application
+    Exit,
+}
+
 /// Window API trait - low-level window operations
 #[allow(dead_code)]
 pub trait WindowApiTrait: Send + Sync {
