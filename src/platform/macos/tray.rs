@@ -253,26 +253,34 @@ impl Default for RealTrayApi {
 unsafe impl Send for RealTrayApi {}
 unsafe impl Sync for RealTrayApi {}
 
-/// Assert that the current thread is the main thread (debug builds only).
+/// Assert that the current thread is the main thread.
 /// Cocoa UI operations must run on the main thread.
-#[cfg(debug_assertions)]
+/// In debug builds, this logs an error. In release builds, it logs a warning
+/// since the behavior is technically undefined but often works in practice.
 fn assert_main_thread() {
     use objc::runtime::Class;
     unsafe {
-        let cls = Class::get("NSThread").expect("NSThread class not found");
+        let cls = match Class::get("NSThread") {
+            Some(cls) => cls,
+            None => return,
+        };
         let is_main: bool = msg_send![cls, isMainThread];
         if !is_main {
+            #[cfg(debug_assertions)]
             tracing::error!(
                 "Cocoa UI operation called from non-main thread! \
                  This is undefined behavior. All tray UI operations \
                  must be dispatched to the main thread."
             );
+            #[cfg(not(debug_assertions))]
+            tracing::warn!(
+                "Cocoa UI operation called from non-main thread. \
+                 This may cause undefined behavior. All tray UI operations \
+                 should be dispatched to the main thread."
+            );
         }
     }
 }
-
-#[cfg(not(debug_assertions))]
-fn assert_main_thread() {}
 
 #[async_trait::async_trait]
 impl TrayApi for RealTrayApi {

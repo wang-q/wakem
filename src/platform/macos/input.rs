@@ -172,11 +172,6 @@ extern "C" fn event_tap_callback(
     _info: *const c_void,
     _type_: u64,
 ) -> *const c_void {
-    // In test mode, don't process any events to avoid interfering with the test environment
-    if cfg!(test) {
-        return event;
-    }
-
     if let Some(ref sender) = get_sender() {
         let input_event = convert_cg_event(event);
 
@@ -185,8 +180,17 @@ extern "C" fn event_tap_callback(
         }
     }
 
-    // Return original event unchanged (pass-through, don't block)
     event
+}
+
+#[cfg(test)]
+fn event_tap_callback(
+    _proxy: *const c_void,
+    _event: *const c_void,
+    _info: *const c_void,
+    _type_: u64,
+) -> *const c_void {
+    std::ptr::null()
 }
 
 // ============================================================================
@@ -402,8 +406,13 @@ impl CGEventTapDevice {
 
     /// Start the event tap and begin capturing events
     ///
-    /// This method blocks the calling thread on the CFRunLoop.
-    /// Typically called from a dedicated background thread.
+    /// This method is **non-blocking**: it creates the event tap and adds it to
+    /// the current thread's CFRunLoop, then returns immediately. Events are
+    /// delivered asynchronously via the callback.
+    ///
+    /// The caller must ensure the CFRunLoop on the current thread is running
+    /// (e.g., via `CFRunLoopRun()`) for events to be delivered. If the run
+    /// loop is not running, events will not be captured.
     ///
     /// # Errors
     ///
@@ -500,16 +509,18 @@ impl CGEventTapDevice {
         self.running
             .store(false, std::sync::atomic::Ordering::SeqCst);
         clear_sender();
+        self.cleanup_resources();
 
-        // Warn if cleanup is called from a different thread than the one
-        // that called run(). CFRunLoopRemoveSource should ideally be
-        // called on the main thread or the thread that added the source.
+        debug!("CGEventTap stopped");
+    }
+
+    fn cleanup_resources(&self) {
         {
             let guard = self.created_on_thread.lock().unwrap();
             if let Some(tid) = *guard {
                 if tid != std::thread::current().id() {
                     tracing::warn!(
-                        "CGEventTapDevice::stop() called from a different thread \
+                        "CGEventTapDevice cleanup called from a different thread \
                          than run(). CFRunLoopRemoveSource may not be thread-safe. \
                          Prefer calling stop() on the same thread as run()."
                     );
@@ -538,8 +549,6 @@ impl CGEventTapDevice {
                 }
             }
         }
-
-        debug!("CGEventTap stopped");
     }
 
     /// Check if the device is currently running
@@ -560,44 +569,11 @@ impl CGEventTapDevice {
 
 impl Drop for CGEventTapDevice {
     fn drop(&mut self) {
-        {
-            let guard = self.created_on_thread.lock().unwrap();
-            if let Some(tid) = *guard {
-                if tid != std::thread::current().id() {
-                    tracing::warn!(
-                        "CGEventTapDevice dropped from a different thread \
-                         than run(). CFRunLoopRemoveSource may not be thread-safe. \
-                         Prefer dropping on the same thread as run()."
-                    );
-                }
-            }
-        }
-
         if self.running.load(std::sync::atomic::Ordering::SeqCst) {
             self.stop();
         } else {
             clear_sender();
-            // Still clean up resources even if not running
-            {
-                let mut guard = self.run_loop_source.lock().unwrap();
-                if let Some(source) = guard.take() {
-                    unsafe {
-                        let rl = CFRunLoopGetMain();
-                        CFRunLoopRemoveSource(rl, source, std::ptr::null());
-                        CFRunLoopSourceInvalidate(source);
-                        CFRelease(source);
-                    }
-                }
-            }
-            {
-                let mut guard = self.tap_port.lock().unwrap();
-                if let Some(tap) = guard.take() {
-                    unsafe {
-                        CGEventTapEnable(tap, false);
-                        CFRelease(tap);
-                    }
-                }
-            }
+            self.cleanup_resources();
         }
 
         debug!("CGEventTapDevice dropped and resources cleaned up");

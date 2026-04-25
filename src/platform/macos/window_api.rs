@@ -134,6 +134,11 @@ impl MacosWindowApi for RealMacosWindowApi {
         width: i32,
         height: i32,
     ) -> Result<()> {
+        // TODO: Use CGWindowNumber to find the correct AXUIElement instead of
+        // always operating on the frontmost application's main window. The current
+        // approach ignores the `window` parameter and has a TOCTOU race condition
+        // if the foreground app changes between getting the PID and operating on it.
+
         // Use AXUIElement to set window frame (< 10ms)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
@@ -141,7 +146,19 @@ impl MacosWindowApi for RealMacosWindowApi {
         let app_elem = ax_element::create_app_element(pid)?;
         let win_elem = ax_element::get_main_window(&app_elem)?;
 
-        // Convert from Windows-style (top-left origin) to CG-style (bottom-left origin)
+        // Convert from Windows-style (top-left origin) to CG-style (bottom-left origin).
+        //
+        // In Windows-style coordinates, (x, y) is the top-left corner of the window.
+        // In CG-style coordinates, the origin is at the bottom-left of the screen.
+        // AXPosition expects the CG-style y-coordinate of the window's top-left corner.
+        //
+        // Windows y = distance from top of screen to window top
+        // CG y = screen_height - (windows_y + window_height)
+        //      = screen_height - windows_y - window_height
+        //
+        // This is equivalent to: windows_to_cg(y + height, screen_height)
+        // because windows_to_cg(v) = screen_height - v
+        // so windows_to_cg(y + height) = screen_height - y - height
         let screen_height = ns_workspace::get_main_display_height();
         let cg_y = crate::platform::macos::native_api::windows_to_cg(
             y as f64 + height as f64,
@@ -164,6 +181,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn minimize_window(&self, _window: WindowId) -> Result<()> {
+        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -175,6 +193,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn maximize_window(&self, _window: WindowId) -> Result<()> {
+        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -186,6 +205,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn restore_window(&self, _window: WindowId) -> Result<()> {
+        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -197,6 +217,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn close_window(&self, _window: WindowId) -> Result<()> {
+        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -227,11 +248,15 @@ impl MacosWindowApi for RealMacosWindowApi {
         let mut monitors = std::vec::Vec::new();
         let display_ids = CGDisplay::active_displays().unwrap_or_default();
 
+        let screen_height = ns_workspace::get_main_display_height();
+
         for display_id in display_ids {
             let bounds = unsafe { CGDisplayBounds(display_id) };
+            // Convert CG coordinates (bottom-left origin) to Windows-style (top-left origin)
+            let windows_y = (screen_height - bounds.origin.y - bounds.size.height) as i32;
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
-                y: bounds.origin.y as i32,
+                y: windows_y,
                 width: bounds.size.width as i32,
                 height: bounds.size.height as i32,
             });
@@ -240,9 +265,10 @@ impl MacosWindowApi for RealMacosWindowApi {
         if monitors.is_empty() {
             let main = CGDisplay::main();
             let bounds = unsafe { CGDisplayBounds(main.id) };
+            let windows_y = (screen_height - bounds.origin.y - bounds.size.height) as i32;
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
-                y: bounds.origin.y as i32,
+                y: windows_y,
                 width: bounds.size.width as i32,
                 height: bounds.size.height as i32,
             });
@@ -318,6 +344,10 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn is_maximized(&self, _window: WindowId) -> bool {
+        // TODO: This heuristic (95% threshold) may produce false positives when
+        // a user manually resizes a window to nearly fill the screen. Consider
+        // using AXUIElement's AXZoomed attribute or tracking pre-zoom frame
+        // dimensions for more accurate maximization detection.
         let info = match self.get_window_info(_window) {
             Ok(info) => info,
             Err(_) => return false,

@@ -402,7 +402,8 @@ impl WindowApi for RealWindowApi {
     fn close_window(&self, hwnd: HWND) -> Result<()> {
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
-            let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+            PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0))
+                .map_err(|e| anyhow::anyhow!("Failed to post WM_CLOSE: {}", e))?;
             Ok(())
         }
     }

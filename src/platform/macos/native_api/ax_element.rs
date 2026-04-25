@@ -1,3 +1,4 @@
+#![cfg(target_os = "macos")]
 //! Accessibility AXUIElement operations.
 //!
 //! Direct access to window properties via Accessibility API.
@@ -8,7 +9,6 @@
 //! # Features
 //!
 //! - Create AXUIElement for applications by PID
-#![cfg(target_os = "macos")]
 //! - Get main/focused window elements
 //! - Set/get window position and size (frame)
 //! - Minimize, maximize, restore, close windows
@@ -16,7 +16,6 @@
 //! - Query window state (minimized, focused, title)
 
 use anyhow::{bail, Result};
-use std::alloc::{self, Layout};
 use std::ffi::{c_void, CStr, CString};
 use tracing::{debug, trace, warn};
 
@@ -25,8 +24,20 @@ use tracing::{debug, trace, warn};
 // ============================================================================
 
 /// Opaque pointer to AXUIElement (Objective-C object)
-#[derive(Debug, Clone)]
+///
+/// Implements reference-counted semantics: `Clone` calls `CFRetain` and `Drop`
+/// calls `CFRelease`, so each clone owns its own reference.
+#[derive(Debug)]
 pub struct AXElement(pub *const c_void);
+
+impl Clone for AXElement {
+    fn clone(&self) -> Self {
+        if !self.0.is_null() {
+            unsafe { cf_retain(self.0) };
+        }
+        AXElement(self.0)
+    }
+}
 
 impl AXElement {
     /// Check if element is valid (non-null)
@@ -40,7 +51,6 @@ impl AXElement {
     }
 }
 
-/// Drop implementation to release Objective-C memory
 impl Drop for AXElement {
     fn drop(&mut self) {
         if self.is_valid() {
@@ -75,6 +85,7 @@ struct CGSize {
 extern "C" {
     // Core Foundation functions
     fn CFRelease(cf: *const c_void);
+    fn CFRetain(cf: *const c_void) -> *const c_void;
     fn CFStringCreateWithCString(
         alloc: *const c_void,
         cStr: *const i8,
@@ -114,6 +125,10 @@ extern "C" {
 /// Safe wrapper for CFRelease
 unsafe fn cf_release(cf: *const c_void) {
     CFRelease(cf);
+}
+
+unsafe fn cf_retain(cf: *const c_void) {
+    CFRetain(cf);
 }
 
 // ============================================================================
@@ -169,24 +184,36 @@ unsafe fn create_cf_string(s: &str) -> *const c_void {
     )
 }
 
-/// Create CGPoint value on heap (returns raw pointer)
+/// Create CGPoint value on heap using Box (returns raw pointer)
+///
+/// The caller must ensure the memory is freed by calling `dealloc_cgpoint`
+/// after the value is no longer needed (typically after AXUIElementSetAttributeValue).
 unsafe fn create_cgpoint(x: f64, y: f64) -> *const c_void {
-    let layout = Layout::new::<CGPoint>();
-    let ptr = alloc::alloc(layout) as *mut CGPoint;
-    if !ptr.is_null() {
-        (*ptr) = CGPoint { x, y };
-    }
-    ptr as *const c_void
+    let boxed = Box::new(CGPoint { x, y });
+    Box::into_raw(boxed) as *const c_void
 }
 
-/// Create CGSize value on heap (returns raw pointer)
-unsafe fn create_cgsize(width: f64, height: f64) -> *const c_void {
-    let layout = Layout::new::<CGSize>();
-    let ptr = alloc::alloc(layout) as *mut CGSize;
+/// Deallocate a CGPoint previously created by `create_cgpoint`
+unsafe fn dealloc_cgpoint(ptr: *const c_void) {
     if !ptr.is_null() {
-        (*ptr) = CGSize { width, height };
+        let _ = Box::from_raw(ptr as *mut CGPoint);
     }
-    ptr as *const c_void
+}
+
+/// Create CGSize value on heap using Box (returns raw pointer)
+///
+/// The caller must ensure the memory is freed by calling `dealloc_cgsize`
+/// after the value is no longer needed (typically after AXUIElementSetAttributeValue).
+unsafe fn create_cgsize(width: f64, height: f64) -> *const c_void {
+    let boxed = Box::new(CGSize { width, height });
+    Box::into_raw(boxed) as *const c_void
+}
+
+/// Deallocate a CGSize previously created by `create_cgsize`
+unsafe fn dealloc_cgsize(ptr: *const c_void) {
+    if !ptr.is_null() {
+        let _ = Box::from_raw(ptr as *mut CGSize);
+    }
 }
 
 /// Parse CGPoint from raw pointer
@@ -214,13 +241,13 @@ fn get_boolean_attribute(element: &AXElement, name: &str) -> Result<bool> {
 
     let error =
         unsafe { AXUIElementCopyAttributeValue(element.0, attr, &mut value_ptr) };
+    unsafe { cf_release(attr) };
     check_ax_error(error, &format!("get_{}", name))?;
 
     if value_ptr.is_null() {
         return Ok(false);
     }
 
-    // Compare with kCFBooleanTrue constant address
     let true_val = unsafe { kCFBooleanTrue() };
     Ok(value_ptr == true_val)
 }
@@ -232,6 +259,7 @@ fn get_string_attribute(element: &AXElement, name: &str) -> Result<String> {
 
     let error =
         unsafe { AXUIElementCopyAttributeValue(element.0, attr, &mut value_ptr) };
+    unsafe { cf_release(attr) };
     check_ax_error(error, &format!("get_{}", name))?;
 
     if value_ptr.is_null() {
@@ -240,11 +268,14 @@ fn get_string_attribute(element: &AXElement, name: &str) -> Result<String> {
 
     let c_ptr = unsafe { CFStringGetCStringPtr(value_ptr, 0x08000100) };
     if c_ptr.is_null() {
+        unsafe { cf_release(value_ptr) };
         return Ok(String::new());
     }
 
     let c_str = unsafe { CStr::from_ptr(c_ptr) };
-    Ok(c_str.to_string_lossy().into_owned())
+    let result = c_str.to_string_lossy().into_owned();
+    unsafe { cf_release(value_ptr) };
+    Ok(result)
 }
 
 /// Create CFBoolean value
@@ -301,6 +332,7 @@ pub fn get_main_window(app_element: &AXElement) -> Result<AXElement> {
 
     let error =
         unsafe { AXUIElementCopyAttributeValue(app_element.0, attr, &mut window_ptr) };
+    unsafe { cf_release(attr) };
 
     check_ax_error(error, "get_main_window")?;
 
@@ -323,6 +355,7 @@ pub fn get_focused_window(app_element: &AXElement) -> Result<AXElement> {
 
     let error =
         unsafe { AXUIElementCopyAttributeValue(app_element.0, attr, &mut window_ptr) };
+    unsafe { cf_release(attr) };
 
     check_ax_error(error, "get_focused_window")?;
 
@@ -380,6 +413,8 @@ pub fn set_window_frame(
     let error = unsafe {
         AXUIElementSetAttributeValue(window_element.0, position_attr, position_value)
     };
+    unsafe { dealloc_cgpoint(position_value) };
+    unsafe { cf_release(position_attr) };
     check_ax_error(error, "set_position")?;
 
     // Set size (CGSize = {width: f64, height: f64})
@@ -388,6 +423,8 @@ pub fn set_window_frame(
 
     let error =
         unsafe { AXUIElementSetAttributeValue(window_element.0, size_attr, size_value) };
+    unsafe { dealloc_cgsize(size_value) };
+    unsafe { cf_release(size_attr) };
     check_ax_error(error, "set_size")?;
 
     debug!("Successfully set window frame");
@@ -411,12 +448,14 @@ pub fn get_window_frame(window_element: &AXElement) -> Result<(f64, f64, f64, f6
     let error = unsafe {
         AXUIElementCopyAttributeValue(window_element.0, pos_attr, &mut pos_ptr)
     };
+    unsafe { cf_release(pos_attr) };
     check_ax_error(error, "get_position")?;
 
     // Get size
     let error = unsafe {
         AXUIElementCopyAttributeValue(window_element.0, size_attr, &mut size_ptr)
     };
+    unsafe { cf_release(size_attr) };
     check_ax_error(error, "get_size")?;
 
     // Parse CGPoint and CGSize from raw pointers
@@ -439,6 +478,7 @@ pub fn minimize_window(window_element: &AXElement) -> Result<()> {
 
     let action = unsafe { create_cf_string("AXMinimize") };
     let error = unsafe { AXUIElementPerformAction(window_element.0, action) };
+    unsafe { cf_release(action) };
 
     check_ax_error(error, "minimize_window")
 }
@@ -453,9 +493,9 @@ pub fn minimize_window(window_element: &AXElement) -> Result<()> {
 pub fn restore_window(window_element: &AXElement) -> Result<()> {
     debug!("Restoring window {:?}", window_element);
 
-    // Try AXUnminimize action first
     let action = unsafe { create_cf_string("AXUnminimize") };
     let error = unsafe { AXUIElementPerformAction(window_element.0, action) };
+    unsafe { cf_release(action) };
 
     match error {
         0 => {
@@ -463,7 +503,6 @@ pub fn restore_window(window_element: &AXElement) -> Result<()> {
             Ok(())
         }
         _ => {
-            // Fallback: set kAXMinimizedAttribute = false
             warn!(
                 "AXUnminimize failed (error {}), trying attribute set",
                 error
@@ -486,6 +525,7 @@ pub fn maximize_window(window_element: &AXElement) -> Result<()> {
 
     let action = unsafe { create_cf_string("AXZoom") };
     let error = unsafe { AXUIElementPerformAction(window_element.0, action) };
+    unsafe { cf_release(action) };
 
     check_ax_error(error, "maximize_window")
 }
@@ -501,6 +541,7 @@ pub fn close_window(window_element: &AXElement) -> Result<()> {
 
     let action = unsafe { create_cf_string("AXClose") };
     let error = unsafe { AXUIElementPerformAction(window_element.0, action) };
+    unsafe { cf_release(action) };
 
     check_ax_error(error, "close_window")
 }
@@ -516,6 +557,7 @@ pub fn bring_to_front(app_element: &AXElement) -> Result<()> {
 
     let action = unsafe { create_cf_string("AXRaise") };
     let error = unsafe { AXUIElementPerformAction(app_element.0, action) };
+    unsafe { cf_release(action) };
 
     check_ax_error(error, "bring_to_front")
 }
@@ -540,6 +582,7 @@ fn set_minimized_attribute(window_element: &AXElement, minimized: bool) -> Resul
     let value = unsafe { create_cfboolean(minimized) };
 
     let error = unsafe { AXUIElementSetAttributeValue(window_element.0, attr, value) };
+    unsafe { cf_release(attr) };
 
     check_ax_error(error, "set_minimized")
 }
@@ -589,21 +632,21 @@ pub fn ensure_window_restored(window_element: &AXElement) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tracing::debug;
 
     #[test]
     fn test_check_accessibility_permission() {
         let result = check_accessibility_permission();
         match result {
-            Ok(()) => println!("✅ Accessibility permission granted"),
-            Err(e) => println!("⚠️ {}", e), // Don't fail test
+            Ok(()) => debug!("Accessibility permission granted"),
+            Err(e) => debug!("Accessibility permission check: {}", e),
         }
     }
 
     #[test]
     fn test_is_api_enabled() {
         let enabled = is_api_enabled();
-        println!("Accessibility API enabled: {}", enabled);
-        // Just verify it doesn't panic
+        debug!("Accessibility API enabled: {}", enabled);
     }
 
     #[test]
@@ -613,7 +656,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -624,7 +667,7 @@ mod tests {
         let elem = elem.unwrap();
         assert!(elem.is_valid(), "Element should be valid");
 
-        println!("✅ Created AXUIElement for PID {}", pid);
+        debug!("Created AXUIElement for PID {}", pid);
     }
 
     #[test]
@@ -634,7 +677,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -642,7 +685,7 @@ mod tests {
         let app_elem = match create_app_element(pid) {
             Ok(elem) => elem,
             Err(e) => {
-                eprintln!("⚠️ Failed to create app element: {}", e);
+                debug!("Failed to create app element: {}", e);
                 return;
             }
         };
@@ -652,10 +695,10 @@ mod tests {
         match win_elem {
             Ok(win) => {
                 assert!(win.is_valid(), "Main window should be valid");
-                println!("✅ Got main window: {:?}", win.0);
+                debug!("Got main window: {:?}", win.0);
             }
             Err(e) => {
-                eprintln!("⚠️ No main window: {} (some apps don't expose it)", e);
+                debug!("No main window: {} (some apps don't expose it)", e);
             }
         }
     }
@@ -667,7 +710,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -675,7 +718,7 @@ mod tests {
         let app_elem = match create_app_element(pid) {
             Ok(elem) => elem,
             Err(e) => {
-                eprintln!("⚠️ Failed to create app element: {}", e);
+                debug!("Failed to create app element: {}", e);
                 return;
             }
         };
@@ -685,10 +728,10 @@ mod tests {
         match win_elem {
             Ok(win) => {
                 assert!(win.is_valid(), "Focused window should be valid");
-                println!("✅ Got focused window: {:?}", win.0);
+                debug!("Got focused window: {:?}", win.0);
             }
             Err(e) => {
-                eprintln!("⚠️ No focused window: {} (may be normal for some apps)", e);
+                debug!("No focused window: {} (may be normal for some apps)", e);
             }
         }
     }
@@ -700,7 +743,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -715,14 +758,13 @@ mod tests {
             Err(_) => return,
         };
 
-        // Frontmost window should typically NOT be minimized
         match is_minimized(&win_elem) {
             Ok(minimized) => {
                 assert!(!minimized, "Frontmost window should not be minimized");
-                println!("✅ Frontmost window is not minimized (as expected)");
+                debug!("Frontmost window is not minimized (as expected)");
             }
             Err(e) => {
-                eprintln!("⚠️ Failed to check minimized state: {}", e);
+                debug!("Failed to check minimized state: {}", e);
             }
         }
     }
@@ -734,7 +776,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -751,11 +793,10 @@ mod tests {
 
         match get_window_title(&win_elem) {
             Ok(title) => {
-                println!("✅ Window title: '{}'", title);
-                // Title may be empty for some system windows
+                debug!("Window title: '{}'", title);
             }
             Err(e) => {
-                eprintln!("⚠️ Failed to get window title: {}", e);
+                debug!("Failed to get window title: {}", e);
             }
         }
     }
@@ -767,7 +808,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -784,11 +825,11 @@ mod tests {
 
         match get_role(&win_elem) {
             Ok(role) => {
-                println!("✅ Window role: '{}'", role);
+                debug!("Window role: '{}'", role);
                 assert_eq!(role, "AXWindow", "Main window role should be AXWindow");
             }
             Err(e) => {
-                eprintln!("⚠️ Failed to get window role: {}", e);
+                debug!("Failed to get window role: {}", e);
             }
         }
     }
@@ -800,7 +841,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -817,16 +858,15 @@ mod tests {
 
         match get_window_frame(&win_elem) {
             Ok((x, y, w, h)) => {
-                println!(
-                    "✅ Window frame: position=({:.1}, {:.1}) size={:.1}x{:.1}",
+                debug!(
+                    "Window frame: position=({:.1}, {:.1}) size={:.1}x{:.1}",
                     x, y, w, h
                 );
-                // Values should be reasonable (positive sizes)
                 assert!(w > 0.0, "Width should be positive");
                 assert!(h > 0.0, "Height should be positive");
             }
             Err(e) => {
-                eprintln!("⚠️ Failed to get window frame: {}", e);
+                debug!("Failed to get window frame: {}", e);
             }
         }
     }
@@ -838,7 +878,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -849,8 +889,8 @@ mod tests {
         };
 
         match bring_to_front(&app_elem) {
-            Ok(()) => println!("✅ Successfully brought app to front"),
-            Err(e) => eprintln!("⚠️ Failed to bring to front: {}", e),
+            Ok(()) => debug!("Successfully brought app to front"),
+            Err(e) => debug!("Failed to bring to front: {}", e),
         }
     }
 
@@ -863,7 +903,7 @@ mod tests {
         assert!(result.is_err(), "Should fail with invalid element");
 
         match result {
-            Err(e) => println!("✅ Correctly returned error for invalid element: {}", e),
+            Err(e) => debug!("Correctly returned error for invalid element: {}", e),
             Ok(_) => panic!("Should have failed!"),
         }
     }
@@ -875,7 +915,7 @@ mod tests {
         let pid = match get_frontmost_app_pid() {
             Some(p) => p,
             None => {
-                eprintln!("Skipping: No frontmost app (may be headless)");
+                debug!("Skipping: No frontmost app (may be headless)");
                 return;
             }
         };
@@ -890,10 +930,9 @@ mod tests {
             Err(_) => return,
         };
 
-        // Should succeed even if already restored (no-op)
         match ensure_window_restored(&win_elem) {
-            Ok(()) => println!("✅ ensure_window_restored succeeded"),
-            Err(e) => eprintln!("⚠️ ensure_window_restored failed: {}", e),
+            Ok(()) => debug!("ensure_window_restored succeeded"),
+            Err(e) => debug!("ensure_window_restored failed: {}", e),
         }
     }
 }

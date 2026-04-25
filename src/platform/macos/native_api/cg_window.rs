@@ -255,6 +255,7 @@ unsafe fn get_cf_number_value(cf_num: *const c_void) -> Option<f64> {
 unsafe fn get_cf_dict_i32(dict: *const c_void, key: &str) -> Result<i32> {
     let key_cf = create_cf_string(key);
     let value_ptr = cf_dictionary_get_value(dict, key_cf);
+    cf_release(key_cf);
 
     if value_ptr.is_null() {
         return Err(anyhow!("Missing key: {}", key));
@@ -270,6 +271,7 @@ unsafe fn get_cf_dict_i32(dict: *const c_void, key: &str) -> Result<i32> {
 unsafe fn get_cf_dict_i64(dict: *const c_void, key: &str) -> Result<i64> {
     let key_cf = create_cf_string(key);
     let value_ptr = cf_dictionary_get_value(dict, key_cf);
+    cf_release(key_cf);
 
     if value_ptr.is_null() {
         return Err(anyhow!("Missing key: {}", key));
@@ -285,6 +287,7 @@ unsafe fn get_cf_dict_i64(dict: *const c_void, key: &str) -> Result<i64> {
 unsafe fn get_cf_dict_f64(dict: *const c_void, key: &str) -> Result<f64> {
     let key_cf = create_cf_string(key);
     let value_ptr = cf_dictionary_get_value(dict, key_cf);
+    cf_release(key_cf);
 
     if value_ptr.is_null() {
         return Err(anyhow!("Missing key: {}", key));
@@ -300,6 +303,7 @@ unsafe fn get_cf_dict_f64(dict: *const c_void, key: &str) -> Result<f64> {
 unsafe fn get_cf_dict_string(dict: *const c_void, key: &str) -> Option<String> {
     let key_cf = create_cf_string(key);
     let value_ptr = cf_dictionary_get_value(dict, key_cf);
+    cf_release(key_cf);
 
     if value_ptr.is_null() {
         return None;
@@ -311,7 +315,9 @@ unsafe fn get_cf_dict_string(dict: *const c_void, key: &str) -> Option<String> {
 /// Get raw value pointer from CFDictionary by key name (for nested dictionaries)
 unsafe fn get_cf_dict_value(dict: *const c_void, key: &str) -> *const c_void {
     let key_cf = create_cf_string(key);
-    cf_dictionary_get_value(dict, key_cf)
+    let result = cf_dictionary_get_value(dict, key_cf);
+    cf_release(key_cf);
+    result
 }
 
 #[cfg(test)]

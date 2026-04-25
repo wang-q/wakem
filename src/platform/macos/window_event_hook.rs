@@ -160,34 +160,36 @@ impl MacosWindowEventHook {
 
             let mut last_process = String::new();
             let mut last_title = String::new();
-            let mut last_window_count = 0;
+            let mut last_window_count: usize = 0;
+            let mut initialized = false;
 
             while !shutdown.load(Ordering::SeqCst) {
                 match get_frontmost_app_info() {
                     Ok((current_process, current_title, current_window_count)) => {
                         if !current_process.is_empty() {
-                            if current_process != last_process
+                            if !initialized {
+                                last_process = current_process;
+                                last_title = current_title;
+                                last_window_count = current_window_count;
+                                initialized = true;
+                            } else if current_process != last_process
                                 || current_title != last_title
                             {
-                                if !last_process.is_empty()
-                                    && current_process != last_process
-                                {
-                                    let _ =
-                                        sender.send(MacosWindowEvent::WindowActivated {
-                                            process_name: current_process.clone(),
-                                            window_title: current_title.clone(),
-                                        });
-                                    debug!(
-                                        "Foreground window changed: {} - {}",
-                                        current_process, current_title
-                                    );
-                                }
+                                let _ =
+                                    sender.send(MacosWindowEvent::WindowActivated {
+                                        process_name: current_process.clone(),
+                                        window_title: current_title.clone(),
+                                    });
+                                debug!(
+                                    "Foreground window changed: {} - {}",
+                                    current_process, current_title
+                                );
 
                                 last_process = current_process;
                                 last_title = current_title;
                             }
 
-                            if current_window_count != last_window_count {
+                            if current_window_count != last_window_count && initialized {
                                 if current_window_count > last_window_count {
                                     let _ =
                                         sender.send(MacosWindowEvent::WindowCreated {

@@ -538,7 +538,13 @@ struct TrayIconInner {
 // (register, show_menu, etc.) are dispatched to the creating thread.
 // The tokio::sync::Mutex in RealTrayApi provides mutual exclusion but
 // does NOT enforce thread affinity. Debug builds include a thread check.
+//
+// Sync is also needed because Arc<TrayIconInner> requires T: Send + Sync
+// for Arc<T> to be Send. All access is protected by Mutex, so concurrent
+// access from multiple threads is safe as long as UI operations are
+// dispatched to the correct thread.
 unsafe impl Send for TrayIconInner {}
+unsafe impl Sync for TrayIconInner {}
 
 impl Default for RealTrayApi {
     fn default() -> Self {
