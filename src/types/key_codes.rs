@@ -61,6 +61,17 @@ impl fmt::Display for ScanCode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct VirtualKey(u16);
 
+// === Modifier Key Scan Codes ===
+
+/// Scan code for Ctrl key
+pub const SCAN_CODE_CTRL: u16 = 0x1D;
+/// Scan code for Shift key
+pub const SCAN_CODE_SHIFT: u16 = 0x2A;
+/// Scan code for Alt key
+pub const SCAN_CODE_ALT: u16 = 0x38;
+/// Scan code for Meta/Win key
+pub const SCAN_CODE_META: u16 = 0x5B;
+
 impl VirtualKey {
     /// Create virtual key code
     ///

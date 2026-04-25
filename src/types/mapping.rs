@@ -121,9 +121,14 @@ impl Trigger {
                 }
                 true
             }
-            (Trigger::MouseButton { button, .. }, InputEvent::Mouse(e)) => {
-                // Check mouse button press
-                e.is_button_down(*button)
+            (Trigger::MouseButton { button, modifiers }, InputEvent::Mouse(e)) => {
+                if !e.is_button_down(*button) {
+                    return false;
+                }
+                if *modifiers != e.modifiers {
+                    return false;
+                }
+                true
             }
             _ => false,
         }
@@ -258,10 +263,6 @@ pub struct ContextInfo {
 /// - Uses dynamic programming (DP) for complex patterns
 /// - Time complexity: O(m*n) worst case, O(1) best case
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
-    if text.eq_ignore_ascii_case(pattern) {
-        return true;
-    }
-
     if pattern == "*" {
         return true;
     }
@@ -289,6 +290,7 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
 }
 
 /// Dynamic programming implementation of wildcard matching
+/// Uses rolling array optimization (2 rows instead of full matrix)
 fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
     let text_chars: Vec<char> = text.chars().collect();
     let pattern_chars: Vec<char> = pattern.chars().collect();
@@ -305,36 +307,39 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
         return false;
     }
 
-    let mut dp = vec![vec![false; n + 1]; m + 1];
+    let mut prev = vec![false; n + 1];
+    let mut curr = vec![false; n + 1];
 
-    dp[0][0] = true;
+    prev[0] = true;
 
     for j in 1..=n {
         if pattern_chars[j - 1] == '*' {
-            dp[0][j] = dp[0][j - 1];
+            prev[j] = prev[j - 1];
         } else {
             break;
         }
     }
 
     for i in 1..=m {
+        curr[0] = false;
         for j in 1..=n {
             match pattern_chars[j - 1] {
                 '*' => {
-                    dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
+                    curr[j] = curr[j - 1] || prev[j];
                 }
                 '?' => {
-                    dp[i][j] = dp[i - 1][j - 1];
+                    curr[j] = prev[j - 1];
                 }
                 _ => {
-                    dp[i][j] =
-                        dp[i - 1][j - 1] && (text_chars[i - 1] == pattern_chars[j - 1]);
+                    curr[j] = prev[j - 1] && (text_chars[i - 1] == pattern_chars[j - 1]);
                 }
             }
         }
+        std::mem::swap(&mut prev, &mut curr);
+        curr.iter_mut().for_each(|v| *v = false);
     }
 
-    dp[m][n]
+    prev[n]
 }
 
 #[cfg(test)]
@@ -676,6 +681,53 @@ mod tests {
         );
         let event2 = InputEvent::Mouse(mouse_event2);
         assert!(!trigger.matches(&event2));
+    }
+
+    #[test]
+    fn test_trigger_matches_mouse_button_with_modifiers() {
+        let mut modifiers = ModifierState::new();
+        modifiers.ctrl = true;
+        let trigger = Trigger::MouseButton {
+            button: crate::types::MouseButton::Left,
+            modifiers,
+        };
+
+        // Matching: left button + Ctrl
+        let mouse_event = crate::types::MouseEvent::new(
+            crate::types::MouseEventType::ButtonDown(crate::types::MouseButton::Left),
+            0,
+            0,
+        )
+        .with_modifiers({
+            let mut m = ModifierState::new();
+            m.ctrl = true;
+            m
+        });
+        let event = InputEvent::Mouse(mouse_event);
+        assert!(trigger.matches(&event));
+
+        // Not matching: left button without Ctrl
+        let mouse_event2 = crate::types::MouseEvent::new(
+            crate::types::MouseEventType::ButtonDown(crate::types::MouseButton::Left),
+            0,
+            0,
+        );
+        let event2 = InputEvent::Mouse(mouse_event2);
+        assert!(!trigger.matches(&event2));
+
+        // Not matching: right button + Ctrl
+        let mouse_event3 = crate::types::MouseEvent::new(
+            crate::types::MouseEventType::ButtonDown(crate::types::MouseButton::Right),
+            0,
+            0,
+        )
+        .with_modifiers({
+            let mut m = ModifierState::new();
+            m.ctrl = true;
+            m
+        });
+        let event3 = InputEvent::Mouse(mouse_event3);
+        assert!(!trigger.matches(&event3));
     }
 
     #[test]

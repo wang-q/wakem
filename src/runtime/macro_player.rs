@@ -1,9 +1,14 @@
 //! Macro player
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
 
 use crate::platform::traits::OutputDeviceTrait;
+use crate::types::key_codes::{
+    SCAN_CODE_ALT, SCAN_CODE_CTRL, SCAN_CODE_META, SCAN_CODE_SHIFT,
+};
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
 #[cfg(all(target_os = "windows", not(test)))]
@@ -21,10 +26,14 @@ use crate::platform::macos::output_device::MockMacosOutputDevice as OutputDevice
 pub struct MacroPlayer;
 
 impl MacroPlayer {
-    /// Play macro
+    /// Play macro with optional cancellation support
+    ///
+    /// Pass `Some(Arc<AtomicBool>)` to allow cancellation. Set the flag to `true`
+    /// to cancel the macro at the next check point (between steps or during delays).
     pub async fn play_macro(
         output_device: &OutputDevice,
         macro_def: &Macro,
+        cancel_flag: Option<Arc<AtomicBool>>,
     ) -> anyhow::Result<()> {
         info!(
             "Playing macro: {} ({} steps)",
@@ -35,10 +44,34 @@ impl MacroPlayer {
         let mut current_modifiers = ModifierState::default();
 
         for step in &macro_def.steps {
-            // Execute delay
+            if let Some(ref flag) = cancel_flag {
+                if flag.load(Ordering::Relaxed) {
+                    debug!("Macro '{}' cancelled", macro_def.name);
+                    Self::release_held_modifiers(output_device, &current_modifiers)
+                        .await?;
+                    return Ok(());
+                }
+            }
+
+            // Execute inter-step delay (from simplify_delays, represents time gap between actions)
             if step.delay_ms > 0 {
-                debug!("Macro Delay: {}ms", step.delay_ms);
-                sleep(Duration::from_millis(step.delay_ms)).await;
+                debug!("Macro inter-step delay: {}ms", step.delay_ms);
+                let delay_ms = step.delay_ms;
+                let cancelled = if let Some(ref flag) = cancel_flag {
+                    tokio::select! {
+                        _ = sleep(Duration::from_millis(delay_ms)) => false,
+                        _ = tokio::task::yield_now() => flag.load(Ordering::Relaxed),
+                    }
+                } else {
+                    sleep(Duration::from_millis(delay_ms)).await;
+                    false
+                };
+                if cancelled {
+                    debug!("Macro '{}' cancelled during delay", macro_def.name);
+                    Self::release_held_modifiers(output_device, &current_modifiers)
+                        .await?;
+                    return Ok(());
+                }
             }
 
             // Ensure modifier state is correct (only press/release differences)
@@ -50,7 +83,7 @@ impl MacroPlayer {
             .await?;
 
             // Execute action
-            Self::execute_action(output_device, &step.action).await?;
+            Self::execute_action(output_device, &step.action, &cancel_flag).await?;
         }
 
         // Release only modifiers that were pressed by the macro player
@@ -69,28 +102,28 @@ impl MacroPlayer {
         // Press modifiers that are in target but not in current
         if target.ctrl && !current.ctrl {
             output.send_key_action(&KeyAction::Press {
-                scan_code: 0x1D,
+                scan_code: SCAN_CODE_CTRL,
                 virtual_key: 0x11,
             })?;
             current.ctrl = true;
         }
         if target.shift && !current.shift {
             output.send_key_action(&KeyAction::Press {
-                scan_code: 0x2A,
+                scan_code: SCAN_CODE_SHIFT,
                 virtual_key: 0x10,
             })?;
             current.shift = true;
         }
         if target.alt && !current.alt {
             output.send_key_action(&KeyAction::Press {
-                scan_code: 0x38,
+                scan_code: SCAN_CODE_ALT,
                 virtual_key: 0x12,
             })?;
             current.alt = true;
         }
         if target.meta && !current.meta {
             output.send_key_action(&KeyAction::Press {
-                scan_code: 0x5B,
+                scan_code: SCAN_CODE_META,
                 virtual_key: 0x5B,
             })?;
             current.meta = true;
@@ -99,28 +132,28 @@ impl MacroPlayer {
         // Release modifiers that are in current but not in target
         if current.meta && !target.meta {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x5B,
+                scan_code: SCAN_CODE_META,
                 virtual_key: 0x5B,
             })?;
             current.meta = false;
         }
         if current.alt && !target.alt {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x38,
+                scan_code: SCAN_CODE_ALT,
                 virtual_key: 0x12,
             })?;
             current.alt = false;
         }
         if current.shift && !target.shift {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x2A,
+                scan_code: SCAN_CODE_SHIFT,
                 virtual_key: 0x10,
             })?;
             current.shift = false;
         }
         if current.ctrl && !target.ctrl {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x1D,
+                scan_code: SCAN_CODE_CTRL,
                 virtual_key: 0x11,
             })?;
             current.ctrl = false;
@@ -130,31 +163,32 @@ impl MacroPlayer {
     }
 
     /// Release only modifiers that were pressed by the macro player
+    /// Release order is LIFO (reverse of press order: Ctrl→Shift→Alt→Meta)
     async fn release_held_modifiers(
         output: &OutputDevice,
         current: &ModifierState,
     ) -> anyhow::Result<()> {
         if current.meta {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x5B,
+                scan_code: SCAN_CODE_META,
                 virtual_key: 0x5B,
             })?;
         }
         if current.alt {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x38,
+                scan_code: SCAN_CODE_ALT,
                 virtual_key: 0x12,
             })?;
         }
         if current.shift {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x2A,
+                scan_code: SCAN_CODE_SHIFT,
                 virtual_key: 0x10,
             })?;
         }
         if current.ctrl {
             output.send_key_action(&KeyAction::Release {
-                scan_code: 0x1D,
+                scan_code: SCAN_CODE_CTRL,
                 virtual_key: 0x11,
             })?;
         }
@@ -166,6 +200,7 @@ impl MacroPlayer {
     async fn execute_action(
         output_device: &OutputDevice,
         action: &Action,
+        cancel_flag: &Option<Arc<AtomicBool>>,
     ) -> anyhow::Result<()> {
         match action {
             Action::Key(key_action) => {
@@ -177,31 +212,46 @@ impl MacroPlayer {
                 output_device.send_mouse_action(mouse_action)?;
             }
             Action::Delay { milliseconds } => {
-                debug!("Macro Delay: {}ms", milliseconds);
-                // Delay is handled in play_macro
+                debug!("Macro Delay action: {}ms", milliseconds);
+                if let Some(ref flag) = cancel_flag {
+                    tokio::select! {
+                        _ = sleep(Duration::from_millis(*milliseconds)) => {},
+                        _ = tokio::task::yield_now() => {
+                            if flag.load(Ordering::Relaxed) {
+                                debug!("Macro cancelled during Delay action");
+                            }
+                        }
+                    }
+                } else {
+                    sleep(Duration::from_millis(*milliseconds)).await;
+                }
             }
             Action::Window(window_action) => {
                 debug!("Macro WindowAction: {:?}", window_action);
-                // Window actions need to be executed via ActionMapper
-                // Just log here for now
             }
             Action::Launch(launch_action) => {
                 debug!("Macro LaunchAction: {:?}", launch_action);
-                // Launch program action
             }
             Action::System(system_action) => {
                 debug!("Macro SystemAction: {:?}", system_action);
-                // System control action
             }
             Action::Sequence(actions) => {
                 debug!("Macro Sequence: {} actions", actions.len());
                 for sub_action in actions {
-                    Box::pin(Self::execute_action(output_device, sub_action)).await?;
+                    if let Some(ref flag) = cancel_flag {
+                        if flag.load(Ordering::Relaxed) {
+                            break;
+                        }
+                    }
+                    Box::pin(Self::execute_action(
+                        output_device,
+                        sub_action,
+                        cancel_flag,
+                    ))
+                    .await?;
                 }
             }
-            Action::None => {
-                // No operation
-            }
+            Action::None => {}
         }
 
         Ok(())

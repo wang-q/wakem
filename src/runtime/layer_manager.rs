@@ -5,6 +5,13 @@ use crate::types::{
 use std::collections::HashMap;
 use tracing::{debug, trace};
 
+/// Activation key index entry
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct ActivationKey {
+    scan_code: u16,
+    virtual_key: u16,
+}
+
 /// Layer manager
 pub struct LayerManager {
     /// All available layers
@@ -13,6 +20,8 @@ pub struct LayerManager {
     stack: LayerStack,
     /// Base layer mappings (simple remapping loaded from config)
     base_mappings: Vec<MappingRule>,
+    /// Activation key index: (scan_code, vk) -> layer name
+    activation_key_index: HashMap<ActivationKey, String>,
 }
 
 impl LayerManager {
@@ -21,12 +30,18 @@ impl LayerManager {
             layers: HashMap::new(),
             stack: LayerStack::new(),
             base_mappings: Vec::new(),
+            activation_key_index: HashMap::new(),
         }
     }
 
     /// Register a layer
     pub fn register_layer(&mut self, layer: Layer) {
         debug!("Registering layer: {}", layer.name);
+        let key = ActivationKey {
+            scan_code: layer.activation_key,
+            virtual_key: layer.activation_vk,
+        };
+        self.activation_key_index.insert(key, layer.name.clone());
         self.layers.insert(layer.name.clone(), layer);
     }
 
@@ -47,9 +62,13 @@ impl LayerManager {
 
     /// Process keyboard event
     fn process_key_event(&mut self, event: &KeyEvent) -> (bool, Option<Action>) {
-        // Check if it's an activation key for any layer
-        for layer in self.layers.values() {
-            if layer.is_activation_key(event.scan_code, event.virtual_key) {
+        let lookup_key = ActivationKey {
+            scan_code: event.scan_code,
+            virtual_key: event.virtual_key,
+        };
+
+        if let Some(layer_name) = self.activation_key_index.get(&lookup_key) {
+            if let Some(layer) = self.layers.get(layer_name) {
                 match layer.mode {
                     LayerMode::Hold => {
                         match event.state {
@@ -67,7 +86,6 @@ impl LayerManager {
                                 self.stack.release_layer(&layer.name);
                             }
                         }
-                        // Layer activation key itself is not passed through
                         return (true, None);
                     }
                     LayerMode::Toggle => {
@@ -76,7 +94,6 @@ impl LayerManager {
                             if let Some(layer) = self.layers.get(&layer.name).cloned() {
                                 self.stack.toggle_layer(layer);
                             }
-                            // Toggle key itself is not passed through
                             return (true, None);
                         }
                     }

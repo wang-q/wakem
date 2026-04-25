@@ -804,7 +804,7 @@ impl ServerState {
         drop(config); // Release read lock
 
         let output_device = self.output_device.lock().await;
-        MacroPlayer::play_macro(&output_device, &macro_def).await?;
+        MacroPlayer::play_macro(&output_device, &macro_def, None).await?;
 
         // Show playback complete notification
         let _ = self

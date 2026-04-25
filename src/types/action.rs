@@ -602,15 +602,6 @@ mod tests {
     }
 
     #[test]
-    fn test_action_is_none_alt() {
-        let none_action = Action::None;
-        let some_action = Action::key(KeyAction::click(0x1E, 0x41));
-
-        assert!(none_action.is_none());
-        assert!(!some_action.is_none());
-    }
-
-    #[test]
     fn test_action_sequence() {
         let sequence = Action::sequence(vec![
             Action::key(KeyAction::click(0x1E, 0x41)),

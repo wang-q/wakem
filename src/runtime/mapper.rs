@@ -110,11 +110,26 @@ pub struct KeyMapper {
     window_preset_manager: Option<crate::platform::windows::WindowPresetManager>,
 }
 
-// SAFETY: KeyMapper is Send + Sync because:
-// - HWND/HICON handles are pointer-sized integer values that are safe to store and send across threads
-// - All mutating Win32 API calls (execute_action) are serialized through the outer RwLock write guard
-// - Read operations (process_event_with_context) never access Win32 handles directly
-// - The outer Arc<RwLock<KeyMapper>> ensures exclusive access for writes and shared reads
+// SAFETY: KeyMapper is manually marked as Send + Sync because it contains platform-specific
+// handle types (HWND, HICON) that are not auto-Send/Sync but are safe to transfer across threads
+// under the following constraints:
+//
+// 1. HWND/HICON are pointer-sized integer values (i64 on Windows). Storing them is safe;
+//    only dereferencing/using them requires care.
+//
+// 2. All mutating Win32 API calls (via execute_action) MUST be serialized externally.
+//    The caller is responsible for ensuring mutual exclusion — currently achieved through
+//    Arc<RwLock<KeyMapper>> in the daemon, where write access is gated by the RwLock.
+//
+// 3. Read operations (process_event_with_context) never invoke Win32 API calls directly;
+//    they only inspect Rust data structures.
+//
+// 4. If KeyMapper is ever used without external synchronization (e.g., without RwLock),
+//    the unsafe impl must be revisited. Consider using a newtype wrapper around HWND
+//    with explicit Send/Sync bounds if this guarantee needs to be enforced at the type level.
+//
+// VIOLATION RISK: Removing the outer RwLock or calling execute_action from multiple threads
+// concurrently would be undefined behavior.
 unsafe impl Send for KeyMapper {}
 unsafe impl Sync for KeyMapper {}
 
@@ -410,168 +425,240 @@ impl KeyMapper {
                     wm.move_to_monitor(hwnd, direction)?;
                 }
                 WindowAction::Move { x, y } => {
-                    use crate::platform::windows::WindowFrame;
-                    let info = wm.get_window_info(hwnd)?;
-                    let new_frame =
-                        WindowFrame::new(*x, *y, info.frame.width, info.frame.height);
-                    wm.set_window_frame(hwnd, &new_frame)?;
+                    Self::window_move(wm, hwnd, *x, *y)?;
                 }
                 WindowAction::Resize { width, height } => {
-                    use crate::platform::windows::WindowFrame;
-                    let info = wm.get_window_info(hwnd)?;
-                    let new_frame =
-                        WindowFrame::new(info.frame.x, info.frame.y, *width, *height);
-                    wm.set_window_frame(hwnd, &new_frame)?;
+                    Self::window_resize(wm, hwnd, *width, *height)?;
                 }
                 WindowAction::Minimize => {
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        ShowWindow, SW_MINIMIZE,
-                    };
-                    let _ = ShowWindow(hwnd, SW_MINIMIZE);
+                    Self::window_minimize(hwnd);
                 }
                 WindowAction::Maximize => {
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        ShowWindow, SW_MAXIMIZE,
-                    };
-                    let _ = ShowWindow(hwnd, SW_MAXIMIZE);
+                    Self::window_maximize(hwnd);
                 }
                 WindowAction::Restore => {
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        ShowWindow, SW_RESTORE,
-                    };
-                    let _ = ShowWindow(hwnd, SW_RESTORE);
+                    Self::window_restore(hwnd);
                 }
                 WindowAction::Close => {
-                    use windows::Win32::Foundation::{LPARAM, WPARAM};
-                    use windows::Win32::UI::WindowsAndMessaging::PostMessageW;
-                    use windows::Win32::UI::WindowsAndMessaging::WM_CLOSE;
-                    PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+                    Self::window_close(hwnd);
                 }
                 WindowAction::ToggleTopmost => {
-                    use windows::Win32::UI::WindowsAndMessaging::{
-                        GetWindowLongW, SetWindowPos, GWL_EXSTYLE, HWND_NOTOPMOST,
-                        HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOPMOST,
-                    };
-
-                    // Correctly determine: check WS_EX_TOPMOST extended window style
-                    let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                    let is_topmost = (ex_style & WS_EX_TOPMOST.0 as i32) != 0;
-
-                    let hwnd_insert_after = if is_topmost {
-                        HWND_NOTOPMOST
-                    } else {
-                        HWND_TOPMOST
-                    };
-
-                    SetWindowPos(
-                        hwnd,
-                        Some(hwnd_insert_after),
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOSIZE,
-                    )
-                    .ok();
+                    Self::window_toggle_topmost(hwnd);
                 }
                 WindowAction::ShowDebugInfo => {
-                    // Show debug info dialog
-                    match wm.get_debug_info() {
-                        Ok(info) => {
-                            use windows::core::HSTRING;
-                            use windows::Win32::UI::WindowsAndMessaging::{
-                                MessageBoxW, MB_ICONINFORMATION, MB_OK,
-                            };
-
-                            let title = HSTRING::from("wakem - Debug Info");
-                            let message = HSTRING::from(&info);
-
-                            MessageBoxW(
-                                None,
-                                &message,
-                                &title,
-                                MB_OK | MB_ICONINFORMATION,
-                            );
-                        }
-                        Err(e) => {
-                            debug!("Failed to get debug info: {}", e);
-                        }
-                    }
+                    Self::window_show_debug_info(wm);
                 }
                 WindowAction::ShowNotification { title, message } => {
-                    // Use tray icon to show notification
-                    if let Some(tray) = tray_icon {
-                        if let Err(e) = tray.show_notification(title, message) {
-                            debug!("Failed to show notification: {}", e);
-                        }
-                    } else {
-                        debug!("Tray icon not available, cannot show notification");
-                    }
+                    Self::window_show_notification(tray_icon, title, message);
                 }
                 WindowAction::SavePreset { name } => {
-                    if let Some(pm) = preset_manager {
-                        match pm.get_foreground_window_info() {
-                            Ok((hwnd, _title, process_name, executable_path)) => {
-                                if let Err(e) = pm.save_preset(
-                                    name,
-                                    hwnd,
-                                    process_name,
-                                    executable_path,
-                                    None, // Don't use title mode, use process name matching
-                                ) {
-                                    debug!("Failed to save preset '{}': {}", name, e);
-                                } else {
-                                    debug!("Saved preset '{}' for current window", name);
-                                    // Show notification
-                                    if let Some(tray) = tray_icon {
-                                        let _ = tray.show_notification(
-                                            "wakem",
-                                            &format!("Preset '{}' saved", name),
-                                        );
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                debug!("Failed to get foreground window info: {}", e);
-                            }
-                        }
-                    } else {
-                        debug!("WindowPresetManager not available, cannot save preset");
-                    }
+                    Self::window_save_preset(preset_manager, tray_icon, name);
                 }
                 WindowAction::LoadPreset { name } => {
-                    if let Some(pm) = preset_manager {
-                        if let Err(e) = pm.load_preset(name, hwnd) {
-                            debug!("Failed to load preset '{}': {}", name, e);
-                        } else {
-                            debug!("Loaded preset '{}' for current window", name);
-                        }
-                    } else {
-                        debug!("WindowPresetManager not available, cannot load preset");
-                    }
+                    Self::window_load_preset(preset_manager, hwnd, name);
                 }
                 WindowAction::ApplyPreset => {
-                    if let Some(pm) = preset_manager {
-                        match pm.apply_preset_for_window(hwnd) {
-                            Ok(true) => {
-                                debug!("Applied matching preset to current window");
-                            }
-                            Ok(false) => {
-                                debug!("No matching preset found for current window");
-                            }
-                            Err(e) => {
-                                debug!("Failed to apply preset: {}", e);
-                            }
-                        }
-                    } else {
-                        debug!("WindowPresetManager not available, cannot apply preset");
-                    }
+                    Self::window_apply_preset(preset_manager, hwnd);
                 }
                 WindowAction::None => {}
             }
         }
 
         Ok(())
+    }
+
+    // === Windows window action helpers ===
+
+    #[cfg(target_os = "windows")]
+    fn window_move(
+        wm: &RealWindowManager,
+        hwnd: windows::Win32::Foundation::HWND,
+        x: i32,
+        y: i32,
+    ) -> anyhow::Result<()> {
+        use crate::platform::windows::WindowFrame;
+        let info = wm.get_window_info(hwnd)?;
+        let new_frame = WindowFrame::new(x, y, info.frame.width, info.frame.height);
+        wm.set_window_frame(hwnd, &new_frame)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_resize(
+        wm: &RealWindowManager,
+        hwnd: windows::Win32::Foundation::HWND,
+        width: i32,
+        height: i32,
+    ) -> anyhow::Result<()> {
+        use crate::platform::windows::WindowFrame;
+        let info = wm.get_window_info(hwnd)?;
+        let new_frame = WindowFrame::new(info.frame.x, info.frame.y, width, height);
+        wm.set_window_frame(hwnd, &new_frame)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_minimize(hwnd: windows::Win32::Foundation::HWND) {
+        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MINIMIZE};
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_MINIMIZE);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_maximize(hwnd: windows::Win32::Foundation::HWND) {
+        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MAXIMIZE};
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_MAXIMIZE);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_restore(hwnd: windows::Win32::Foundation::HWND) {
+        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_RESTORE};
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_close(hwnd: windows::Win32::Foundation::HWND) {
+        use windows::Win32::Foundation::{LPARAM, WPARAM};
+        use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
+        unsafe {
+            PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_toggle_topmost(hwnd: windows::Win32::Foundation::HWND) {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongW, SetWindowPos, GWL_EXSTYLE, HWND_NOTOPMOST, HWND_TOPMOST,
+            SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOPMOST,
+        };
+        unsafe {
+            let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+            let is_topmost = (ex_style & WS_EX_TOPMOST.0 as i32) != 0;
+            let hwnd_insert_after = if is_topmost {
+                HWND_NOTOPMOST
+            } else {
+                HWND_TOPMOST
+            };
+            SetWindowPos(
+                hwnd,
+                Some(hwnd_insert_after),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE,
+            )
+            .ok();
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_show_debug_info(wm: &RealWindowManager) {
+        match wm.get_debug_info() {
+            Ok(info) => {
+                use windows::core::HSTRING;
+                use windows::Win32::UI::WindowsAndMessaging::{
+                    MessageBoxW, MB_ICONINFORMATION, MB_OK,
+                };
+                let title = HSTRING::from("wakem - Debug Info");
+                let message = HSTRING::from(&info);
+                unsafe {
+                    MessageBoxW(None, &message, &title, MB_OK | MB_ICONINFORMATION);
+                }
+            }
+            Err(e) => {
+                debug!("Failed to get debug info: {}", e);
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_show_notification(
+        tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
+        title: &str,
+        message: &str,
+    ) {
+        if let Some(tray) = tray_icon {
+            if let Err(e) = tray.show_notification(title, message) {
+                debug!("Failed to show notification: {}", e);
+            }
+        } else {
+            debug!("Tray icon not available, cannot show notification");
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_save_preset(
+        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
+        tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
+        name: &str,
+    ) {
+        if let Some(pm) = preset_manager {
+            match pm.get_foreground_window_info() {
+                Ok((hwnd, _title, process_name, executable_path)) => {
+                    if let Err(e) =
+                        pm.save_preset(name, hwnd, process_name, executable_path, None)
+                    {
+                        debug!("Failed to save preset '{}': {}", name, e);
+                    } else {
+                        debug!("Saved preset '{}' for current window", name);
+                        if let Some(tray) = tray_icon {
+                            let _ = tray.show_notification(
+                                "wakem",
+                                &format!("Preset '{}' saved", name),
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    debug!("Failed to get foreground window info: {}", e);
+                }
+            }
+        } else {
+            debug!("WindowPresetManager not available, cannot save preset");
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_load_preset(
+        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
+        hwnd: windows::Win32::Foundation::HWND,
+        name: &str,
+    ) {
+        if let Some(pm) = preset_manager {
+            if let Err(e) = pm.load_preset(name, hwnd) {
+                debug!("Failed to load preset '{}': {}", name, e);
+            } else {
+                debug!("Loaded preset '{}' for current window", name);
+            }
+        } else {
+            debug!("WindowPresetManager not available, cannot load preset");
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn window_apply_preset(
+        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
+        hwnd: windows::Win32::Foundation::HWND,
+    ) {
+        if let Some(pm) = preset_manager {
+            match pm.apply_preset_for_window(hwnd) {
+                Ok(true) => {
+                    debug!("Applied matching preset to current window");
+                }
+                Ok(false) => {
+                    debug!("No matching preset found for current window");
+                }
+                Err(e) => {
+                    debug!("Failed to apply preset: {}", e);
+                }
+            }
+        } else {
+            debug!("WindowPresetManager not available, cannot apply preset");
+        }
     }
 
     /// Execute window management action (macOS implementation)

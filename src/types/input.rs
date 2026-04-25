@@ -1,4 +1,4 @@
-use super::{now, DeviceType, KeyState, ModifierState, Timestamp};
+use super::{now, DeviceType, KeyState, ModifierState, Timestamp, VirtualKey};
 use serde::{Deserialize, Serialize};
 
 /// Keyboard event
@@ -49,25 +49,13 @@ impl KeyEvent {
 
     /// Check if is modifier key
     pub fn is_modifier(&self) -> bool {
-        matches!(
-            self.virtual_key,
-            0x10 | 0xA0 | 0xA1 | // Shift
-            0x11 | 0xA2 | 0xA3 | // Ctrl
-            0x12 | 0xA4 | 0xA5 | // Alt
-            0x5B | 0x5C // Win
-        )
+        VirtualKey::new(self.virtual_key).is_modifier()
     }
 
     /// Get modifier key identifier (if is modifier key)
     #[allow(dead_code)]
     pub fn modifier_identifier(&self) -> Option<&'static str> {
-        match self.virtual_key {
-            0x10 | 0xA0 | 0xA1 => Some("Shift"),
-            0x11 | 0xA2 | 0xA3 => Some("Control"),
-            0x12 | 0xA4 | 0xA5 => Some("Alt"),
-            0x5B | 0x5C => Some("Meta"),
-            _ => None,
-        }
+        VirtualKey::new(self.virtual_key).modifier_name()
     }
 }
 

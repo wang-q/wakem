@@ -52,10 +52,14 @@ impl Layer {
     }
 
     /// Check if this is the activation key for this layer
+    ///
+    /// Matches if all specified (non-zero) fields match the input.
+    /// At least one of activation_key or activation_vk must be non-zero.
+    #[allow(dead_code)]
     pub fn is_activation_key(&self, scan_code: u16, vk: u16) -> bool {
-        let scan_matches = self.activation_key != 0 && self.activation_key == scan_code;
-        let vk_matches = self.activation_vk != 0 && self.activation_vk == vk;
-        scan_matches && vk_matches
+        let scan_ok = self.activation_key == 0 || self.activation_key == scan_code;
+        let vk_ok = self.activation_vk == 0 || self.activation_vk == vk;
+        (self.activation_key != 0 || self.activation_vk != 0) && scan_ok && vk_ok
     }
 }
 
@@ -388,9 +392,36 @@ mod tests {
         let layer = Layer::new("test", 0x3A, 0x14); // CapsLock
 
         assert!(layer.is_activation_key(0x3A, 0x14)); // Both match
-        assert!(!layer.is_activation_key(0x3A, 0x00)); // Only scan code matches (vk=0 is invalid)
-        assert!(!layer.is_activation_key(0x00, 0x14)); // Only vk matches (scan=0 is invalid)
+        assert!(!layer.is_activation_key(0x3A, 0xFF)); // Scan matches but vk mismatch
+        assert!(!layer.is_activation_key(0xFF, 0x14)); // Vk matches but scan mismatch
         assert!(!layer.is_activation_key(0x1E, 0x41)); // No match
+        assert!(!layer.is_activation_key(0x1E, 0x14)); // Scan code mismatch
+        assert!(!layer.is_activation_key(0x3A, 0x41)); // Vk mismatch
+    }
+
+    #[test]
+    fn test_layer_is_activation_key_vk_only() {
+        let layer = Layer::new("test", 0, 0x14); // Only vk specified
+
+        assert!(layer.is_activation_key(0xFF, 0x14)); // Vk matches, any scan code
+        assert!(layer.is_activation_key(0x3A, 0x14)); // Both match
+        assert!(!layer.is_activation_key(0xFF, 0x41)); // Vk mismatch
+    }
+
+    #[test]
+    fn test_layer_is_activation_key_scan_only() {
+        let layer = Layer::new("test", 0x3A, 0); // Only scan code specified
+
+        assert!(layer.is_activation_key(0x3A, 0xFF)); // Scan matches, any vk
+        assert!(layer.is_activation_key(0x3A, 0x14)); // Both match
+        assert!(!layer.is_activation_key(0x1E, 0xFF)); // Scan mismatch
+    }
+
+    #[test]
+    fn test_layer_is_activation_key_neither_specified() {
+        let layer = Layer::new("test", 0, 0); // Neither specified
+
+        assert!(!layer.is_activation_key(0x3A, 0x14)); // Should never match
     }
 
     #[test]
