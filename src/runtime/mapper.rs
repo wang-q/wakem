@@ -2,9 +2,11 @@ use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
 };
 use std::collections::HashMap;
-use tracing::{debug, error, info};
+use tracing::debug;
 
-use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowManagerTrait};
+use crate::platform::traits::{
+    NotificationService, WindowManagerTrait, WindowPresetManagerTrait,
+};
 
 /// Thread-safe wrapper for platform-specific window handles.
 ///
@@ -94,33 +96,14 @@ pub struct ContextMappingRule {
 /// - Context condition caching to reduce repeated calculations
 /// - Supports hot-reload configuration without restarting service
 pub struct KeyMapper {
-    /// Complete mapping rule list
-    ///
-    /// Preserves original rules for debugging and serialization.
     rules: Vec<MappingRule>,
-
-    /// Context-aware mapping rule list
-    ///
-    /// These rules only take effect when specific context conditions are met,
-    /// e.g.: Only map CapsLock to Ctrl in VSCode.
     context_rules: Vec<ContextMappingRule>,
-
-    /// Whether the mapping engine is enabled
-    ///
-    /// When false, all input events are passed through without any mapping.
     enabled: bool,
-
-    /// Window manager (for executing window management actions)
-    /// Uses trait object for cross-platform abstraction
     pub(crate) window_manager: Option<Box<dyn WindowManagerTrait>>,
-
-    /// Tray icon (for displaying notifications)
-    #[cfg(target_os = "windows")]
-    tray_icon: Option<crate::platform::windows::TrayIcon>,
-
-    /// Window preset manager (for saving/loading window presets)
-    #[cfg(target_os = "windows")]
-    window_preset_manager: Option<crate::platform::windows::WindowPresetManager>,
+    notification_service:
+        Option<std::sync::Arc<parking_lot::Mutex<Box<dyn NotificationService>>>>,
+    window_preset_manager:
+        Option<std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>>,
 }
 
 // SAFETY: KeyMapper is manually marked as Send + Sync because it contains platform-specific
@@ -150,22 +133,18 @@ unsafe impl Send for KeyMapper {}
 unsafe impl Sync for KeyMapper {}
 
 impl KeyMapper {
-    /// Create a new mapping engine
     pub fn new() -> Self {
         Self {
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
             window_manager: None,
-            #[cfg(target_os = "windows")]
-            tray_icon: None,
-            #[cfg(target_os = "windows")]
+            notification_service: None,
             window_preset_manager: None,
         }
     }
 
-    /// Create a mapping engine with window manager
-    /// Accepts any type that implements WindowManagerTrait
+    #[allow(dead_code)]
     pub fn with_window_manager<T: WindowManagerTrait + 'static>(
         window_manager: T,
     ) -> Self {
@@ -174,22 +153,25 @@ impl KeyMapper {
             context_rules: Vec::new(),
             enabled: true,
             window_manager: Some(Box::new(window_manager)),
-            #[cfg(target_os = "windows")]
-            tray_icon: None,
-            #[cfg(target_os = "windows")]
-            window_preset_manager: Some(
-                crate::platform::windows::WindowPresetManager::new(
-                    crate::platform::windows::WindowManager::new(),
-                ),
-            ),
+            notification_service: None,
+            window_preset_manager: None,
         }
     }
 
-    /// Set window preset manager
-    #[cfg(target_os = "windows")]
+    pub fn set_window_manager(&mut self, wm: Box<dyn WindowManagerTrait>) {
+        self.window_manager = Some(wm);
+    }
+
+    pub fn set_notification_service(
+        &mut self,
+        service: std::sync::Arc<parking_lot::Mutex<Box<dyn NotificationService>>>,
+    ) {
+        self.notification_service = Some(service);
+    }
+
     pub fn set_window_preset_manager(
         &mut self,
-        manager: crate::platform::windows::WindowPresetManager,
+        manager: std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>,
     ) {
         self.window_preset_manager = Some(manager);
     }
@@ -354,18 +336,14 @@ impl KeyMapper {
         }
     }
 
-    /// Execute action (including window management actions)
-    /// Uses WindowManagerTrait for cross-platform abstraction
     pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
         match action {
             Action::Window(window_action) => {
                 if let Some(ref wm) = self.window_manager {
                     Self::execute_window_action_internal(
                         wm.as_ref(),
-                        #[cfg(target_os = "windows")]
-                        self.tray_icon.as_mut(),
-                        #[cfg(target_os = "windows")]
-                        self.window_preset_manager.as_mut(),
+                        self.notification_service.as_ref(),
+                        self.window_preset_manager.as_ref(),
                         window_action,
                     )?;
                 } else {
@@ -377,30 +355,25 @@ impl KeyMapper {
             | Action::Launch(_)
             | Action::Sequence(_)
             | Action::Delay { .. }
-            | Action::None => {
-                // These actions are handled by other components
-            }
+            | Action::None => {}
         }
 
         Ok(())
     }
 
-    /// Execute window management action (internal static method to avoid borrow conflicts)
-    /// Uses WindowManagerTrait for cross-platform abstraction
     #[allow(unused_variables)]
     fn execute_window_action_internal(
         wm: &dyn WindowManagerTrait,
-        #[cfg(target_os = "windows")] tray_icon: Option<
-            &mut crate::platform::windows::TrayIcon,
+        notification_service: Option<
+            &std::sync::Arc<parking_lot::Mutex<Box<dyn NotificationService>>>,
         >,
-        #[cfg(target_os = "windows")] preset_manager: Option<
-            &mut crate::platform::windows::WindowPresetManager,
+        preset_manager: Option<
+            &std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>,
         >,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
         use crate::types::{MonitorDirection, WindowAction};
 
-        // Get foreground window using trait method
         let window_id = wm
             .get_foreground_window()
             .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
@@ -467,22 +440,69 @@ impl KeyMapper {
                 Self::window_show_debug_info(wm, window_id);
             }
             WindowAction::ShowNotification { title, message } => {
-                #[cfg(target_os = "windows")]
-                if let Some(tray) = tray_icon {
-                    let _ = tray.show_notification(title, message);
+                if let Some(ns) = notification_service {
+                    let ns = ns.lock();
+                    let _ = ns.show(title, message);
                 }
             }
             WindowAction::SavePreset { name } => {
-                #[cfg(target_os = "windows")]
-                Self::window_save_preset(preset_manager, tray_icon, name, window_id);
+                if let Some(pm) = preset_manager {
+                    let mut pm = pm.write();
+                    match pm.get_foreground_window_info() {
+                        Some(Ok(_)) => {
+                            if let Err(e) = pm.save_preset(name.to_string()) {
+                                debug!("Failed to save preset '{}': {}", name, e);
+                            } else {
+                                debug!("Saved preset '{}' for current window", name);
+                                if let Some(ns) = notification_service {
+                                    let ns = ns.lock();
+                                    let _ = ns.show(
+                                        "wakem",
+                                        &format!("Preset '{}' saved", name),
+                                    );
+                                }
+                            }
+                        }
+                        Some(Err(e)) => {
+                            debug!("Failed to get foreground window info: {}", e);
+                        }
+                        None => {
+                            debug!("No foreground window found");
+                        }
+                    }
+                } else {
+                    debug!("WindowPresetManager not available, cannot save preset");
+                }
             }
             WindowAction::LoadPreset { name } => {
-                #[cfg(target_os = "windows")]
-                Self::window_load_preset(preset_manager, name);
+                if let Some(pm) = preset_manager {
+                    let pm = pm.read();
+                    if let Err(e) = pm.load_preset(name) {
+                        debug!("Failed to load preset '{}': {}", name, e);
+                    } else {
+                        debug!("Loaded preset '{}' for current window", name);
+                    }
+                } else {
+                    debug!("WindowPresetManager not available, cannot load preset");
+                }
             }
             WindowAction::ApplyPreset => {
-                #[cfg(target_os = "windows")]
-                Self::window_apply_preset(preset_manager, window_id);
+                if let Some(pm) = preset_manager {
+                    let pm = pm.read();
+                    match pm.apply_preset_for_window_by_id(window_id) {
+                        Ok(true) => {
+                            debug!("Applied matching preset to current window");
+                        }
+                        Ok(false) => {
+                            debug!("No matching preset found for current window");
+                        }
+                        Err(e) => {
+                            debug!("Failed to apply preset: {}", e);
+                        }
+                    }
+                } else {
+                    debug!("WindowPresetManager not available, cannot apply preset");
+                }
             }
             WindowAction::None => {}
         }
@@ -490,13 +510,10 @@ impl KeyMapper {
         Ok(())
     }
 
-    // === Cross-platform window action helpers (using WindowManagerTrait) ===
-
     fn window_move_to_center(
         wm: &dyn WindowManagerTrait,
         window: crate::platform::traits::WindowId,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::MonitorInfo;
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
         let monitor = monitors
@@ -512,7 +529,6 @@ impl KeyMapper {
         window: crate::platform::traits::WindowId,
         edge: crate::types::Edge,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::MonitorInfo;
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
         let monitor = monitors
@@ -540,7 +556,6 @@ impl KeyMapper {
         window: crate::platform::traits::WindowId,
         edge: crate::types::Edge,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::MonitorInfo;
         let monitors = wm.get_monitors();
         let monitor = monitors
             .first()
@@ -563,7 +578,6 @@ impl KeyMapper {
         window: crate::platform::traits::WindowId,
         align: crate::types::Alignment,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::MonitorInfo;
         const WIDTH_RATIOS: &[f32] = &[0.5, 0.4, 0.33, 0.25];
 
         let info = wm.get_window_info(window)?;
@@ -593,7 +607,7 @@ impl KeyMapper {
                 monitor.x + (monitor.width - target_width) / 2
             }
             crate::types::Alignment::Right => monitor.x + monitor.width - target_width,
-            _ => monitor.x, // Top/Bottom default to left for width operations
+            _ => monitor.x,
         };
 
         wm.set_window_pos(window, x, monitor.y, target_width, monitor.height)
@@ -604,7 +618,6 @@ impl KeyMapper {
         window: crate::platform::traits::WindowId,
         align: crate::types::Alignment,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::MonitorInfo;
         const HEIGHT_RATIOS: &[f32] = &[1.0, 0.8, 0.66, 0.5];
 
         let info = wm.get_window_info(window)?;
@@ -636,7 +649,7 @@ impl KeyMapper {
             crate::types::Alignment::Bottom => {
                 monitor.y + monitor.height - target_height
             }
-            _ => monitor.y, // Left/Right default to top for height operations
+            _ => monitor.y,
         };
 
         wm.set_window_pos(window, info.x, y, info.width, target_height)
@@ -647,8 +660,7 @@ impl KeyMapper {
         window: crate::platform::traits::WindowId,
         ratio: f32,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::MonitorInfo;
-        let info = wm.get_window_info(window)?;
+        let _info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
         let monitor = monitors
             .first()
@@ -673,8 +685,6 @@ impl KeyMapper {
         wm: &dyn WindowManagerTrait,
         window: crate::platform::traits::WindowId,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::MonitorInfo;
-        let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
         let monitor = monitors
             .first()
@@ -712,85 +722,6 @@ impl KeyMapper {
             Err(e) => {
                 debug!("Failed to get debug info: {}", e);
             }
-        }
-    }
-
-    // === Windows-specific helper functions (kept for backward compatibility) ===
-
-    #[cfg(target_os = "windows")]
-    fn window_save_preset(
-        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
-        tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
-        name: &str,
-        _window_id: crate::platform::traits::WindowId,
-    ) {
-        if let Some(pm) = preset_manager {
-            match pm.get_foreground_window_info() {
-                Some(Ok(_info)) => {
-                    if let Err(e) = pm.save_preset(name.to_string()) {
-                        debug!("Failed to save preset '{}': {}", name, e);
-                    } else {
-                        debug!("Saved preset '{}' for current window", name);
-                        if let Some(tray) = tray_icon {
-                            let _ = tray.show_notification(
-                                "wakem",
-                                &format!("Preset '{}' saved", name),
-                            );
-                        }
-                    }
-                }
-                Some(Err(e)) => {
-                    debug!("Failed to get foreground window info: {}", e);
-                }
-                None => {
-                    debug!("No foreground window found");
-                }
-            }
-        } else {
-            debug!("WindowPresetManager not available, cannot save preset");
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    fn window_load_preset(
-        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
-        name: &str,
-    ) {
-        if let Some(pm) = preset_manager {
-            if let Err(e) = pm.load_preset(name) {
-                debug!("Failed to load preset '{}': {}", name, e);
-            } else {
-                debug!("Loaded preset '{}' for current window", name);
-            }
-        } else {
-            debug!("WindowPresetManager not available, cannot load preset");
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    fn window_apply_preset(
-        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
-        window_id: crate::platform::traits::WindowId,
-    ) {
-        if let Some(pm) = preset_manager {
-            #[cfg(target_os = "windows")]
-            {
-                use windows::Win32::Foundation::HWND;
-                let hwnd = HWND(window_id as *mut std::ffi::c_void);
-                match pm.apply_preset_for_window_by_id(hwnd) {
-                    Ok(true) => {
-                        debug!("Applied matching preset to current window");
-                    }
-                    Ok(false) => {
-                        debug!("No matching preset found for current window");
-                    }
-                    Err(e) => {
-                        debug!("Failed to apply preset: {}", e);
-                    }
-                }
-            }
-        } else {
-            debug!("WindowPresetManager not available, cannot apply preset");
         }
     }
 

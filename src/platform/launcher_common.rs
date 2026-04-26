@@ -84,7 +84,7 @@ impl Default for Launcher {
 /// Platform-specific extensions for macOS
 #[cfg(target_os = "macos")]
 impl Launcher {
-    /// Open a file or folder using the macOS `open` command
+    #[allow(dead_code)]
     pub fn open(&self, path: &str) -> Result<()> {
         info!("Opening path: {}", path);
 

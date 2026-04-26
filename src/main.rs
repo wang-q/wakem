@@ -17,12 +17,7 @@ mod types;
 
 use cli::{Cli, Commands};
 use client::DaemonClient;
-
-// Platform-specific imports
-#[cfg(target_os = "windows")]
-use platform::windows::run_tray_message_loop;
-
-use platform::traits::AppCommand;
+use platform::traits::{AppCommand, ApplicationControl, TrayLifecycle};
 
 /// Initialize logging system with support for reading log level from config file
 /// Returns the parsed Config if successfully loaded, so it can be reused by the daemon
@@ -130,40 +125,30 @@ fn is_daemon_running(instance_id: u32) -> bool {
     })
 }
 
-/// Run system tray (Windows)
+/// Run system tray
 /// Tray message loop runs on main thread, tokio runs in background thread
-#[cfg(target_os = "windows")]
 fn run_tray_sync(
     instance_id: u32,
     auto_start_daemon: bool,
     detach_console: bool,
 ) -> Result<()> {
-    use windows::Win32::System::Console::FreeConsole;
+    use platform::CurrentPlatform;
 
     info!("wakem starting (instance {})...", instance_id);
 
-    // Detach from console for default tray mode (no command). This prevents
-    // any console window from showing when wakem is launched from GUI.
-    // Explicit `wakem tray` keeps console for logging.
     if detach_console {
-        unsafe {
-            let _ = FreeConsole();
-        }
+        <CurrentPlatform as ApplicationControl>::detach_console();
     }
 
-    // Create async channel for communication between tray and tokio
     let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
     let cmd_tx_for_tray = cmd_tx.clone();
 
-    // Start tokio runtime in background thread immediately - don't wait!
     let tokio_handle = thread::spawn(move || {
         run_tokio_for_tray(cmd_rx, instance_id);
     });
 
-    // Auto-start daemon in background if needed (completely independent)
     let daemon_handle = if auto_start_daemon {
         Some(thread::spawn(move || {
-            // Check and start daemon if needed
             if !is_daemon_running(instance_id) {
                 info!("Daemon not running, auto-starting...");
                 if let Err(e) = run_daemon(instance_id, None, None) {
@@ -177,26 +162,26 @@ fn run_tray_sync(
         None
     };
 
-    // Run tray message loop on main thread immediately - no blocking before this!
-    let tray_result = run_tray_message_loop(move |cmd| {
-        let _ = cmd_tx_for_tray.blocking_send(cmd);
-    });
+    let tray_result = <CurrentPlatform as TrayLifecycle>::run_tray_message_loop(
+        Box::new(move |cmd| {
+            let _ = cmd_tx_for_tray.blocking_send(cmd);
+        }),
+    );
 
-    // Cleanup: signal tokio to stop, wait for threads
-    let _ = cmd_tx.blocking_send(AppCommand::Exit); // Signal tokio to exit
+    let _ = cmd_tx.blocking_send(AppCommand::Exit);
     info!("Waiting for tokio thread to exit...");
     let _ = tokio_handle.join();
     info!("Tokio thread exited");
 
     if let Some(handle) = daemon_handle {
         info!("Waiting for daemon to shutdown...");
-        // Use a timeout to avoid blocking forever
         match wait_for_daemon_shutdown(handle, std::time::Duration::from_secs(10)) {
             Ok(_) => info!("Daemon shutdown successfully"),
             Err(_) => {
                 error!("Daemon shutdown timed out after 10 seconds, forcing exit...");
-                // Force kill the daemon process if it's still running
-                force_kill_daemon(instance_id);
+                let _ = <CurrentPlatform as ApplicationControl>::force_kill_instance(
+                    instance_id,
+                );
             }
         }
     }
@@ -206,7 +191,6 @@ fn run_tray_sync(
 }
 
 /// Wait for daemon thread to shutdown with timeout
-#[cfg(target_os = "windows")]
 fn wait_for_daemon_shutdown(
     handle: std::thread::JoinHandle<()>,
     timeout: std::time::Duration,
@@ -226,77 +210,6 @@ fn wait_for_daemon_shutdown(
     match rx.recv_timeout(timeout) {
         Ok(_) => Ok(()),
         Err(_) => Err(()),
-    }
-}
-
-/// Force kill the daemon process for a specific instance
-#[cfg(target_os = "windows")]
-fn force_kill_daemon(instance_id: u32) {
-    use std::process::Command;
-    use std::process::Stdio;
-
-    // Try to find and kill only the specific instance by its window title
-    // Instance 0 uses "wakemd", others use "wakemd-instance{N}"
-    let window_title = if instance_id == 0 {
-        "wakemd".to_string()
-    } else {
-        format!("wakemd-instance{}", instance_id)
-    };
-
-    // First try to kill by window title (more specific)
-    let output = Command::new("taskkill")
-        .args(["/F", "/FI", &format!("WINDOWTITLE eq {}", window_title)])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
-
-    match output {
-        Ok(result) if result.status.success() => {
-            info!("Successfully killed daemon instance {}", instance_id);
-            return;
-        }
-        _ => {
-            // Fallback: try to find process by checking command line arguments
-            // This is less precise but better than killing all wakem.exe
-            debug!("Could not kill by window title, trying alternative method");
-        }
-    }
-
-    // Last resort: try to find process by command line arguments using PowerShell
-    // This is more precise than killing all wakem.exe processes
-    warn!(
-        "Falling back to killing wakem.exe by instance ID {}. This may affect other instances if PowerShell is unavailable.",
-        instance_id
-    );
-    let ps_script = if instance_id == 0 {
-        r#"Get-Process wakem -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -notmatch '--instance' } | Stop-Process -Force"#.to_string()
-    } else {
-        format!(
-            r#"Get-Process wakem -ErrorAction SilentlyContinue | Where-Object {{ $_.CommandLine -match '--instance {}' }} | Stop-Process -Force"#,
-            instance_id
-        )
-    };
-
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
-
-    match output {
-        Ok(result) if result.status.success() => {
-            info!(
-                "Successfully killed daemon instance {} via PowerShell",
-                instance_id
-            );
-        }
-        _ => {
-            error!(
-                "Failed to kill daemon instance {} via PowerShell",
-                instance_id
-            );
-            error!("You may need to manually stop the process");
-        }
     }
 }
 
@@ -477,104 +390,18 @@ async fn connect_and_handle_tray_commands(
     info!("Tokio runtime shutting down");
 }
 
-/// Run tokio runtime in background thread for Windows tray
-#[cfg(target_os = "windows")]
+/// Run tokio runtime in background thread for tray
 fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
+    use platform::CurrentPlatform;
+
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
     rt.block_on(connect_and_handle_tray_commands(
         cmd_rx,
         instance_id,
         || {
-            platform::windows::stop_tray();
-        },
-        open_config_folder_sync,
-    ));
-}
-
-/// Run system tray (macOS)
-/// On macOS, NSApplication must run on the main thread, so we spawn tokio in a background thread
-#[cfg(target_os = "macos")]
-fn run_tray_sync(
-    instance_id: u32,
-    auto_start_daemon: bool,
-    _detach_console: bool,
-) -> Result<()> {
-    use platform::macos::run_tray_message_loop;
-
-    info!("wakem starting (instance {})...", instance_id);
-
-    // Create async channels for communication between tray and tokio
-    let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
-    let cmd_tx_for_tray = cmd_tx.clone();
-
-    // Start tokio runtime in background thread immediately - don't wait!
-    let tokio_handle = thread::spawn(move || {
-        run_tokio_for_tray(cmd_rx, instance_id);
-    });
-
-    // Auto-start daemon in background if needed (completely independent)
-    let daemon_handle = if auto_start_daemon {
-        Some(thread::spawn(move || {
-            // Check and start daemon if needed
-            if !is_daemon_running(instance_id) {
-                info!("Daemon not running, auto-starting...");
-                if let Err(e) = run_daemon(instance_id, None, None) {
-                    error!("Daemon exited with error: {}", e);
-                }
-            } else {
-                info!("Daemon already running");
-            }
-        }))
-    } else {
-        None
-    };
-
-    // Run tray on the main thread immediately - no blocking before this!
-    info!("Starting tray on main thread...");
-    if let Err(e) = run_tray_message_loop(move |cmd| {
-        let _ = cmd_tx_for_tray.blocking_send(cmd);
-    }) {
-        error!("Tray error: {}", e);
-    }
-
-    // Cleanup: signal tokio to stop, wait for threads
-    let _ = cmd_tx.blocking_send(AppCommand::Exit); // Signal tokio to exit
-    let _ = tokio_handle.join();
-
-    // Wait for daemon thread if we started it
-    if let Some(handle) = daemon_handle {
-        info!("Waiting for daemon to shutdown...");
-        let _ = handle.join();
-    }
-
-    info!("wakem shutdown complete");
-    Ok(())
-}
-
-/// Run tokio runtime in background thread for macOS tray
-#[cfg(target_os = "macos")]
-fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-
-    rt.block_on(connect_and_handle_tray_commands(
-        cmd_rx,
-        instance_id,
-        || unsafe {
-            // Allow deprecated cocoa APIs - migration to objc2 is planned for future
-            #[allow(deprecated)]
-            {
-                use cocoa::base::nil;
-                use objc::runtime::Class;
-                use objc::{msg_send, sel, sel_impl};
-
-                let app_class = Class::get("NSApplication").unwrap();
-                let app: *mut objc::runtime::Object =
-                    msg_send![app_class, sharedApplication];
-                if app != nil {
-                    let _: () = msg_send![app, terminate: nil];
-                }
-            }
+            <CurrentPlatform as TrayLifecycle>::stop_tray();
+            <CurrentPlatform as ApplicationControl>::terminate_application();
         },
         open_config_folder_sync,
     ));
@@ -582,30 +409,13 @@ fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
 
 /// Open config folder - sync version
 fn open_config_folder_sync(instance_id: u32) -> Result<()> {
-    use std::process::Command;
+    use platform::CurrentPlatform;
 
     let config_path = config::resolve_config_file_path(None, instance_id)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| {
-            #[cfg(target_os = "windows")]
-            {
-                std::env::var("USERPROFILE")
-                    .map(std::path::PathBuf::from)
-                    .unwrap_or_default()
-            }
-            #[cfg(target_os = "macos")]
-            {
-                std::env::var("HOME")
-                    .map(std::path::PathBuf::from)
-                    .unwrap_or_default()
-            }
-        });
+        .unwrap_or_else(|| dirs::config_dir().unwrap_or_default());
 
-    #[cfg(target_os = "windows")]
-    Command::new("explorer").arg(config_path).spawn()?;
-    #[cfg(target_os = "macos")]
-    Command::new("open").arg(config_path).spawn()?;
-
+    <CurrentPlatform as ApplicationControl>::open_folder(&config_path)?;
     Ok(())
 }
 

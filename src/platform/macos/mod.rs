@@ -18,7 +18,7 @@ pub mod window_preset;
 pub use crate::platform::launcher_common::Launcher;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
-pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
+pub use tray::TrayIcon;
 pub use window_api::RealWindowApi;
 
 #[cfg(test)]
@@ -28,7 +28,11 @@ pub use window_event_hook::WindowEventHook;
 pub use window_manager::{MonitorDirection, WindowManager};
 pub use window_preset::WindowPresetManager;
 
-use crate::platform::traits::{ContextProvider, PlatformUtilities};
+use crate::platform::traits::{
+    ApplicationControl, ContextProvider, InputDeviceConfig, LauncherTrait,
+    PlatformFactory, PlatformUtilities, TrayLifecycle, WindowEventHookTrait,
+    WindowPresetManagerTrait,
+};
 use crate::types::ModifierState;
 
 /// macOS platform utilities
@@ -118,13 +122,154 @@ impl crate::platform::traits::NotificationService for MacosNotificationService {
             }
         }
     }
+}
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+impl WindowEventHookTrait for WindowEventHook {
+    fn start_with_shutdown(
+        &mut self,
+        shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> anyhow::Result<()> {
+        self.start_with_shutdown(shutdown_flag)
+    }
+
+    fn stop(&mut self) {
+        self.stop()
+    }
+
+    fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+        self.shutdown_flag()
+    }
+}
+
+impl WindowPresetManagerTrait for WindowPresetManager {
+    fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>) {
+        WindowPresetManager::load_presets(self, presets);
+    }
+
+    fn save_preset(&mut self, name: String) -> anyhow::Result<()> {
+        self.save_preset(name)
+    }
+
+    fn load_preset(&self, name: &str) -> anyhow::Result<()> {
+        self.load_preset(name)
+    }
+
+    fn get_foreground_window_info(
+        &self,
+    ) -> Option<anyhow::Result<crate::platform::traits::WindowInfo>> {
+        self.get_foreground_window_info()
+    }
+
+    fn apply_preset_for_window_by_id(
+        &self,
+        window_id: crate::platform::traits::WindowId,
+    ) -> anyhow::Result<bool> {
+        self.apply_preset_for_window_by_id(window_id)
+    }
+
+    fn apply_preset_for_window(&self) -> anyhow::Result<bool> {
+        self.apply_preset_for_window()
+    }
+}
+
+impl LauncherTrait for Launcher {
+    fn launch(&self, action: &crate::types::LaunchAction) -> anyhow::Result<()> {
+        self.launch(action)
+    }
+
+    fn open(&self, path: &str) -> anyhow::Result<()> {
+        self.open(path)
+    }
+}
+
+impl TrayLifecycle for MacosPlatform {
+    fn run_tray_message_loop(
+        callback: Box<dyn Fn(crate::platform::traits::AppCommand) + Send>,
+    ) -> anyhow::Result<()> {
+        tray::run_tray_message_loop(callback)
+    }
+
+    fn stop_tray() {
+        tray::stop_tray()
+    }
+}
+
+impl ApplicationControl for MacosPlatform {
+    fn detach_console() {
+        // macOS has no console to detach
+    }
+
+    fn terminate_application() {
+        #[allow(deprecated)]
+        unsafe {
+            use cocoa::base::nil;
+            use objc::runtime::Class;
+            use objc::{msg_send, sel, sel_impl};
+
+            let app_class = Class::get("NSApplication").unwrap();
+            let app: *mut objc::runtime::Object =
+                msg_send![app_class, sharedApplication];
+            if app != nil {
+                let _: () = msg_send![app, terminate: nil];
+            }
+        }
+    }
+
+    fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {
+        std::process::Command::new("open").arg(path).spawn()?;
+        Ok(())
+    }
+
+    fn force_kill_instance(_instance_id: u32) -> anyhow::Result<()> {
+        // macOS doesn't have the same multi-instance model as Windows
+        Ok(())
+    }
+}
+
+impl PlatformFactory for MacosPlatform {
+    fn create_input_device(
+        _config: InputDeviceConfig,
+        sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
+    ) -> anyhow::Result<Box<dyn crate::platform::traits::InputDeviceTrait>> {
+        let device = match sender {
+            Some(tx) => RawInputDevice::with_sender(tx)?,
+            None => RawInputDevice::new(InputDeviceConfig::default())?,
+        };
+        Ok(Box::new(device))
+    }
+
+    fn create_output_device(
+    ) -> Box<dyn crate::platform::traits::OutputDeviceTrait + Send + Sync> {
+        Box::new(SendInputDevice::new())
+    }
+
+    fn create_window_manager() -> Box<dyn crate::platform::traits::WindowManagerTrait> {
+        Box::new(WindowManager::new())
+    }
+
+    fn create_window_preset_manager(
+    ) -> Box<dyn crate::platform::traits::WindowPresetManagerTrait> {
+        Box::new(WindowPresetManager::new(WindowManager::new()))
+    }
+
+    fn create_notification_service(
+    ) -> Box<dyn crate::platform::traits::NotificationService> {
+        Box::new(MacosNotificationService::new())
+    }
+
+    fn create_launcher() -> Box<dyn crate::platform::traits::LauncherTrait> {
+        Box::new(Launcher::new())
+    }
+
+    fn create_window_event_hook(
+        sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
+    ) -> Box<dyn crate::platform::traits::WindowEventHookTrait> {
+        Box::new(WindowEventHook::new(sender))
     }
 }
 
 /// Get full executable path for a process using proc_pidpath (internal helper)
+#[allow(dead_code)]
 fn get_process_path(pid: u32) -> anyhow::Result<String> {
     use libc::proc_pidpath;
     use std::ffi::CStr;

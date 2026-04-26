@@ -7,6 +7,7 @@
 use crate::platform::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
+use std::sync::Arc;
 
 /// Input device configuration
 #[derive(Debug, Clone)]
@@ -456,14 +457,96 @@ pub trait NotificationService: Send + Sync {
     /// or an error if the notification could not be displayed.
     fn show(&self, title: &str, message: &str) -> Result<()>;
 
-    /// Returns self as `Any` for downcasting to concrete type
-    fn as_any(&self) -> &dyn std::any::Any
-    where
-        Self: Sized,
-    {
-        // Default implementation - override in concrete types if needed
-        unimplemented!("as_any() must be implemented for downcasting support")
+    /// Initialize the notification service with platform-specific data
+    ///
+    /// On Windows, `hwnd` should be `Some(message_window_handle)`.
+    /// On macOS, `hwnd` is ignored (pass `None`).
+    fn initialize(&self, _hwnd: Option<isize>) {
+        // Default no-op; platforms that need hwnd override this
     }
+}
+
+/// Trait for window preset management
+///
+/// Provides a cross-platform abstraction for managing window presets
+/// (saving, loading, and auto-applying window positions/sizes).
+pub trait WindowPresetManagerTrait: Send + Sync {
+    fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>);
+    fn save_preset(&mut self, name: String) -> Result<()>;
+    fn load_preset(&self, name: &str) -> Result<()>;
+    fn get_foreground_window_info(&self) -> Option<Result<WindowInfo>>;
+    fn apply_preset_for_window_by_id(&self, window_id: WindowId) -> Result<bool>;
+    #[allow(dead_code)]
+    fn apply_preset_for_window(&self) -> Result<bool>;
+}
+
+/// Trait for window event hook
+///
+/// Provides a cross-platform abstraction for monitoring window events
+/// such as foreground window changes. Windows uses SetWinEventHook,
+/// macOS uses CGWindowList polling.
+pub trait WindowEventHookTrait: Send {
+    fn start_with_shutdown(
+        &mut self,
+        shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<()>;
+    fn stop(&mut self);
+    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool>;
+}
+
+/// Trait for program launcher
+///
+/// Provides a cross-platform abstraction for launching programs
+/// and opening files/folders.
+pub trait LauncherTrait: Send {
+    fn launch(&self, action: &crate::types::LaunchAction) -> Result<()>;
+    #[allow(dead_code)]
+    fn open(&self, path: &str) -> Result<()>;
+}
+
+/// Trait for tray lifecycle management
+///
+/// Provides a cross-platform abstraction for running the system tray
+/// message loop and stopping it.
+pub trait TrayLifecycle {
+    fn run_tray_message_loop(callback: Box<dyn Fn(AppCommand) + Send>) -> Result<()>;
+    fn stop_tray();
+}
+
+/// Trait for application control
+///
+/// Provides a cross-platform abstraction for application lifecycle
+/// operations that differ between platforms.
+pub trait ApplicationControl {
+    fn detach_console();
+    fn terminate_application();
+    fn open_folder(path: &std::path::Path) -> Result<()>;
+    fn force_kill_instance(instance_id: u32) -> Result<()>;
+}
+
+/// Factory trait for creating platform-specific objects
+///
+/// Centralizes all platform-specific object creation so that
+/// non-platform code never needs conditional compilation.
+pub trait PlatformFactory {
+    fn create_input_device(
+        config: InputDeviceConfig,
+        sender: Option<std::sync::mpsc::Sender<InputEvent>>,
+    ) -> Result<Box<dyn InputDeviceTrait>>;
+
+    fn create_output_device() -> Box<dyn OutputDeviceTrait + Send + Sync>;
+
+    fn create_window_manager() -> Box<dyn WindowManagerTrait>;
+
+    fn create_window_preset_manager() -> Box<dyn WindowPresetManagerTrait>;
+
+    fn create_notification_service() -> Box<dyn NotificationService>;
+
+    fn create_launcher() -> Box<dyn LauncherTrait>;
+
+    fn create_window_event_hook(
+        sender: std::sync::mpsc::Sender<PlatformWindowEvent>,
+    ) -> Box<dyn WindowEventHookTrait>;
 }
 
 /// Window context information (for context-aware mappings)

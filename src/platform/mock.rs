@@ -414,16 +414,13 @@ impl crate::platform::traits::NotificationService for MockNotificationService {
             .push((title.to_string(), message.to_string()));
         Ok(())
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 /// Trait for converting platform-specific window IDs to usize for mock storage.
 ///
 /// Windows uses HWND (a pointer type) which doesn't implement Hash/Eq,
 /// so we convert to usize for internal storage. macOS uses usize directly.
+#[allow(dead_code)]
 pub trait MockWindowId: Copy + std::fmt::Debug + 'static {
     fn to_usize(self) -> usize;
     fn from_usize(v: usize) -> Self;

@@ -33,7 +33,7 @@ impl WindowEventHook {
         }
     }
 
-    /// Start window event monitoring
+    #[allow(dead_code)]
     pub fn start(&mut self) -> Result<()> {
         self.start_with_shutdown(self.shutdown_flag.clone())
     }

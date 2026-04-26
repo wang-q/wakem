@@ -11,7 +11,8 @@ use crate::constants::{
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
-    ContextProvider, NotificationService, OutputDeviceTrait, PlatformUtilities,
+    ContextProvider, InputDeviceConfig, LauncherTrait, NotificationService,
+    OutputDeviceTrait, PlatformFactory, PlatformUtilities, WindowPresetManagerTrait,
 };
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -21,40 +22,6 @@ use crate::types::{
 
 use crate::runtime::{KeyMapper, LayerManager};
 
-// Platform-specific imports for production code
-#[cfg(all(target_os = "windows", not(test)))]
-use crate::platform::windows::{
-    Launcher, RawInputDevice, SendInputDevice as OutputDevice, WindowManager,
-    WindowPresetManager,
-};
-
-#[cfg(all(target_os = "windows", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
-#[cfg(all(target_os = "windows", test))]
-use crate::platform::windows::{
-    Launcher, RawInputDevice, WindowManager, WindowPresetManager,
-};
-
-// Platform-specific imports for production code (macOS)
-#[cfg(all(target_os = "macos", not(test)))]
-use crate::platform::macos::{
-    tray::AppCommand as TrayAppCommand, Launcher, RawInputDevice, RealWindowApi,
-    SendInputDevice as OutputDevice, WindowManager,
-};
-use crate::platform::traits::InputDeviceConfig;
-
-// Platform-specific imports for test code (macOS)
-#[cfg(all(target_os = "macos", test))]
-use crate::platform::macos::{
-    tray::AppCommand as TrayAppCommand, Launcher, RawInputDevice, RealWindowApi,
-    WindowManager,
-};
-#[cfg(all(target_os = "macos", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
-
-#[cfg(target_os = "windows")]
-use windows::Win32::Foundation::HWND;
-
 /// Server state
 ///
 /// Performance optimization notes:
@@ -62,102 +29,59 @@ use windows::Win32::Foundation::HWND;
 /// - Group related states to reduce lock count
 /// - Use Arc to share config and rules to avoid repeated cloning
 pub struct ServerState {
-    /// Current configuration (read-heavy, write-rare)
     config: Arc<RwLock<Config>>,
-    /// Key mapping engine (read-heavy: read on every event, write only on config change)
     mapper: Arc<RwLock<KeyMapper>>,
-    /// Layer manager (read-heavy)
     layer_manager: Arc<RwLock<LayerManager>>,
-    /// Output device (write-heavy: every action needs to write)
-    output_device: Arc<Mutex<OutputDevice>>,
-    /// Program launcher (write-heavy: needs mutex when launching programs)
-    launcher: Arc<Mutex<Launcher>>,
-    /// Window preset manager (balanced read/write) - Windows only
-    #[cfg(target_os = "windows")]
-    window_preset_manager: Arc<RwLock<WindowPresetManager>>,
-    /// Window manager - macOS only
-    #[cfg(target_os = "macos")]
-    #[allow(dead_code)]
-    window_manager: Arc<RwLock<crate::platform::macos::WindowManager<RealWindowApi>>>,
-    /// Whether mapping is enabled (frequently read, rarely written)
+    output_device: Arc<Mutex<Box<dyn OutputDeviceTrait + Send + Sync>>>,
+    launcher: Arc<Mutex<Box<dyn LauncherTrait>>>,
+    window_preset_manager: Arc<RwLock<Box<dyn WindowPresetManagerTrait>>>,
     active: Arc<AtomicBool>,
-    /// Whether config has been loaded
     config_loaded: Arc<RwLock<bool>>,
-    /// Macro recorder (has internal synchronization)
     macro_recorder: Arc<MacroRecorder>,
-    /// Message window handle (for sending notifications)
-    /// Stored as isize for Send/Sync safety (HWND is *mut c_void which is not Send)
-    #[allow(dead_code)]
     message_window_hwnd: Arc<RwLock<Option<isize>>>,
-    /// Notification service (platform-abstracted)
     notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
-    /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
-    /// Active hyper keys and their contributed modifier states
-    /// Tracks which hyper keys are currently pressed and what modifiers they inject.
-    /// This allows correct per-key release behavior: releasing one hyper key only
-    /// removes its own modifier contributions, not all virtual modifiers.
     active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
-    /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
-    /// Dynamically extracted from remap rules where target is a modifier combo
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
-    /// Shutdown signal for graceful shutdown (shared with run_server)
     shutdown_signal: ShutdownSignal,
 }
 
 impl ServerState {
-    #[cfg(target_os = "windows")]
     pub fn new(shutdown_signal: ShutdownSignal) -> Self {
-        let window_manager = WindowManager::new();
-        let mut mapper = KeyMapper::with_window_manager(window_manager);
-        let window_preset_manager = WindowPresetManager::new(WindowManager::new());
-        mapper.set_window_preset_manager(window_preset_manager);
+        use crate::platform::CurrentPlatform;
+
+        let mut mapper = KeyMapper::new();
+        mapper.set_window_manager(CurrentPlatform::create_window_manager());
+
+        let notification_service = CurrentPlatform::create_notification_service();
+        let window_preset_manager = CurrentPlatform::create_window_preset_manager();
+
+        let notification_service_arc: Arc<
+            parking_lot::Mutex<Box<dyn NotificationService>>,
+        > = Arc::new(parking_lot::Mutex::new(notification_service));
+        let window_preset_manager_arc: Arc<
+            parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>,
+        > = Arc::new(parking_lot::RwLock::new(window_preset_manager));
+
+        mapper.set_notification_service(notification_service_arc.clone());
+        mapper.set_window_preset_manager(window_preset_manager_arc.clone());
 
         Self {
             config: Arc::new(RwLock::new(Config::default())),
             mapper: Arc::new(RwLock::new(mapper)),
             layer_manager: Arc::new(RwLock::new(LayerManager::new())),
-            output_device: Arc::new(Mutex::new(OutputDevice::new())),
-            launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_preset_manager: Arc::new(RwLock::new(WindowPresetManager::new(
-                WindowManager::new(),
-            ))),
+            output_device: Arc::new(Mutex::new(CurrentPlatform::create_output_device())),
+            launcher: Arc::new(Mutex::new(CurrentPlatform::create_launcher())),
+            window_preset_manager: Arc::new(tokio::sync::RwLock::new(
+                CurrentPlatform::create_window_preset_manager(),
+            )),
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
-            notification_service: Arc::new(Mutex::new(Box::new(
-                crate::platform::windows::WindowsNotificationService::new(),
-            ))),
-            auth_key: Arc::new(RwLock::new(String::new())),
-            active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            shutdown_signal,
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    pub fn new(shutdown_signal: ShutdownSignal) -> Self {
-        let window_manager = WindowManager::new();
-        let mapper = KeyMapper::with_window_manager(window_manager);
-
-        // NOTE: Common fields are duplicated with Windows version above.
-        // Platform-specific fields: mapper (different constructor), window_manager (macOS only).
-        // Windows-specific: window_preset_manager.
-        Self {
-            config: Arc::new(RwLock::new(Config::default())),
-            mapper: Arc::new(RwLock::new(mapper)),
-            layer_manager: Arc::new(RwLock::new(LayerManager::new())),
-            output_device: Arc::new(Mutex::new(OutputDevice::new())),
-            launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_manager: Arc::new(RwLock::new(WindowManager::new())),
-            active: Arc::new(AtomicBool::new(true)),
-            config_loaded: Arc::new(RwLock::new(false)),
-            macro_recorder: Arc::new(MacroRecorder::new()),
-            message_window_hwnd: Arc::new(RwLock::new(None)),
-            notification_service: Arc::new(Mutex::new(Box::new(
-                crate::platform::macos::MacosNotificationService::new(),
-            ))),
+            notification_service: Arc::new(Mutex::new(
+                CurrentPlatform::create_notification_service(),
+            )),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -222,8 +146,7 @@ impl ServerState {
             );
         }
 
-        // 3. Update window preset manager (Windows only)
-        #[cfg(target_os = "windows")]
+        // 3. Update window preset manager
         {
             let mut preset_manager = self.window_preset_manager.write().await;
             preset_manager.load_presets(config.window.presets.clone());
@@ -602,13 +525,6 @@ impl ServerState {
             Action::Window(window_action) => {
                 info!(?window_action, "Executing window action");
                 let mut mapper = self.mapper.write().await;
-                #[cfg(target_os = "macos")]
-                {
-                    debug!(
-                        has_window_manager = mapper.window_manager.is_some(),
-                        "Checking window manager availability"
-                    );
-                }
                 mapper.execute_action(&Action::Window(window_action))?;
                 info!("Window action executed successfully");
             }
@@ -779,7 +695,8 @@ impl ServerState {
         drop(config); // Release read lock
 
         let output_device = self.output_device.lock().await;
-        MacroPlayer::play_macro(&output_device, &macro_def, None).await?;
+        let output_ref: &(dyn OutputDeviceTrait + Send + Sync) = output_device.as_ref();
+        MacroPlayer::play_macro(output_ref, &macro_def, None).await?;
 
         // Show playback complete notification
         let _ = self
@@ -854,16 +771,15 @@ impl ServerState {
         self.macro_recorder.is_recording().await
     }
 
-    /// Set message window handle
-    /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
-    #[cfg(target_os = "windows")]
+    /// Set message window handle (for notification service initialization)
     pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
-        let mut h = self.message_window_hwnd.write().await;
-        *h = Some(hwnd_value);
-        info!(
-            "Message window handle registered: {:?}",
-            HWND(hwnd_value as *mut std::ffi::c_void)
-        );
+        {
+            let mut h = self.message_window_hwnd.write().await;
+            *h = Some(hwnd_value);
+        }
+        let service = self.notification_service.lock().await;
+        service.initialize(Some(hwnd_value));
+        info!("Message window handle registered");
     }
 
     /// Show notification using platform-abstracted notification service
@@ -876,35 +792,6 @@ impl ServerState {
     #[allow(dead_code)]
     pub async fn get_auth_key(&self) -> String {
         self.auth_key.read().await.clone()
-    }
-
-    /// Set message window handle (for Windows tray notifications)
-    /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
-    #[cfg(target_os = "windows")]
-    pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
-        let mut h = self.message_window_hwnd.write().await;
-        *h = Some(hwnd_value);
-        // Also update the notification service with the hwnd
-        if let Ok(service) = self.notification_service.try_lock() {
-            if let Some(win_svc) = service
-                .as_ref()
-                .as_any()
-                .downcast_ref::<crate::platform::windows::WindowsNotificationService>(
-            ) {
-                win_svc.set_message_window_hwnd(hwnd_value);
-            }
-        }
-        info!(
-            "Message window handle registered: {:?}",
-            windows::Win32::Foundation::HWND(hwnd_value as *mut std::ffi::c_void)
-        );
-    }
-
-    /// Set message window handle (macOS version - no-op)
-    #[cfg(target_os = "macos")]
-    pub async fn set_message_window_hwnd(&self, _hwnd_value: isize) {
-        // macOS doesn't use HWND, this is a no-op
-        info!("Message window handle registered (macOS)");
     }
 
     /// Trigger graceful shutdown
@@ -1043,49 +930,29 @@ pub async fn run_server_with_config(
     let raw_input_shutdown_flag_clone = raw_input_shutdown_flag.clone();
 
     let input_bridge_handle = std::thread::spawn(move || {
-        let (_std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
+        let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
         let tx_clone = input_tx_bridge;
         let shutdown_flag = input_shutdown_flag_clone;
         let raw_input_shutdown = raw_input_shutdown_flag_clone;
         let raw_input_shutdown_for_bridge = raw_input_shutdown.clone();
 
-        #[cfg(target_os = "windows")]
-        let raw_input_handle =
-            std::thread::spawn(move || match RawInputDevice::with_sender(std_tx) {
+        let raw_input_handle = std::thread::spawn(move || {
+            match <crate::platform::CurrentPlatform as PlatformFactory>::create_input_device(
+                InputDeviceConfig::default(),
+                Some(std_tx),
+            ) {
                 Ok(mut device) => {
-                    // Register the device to initialize Raw Input
                     if let Err(e) = device.register() {
                         error!("Failed to register Raw Input device: {}", e);
                         return;
                     }
                     info!("Raw Input device initialized and registered");
-                    // Run until shutdown signal
                     while !raw_input_shutdown.load(Ordering::SeqCst) {
-                        if let Err(e) = device.run_once() {
-                            error!("Raw Input error: {}", e);
-                            break;
-                        }
+                        device.poll_event();
+                        std::thread::sleep(std::time::Duration::from_millis(1));
                     }
                     info!("Raw Input thread shutting down");
-                }
-                Err(e) => {
-                    error!("Failed to create Raw Input device: {}", e);
-                }
-            });
-
-        #[cfg(target_os = "macos")]
-        let raw_input_handle = std::thread::spawn(move || {
-            match RawInputDevice::new(InputDeviceConfig::default()) {
-                Ok(mut device) => {
-                    info!("Raw Input device initialized");
-                    // Run until shutdown signal
-                    while !raw_input_shutdown.load(Ordering::SeqCst) {
-                        if let Err(e) = device.run_once() {
-                            error!("Raw Input error: {}", e);
-                            break;
-                        }
-                    }
-                    info!("Raw Input thread shutting down");
+                    device.stop();
                 }
                 Err(e) => {
                     error!("Failed to create Raw Input device: {}", e);
@@ -1222,19 +1089,16 @@ pub async fn run_server_with_config(
         info!("Input processing task stopped");
     });
 
-    // Create shutdown flag for window event bridge thread (Windows only)
-    #[cfg(target_os = "windows")]
+    // Create shutdown flag for window event bridge thread
     let window_shutdown_flag = Arc::new(AtomicBool::new(false));
-    #[cfg(target_os = "windows")]
     let window_shutdown_flag_clone = window_shutdown_flag.clone();
 
-    // Start window event listener (for auto-applying presets) - Windows only
-    #[cfg(target_os = "windows")]
+    // Start window event listener (for auto-applying presets)
     {
         let mut window_event_rx = {
             let (tx, rx) = tokio::sync::mpsc::channel::<
                 crate::platform::traits::PlatformWindowEvent,
-            >(WINDOW_EVENT_CHANNEL_CAPACITY);
+            >(crate::constants::INPUT_CHANNEL_CAPACITY);
 
             let hook_shutdown_flag = Arc::new(AtomicBool::new(false));
             let hook_shutdown_flag_clone = hook_shutdown_flag.clone();
@@ -1248,7 +1112,7 @@ pub async fn run_server_with_config(
                 let hook_shutdown_flag_inner = hook_shutdown_flag.clone();
                 let hook_handle = std::thread::spawn(move || {
                     let mut hook =
-                        crate::platform::windows::WindowEventHook::new(std_tx);
+                        <crate::platform::CurrentPlatform as PlatformFactory>::create_window_event_hook(std_tx);
                     if let Err(e) = hook.start_with_shutdown(hook_shutdown_flag_inner) {
                         error!("Failed to start window event hook: {}", e);
                     } else {
@@ -1261,8 +1125,6 @@ pub async fn run_server_with_config(
                     hook.stop();
                 });
 
-                // Bridge: receive from std channel and send to tokio channel
-                // Use try_recv to allow checking shutdown flag
                 loop {
                     if shutdown_flag.load(Ordering::SeqCst) {
                         break;
@@ -1274,20 +1136,15 @@ pub async fn run_server_with_config(
                             }
                         }
                         Err(std::sync::mpsc::TryRecvError::Empty) => {
-                            // No events, sleep briefly to avoid busy waiting
                             std::thread::sleep(std::time::Duration::from_millis(10));
                         }
                         Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                            // Sender dropped, exit
                             break;
                         }
                     }
                 }
 
-                // Signal hook thread to shutdown
                 hook_shutdown_flag_clone.store(true, Ordering::SeqCst);
-
-                // Wait for hook thread to finish
                 let _ = hook_handle.join();
                 info!("Window event bridge thread shutdown complete");
             });
@@ -1296,7 +1153,6 @@ pub async fn run_server_with_config(
             rx
         };
 
-        // Start window event handling task (with shutdown signal check)
         let state_clone = state.clone();
         let mut window_shutdown = shutdown_for_tasks.clone();
         tokio::spawn(async move {
@@ -1367,13 +1223,6 @@ pub async fn run_server_with_config(
         info!("Message handler task stopped");
     });
 
-    // Tray is handled by the client on macOS, not the daemon
-    // This is because macOS requires tray to be created on the main thread
-    #[cfg(target_os = "macos")]
-    {
-        info!("Tray is managed by wakem client on macOS");
-    }
-
     info!("Server is running (press Ctrl+C for graceful shutdown)");
 
     // Subscribe to state shutdown signal for external shutdown requests
@@ -1394,7 +1243,6 @@ pub async fn run_server_with_config(
 
     // Signal bridge threads to exit
     input_shutdown_flag_stored.store(true, Ordering::SeqCst);
-    #[cfg(target_os = "windows")]
     window_shutdown_flag.store(true, Ordering::SeqCst);
 
     // Wait a short time for tasks to clean up
@@ -1417,12 +1265,13 @@ pub async fn run_server_with_config(
 }
 
 /// Handle window events (Windows only)
-#[cfg(target_os = "windows")]
 impl ServerState {
     async fn handle_window_event(
         &self,
         event: crate::platform::traits::PlatformWindowEvent,
     ) {
+        use crate::platform::traits::PlatformWindowEvent;
+
         let auto_apply = {
             let config = self.config.read().await;
             config.window.auto_apply_preset
@@ -1432,22 +1281,16 @@ impl ServerState {
             return;
         }
 
-        if let crate::platform::traits::PlatformWindowEvent::WindowActivated {
-            window_id,
-            ..
-        } = event
-        {
+        if let PlatformWindowEvent::WindowActivated { window_id, .. } = event {
             tokio::time::sleep(tokio::time::Duration::from_millis(
-                WINDOW_PRESET_APPLY_DELAY_MS,
+                crate::constants::WINDOW_PRESET_APPLY_DELAY_MS,
             ))
             .await;
 
             let preset_manager = self.window_preset_manager.read().await;
-            let hwnd =
-                windows::Win32::Foundation::HWND(window_id as *mut std::ffi::c_void);
-            match preset_manager.apply_preset_for_window_by_id(hwnd) {
+            match preset_manager.apply_preset_for_window_by_id(window_id) {
                 Ok(true) => {
-                    debug!("Auto-applied preset to window {:?}", hwnd);
+                    debug!("Auto-applied preset to window {}", window_id);
                 }
                 Ok(false) => {}
                 Err(e) => {
@@ -1550,18 +1393,21 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
     }
 }
 
-/// Handle tray command (macOS only)
+/// Handle tray command
 /// This is called synchronously from the menu callback on the main thread
-/// Following Windows design: handle command directly without async
-#[cfg(target_os = "macos")]
 #[allow(dead_code)]
-fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
+fn handle_tray_command(
+    cmd: crate::platform::traits::AppCommand,
+    state: Arc<ServerState>,
+) {
+    use crate::platform::traits::ApplicationControl;
+    use crate::platform::CurrentPlatform;
     use tokio::runtime::Handle;
 
     let handle = Handle::current();
 
     match cmd {
-        TrayAppCommand::ToggleActive => {
+        crate::platform::traits::AppCommand::ToggleActive => {
             info!("Tray: Toggle active command received");
             handle.spawn(async move {
                 let current = state.active.load(Ordering::Acquire);
@@ -1570,7 +1416,7 @@ fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
                 info!("Tray: Toggled active state to {}", new_state);
             });
         }
-        TrayAppCommand::ReloadConfig => {
+        crate::platform::traits::AppCommand::ReloadConfig => {
             info!("Tray: Reload config command received");
             handle.spawn(async move {
                 if let Err(e) = state.reload_config_from_file().await {
@@ -1589,9 +1435,8 @@ fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
                 }
             });
         }
-        TrayAppCommand::OpenConfigFolder => {
+        crate::platform::traits::AppCommand::OpenConfigFolder => {
             info!("Tray: Open config folder command received");
-            // Get config path synchronously using try_read
             let config_path = state.config.try_read().ok().and_then(|config| {
                 crate::config::resolve_config_file_path(None, config.network.instance_id)
             });
@@ -1603,8 +1448,9 @@ fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
                     path
                 };
 
-                let launcher = Launcher::new();
-                if let Err(e) = launcher.open(&folder.to_string_lossy()) {
+                if let Err(e) =
+                    <CurrentPlatform as ApplicationControl>::open_folder(&folder)
+                {
                     error!("Tray: Failed to open config folder: {}", e);
                 } else {
                     info!("Tray: Opened config folder: {:?}", folder);
@@ -1613,10 +1459,8 @@ fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
                 warn!("Tray: Config path not found");
             }
         }
-        TrayAppCommand::Exit => {
+        crate::platform::traits::AppCommand::Exit => {
             info!("Tray: Exit command received");
-            // Note: Exit is handled by main shutdown mechanism
-            // We could trigger shutdown here if needed
         }
     }
 }

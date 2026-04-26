@@ -47,7 +47,7 @@ impl<A: WindowApiBase> WindowManager<A> {
         self.api.get_window_info(window)
     }
 
-    /// Get window information
+    #[allow(dead_code)]
     pub fn get_window_info(&self, window: A::WindowId) -> Result<WindowInfo> {
         self.api.get_window_info(window)
     }

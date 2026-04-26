@@ -11,27 +11,11 @@ use crate::types::key_codes::{
 };
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
-#[cfg(all(target_os = "windows", not(test)))]
-use crate::platform::windows::SendInputDevice as OutputDevice;
-
-#[cfg(all(target_os = "windows", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
-
-#[cfg(all(target_os = "macos", not(test)))]
-use crate::platform::macos::SendInputDevice as OutputDevice;
-
-#[cfg(all(target_os = "macos", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
-
 pub struct MacroPlayer;
 
 impl MacroPlayer {
-    /// Play macro with optional cancellation support
-    ///
-    /// Pass `Some(Arc<AtomicBool>)` to allow cancellation. Set the flag to `true`
-    /// to cancel the macro at the next check point (between steps or during delays).
     pub async fn play_macro(
-        output_device: &OutputDevice,
+        output_device: &(dyn OutputDeviceTrait + Send + Sync),
         macro_def: &Macro,
         cancel_flag: Option<Arc<AtomicBool>>,
     ) -> anyhow::Result<()> {
@@ -93,9 +77,8 @@ impl MacroPlayer {
         Ok(())
     }
 
-    /// Ensure modifier state matches target (only press/release differences)
     async fn ensure_modifiers(
-        output: &OutputDevice,
+        output: &(dyn OutputDeviceTrait + Send + Sync),
         current: &mut ModifierState,
         target: &ModifierState,
     ) -> anyhow::Result<()> {
@@ -162,10 +145,8 @@ impl MacroPlayer {
         Ok(())
     }
 
-    /// Release only modifiers that were pressed by the macro player
-    /// Release order is LIFO (reverse of press order: Ctrl→Shift→Alt→Meta)
     async fn release_held_modifiers(
-        output: &OutputDevice,
+        output: &(dyn OutputDeviceTrait + Send + Sync),
         current: &ModifierState,
     ) -> anyhow::Result<()> {
         if current.meta {
@@ -196,9 +177,8 @@ impl MacroPlayer {
         Ok(())
     }
 
-    /// Execute single action
     async fn execute_action(
-        output_device: &OutputDevice,
+        output_device: &(dyn OutputDeviceTrait + Send + Sync),
         action: &Action,
         cancel_flag: &Option<Arc<AtomicBool>>,
     ) -> anyhow::Result<()> {

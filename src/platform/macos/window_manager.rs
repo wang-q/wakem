@@ -23,9 +23,7 @@ impl WindowManager<RealWindowApi> {
         Self::with_api(RealWindowApi::new())
     }
 
-    /// Switch to the next window of the same process
-    ///
-    /// Uses Command+` shortcut to cycle through windows of the same application.
+    #[allow(dead_code)]
     pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         use crate::platform::macos::output_device::SendInputDevice;
         use crate::platform::traits::OutputDeviceTrait;

@@ -69,6 +69,7 @@ impl InputDeviceBase {
         self.event_sender.clone()
     }
 
+    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         self.running
     }
@@ -96,29 +97,27 @@ pub struct InputDevice<T> {
 }
 
 impl<T> InputDevice<T> {
-    /// Create a new input device with default config
     pub fn new(_config: InputDeviceConfig) -> Result<Self> {
         let base = InputDeviceBase::new();
         Ok(Self { base, inner: None })
     }
 
-    /// Create an input device with custom sender
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
         let base = InputDeviceBase::with_sender(event_sender);
         Ok(Self { base, inner: None })
     }
 
-    /// Get the event sender
+    #[allow(dead_code)]
     pub fn get_sender(&self) -> Sender<InputEvent> {
         self.base.sender()
     }
 
-    /// Check if the device is running
+    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         self.base.is_running()
     }
 
-    /// Stop the device
+    #[allow(dead_code)]
     pub fn stop(&mut self) {
         self.base.stop();
         self.inner = None;
@@ -142,6 +141,7 @@ pub trait PlatformInputDevice: Sized + Send {
 }
 
 impl<T: PlatformInputDevice> InputDevice<T> {
+    #[allow(dead_code)]
     pub fn run_once(&mut self) -> Result<bool> {
         if let Some(ref mut inner) = self.inner {
             inner.run_once()
@@ -151,6 +151,7 @@ impl<T: PlatformInputDevice> InputDevice<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn unregister_inner(&mut self) {
         self.base.running = false;
         if let Some(mut inner) = self.inner.take() {
@@ -170,6 +171,7 @@ impl<T: PlatformInputDevice> InputDevice<T> {
         self.base.try_recv_event()
     }
 
+    #[allow(dead_code)]
     pub fn is_running_inner(&self) -> bool {
         self.base.is_running()
     }

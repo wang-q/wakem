@@ -22,7 +22,11 @@ pub use window_preset::WindowPresetManager;
 #[cfg(test)]
 pub use window_api::MockWindowApi;
 
-use crate::platform::traits::{ContextProvider, PlatformUtilities};
+use crate::platform::traits::{
+    ApplicationControl, ContextProvider, InputDeviceConfig, LauncherTrait,
+    NotificationService, PlatformFactory, PlatformUtilities, TrayLifecycle,
+    WindowEventHookTrait, WindowPresetManagerTrait,
+};
 use crate::types::ModifierState;
 
 /// Windows platform utilities
@@ -207,7 +211,198 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
         }
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    fn initialize(&self, hwnd: Option<isize>) {
+        if let Some(h) = hwnd {
+            self.set_message_window_hwnd(h);
+        }
+    }
+}
+
+impl WindowEventHookTrait for WindowEventHook {
+    fn start_with_shutdown(
+        &mut self,
+        shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> anyhow::Result<()> {
+        self.start_with_shutdown(shutdown_flag)
+    }
+
+    fn stop(&mut self) {
+        self.stop()
+    }
+
+    fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+        self.shutdown_flag()
+    }
+}
+
+impl WindowPresetManagerTrait for WindowPresetManager {
+    fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>) {
+        WindowPresetManager::load_presets(self, presets);
+    }
+
+    fn save_preset(&mut self, name: String) -> anyhow::Result<()> {
+        self.save_preset(name)
+    }
+
+    fn load_preset(&self, name: &str) -> anyhow::Result<()> {
+        self.load_preset(name)
+    }
+
+    fn get_foreground_window_info(
+        &self,
+    ) -> Option<anyhow::Result<crate::platform::traits::WindowInfo>> {
+        self.get_foreground_window_info()
+    }
+
+    fn apply_preset_for_window_by_id(
+        &self,
+        window_id: crate::platform::traits::WindowId,
+    ) -> anyhow::Result<bool> {
+        use windows::Win32::Foundation::HWND;
+        let hwnd = HWND(window_id as *mut std::ffi::c_void);
+        self.apply_preset_for_window_by_id(hwnd)
+    }
+
+    fn apply_preset_for_window(&self) -> anyhow::Result<bool> {
+        self.apply_preset_for_window()
+    }
+}
+
+impl LauncherTrait for Launcher {
+    fn launch(&self, action: &crate::types::LaunchAction) -> anyhow::Result<()> {
+        self.launch(action)
+    }
+
+    fn open(&self, path: &str) -> anyhow::Result<()> {
+        std::process::Command::new("explorer").arg(path).spawn()?;
+        Ok(())
+    }
+}
+
+impl TrayLifecycle for WindowsPlatform {
+    fn run_tray_message_loop(
+        callback: Box<dyn Fn(crate::platform::traits::AppCommand) + Send>,
+    ) -> anyhow::Result<()> {
+        tray::run_tray_message_loop(callback)
+    }
+
+    fn stop_tray() {
+        tray::stop_tray()
+    }
+}
+
+impl ApplicationControl for WindowsPlatform {
+    fn detach_console() {
+        unsafe {
+            let _ = windows::Win32::System::Console::FreeConsole();
+        }
+    }
+
+    fn terminate_application() {
+        // Windows tray mode uses PostQuitMessage
+        // This is handled by the tray message loop
+    }
+
+    fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {
+        std::process::Command::new("explorer").arg(path).spawn()?;
+        Ok(())
+    }
+
+    fn force_kill_instance(instance_id: u32) -> anyhow::Result<()> {
+        use std::process::{Command, Stdio};
+
+        let window_title = if instance_id == 0 {
+            "wakemd".to_string()
+        } else {
+            format!("wakemd-instance{}", instance_id)
+        };
+
+        let output = Command::new("taskkill")
+            .args(["/F", "/FI", &format!("WINDOWTITLE eq {}", window_title)])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output();
+
+        match output {
+            Ok(result) if result.status.success() => {
+                tracing::info!("Successfully killed daemon instance {}", instance_id);
+                Ok(())
+            }
+            _ => {
+                tracing::warn!(
+                    "Could not kill by window title, trying PowerShell fallback"
+                );
+                let ps_script = if instance_id == 0 {
+                    r#"Get-Process wakem -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -notmatch '--instance' } | Stop-Process -Force"#.to_string()
+                } else {
+                    format!(
+                        r#"Get-Process wakem -ErrorAction SilentlyContinue | Where-Object {{ $_.CommandLine -match '--instance {}' }} | Stop-Process -Force"#,
+                        instance_id
+                    )
+                };
+
+                let output = Command::new("powershell")
+                    .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .output();
+
+                match output {
+                    Ok(result) if result.status.success() => {
+                        tracing::info!(
+                            "Successfully killed daemon instance {} via PowerShell",
+                            instance_id
+                        );
+                        Ok(())
+                    }
+                    _ => Err(anyhow::anyhow!(
+                        "Failed to kill daemon instance {}",
+                        instance_id
+                    )),
+                }
+            }
+        }
+    }
+}
+
+impl PlatformFactory for WindowsPlatform {
+    fn create_input_device(
+        _config: InputDeviceConfig,
+        sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
+    ) -> anyhow::Result<Box<dyn crate::platform::traits::InputDeviceTrait>> {
+        let device = match sender {
+            Some(tx) => RawInputDevice::with_sender(tx)?,
+            None => RawInputDevice::new(InputDeviceConfig::default())?,
+        };
+        Ok(Box::new(device))
+    }
+
+    fn create_output_device(
+    ) -> Box<dyn crate::platform::traits::OutputDeviceTrait + Send + Sync> {
+        Box::new(SendInputDevice::new())
+    }
+
+    fn create_window_manager() -> Box<dyn crate::platform::traits::WindowManagerTrait> {
+        Box::new(WindowManager::new())
+    }
+
+    fn create_window_preset_manager(
+    ) -> Box<dyn crate::platform::traits::WindowPresetManagerTrait> {
+        Box::new(WindowPresetManager::new(WindowManager::new()))
+    }
+
+    fn create_notification_service(
+    ) -> Box<dyn crate::platform::traits::NotificationService> {
+        Box::new(WindowsNotificationService::new())
+    }
+
+    fn create_launcher() -> Box<dyn crate::platform::traits::LauncherTrait> {
+        Box::new(Launcher::new())
+    }
+
+    fn create_window_event_hook(
+        sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
+    ) -> Box<dyn crate::platform::traits::WindowEventHookTrait> {
+        Box::new(WindowEventHook::new(sender))
     }
 }
