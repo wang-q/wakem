@@ -337,6 +337,17 @@ impl TrayApi for RealTrayApi {
         Ok(())
     }
 
+    async fn is_active(&self) -> bool {
+        self.active.load(Ordering::SeqCst)
+    }
+
+    async fn show_menu(&self) -> Result<u32> {
+        // macOS menu is displayed synchronously via Cocoa
+        // The menu action is handled by the global callback
+        // Return 0 to indicate no synchronous selection
+        Ok(0)
+    }
+
     fn is_registered(&self) -> bool {
         self.registered.load(Ordering::SeqCst)
     }

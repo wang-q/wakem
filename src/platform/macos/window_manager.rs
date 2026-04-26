@@ -30,8 +30,43 @@ impl<A: WindowApi + Clone> WindowManager<A> {
         Self { api }
     }
 
+    pub fn with_api(api: A) -> Self {
+        Self { api }
+    }
+
     pub fn api(&self) -> &A {
         &self.api
+    }
+}
+
+impl<A: WindowApi + Clone + Send + Sync> WindowManager<A> {
+    /// Get foreground window information
+    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
+        let window = self
+            .api
+            .get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
+        self.api.get_window_info(window)
+    }
+
+    /// Set window frame (position and size)
+    pub fn set_window_frame(
+        &self,
+        window: WindowId,
+        frame: &crate::platform::traits::WindowFrame,
+    ) -> Result<()> {
+        self.api
+            .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
+    }
+
+    /// Get debug info string for the foreground window
+    pub fn get_debug_info(&self) -> Result<String> {
+        let info = self.get_foreground_window_info()?;
+
+        Ok(format!(
+            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
+            info.title, info.id, info.x, info.y, info.width, info.height
+        ))
     }
 }
 
@@ -187,6 +222,80 @@ impl<A: WindowApi + Clone> WindowManager<A> {
 }
 
 pub type RealWindowManager = WindowManager<RealWindowApi>;
+
+impl RealWindowManager {
+    /// Move window to another monitor
+    pub fn move_to_monitor(
+        &self,
+        window: WindowId,
+        direction: MonitorDirection,
+    ) -> Result<()> {
+        use crate::platform::traits::WindowManagerTrait;
+
+        let monitors = WindowManagerTrait::get_monitors(self);
+        if monitors.len() < 2 {
+            debug!("Only one monitor, nothing to do");
+            return Ok(());
+        }
+
+        // Get current window info to find which monitor it's on
+        let info = WindowManagerTrait::get_window_info(self, window)?;
+
+        // Find current monitor index
+        let current_monitor_index = monitors
+            .iter()
+            .position(|m| {
+                info.x >= m.x
+                    && info.x < m.x + m.width
+                    && info.y >= m.y
+                    && info.y < m.y + m.height
+            })
+            .unwrap_or(0);
+
+        // Calculate target monitor index
+        let target_index = match direction {
+            MonitorDirection::Next => (current_monitor_index + 1) % monitors.len(),
+            MonitorDirection::Prev => {
+                if current_monitor_index == 0 {
+                    monitors.len() - 1
+                } else {
+                    current_monitor_index - 1
+                }
+            }
+            MonitorDirection::Index(idx) => {
+                let idx = idx as usize;
+                if idx >= monitors.len() {
+                    return Err(anyhow::anyhow!("Invalid monitor index: {}", idx));
+                }
+                idx
+            }
+        };
+
+        let target_monitor = &monitors[target_index];
+        let current_monitor = &monitors[current_monitor_index];
+
+        // Calculate relative position ratio
+        let rel_x = (info.x - current_monitor.x) as f32 / current_monitor.width as f32;
+        let rel_y = (info.y - current_monitor.y) as f32 / current_monitor.height as f32;
+        let rel_width = info.width as f32 / current_monitor.width as f32;
+        let rel_height = info.height as f32 / current_monitor.height as f32;
+
+        // Calculate new position (maintain relative position and size ratio)
+        let new_x = target_monitor.x + (rel_x * target_monitor.width as f32) as i32;
+        let new_y = target_monitor.y + (rel_y * target_monitor.height as f32) as i32;
+        let new_width = (rel_width * target_monitor.width as f32) as i32;
+        let new_height = (rel_height * target_monitor.height as f32) as i32;
+
+        WindowManagerTrait::set_window_pos(self, window, new_x, new_y, new_width, new_height)?;
+
+        debug!(
+            "Moved window from monitor {} to monitor {}: ({}, {}) {}x{}",
+            current_monitor_index, target_index, new_x, new_y, new_width, new_height
+        );
+
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {

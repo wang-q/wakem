@@ -44,7 +44,6 @@ pub type WindowPresetManager = CommonWindowPresetManager<WindowManager<RealWindo
 
 impl Default for WindowPresetManager {
     fn default() -> Self {
-        let api = WindowManager::<RealWindowApi>::new_real();
-        Self::new(api)
+        Self::new(WindowManager::new_real())
     }
 }

@@ -749,11 +749,18 @@ impl KeyMapper {
                 wm.switch_to_next_window_of_same_process()?;
             }
             WindowAction::MoveToMonitor(direction) => {
-                let monitor_index = match direction {
-                    MonitorDirection::Next | MonitorDirection::Index(_) => 1,
-                    MonitorDirection::Prev => 0,
+                let monitor_direction = match direction {
+                    MonitorDirection::Next => {
+                        crate::platform::macos::window_manager::MonitorDirection::Next
+                    }
+                    MonitorDirection::Prev => {
+                        crate::platform::macos::window_manager::MonitorDirection::Prev
+                    }
+                    MonitorDirection::Index(idx) => {
+                        crate::platform::macos::window_manager::MonitorDirection::Index(*idx)
+                    }
                 };
-                wm.move_to_monitor(window, monitor_index)?;
+                wm.move_to_monitor(window, monitor_direction)?;
             }
             WindowAction::Move { x, y } => {
                 let info = <RealWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
