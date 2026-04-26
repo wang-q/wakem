@@ -378,6 +378,14 @@ pub trait WindowApiBase {
     fn is_window_valid(&self, window: Self::WindowId) -> bool;
     fn is_minimized(&self, window: Self::WindowId) -> bool;
     fn is_maximized(&self, window: Self::WindowId) -> bool;
+
+    /// Ensure window is restored (not minimized or maximized)
+    fn ensure_window_restored(&self, window: Self::WindowId) -> Result<()> {
+        if self.is_minimized(window) || self.is_maximized(window) {
+            self.restore_window(window)?;
+        }
+        Ok(())
+    }
 }
 
 /// Window manager trait - high-level window operations

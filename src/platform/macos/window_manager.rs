@@ -151,6 +151,12 @@ impl<A: WindowApiBase<WindowId = WindowId>> WindowManager<A> {
     pub fn close_window(&self, window: WindowId) -> Result<()> {
         self.api.close_window(window)
     }
+
+    /// Set window frame with restoration check
+    pub fn set_window_frame(&self, window: WindowId, frame: &WindowFrame) -> Result<()> {
+        self.api.ensure_window_restored(window)?;
+        self.api.set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
+    }
 }
 
 impl<A: WindowApiBase<WindowId = WindowId> + 'static> CommonWindowApi for WindowManager<A> {
@@ -169,8 +175,8 @@ impl<A: WindowApiBase<WindowId = WindowId> + 'static> CommonWindowApi for Window
         width: i32,
         height: i32,
     ) -> Result<()> {
-        self.api
-            .set_window_pos(window, x, y, width, height)
+        let frame = WindowFrame::new(x, y, width, height);
+        self.set_window_frame(window, &frame)
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
@@ -212,22 +218,6 @@ impl<A: WindowApiBase<WindowId = WindowId> + 'static> CommonWindowApi for Window
 
     fn api(&self) -> &dyn std::any::Any {
         &self.api
-    }
-}
-
-impl RealWindowManager {
-    /// Set window position and size with ensure_restored
-    pub fn set_window_frame(&self, window: WindowId, frame: &WindowFrame) -> Result<()> {
-        self.api.ensure_window_restored(window)?;
-        self.api
-            .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)?;
-
-        debug!(
-            "Window moved to: x={}, y={}, width={}, height={}",
-            frame.x, frame.y, frame.width, frame.height
-        );
-
-        Ok(())
     }
 }
 
