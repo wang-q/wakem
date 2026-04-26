@@ -57,10 +57,16 @@ impl MacosWindowEventHook {
     }
 
     pub fn start(&mut self) -> Result<()> {
+        self.start_with_shutdown(self.shutdown_flag.clone())
+    }
+
+    /// Start window event monitoring with shutdown flag for graceful exit
+    pub fn start_with_shutdown(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Ok(());
         }
 
+        self.shutdown_flag = shutdown_flag;
         self.shutdown_flag.store(false, Ordering::SeqCst);
         self.running.store(true, Ordering::SeqCst);
 

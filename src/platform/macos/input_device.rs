@@ -16,6 +16,7 @@ pub type RawInputDevice = InputDevice<CGEventTapInner>;
 
 /// Inner CGEventTap device from the low-level module
 pub struct CGEventTapInner {
+    #[allow(dead_code)]
     tap: crate::platform::macos::input::CGEventTapDevice,
 }
 

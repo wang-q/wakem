@@ -392,6 +392,7 @@ where
 
 /// Stop the tray message loop
 /// On macOS, this posts a stop request to the NSApplication
+#[allow(dead_code)]
 pub fn stop_tray() {
     unsafe {
         use cocoa::base::id;
@@ -408,10 +409,12 @@ pub fn stop_tray() {
 
 /// TrayIcon type alias for macOS (aligned with Windows API)
 /// On macOS, this wraps RealTrayApi for API compatibility
+#[allow(dead_code)]
 pub type TrayIcon = RealTrayApi;
 
 // Re-export shared tray types from tray_common (aligned with Windows)
-pub use crate::platform::tray_common::{MockTrayApi, TrayManager};
+#[allow(unused_imports)]
+pub use crate::platform::tray_common::TrayManager;
 
 #[cfg(test)]
 mod tests {

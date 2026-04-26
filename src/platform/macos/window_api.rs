@@ -348,6 +348,14 @@ impl RealWindowApi {
             WindowState::Normal
         }
     }
+
+    /// Ensure window is restored (not minimized or maximized)
+    pub fn ensure_window_restored(&self, window: WindowId) -> Result<()> {
+        if self.is_minimized(window) || self.is_maximized(window) {
+            self.restore_window(window)?;
+        }
+        Ok(())
+    }
 }
 
 impl WindowApiBase for RealWindowApi {

@@ -131,7 +131,7 @@ impl ServerState {
 
     #[cfg(target_os = "macos")]
     pub fn new(shutdown_signal: ShutdownSignal) -> Self {
-        let window_manager = WindowManager::new(RealWindowApi::new());
+        let window_manager = WindowManager::new();
         let mapper = KeyMapper::with_window_manager(window_manager);
 
         // NOTE: Common fields are duplicated with Windows version above.
@@ -143,9 +143,7 @@ impl ServerState {
             layer_manager: Arc::new(RwLock::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_manager: Arc::new(RwLock::new(WindowManager::new(
-                RealWindowApi::new(),
-            ))),
+            window_manager: Arc::new(RwLock::new(WindowManager::new())),
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),

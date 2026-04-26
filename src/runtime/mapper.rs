@@ -710,14 +710,15 @@ impl KeyMapper {
         wm: &RealWindowManager,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::WindowManagerTrait;
-        use crate::platform::window_manager_common::CommonWindowManager;
+        use crate::platform::traits::WindowApiBase;
+        use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
         use crate::types::{MonitorDirection, WindowAction};
 
         info!(?action, "execute_window_action_internal called");
 
         // Get foreground window
         let window = wm
+            .api()
             .get_foreground_window()
             .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
 
@@ -761,11 +762,11 @@ impl KeyMapper {
             }
             WindowAction::Move { x, y } => {
                 let info = wm.get_window_info(window)?;
-                wm.set_window_pos(window, *x, *y, info.width, info.height)?;
+                CommonWindowApi::set_window_pos(wm, window, *x, *y, info.width, info.height)?;
             }
             WindowAction::Resize { width, height } => {
                 let info = wm.get_window_info(window)?;
-                wm.set_window_pos(window, info.x, info.y, *width, *height)?;
+                CommonWindowApi::set_window_pos(wm, window, info.x, info.y, *width, *height)?;
             }
             WindowAction::Minimize => {
                 wm.minimize_window(window)?;

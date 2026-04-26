@@ -414,9 +414,11 @@ pub trait PlatformUtilities {
     fn get_modifier_state() -> ModifierState;
 
     /// Get process name by PID
+    #[allow(dead_code)]
     fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String>;
 
     /// Get executable path by PID
+    #[allow(dead_code)]
     fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String>;
 }
 

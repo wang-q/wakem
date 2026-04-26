@@ -9,12 +9,14 @@
 use crate::platform::traits::OutputDeviceTrait;
 use crate::types::MouseButton;
 use anyhow::Result;
+#[allow(unused_imports)]
 use tracing::debug;
 
-/// macOS output device using CGEvent
-pub struct MacosOutputDevice;
+/// macOS output device using CGEvent (aligned with Windows SendInputDevice)
+#[derive(Debug, Clone)]
+pub struct SendInputDevice;
 
-impl MacosOutputDevice {
+impl SendInputDevice {
     pub fn new() -> Self {
         Self
     }
@@ -25,20 +27,14 @@ impl MacosOutputDevice {
     }
 }
 
-impl Default for MacosOutputDevice {
+impl Default for SendInputDevice {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for MacosOutputDevice {
-    fn clone(&self) -> Self {
-        Self
-    }
-}
-
 #[cfg(not(test))]
-impl OutputDeviceTrait for MacosOutputDevice {
+impl OutputDeviceTrait for SendInputDevice {
     fn send_key(&self, _scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
         use core_graphics::event::{CGEvent, CGEventTapLocation};
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
@@ -180,11 +176,5 @@ impl OutputDeviceTrait for MacosOutputDevice {
     }
 }
 
-/// Type alias for consistency with Windows API
-pub type OutputDevice = MacosOutputDevice;
-
-/// Type alias for consistency with Windows API
-pub type SendInputDevice = MacosOutputDevice;
-
 #[cfg(test)]
-crate::impl_test_output_device!(MacosOutputDevice);
+crate::impl_test_output_device!(SendInputDevice);

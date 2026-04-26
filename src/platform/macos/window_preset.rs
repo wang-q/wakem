@@ -3,12 +3,13 @@
 use crate::platform::macos::window_api::RealWindowApi;
 use crate::platform::macos::window_manager::WindowManager;
 use crate::platform::traits::{WindowApiBase, WindowId, WindowInfo};
+use crate::platform::window_manager_common::CommonWindowApi;
 use crate::platform::window_preset_common::{
     WindowPresetApi, WindowPresetManager as CommonWindowPresetManager,
 };
 use anyhow::Result;
 
-impl<A: WindowApiBase<WindowId = WindowId> + Clone> WindowPresetApi for WindowManager<A> {
+impl<A: WindowApiBase<WindowId = WindowId> + Clone + 'static> WindowPresetApi for WindowManager<A> {
     type WindowId = WindowId;
 
     fn get_foreground_window(&self) -> Option<Self::WindowId> {
@@ -27,7 +28,7 @@ impl<A: WindowApiBase<WindowId = WindowId> + Clone> WindowPresetApi for WindowMa
         w: i32,
         h: i32,
     ) -> Result<()> {
-        self.api().set_window_pos(window, x, y, w, h)
+        CommonWindowApi::set_window_pos(self, window, x, y, w, h)
     }
 
     fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
@@ -44,6 +45,6 @@ pub type WindowPresetManager = CommonWindowPresetManager<WindowManager<RealWindo
 
 impl Default for WindowPresetManager {
     fn default() -> Self {
-        Self::new(WindowManager::new_real())
+        Self::new(WindowManager::new())
     }
 }
