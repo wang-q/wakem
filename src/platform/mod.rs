@@ -30,3 +30,23 @@ pub use windows::{
     Launcher, MonitorDirection, RawInputDevice, RealWindowApi, SendInputDevice,
     TrayIcon, WindowEventHook, WindowManager, WindowPresetManager,
 };
+
+// Platform-specific type aliases for easier cross-platform code
+#[cfg(target_os = "windows")]
+pub mod platform_types {
+    #![allow(unused_imports)]
+    pub use super::windows::{
+        Launcher, RawInputDevice as InputDevice, SendInputDevice as OutputDevice,
+        WindowManager, WindowPresetManager,
+    };
+}
+
+#[cfg(target_os = "macos")]
+pub mod platform_types {
+    #![allow(unused_imports)]
+    pub use super::macos::{
+        input_device::{InputDevice, InputDeviceConfig},
+        output_device::MacosOutputDevice as OutputDevice,
+        Launcher, RealMacosWindowManager as WindowManager,
+    };
+}

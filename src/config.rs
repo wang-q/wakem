@@ -157,6 +157,52 @@ impl Config {
             );
         }
 
+        // 9. Validate icon_path exists if specified
+        if let Some(ref icon_path) = self.icon_path {
+            if !std::path::Path::new(icon_path).exists() {
+                anyhow::bail!("Icon path '{}' does not exist", icon_path);
+            }
+        }
+
+        // 10. Validate launch program paths are not empty
+        for (trigger, command) in &self.launch {
+            if command.trim().is_empty() {
+                anyhow::bail!("Launch command for trigger '{}' is empty", trigger);
+            }
+        }
+
+        // 11. Validate keyboard.remap keys are valid
+        for (from, to) in &self.keyboard.remap {
+            if let Err(e) = parse_key(from) {
+                anyhow::bail!("Invalid key '{}' in keyboard.remap: {}", from, e);
+            }
+            // Try to parse as key or window action
+            if parse_key(to).is_err() && parse_window_action(to).is_err() {
+                anyhow::bail!(
+                    "Invalid target '{}' in keyboard.remap for key '{}': must be a valid key or window action",
+                    to, from
+                );
+            }
+        }
+
+        // 12. Validate window.shortcuts
+        for (shortcut, action) in &self.window.shortcuts {
+            if let Err(e) = parse_shortcut_trigger(shortcut) {
+                anyhow::bail!(
+                    "Invalid shortcut '{}' in window.shortcuts: {}",
+                    shortcut,
+                    e
+                );
+            }
+            if let Err(e) = parse_window_action(action) {
+                anyhow::bail!(
+                    "Invalid window action '{}' in window.shortcuts: {}",
+                    action,
+                    e
+                );
+            }
+        }
+
         Ok(())
     }
 

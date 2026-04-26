@@ -71,3 +71,22 @@ pub const DEFAULT_ACCELERATION_MULTIPLIER: f32 = 2.0;
 
 /// Default wheel step value
 pub const DEFAULT_WHEEL_STEP: i32 = 1;
+
+// ==================== Retry and Timeout Constants ====================
+
+/// Default retry delay for reconnection attempts (milliseconds)
+pub const DEFAULT_RETRY_DELAY_MS: u64 = 500;
+
+/// Maximum reconnection retries for daemon client
+pub const MAX_RECONNECT_RETRIES: u32 = 3;
+
+/// Maximum connection retries for initial connection
+pub const MAX_CONNECTION_RETRIES: u32 = 10;
+
+/// Short sleep duration for polling (milliseconds)
+#[allow(dead_code)]
+pub const POLLING_SLEEP_MS: u64 = 10;
+
+/// Medium sleep duration for polling (milliseconds)
+#[allow(dead_code)]
+pub const MEDIUM_POLLING_SLEEP_MS: u64 = 100;

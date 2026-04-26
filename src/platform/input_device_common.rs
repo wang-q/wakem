@@ -101,19 +101,13 @@ impl<T> InputDevice<T> {
     /// Create a new input device with default config
     pub fn new(_config: InputDeviceConfig) -> Result<Self> {
         let base = InputDeviceBase::new();
-        Ok(Self {
-            base,
-            inner: None,
-        })
+        Ok(Self { base, inner: None })
     }
 
     /// Create an input device with custom sender
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
         let base = InputDeviceBase::with_sender(event_sender);
-        Ok(Self {
-            base,
-            inner: None,
-        })
+        Ok(Self { base, inner: None })
     }
 
     /// Get the event sender

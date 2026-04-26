@@ -295,9 +295,11 @@ fn force_kill_daemon(instance_id: u32) {
 
 /// Try to reconnect to daemon after connection loss
 async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u32) {
+    use crate::constants::{DEFAULT_RETRY_DELAY_MS, MAX_RECONNECT_RETRIES};
+
     let mut client = DaemonClient::new();
-    let max_retries = 3;
-    let retry_delay = tokio::time::Duration::from_millis(500);
+    let max_retries = MAX_RECONNECT_RETRIES;
+    let retry_delay = tokio::time::Duration::from_millis(DEFAULT_RETRY_DELAY_MS);
 
     for attempt in 1..=max_retries {
         if attempt > 1 {
@@ -338,12 +340,14 @@ async fn connect_and_handle_tray_commands(
     on_exit: impl FnOnce(),
     open_config_folder: impl Fn(u32) -> Result<()>,
 ) {
+    use crate::constants::{DEFAULT_RETRY_DELAY_MS, MAX_CONNECTION_RETRIES};
+
     info!("Tokio runtime started in background thread");
 
     let mut client_option: Option<DaemonClient> = None;
     let mut client = DaemonClient::new();
-    let max_retries = 10;
-    let retry_delay = tokio::time::Duration::from_millis(500);
+    let max_retries = MAX_CONNECTION_RETRIES;
+    let retry_delay = tokio::time::Duration::from_millis(DEFAULT_RETRY_DELAY_MS);
 
     for attempt in 1..=max_retries {
         match client.connect_to_instance(instance_id).await {

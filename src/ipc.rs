@@ -17,6 +17,7 @@ use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinSet;
 use tokio::time::{timeout, Duration as TokioDuration};
 use tracing::{debug, error, info, warn};
+use zeroize::Zeroize;
 
 // ==================== Authentication ====================
 
@@ -714,24 +715,16 @@ async fn server_perform_authentication(
     Ok(auth_ok)
 }
 
-/// Zero out a String's memory contents
+/// Zero out a String's memory contents using zeroize crate
 ///
 /// This is used to clear sensitive data (e.g., authentication keys) from memory
 /// after use, preventing key material from lingering in heap memory where it
 /// could potentially be exposed through memory dumps or core dumps.
 ///
-/// # Safety
-/// This is safe because:
-/// - We only write 0 bytes (valid for u8)
-/// - The slice length matches the String's capacity
-/// - We don't violate Rust's aliasing rules (we have exclusive access via &mut String)
+/// Uses the zeroize crate which provides secure memory clearing that is not
+/// optimized away by the compiler.
 fn zero_string(s: &mut String) {
-    unsafe {
-        let bytes = s.as_bytes_mut();
-        bytes.iter_mut().for_each(|b| *b = 0);
-    }
-    s.clear();
-    s.shrink_to_fit();
+    s.zeroize();
 }
 
 // ==================== Tests ====================

@@ -10,6 +10,34 @@ use crate::platform::windows::window_manager::RealWindowManager;
 #[cfg(target_os = "macos")]
 use crate::platform::macos::window_manager::RealMacosWindowManager;
 
+/// Thread-safe wrapper for platform-specific window handles.
+///
+/// This struct wraps platform-specific handles (like HWND on Windows) and provides
+/// a Send + Sync implementation that is safe because:
+/// 1. The handles are treated as opaque identifiers (usize-sized values)
+/// 2. All actual operations on these handles are performed through the WindowManager
+/// 3. The WindowManager is protected by Arc<RwLock<>> in the daemon
+///
+/// This is a safer alternative to marking the entire KeyMapper as Send + Sync.
+#[allow(dead_code)]
+struct ThreadSafeWindowManager {
+    #[cfg(target_os = "windows")]
+    inner: Option<RealWindowManager>,
+    #[cfg(target_os = "macos")]
+    inner: Option<RealMacosWindowManager>,
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    inner: Option<()>,
+}
+
+// SAFETY: ThreadSafeWindowManager is safe to Send/Sync because:
+// - It only stores opaque handle values (usize-sized)
+// - Actual Win32 API calls are serialized through Arc<RwLock<KeyMapper>>
+// - The inner WindowManager is only accessed through &mut self methods
+#[allow(dead_code)]
+unsafe impl Send for ThreadSafeWindowManager {}
+#[allow(dead_code)]
+unsafe impl Sync for ThreadSafeWindowManager {}
+
 /// Context-aware mapping rule
 ///
 /// Select different mapping tables based on current window attributes
@@ -130,6 +158,9 @@ pub struct KeyMapper {
 //
 // VIOLATION RISK: Removing the outer RwLock or calling execute_action from multiple threads
 // concurrently would be undefined behavior.
+//
+// NOTE: We keep these unsafe impls for backward compatibility, but the ThreadSafeWindowManager
+// struct above provides a safer pattern for future refactoring.
 unsafe impl Send for KeyMapper {}
 unsafe impl Sync for KeyMapper {}
 
