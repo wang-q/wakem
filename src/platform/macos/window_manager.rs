@@ -3,9 +3,9 @@
 //! Provides comprehensive window management operations on macOS,
 //! including half-screen, centering, ratio control, and multi-monitor support.
 
-use crate::platform::macos::window_api::{RealWindowApi, WindowApi};
+use crate::platform::macos::window_api::RealWindowApi;
 use crate::platform::traits::{
-    MonitorInfo, WindowFrame, WindowId, WindowInfo, WindowManagerTrait,
+    MonitorInfo, WindowApiBase, WindowFrame, WindowId, WindowInfo, WindowManagerTrait,
 };
 use anyhow::Result;
 use tracing::debug;
@@ -15,12 +15,12 @@ use crate::platform::window_manager_common::CommonWindowApi;
 // Re-export MonitorDirection for consistency with Windows platform
 pub use crate::platform::traits::MonitorDirection;
 
-/// Generic macOS window manager using WindowApi trait
-pub struct WindowManager<A: WindowApi> {
+/// macOS window manager using WindowApiBase trait
+pub struct WindowManager<A: WindowApiBase<WindowId = WindowId>> {
     api: A,
 }
 
-impl<A: WindowApi> WindowManager<A> {
+impl<A: WindowApiBase<WindowId = WindowId>> WindowManager<A> {
     pub fn new(api: A) -> Self {
         Self { api }
     }
@@ -38,13 +38,13 @@ impl WindowManager<RealWindowApi> {
     }
 }
 
-impl<A: WindowApi + Default> Default for WindowManager<A> {
+impl<A: WindowApiBase<WindowId = WindowId> + Default> Default for WindowManager<A> {
     fn default() -> Self {
         Self::new(A::default())
     }
 }
 
-impl<A: WindowApi + Send + Sync> WindowManagerTrait for WindowManager<A> {
+impl<A: WindowApiBase<WindowId = WindowId> + Send + Sync> WindowManagerTrait for WindowManager<A> {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
     }
@@ -105,7 +105,7 @@ impl<A: WindowApi + Send + Sync> WindowManagerTrait for WindowManager<A> {
     }
 }
 
-impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
+impl<A: WindowApiBase<WindowId = WindowId> + 'static> CommonWindowApi for WindowManager<A> {
     type WindowId = WindowId;
     type WindowInfo = WindowInfo;
 
@@ -149,7 +149,7 @@ impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     }
 }
 
-impl<A: WindowApi> WindowManager<A> {
+impl<A: WindowApiBase<WindowId = WindowId>> WindowManager<A> {
     /// Get foreground window information
     pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
         let window = self

@@ -12,12 +12,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use windows_core::BOOL;
 
 // Import Edge and Alignment from types
-use super::window_api::{RealWindowApi, WindowApi};
+use super::window_api::RealWindowApi;
 #[allow(unused_imports)]
 pub use crate::types::{Alignment, Edge};
 // Import common window manager and shared types
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, MonitorWorkArea, WindowFrame, WindowInfoProvider,
+    MonitorDirection, MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowInfo, WindowInfoProvider,
 };
 use crate::platform::window_manager_common::CommonWindowApi;
 
@@ -84,36 +84,9 @@ pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
     data.monitors
 }
 
-/// Windows-specific window information
-#[derive(Debug, Clone)]
-pub struct WindowsWindowInfo {
-    pub hwnd: HWND,
-    pub title: String,
-    pub frame: WindowFrame,
-    pub work_area: MonitorWorkArea,
-}
-
-impl WindowInfoProvider for WindowsWindowInfo {
-    fn x(&self) -> i32 {
-        self.frame.x
-    }
-
-    fn y(&self) -> i32 {
-        self.frame.y
-    }
-
-    fn width(&self) -> i32 {
-        self.frame.width
-    }
-
-    fn height(&self) -> i32 {
-        self.frame.height
-    }
-}
-
-/// Window manager (generic version)
+/// Window manager using WindowApiBase trait
 #[allow(dead_code)]
-pub struct WindowManager<A: WindowApi> {
+pub struct WindowManager<A: WindowApiBase<WindowId = HWND>> {
     api: A,
 }
 
@@ -136,7 +109,7 @@ impl Default for WindowManager<RealWindowApi> {
 }
 
 #[allow(dead_code)]
-impl<A: WindowApi> WindowManager<A> {
+impl<A: WindowApiBase<WindowId = HWND>> WindowManager<A> {
     /// Create a window manager with specified API implementation
     pub fn with_api(api: A) -> Self {
         Self { api }
@@ -148,46 +121,17 @@ impl<A: WindowApi> WindowManager<A> {
     }
 
     /// Get foreground window information
-    pub fn get_foreground_window_info(&self) -> Result<WindowsWindowInfo> {
+    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
         let hwnd = self
             .api
             .get_foreground_window()
             .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
-        self.get_window_info(hwnd)
+        self.api.get_window_info(hwnd)
     }
 
     /// Get specified window information
-    pub fn get_window_info(&self, hwnd: HWND) -> Result<WindowsWindowInfo> {
-        if !self.api.is_window(hwnd) {
-            return Err(anyhow::anyhow!("Invalid window handle"));
-        }
-
-        // Get window title
-        let title = self.api.get_window_title(hwnd).unwrap_or_default();
-
-        // Get window position
-        let frame = self
-            .api
-            .get_window_rect(hwnd)
-            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
-
-        // Get monitor work area
-        let work_area = self
-            .api
-            .get_monitor_work_area(hwnd)
-            .ok_or_else(|| anyhow::anyhow!("Failed to get monitor work area"))?;
-
-        debug!(
-            "Window info: hwnd={:?}, title={}, frame={:?}, work_area={:?}",
-            hwnd, title, frame, work_area
-        );
-
-        Ok(WindowsWindowInfo {
-            hwnd,
-            title,
-            frame,
-            work_area,
-        })
+    pub fn get_window_info(&self, hwnd: HWND) -> Result<WindowInfo> {
+        self.api.get_window_info(hwnd)
     }
 
     /// Get debug info string
@@ -195,15 +139,13 @@ impl<A: WindowApi> WindowManager<A> {
         let info = self.get_foreground_window_info()?;
 
         Ok(format!(
-            "Window: {}\nID: {:?}\nPosition: [{}, {}]\nSize: {} x {}\nMonitor: [{} x {}]",
+            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
             info.title,
-            info.hwnd,
-            info.frame.x,
-            info.frame.y,
-            info.frame.width,
-            info.frame.height,
-            info.work_area.width,
-            info.work_area.height
+            info.id,
+            info.x,
+            info.y,
+            info.width,
+            info.height,
         ))
     }
 
@@ -243,16 +185,16 @@ impl<A: WindowApi> WindowManager<A> {
 }
 
 // Implement CommonWindowApi for WindowManager to use common window manager logic
-impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
+impl<A: WindowApiBase<WindowId = HWND> + 'static> CommonWindowApi for WindowManager<A> {
     type WindowId = HWND;
-    type WindowInfo = WindowsWindowInfo;
+    type WindowInfo = WindowInfo;
 
     fn api(&self) -> &dyn std::any::Any {
         self
     }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
-        self.get_window_info(window)
+        self.api.get_window_info(window)
     }
 
     fn set_window_pos(
@@ -275,7 +217,7 @@ impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
         #[cfg(test)]
         {
             if let Some(hwnd) = self.api.get_foreground_window() {
-                if let Some(monitor) = self.api.get_monitor_info(hwnd) {
+                if let Some(monitor) = self.api.get_monitors().first().cloned() {
                     return vec![monitor];
                 }
             }
@@ -289,11 +231,11 @@ impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.api.is_window(window)
+        self.api.is_window_valid(window)
     }
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.api.is_zoomed(window)
+        self.api.is_maximized(window)
     }
 
     fn is_topmost(&self, window: Self::WindowId) -> bool {

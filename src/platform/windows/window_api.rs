@@ -62,59 +62,6 @@ pub enum WindowApiCall {
     },
 }
 
-/// Window state (Windows-specific implementation details)
-#[derive(Debug, Clone, Copy, Default)]
-#[allow(dead_code)]
-pub struct WindowStateDetail {
-    pub minimized: bool,
-    pub maximized: bool,
-    pub topmost: bool,
-}
-
-/// Windows API abstract interface
-#[allow(dead_code)]
-pub trait WindowApi {
-    /// Get foreground window handle
-    fn get_foreground_window(&self) -> Option<HWND>;
-    /// Get window rectangle
-    fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame>;
-    /// Set window position
-    fn set_window_pos(
-        &self,
-        hwnd: HWND,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()>;
-    /// Get monitor info
-    fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo>;
-    /// Get monitor work area
-    fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea>;
-    /// Check if window is valid
-    fn is_window(&self, hwnd: HWND) -> bool;
-    /// Get window title
-    fn get_window_title(&self, hwnd: HWND) -> Option<String>;
-    /// Check if window is minimized
-    fn is_iconic(&self, hwnd: HWND) -> bool;
-    /// Check if window is maximized
-    fn is_zoomed(&self, hwnd: HWND) -> bool;
-    /// Minimize window
-    fn minimize_window(&self, hwnd: HWND) -> Result<()>;
-    /// Maximize window
-    fn maximize_window(&self, hwnd: HWND) -> Result<()>;
-    /// Restore window
-    fn restore_window(&self, hwnd: HWND) -> Result<()>;
-    /// Close window
-    fn close_window(&self, hwnd: HWND) -> Result<()>;
-    /// Set topmost status
-    fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()>;
-    /// Check if window is topmost
-    fn is_topmost(&self, hwnd: HWND) -> bool;
-    /// Ensure window is restored
-    fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
-}
-
 /// Real Windows API implementation
 #[allow(dead_code)]
 pub struct RealWindowApi;
@@ -124,115 +71,7 @@ impl RealWindowApi {
     pub fn new() -> Self {
         Self
     }
-}
 
-impl Default for RealWindowApi {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl WindowApiBase for RealWindowApi {
-    type WindowId = HWND;
-
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        WindowApi::get_foreground_window(self)
-    }
-
-    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
-        let title = WindowApi::get_window_title(self, window).unwrap_or_default();
-        let frame = WindowApi::get_window_rect(self, window)
-            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
-        let process_id = unsafe {
-            let mut pid: u32 = 0;
-            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
-                window,
-                Some(&mut pid),
-            );
-            pid
-        };
-        let process_name =
-            super::get_process_name_by_pid(process_id).unwrap_or_default();
-        let executable_path = super::get_executable_path_by_pid(process_id).ok();
-
-        Ok(WindowInfo {
-            id: window.0 as usize,
-            title,
-            process_name,
-            executable_path,
-            x: frame.x,
-            y: frame.y,
-            width: frame.width,
-            height: frame.height,
-        })
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        WindowApi::set_window_pos(self, window, x, y, width, height)
-    }
-
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::minimize_window(self, window)
-    }
-
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::maximize_window(self, window)
-    }
-
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::restore_window(self, window)
-    }
-
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::close_window(self, window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        WindowApi::set_topmost(self, window, topmost)
-    }
-
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_topmost(self, window)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = WindowApi::get_foreground_window(self);
-        fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
-            .map(|info| vec![info])
-            .unwrap_or_default()
-    }
-
-    fn move_to_monitor(
-        &self,
-        _window: Self::WindowId,
-        _monitor_index: usize,
-    ) -> Result<()> {
-        // Windows implementation uses CommonWindowManager::move_to_monitor
-        // This is handled at the WindowManager level
-        Ok(())
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_window(self, window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_iconic(self, window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_zoomed(self, window)
-    }
-}
-
-impl WindowApi for RealWindowApi {
     fn get_foreground_window(&self) -> Option<HWND> {
         unsafe {
             let hwnd = GetForegroundWindow();
@@ -418,7 +257,6 @@ impl WindowApi for RealWindowApi {
                 GetWindowLongW, IsWindow, GWL_EXSTYLE,
             };
 
-            // Check if window is valid first
             if !IsWindow(Some(hwnd)).as_bool() {
                 return false;
             }
@@ -430,9 +268,114 @@ impl WindowApi for RealWindowApi {
 
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
-            WindowApi::restore_window(self, hwnd)?;
+            self.restore_window(hwnd)?;
         }
         Ok(())
+    }
+}
+
+impl Default for RealWindowApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WindowApiBase for RealWindowApi {
+    type WindowId = HWND;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        self.get_foreground_window()
+    }
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+        let title = self.get_window_title(window).unwrap_or_default();
+        let frame = self
+            .get_window_rect(window)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
+        let process_id = unsafe {
+            let mut pid: u32 = 0;
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                window,
+                Some(&mut pid),
+            );
+            pid
+        };
+        let process_name =
+            super::get_process_name_by_pid(process_id).unwrap_or_default();
+        let executable_path = super::get_executable_path_by_pid(process_id).ok();
+
+        Ok(WindowInfo {
+            id: window.0 as usize,
+            title,
+            process_name,
+            executable_path,
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height,
+        })
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        self.set_window_pos(window, x, y, width, height)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.minimize_window(window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.maximize_window(window)
+    }
+
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        self.restore_window(window)
+    }
+
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        self.close_window(window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.set_topmost(window, topmost)
+    }
+
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.is_topmost(window)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        let fg = self.get_foreground_window();
+        fg.and_then(|hwnd| self.get_monitor_info(hwnd))
+            .map(|info| vec![info])
+            .unwrap_or_default()
+    }
+
+    fn move_to_monitor(
+        &self,
+        _window: Self::WindowId,
+        _monitor_index: usize,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.is_window(window)
+    }
+
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
+        self.is_iconic(window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.is_zoomed(window)
     }
 }
 
@@ -442,8 +385,15 @@ pub struct MockWindowApi {
     pub foreground_window: RefCell<Option<HWND>>,
     pub window_rects: RefCell<HashMap<isize, WindowFrame>>,
     pub monitor_info: RefCell<HashMap<isize, MonitorInfo>>,
-    pub window_states: RefCell<HashMap<isize, WindowStateDetail>>,
+    pub window_states: RefCell<HashMap<isize, MockWindowState>>,
     pub operations_log: RefCell<Vec<WindowApiCall>>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct MockWindowState {
+    minimized: bool,
+    maximized: bool,
+    topmost: bool,
 }
 
 #[cfg(test)]
@@ -473,10 +423,11 @@ impl MockWindowApi {
         self.monitor_info.borrow_mut().insert(hwnd.0 as isize, info);
     }
 
-    pub fn set_window_state(&self, hwnd: HWND, state: WindowStateDetail) {
-        self.window_states
-            .borrow_mut()
-            .insert(hwnd.0 as isize, state);
+    pub fn set_window_state(&self, hwnd: HWND, minimized: bool, maximized: bool) {
+        let mut states = self.window_states.borrow_mut();
+        let state = states.entry(hwnd.0 as isize).or_default();
+        state.minimized = minimized;
+        state.maximized = maximized;
     }
 
     pub fn get_operations(&self) -> Vec<WindowApiCall> {
@@ -490,10 +441,7 @@ impl MockWindowApi {
     fn log_operation(&self, op: WindowApiCall) {
         self.operations_log.borrow_mut().push(op);
     }
-}
 
-#[cfg(test)]
-impl WindowApi for MockWindowApi {
     fn get_foreground_window(&self) -> Option<HWND> {
         self.log_operation(WindowApiCall::GetForegroundWindow);
         *self.foreground_window.borrow()
@@ -523,7 +471,6 @@ impl WindowApi for MockWindowApi {
         let mut rects = self.window_rects.borrow_mut();
         rects.insert(hwnd.0 as isize, WindowFrame::new(x, y, width, height));
 
-        // Update window state
         let mut states = self.window_states.borrow_mut();
         if let Some(state) = states.get_mut(&(hwnd.0 as isize)) {
             state.minimized = false;
@@ -614,7 +561,7 @@ impl WindowApi for MockWindowApi {
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         self.log_operation(WindowApiCall::EnsureRestored { hwnd });
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
-            WindowApi::restore_window(self, hwnd)?;
+            self.restore_window(hwnd)?;
         }
         Ok(())
     }
@@ -640,12 +587,13 @@ impl WindowApiBase for MockWindowApi {
     type WindowId = HWND;
 
     fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        WindowApi::get_foreground_window(self)
+        self.get_foreground_window()
     }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
-        let title = WindowApi::get_window_title(self, window).unwrap_or_default();
-        let frame = WindowApi::get_window_rect(self, window)
+        let title = self.get_window_title(window).unwrap_or_default();
+        let frame = self
+            .get_window_rect(window)
             .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
         Ok(WindowInfo {
             id: window.0 as usize,
@@ -667,36 +615,36 @@ impl WindowApiBase for MockWindowApi {
         width: i32,
         height: i32,
     ) -> Result<()> {
-        WindowApi::set_window_pos(self, window, x, y, width, height)
+        self.set_window_pos(window, x, y, width, height)
     }
 
     fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::minimize_window(self, window)
+        self.minimize_window(window)
     }
 
     fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::maximize_window(self, window)
+        self.maximize_window(window)
     }
 
     fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::restore_window(self, window)
+        self.restore_window(window)
     }
 
     fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::close_window(self, window)
+        self.close_window(window)
     }
 
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        WindowApi::set_topmost(self, window, topmost)
+        self.set_topmost(window, topmost)
     }
 
     fn is_topmost(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_topmost(self, window)
+        self.is_topmost(window)
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = WindowApi::get_foreground_window(self);
-        fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
+        let fg = self.get_foreground_window();
+        fg.and_then(|hwnd| self.get_monitor_info(hwnd))
             .map(|info| vec![info])
             .unwrap_or_default()
     }
@@ -710,15 +658,15 @@ impl WindowApiBase for MockWindowApi {
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_window(self, window)
+        self.is_window(window)
     }
 
     fn is_minimized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_iconic(self, window)
+        self.is_iconic(window)
     }
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_zoomed(self, window)
+        self.is_zoomed(window)
     }
 }
 
@@ -735,18 +683,15 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(1234);
 
-        // Set window rect
         let frame = WindowFrame::new(100, 200, 800, 600);
         api.set_window_rect(hwnd, frame);
 
-        // Verify can be retrieved
         let retrieved = api.get_window_rect(hwnd).unwrap();
         assert_eq!(retrieved.x, 100);
         assert_eq!(retrieved.y, 200);
         assert_eq!(retrieved.width, 800);
         assert_eq!(retrieved.height, 600);
 
-        // Verify operation log
         let ops = api.get_operations();
         assert_eq!(ops.len(), 1);
         assert!(matches!(ops[0], WindowApiCall::GetWindowRect { .. }));
@@ -757,7 +702,7 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(5678);
 
-        WindowApi::set_window_pos(&api, hwnd, 50, 100, 1024, 768).unwrap();
+        api.set_window_pos(hwnd, 50, 100, 1024, 768).unwrap();
 
         let frame = api.get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 50);
@@ -774,15 +719,15 @@ mod tests {
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        WindowApi::minimize_window(&api, hwnd).unwrap();
+        api.minimize_window(hwnd).unwrap();
         assert!(api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        WindowApi::restore_window(&api, hwnd).unwrap();
+        api.restore_window(hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        WindowApi::maximize_window(&api, hwnd).unwrap();
+        api.maximize_window(hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(api.is_zoomed(hwnd));
     }
@@ -792,12 +737,9 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(1111);
 
-        assert!(WindowApi::get_foreground_window(&api).is_none());
+        assert!(api.get_foreground_window().is_none());
 
         api.set_foreground_window(hwnd);
-        assert_eq!(
-            WindowApi::get_foreground_window(&api).unwrap().0 as usize,
-            1111
-        );
+        assert_eq!(api.get_foreground_window().unwrap().0 as usize, 1111);
     }
 }

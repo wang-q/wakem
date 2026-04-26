@@ -61,55 +61,6 @@ pub enum WindowApiCall {
     },
 }
 
-/// Window state (macOS-specific implementation details)
-#[derive(Debug, Clone, Copy, Default)]
-#[allow(dead_code)]
-pub struct WindowStateDetail {
-    pub minimized: bool,
-    pub maximized: bool,
-    pub topmost: bool,
-}
-
-/// macOS Window API trait
-///
-/// # Current Limitations
-///
-/// The `RealWindowApi` implementation currently operates on the frontmost
-/// application's main window for all manipulation methods (`set_window_pos`,
-/// `minimize_window`, `maximize_window`, etc.). The `window: WindowId` parameter
-/// is used for informational queries (e.g., `get_window_info`) but manipulation
-/// methods always target the frontmost app. This is due to AXUIElement requiring
-/// a PID to create an application reference, and the current implementation
-/// resolves the frontmost app via NSWorkspace.
-///
-/// Future improvements should support targeting specific windows by their
-/// CGWindowNumber using `AXUIElementCopyAttributeValues` with `kAXWindowsAttribute`.
-pub trait WindowApi {
-    fn get_foreground_window(&self) -> Option<WindowId>;
-    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
-    fn set_window_pos(
-        &self,
-        window: WindowId,
-        x: i32,
-        y: i32,
-        w: i32,
-        h: i32,
-    ) -> Result<()>;
-    fn minimize_window(&self, window: WindowId) -> Result<()>;
-    fn maximize_window(&self, window: WindowId) -> Result<()>;
-    fn restore_window(&self, window: WindowId) -> Result<()>;
-    fn close_window(&self, window: WindowId) -> Result<()>;
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost(&self, window: WindowId) -> bool;
-    fn get_monitors(&self) -> Vec<MonitorInfo>;
-    fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea>;
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
-    fn is_window_valid(&self, window: WindowId) -> bool;
-    fn is_minimized(&self, window: WindowId) -> bool;
-    fn is_maximized(&self, window: WindowId) -> bool;
-    fn get_window_state(&self, window: WindowId) -> WindowState;
-}
-
 /// Real macOS window API using native Core Graphics + Accessibility APIs
 ///
 /// # Performance
@@ -132,80 +83,7 @@ impl RealWindowApi {
     pub fn new() -> Self {
         Self
     }
-}
 
-impl WindowApiBase for RealWindowApi {
-    type WindowId = WindowId;
-
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        <Self as WindowApi>::get_foreground_window(self)
-    }
-
-    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
-        <Self as WindowApi>::get_window_info(self, window)
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        <Self as WindowApi>::set_window_pos(self, window, x, y, width, height)
-    }
-
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::minimize_window(self, window)
-    }
-
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::maximize_window(self, window)
-    }
-
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::restore_window(self, window)
-    }
-
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::close_window(self, window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        <Self as WindowApi>::set_topmost(self, window, topmost)
-    }
-
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_topmost(self, window)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        <Self as WindowApi>::get_monitors(self)
-    }
-
-    fn move_to_monitor(
-        &self,
-        window: Self::WindowId,
-        monitor_index: usize,
-    ) -> Result<()> {
-        <Self as WindowApi>::move_to_monitor(self, window, monitor_index)
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_window_valid(self, window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_minimized(self, window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_maximized(self, window)
-    }
-}
-
-impl WindowApi for RealWindowApi {
     fn get_foreground_window(&self) -> Option<WindowId> {
         cg_window::get_frontmost_window_info()
             .ok()
@@ -257,31 +135,12 @@ impl WindowApi for RealWindowApi {
         width: i32,
         height: i32,
     ) -> Result<()> {
-        // TODO: Use CGWindowNumber to find the correct AXUIElement instead of
-        // always operating on the frontmost application's main window. The current
-        // approach ignores the `window` parameter and has a TOCTOU race condition
-        // if the foreground app changes between getting the PID and operating on it.
-
-        // Use AXUIElement to set window frame (< 10ms)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
 
         let app_elem = ax_element::create_app_element(pid)?;
         let win_elem = ax_element::get_main_window(&app_elem)?;
 
-        // Convert from Windows-style (top-left origin) to CG-style (bottom-left origin).
-        //
-        // In Windows-style coordinates, (x, y) is the top-left corner of the window.
-        // In CG-style coordinates, the origin is at the bottom-left of the screen.
-        // AXPosition expects the CG-style y-coordinate of the window's top-left corner.
-        //
-        // Windows y = distance from top of screen to window top
-        // CG y = screen_height - (windows_y + window_height)
-        //      = screen_height - windows_y - window_height
-        //
-        // This is equivalent to: windows_to_cg(y + height, screen_height)
-        // because windows_to_cg(v) = screen_height - v
-        // so windows_to_cg(y + height) = screen_height - y - height
         let screen_height = ns_workspace::get_main_display_height();
         let cg_y = crate::platform::macos::native_api::windows_to_cg(
             y as f64 + height as f64,
@@ -304,7 +163,6 @@ impl WindowApi for RealWindowApi {
     }
 
     fn minimize_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -316,7 +174,6 @@ impl WindowApi for RealWindowApi {
     }
 
     fn maximize_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -328,7 +185,6 @@ impl WindowApi for RealWindowApi {
     }
 
     fn restore_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -340,7 +196,6 @@ impl WindowApi for RealWindowApi {
     }
 
     fn close_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -375,7 +230,6 @@ impl WindowApi for RealWindowApi {
 
         for display_id in display_ids {
             let bounds = unsafe { CGDisplayBounds(display_id) };
-            // Convert CG coordinates (bottom-left origin) to Windows-style (top-left origin)
             let windows_y =
                 (screen_height - bounds.origin.y - bounds.size.height) as i32;
             monitors.push(MonitorInfo {
@@ -414,7 +268,7 @@ impl WindowApi for RealWindowApi {
             });
         }
 
-        let monitors = <Self as WindowApi>::get_monitors(self);
+        let monitors = self.get_monitors();
         let monitor = monitors.get(monitor_index)?;
 
         Some(MonitorWorkArea {
@@ -426,25 +280,17 @@ impl WindowApi for RealWindowApi {
     }
 
     fn move_to_monitor(&self, _window: WindowId, monitor_index: usize) -> Result<()> {
-        let monitors = <Self as WindowApi>::get_monitors(self);
+        let monitors = self.get_monitors();
         let monitor = monitors.get(monitor_index).ok_or_else(|| {
             anyhow::anyhow!("Invalid monitor index: {}", monitor_index)
         })?;
 
-        let info = <Self as WindowApi>::get_window_info(self, _window)?;
+        let info = self.get_window_info(_window)?;
 
-        // Center the window on the target monitor
         let new_x = monitor.x + (monitor.width - info.width) / 2;
         let new_y = monitor.y + (monitor.height - info.height) / 2;
 
-        <Self as WindowApi>::set_window_pos(
-            self,
-            _window,
-            new_x,
-            new_y,
-            info.width,
-            info.height,
-        )?;
+        self.set_window_pos(_window, new_x, new_y, info.width, info.height)?;
         debug!(
             "Moved window to monitor {} at ({}, {})",
             monitor_index, new_x, new_y
@@ -475,17 +321,13 @@ impl WindowApi for RealWindowApi {
         }
     }
 
-    fn is_maximized(&self, _window: WindowId) -> bool {
-        // TODO: This heuristic (95% threshold) may produce false positives when
-        // a user manually resizes a window to nearly fill the screen. Consider
-        // using AXUIElement's AXZoomed attribute or tracking pre-zoom frame
-        // dimensions for more accurate maximization detection.
-        let info = match <Self as WindowApi>::get_window_info(self, _window) {
+    fn is_maximized(&self, window: WindowId) -> bool {
+        let info = match self.get_window_info(window) {
             Ok(info) => info,
             Err(_) => return false,
         };
 
-        let work_area = match <Self as WindowApi>::get_monitor_work_area(self, 0) {
+        let work_area = match self.get_monitor_work_area(0) {
             Some(wa) => wa,
             None => return false,
         };
@@ -498,13 +340,84 @@ impl WindowApi for RealWindowApi {
     }
 
     fn get_window_state(&self, window: WindowId) -> WindowState {
-        if <Self as WindowApi>::is_minimized(self, window) {
+        if self.is_minimized(window) {
             WindowState::Minimized
-        } else if <Self as WindowApi>::is_maximized(self, window) {
+        } else if self.is_maximized(window) {
             WindowState::Maximized
         } else {
             WindowState::Normal
         }
+    }
+}
+
+impl WindowApiBase for RealWindowApi {
+    type WindowId = WindowId;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        self.get_foreground_window()
+    }
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+        self.get_window_info(window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        self.set_window_pos(window, x, y, width, height)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.minimize_window(window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.maximize_window(window)
+    }
+
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        self.restore_window(window)
+    }
+
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        self.close_window(window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.set_topmost(window, topmost)
+    }
+
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.is_topmost(window)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.get_monitors()
+    }
+
+    fn move_to_monitor(
+        &self,
+        window: Self::WindowId,
+        monitor_index: usize,
+    ) -> Result<()> {
+        self.move_to_monitor(window, monitor_index)
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.is_window_valid(window)
+    }
+
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
+        self.is_minimized(window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.is_maximized(window)
     }
 }
 
@@ -514,7 +427,7 @@ impl WindowApi for RealWindowApi {
 pub struct MockWindowApi {
     windows: std::sync::Arc<
         std::sync::Mutex<
-            std::collections::HashMap<WindowId, crate::platform::traits::WindowInfo>,
+            std::collections::HashMap<WindowId, WindowInfo>,
         >,
     >,
     foreground: std::sync::Arc<std::sync::Mutex<Option<WindowId>>>,
@@ -570,89 +483,7 @@ impl MockWindowApi {
             self.minimized.lock().unwrap().remove(&id);
         }
     }
-}
 
-#[cfg(test)]
-impl Default for MockWindowApi {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(test)]
-impl WindowApiBase for MockWindowApi {
-    type WindowId = WindowId;
-
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        <Self as WindowApi>::get_foreground_window(self)
-    }
-
-    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
-        <Self as WindowApi>::get_window_info(self, window)
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        <Self as WindowApi>::set_window_pos(self, window, x, y, width, height)
-    }
-
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::minimize_window(self, window)
-    }
-
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::maximize_window(self, window)
-    }
-
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::restore_window(self, window)
-    }
-
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as WindowApi>::close_window(self, window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        <Self as WindowApi>::set_topmost(self, window, topmost)
-    }
-
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_topmost(self, window)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        <Self as WindowApi>::get_monitors(self)
-    }
-
-    fn move_to_monitor(
-        &self,
-        window: Self::WindowId,
-        monitor_index: usize,
-    ) -> Result<()> {
-        <Self as WindowApi>::move_to_monitor(self, window, monitor_index)
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_window_valid(self, window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_minimized(self, window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        <Self as WindowApi>::is_maximized(self, window)
-    }
-}
-
-#[cfg(test)]
-impl WindowApi for MockWindowApi {
     fn get_foreground_window(&self) -> Option<WindowId> {
         *self.foreground.lock().unwrap()
     }
@@ -728,8 +559,6 @@ impl WindowApi for MockWindowApi {
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
         let monitors = self.monitors.lock().unwrap();
         let m = monitors.get(monitor_index)?;
-        // Simulate work area by subtracting menu bar (22px) and dock (44px) heights
-        // This matches the expected behavior in tests
         let menu_bar_height = 22;
         let dock_height = 44;
         Some(MonitorWorkArea {
@@ -771,13 +600,92 @@ impl WindowApi for MockWindowApi {
     }
 
     fn get_window_state(&self, window: WindowId) -> WindowState {
-        if <Self as WindowApi>::is_minimized(self, window) {
+        if self.is_minimized(window) {
             WindowState::Minimized
-        } else if <Self as WindowApi>::is_maximized(self, window) {
+        } else if self.is_maximized(window) {
             WindowState::Maximized
         } else {
             WindowState::Normal
         }
+    }
+}
+
+#[cfg(test)]
+impl Default for MockWindowApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+impl WindowApiBase for MockWindowApi {
+    type WindowId = WindowId;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        self.get_foreground_window()
+    }
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+        self.get_window_info(window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        self.set_window_pos(window, x, y, width, height)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.minimize_window(window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.maximize_window(window)
+    }
+
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        self.restore_window(window)
+    }
+
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        self.close_window(window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.set_topmost(window, topmost)
+    }
+
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.is_topmost(window)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.get_monitors()
+    }
+
+    fn move_to_monitor(
+        &self,
+        window: Self::WindowId,
+        monitor_index: usize,
+    ) -> Result<()> {
+        self.move_to_monitor(window, monitor_index)
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.is_window_valid(window)
+    }
+
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
+        self.is_minimized(window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.is_maximized(window)
     }
 }
 
@@ -794,10 +702,9 @@ mod tests {
     #[test]
     fn test_get_monitors_native() {
         let api = RealWindowApi::new();
-        let monitors = <RealWindowApi as WindowApi>::get_monitors(&api);
+        let monitors = api.get_monitors();
         assert!(!monitors.is_empty());
 
-        // Verify we have at least one valid monitor
         let main = &monitors[0];
         assert!(main.width > 0);
         assert!(main.height > 0);
@@ -807,15 +714,10 @@ mod tests {
     fn test_get_foreground_window_info_native() {
         let api = RealWindowApi::new();
 
-        // This should work without AppleScript now
-        match <RealWindowApi as WindowApi>::get_window_info(&api, 1) {
+        match api.get_window_info(1) {
             Ok(info) => {
                 if !info.process_name.is_empty() {
                     debug!("Frontmost window: {} ({})", info.title, info.process_name);
-                } else {
-                    debug!(
-                        "Note: Got window info but fields empty (FFI issue or headless)"
-                    );
                 }
             }
             Err(e) => {
@@ -830,16 +732,15 @@ mod tests {
     #[test]
     fn test_mock_creation() {
         let mock = MockWindowApi::new();
-        assert!(<MockWindowApi as WindowApi>::is_window_valid(&mock, 1));
-        assert!(!<MockWindowApi as WindowApi>::is_window_valid(&mock, 999));
+        assert!(mock.is_window_valid(1));
+        assert!(!mock.is_window_valid(999));
     }
 
     #[test]
     fn test_mock_set_window_pos() {
         let mock = MockWindowApi::new();
-        <MockWindowApi as WindowApi>::set_window_pos(&mock, 1, 200, 300, 1024, 768)
-            .unwrap();
-        let info = <MockWindowApi as WindowApi>::get_window_info(&mock, 1).unwrap();
+        mock.set_window_pos(1, 200, 300, 1024, 768).unwrap();
+        let info = mock.get_window_info(1).unwrap();
         assert_eq!(info.x, 200);
         assert_eq!(info.y, 300);
         assert_eq!(info.width, 1024);
@@ -849,34 +750,25 @@ mod tests {
     #[test]
     fn test_mock_minimize_restore() {
         let mock = MockWindowApi::new();
-        assert!(!<MockWindowApi as WindowApi>::is_minimized(&mock, 1));
+        assert!(!mock.is_minimized(1));
 
-        <MockWindowApi as WindowApi>::minimize_window(&mock, 1).unwrap();
-        assert!(<MockWindowApi as WindowApi>::is_minimized(&mock, 1));
-        assert_eq!(
-            <MockWindowApi as WindowApi>::get_window_state(&mock, 1),
-            WindowState::Minimized
-        );
+        mock.minimize_window(1).unwrap();
+        assert!(mock.is_minimized(1));
+        assert_eq!(mock.get_window_state(1), WindowState::Minimized);
 
-        <MockWindowApi as WindowApi>::restore_window(&mock, 1).unwrap();
-        assert!(!<MockWindowApi as WindowApi>::is_minimized(&mock, 1));
-        assert_eq!(
-            <MockWindowApi as WindowApi>::get_window_state(&mock, 1),
-            WindowState::Normal
-        );
+        mock.restore_window(1).unwrap();
+        assert!(!mock.is_minimized(1));
+        assert_eq!(mock.get_window_state(1), WindowState::Normal);
     }
 
     #[test]
     fn test_mock_maximize() {
         let mock = MockWindowApi::new();
-        <MockWindowApi as WindowApi>::maximize_window(&mock, 1).unwrap();
-        assert!(<MockWindowApi as WindowApi>::is_maximized(&mock, 1));
-        assert_eq!(
-            <MockWindowApi as WindowApi>::get_window_state(&mock, 1),
-            WindowState::Maximized
-        );
+        mock.maximize_window(1).unwrap();
+        assert!(mock.is_maximized(1));
+        assert_eq!(mock.get_window_state(1), WindowState::Maximized);
 
-        let info = <MockWindowApi as WindowApi>::get_window_info(&mock, 1).unwrap();
+        let info = mock.get_window_info(1).unwrap();
         assert_eq!(info.width, 1920);
         assert_eq!(info.height, 1080);
     }
@@ -884,9 +776,9 @@ mod tests {
     #[test]
     fn test_mock_close_window() {
         let mock = MockWindowApi::new();
-        assert!(<MockWindowApi as WindowApi>::is_window_valid(&mock, 1));
-        <MockWindowApi as WindowApi>::close_window(&mock, 1).unwrap();
-        assert!(!<MockWindowApi as WindowApi>::is_window_valid(&mock, 1));
+        assert!(mock.is_window_valid(1));
+        mock.close_window(1).unwrap();
+        assert!(!mock.is_window_valid(1));
     }
 
     #[test]
@@ -907,18 +799,16 @@ mod tests {
             },
         ]);
 
-        <MockWindowApi as WindowApi>::move_to_monitor(&mock, 1, 1).unwrap();
-        let info = <MockWindowApi as WindowApi>::get_window_info(&mock, 1).unwrap();
-        // Should be centered on second monitor
+        mock.move_to_monitor(1, 1).unwrap();
+        let info = mock.get_window_info(1).unwrap();
         assert!(info.x >= 1920);
     }
 
     #[test]
     fn test_mock_monitor_work_area() {
         let mock = MockWindowApi::new();
-        let work_area =
-            <MockWindowApi as WindowApi>::get_monitor_work_area(&mock, 0).unwrap();
-        assert!(work_area.height < 1080); // Less than full height due to dock/menu bar
+        let work_area = mock.get_monitor_work_area(0).unwrap();
+        assert!(work_area.height < 1080);
     }
 
     #[test]
@@ -937,17 +827,14 @@ mod tests {
                 height: 480,
             },
         );
-        assert!(<MockWindowApi as WindowApi>::is_window_valid(&mock, 2));
-        let info = <MockWindowApi as WindowApi>::get_window_info(&mock, 2).unwrap();
+        assert!(mock.is_window_valid(2));
+        let info = mock.get_window_info(2).unwrap();
         assert_eq!(info.title, "Second Window");
     }
 
     #[test]
     fn test_mock_foreground_window() {
         let mock = MockWindowApi::new();
-        assert_eq!(
-            <MockWindowApi as WindowApi>::get_foreground_window(&mock),
-            Some(1)
-        );
+        assert_eq!(mock.get_foreground_window(), Some(1));
     }
 }
