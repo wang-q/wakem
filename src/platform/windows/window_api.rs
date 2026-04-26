@@ -14,7 +14,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame,
+    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowInfo,
 };
 
 /// API call log entry (for MockWindowApi testing)
@@ -139,6 +139,34 @@ impl WindowApiBase for RealWindowApi {
         WindowApi::get_foreground_window(self)
     }
 
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+        let title = WindowApi::get_window_title(self, window).unwrap_or_default();
+        let frame = WindowApi::get_window_rect(self, window)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
+        let process_id = unsafe {
+            let mut pid: u32 = 0;
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                window,
+                Some(&mut pid),
+            );
+            pid
+        };
+        let process_name =
+            super::get_process_name_by_pid(process_id).unwrap_or_default();
+        let executable_path = super::get_executable_path_by_pid(process_id).ok();
+
+        Ok(WindowInfo {
+            id: window.0 as usize,
+            title,
+            process_name,
+            executable_path,
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height,
+        })
+    }
+
     fn set_window_pos(
         &self,
         window: Self::WindowId,
@@ -170,11 +198,25 @@ impl WindowApiBase for RealWindowApi {
         WindowApi::set_topmost(self, window, topmost)
     }
 
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_topmost(self, window)
+    }
+
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         let fg = WindowApi::get_foreground_window(self);
         fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
             .map(|info| vec![info])
             .unwrap_or_default()
+    }
+
+    fn move_to_monitor(
+        &self,
+        _window: Self::WindowId,
+        _monitor_index: usize,
+    ) -> Result<()> {
+        // Windows implementation uses CommonWindowManager::move_to_monitor
+        // This is handled at the WindowManager level
+        Ok(())
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
@@ -601,6 +643,22 @@ impl WindowApiBase for MockWindowApi {
         WindowApi::get_foreground_window(self)
     }
 
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+        let title = WindowApi::get_window_title(self, window).unwrap_or_default();
+        let frame = WindowApi::get_window_rect(self, window)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
+        Ok(WindowInfo {
+            id: window.0 as usize,
+            title,
+            process_name: "TestProcess".to_string(),
+            executable_path: None,
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height,
+        })
+    }
+
     fn set_window_pos(
         &self,
         window: Self::WindowId,
@@ -632,11 +690,23 @@ impl WindowApiBase for MockWindowApi {
         WindowApi::set_topmost(self, window, topmost)
     }
 
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_topmost(self, window)
+    }
+
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         let fg = WindowApi::get_foreground_window(self);
         fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
             .map(|info| vec![info])
             .unwrap_or_default()
+    }
+
+    fn move_to_monitor(
+        &self,
+        _window: Self::WindowId,
+        _monitor_index: usize,
+    ) -> Result<()> {
+        Ok(())
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {

@@ -299,3 +299,6 @@ mod tests {
         }
     }
 }
+
+/// Type alias for consistency with Windows API
+pub type WindowEventHook = MacosWindowEventHook;

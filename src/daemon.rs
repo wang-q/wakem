@@ -10,7 +10,7 @@ use crate::constants::{
     IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
-use crate::platform::traits::OutputDeviceTrait;
+use crate::platform::traits::{OutputDeviceTrait, PlatformUtilities};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
@@ -36,8 +36,8 @@ use crate::platform::windows::{
 // Platform-specific imports for production code (macOS)
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
-    tray::AppCommand as TrayAppCommand, Launcher, RawInputDevice,
-    SendInputDevice as OutputDevice, RealWindowApi, WindowManager,
+    tray::AppCommand as TrayAppCommand, Launcher, RawInputDevice, RealWindowApi,
+    SendInputDevice as OutputDevice, WindowManager,
 };
 use crate::platform::traits::InputDeviceConfig;
 
@@ -986,12 +986,12 @@ impl Default for ServerState {
 fn get_current_modifier_state() -> ModifierState {
     #[cfg(target_os = "windows")]
     {
-        crate::platform::windows::get_modifier_state()
+        crate::platform::windows::WindowsPlatform::get_modifier_state()
     }
 
     #[cfg(target_os = "macos")]
     {
-        crate::platform::macos::get_modifier_state()
+        crate::platform::macos::MacosPlatform::get_modifier_state()
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]

@@ -753,7 +753,9 @@ impl KeyMapper {
                 let monitor_direction = match direction {
                     MonitorDirection::Next => PlatformMonitorDirection::Next,
                     MonitorDirection::Prev => PlatformMonitorDirection::Prev,
-                    MonitorDirection::Index(idx) => PlatformMonitorDirection::Index(*idx),
+                    MonitorDirection::Index(idx) => {
+                        PlatformMonitorDirection::Index(*idx)
+                    }
                 };
                 wm.move_to_monitor(window, monitor_direction)?;
             }
@@ -834,8 +836,7 @@ impl KeyMapper {
                 info!(?window_action, "Processing window action in mapper");
                 if let Some(ref wm) = self.window_manager {
                     info!("WindowManager found, executing window action");
-                    match Self::execute_window_action_internal(wm, window_action)
-                    {
+                    match Self::execute_window_action_internal(wm, window_action) {
                         Ok(()) => info!("Window action executed successfully"),
                         Err(e) => error!(error = %e, "Failed to execute window action"),
                     }

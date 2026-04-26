@@ -60,7 +60,10 @@ macro_rules! impl_window_preset_api_for_manager {
                 <$api_trait>::get_foreground_window(self)
             }
 
-            fn get_window_info(&self, window: Self::WindowId) -> ::anyhow::Result<$crate::platform::traits::WindowInfo> {
+            fn get_window_info(
+                &self,
+                window: Self::WindowId,
+            ) -> ::anyhow::Result<$crate::platform::traits::WindowInfo> {
                 <$api_trait>::get_window_info(self, window)
             }
 

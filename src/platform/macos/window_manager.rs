@@ -5,12 +5,15 @@
 
 use crate::platform::macos::window_api::{RealWindowApi, WindowApi};
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, WindowFrame, WindowId, WindowInfo, WindowManagerTrait,
+    MonitorInfo, WindowFrame, WindowId, WindowInfo, WindowManagerTrait,
 };
 use anyhow::Result;
 use tracing::debug;
 
 use crate::platform::window_manager_common::CommonWindowApi;
+
+// Re-export MonitorDirection for consistency with Windows platform
+pub use crate::platform::traits::MonitorDirection;
 
 /// Generic macOS window manager using WindowApi trait
 pub struct WindowManager<A: WindowApi> {
@@ -41,9 +44,7 @@ impl<A: WindowApi + Default> Default for WindowManager<A> {
     }
 }
 
-impl<A: WindowApi + Send + Sync> WindowManagerTrait
-    for WindowManager<A>
-{
+impl<A: WindowApi + Send + Sync> WindowManagerTrait for WindowManager<A> {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
     }
@@ -148,8 +149,6 @@ impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     }
 }
 
-
-
 impl<A: WindowApi> WindowManager<A> {
     /// Get foreground window information
     pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
@@ -172,7 +171,8 @@ impl<A: WindowApi> WindowManager<A> {
 
     /// Set window frame (convenience method)
     pub fn set_window_frame(&self, window: WindowId, frame: &WindowFrame) -> Result<()> {
-        self.api.set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
+        self.api
+            .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
     }
 
     #[cfg(not(test))]

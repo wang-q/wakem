@@ -117,19 +117,3 @@ impl PlatformUtilities for WindowsPlatform {
         }
     }
 }
-
-// Re-export utility functions for backward compatibility
-/// Get current modifier state for Windows
-pub fn get_modifier_state() -> ModifierState {
-    WindowsPlatform::get_modifier_state()
-}
-
-/// Get process name by PID
-pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
-    WindowsPlatform::get_process_name_by_pid(pid)
-}
-
-/// Get executable path by PID
-pub fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
-    WindowsPlatform::get_executable_path_by_pid(pid)
-}

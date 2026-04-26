@@ -3,7 +3,9 @@
 //! This module provides platform-agnostic window management operations
 //! that can be used by any platform-specific window manager.
 
-use crate::platform::traits::{MonitorDirection, MonitorInfo, WindowFrame, WindowInfoProvider};
+use crate::platform::traits::{
+    MonitorDirection, MonitorInfo, WindowFrame, WindowInfoProvider,
+};
 use crate::types::{Alignment, Edge};
 use anyhow::Result;
 use tracing::debug;
@@ -530,7 +532,8 @@ impl CommonWindowManager {
 
         // Calculate relative position ratio
         let rel_x = (info.x() - current_monitor.x) as f32 / current_monitor.width as f32;
-        let rel_y = (info.y() - current_monitor.y) as f32 / current_monitor.height as f32;
+        let rel_y =
+            (info.y() - current_monitor.y) as f32 / current_monitor.height as f32;
         let rel_width = info.width() as f32 / current_monitor.width as f32;
         let rel_height = info.height() as f32 / current_monitor.height as f32;
 

@@ -21,9 +21,12 @@ impl<A: WindowApi> WindowPresetApi for WindowManager<A> {
         let info = self.get_window_info(window)?;
         let process_name = unsafe {
             let pid = get_window_process_id(window)?;
-            get_process_name_by_pid(pid).unwrap_or_default()
+            super::WindowsPlatform::get_process_name_by_pid(pid).unwrap_or_default()
         };
-        let executable_path = unsafe { get_window_executable_path(window).ok() };
+        let executable_path = unsafe {
+            let pid = get_window_process_id(window)?;
+            super::WindowsPlatform::get_executable_path_by_pid(pid).ok()
+        };
         Ok(WindowInfo {
             id: window.0 as usize,
             title: info.title,
@@ -67,15 +70,6 @@ unsafe fn get_window_process_id(hwnd: HWND) -> Result<u32> {
         return Err(anyhow::anyhow!("Failed to get process ID"));
     }
     Ok(pid)
-}
-
-unsafe fn get_process_name_by_pid(pid: u32) -> Result<String> {
-    super::get_process_name_by_pid(pid)
-}
-
-unsafe fn get_window_executable_path(hwnd: HWND) -> Result<String> {
-    let pid = get_window_process_id(hwnd)?;
-    super::get_executable_path_by_pid(pid)
 }
 
 pub type WindowPresetManager = CommonWindowPresetManager<

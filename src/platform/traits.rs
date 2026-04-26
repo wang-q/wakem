@@ -354,6 +354,7 @@ pub trait WindowApiBase {
     type WindowId: Copy + std::fmt::Debug;
 
     fn get_foreground_window(&self) -> Option<Self::WindowId>;
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo>;
     fn set_window_pos(
         &self,
         window: Self::WindowId,
@@ -367,7 +368,13 @@ pub trait WindowApiBase {
     fn restore_window(&self, window: Self::WindowId) -> Result<()>;
     fn close_window(&self, window: Self::WindowId) -> Result<()>;
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost(&self, window: Self::WindowId) -> bool;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
+    fn move_to_monitor(
+        &self,
+        window: Self::WindowId,
+        monitor_index: usize,
+    ) -> Result<()>;
     fn is_window_valid(&self, window: Self::WindowId) -> bool;
     fn is_minimized(&self, window: Self::WindowId) -> bool;
     fn is_maximized(&self, window: Self::WindowId) -> bool;
@@ -489,6 +496,10 @@ macro_rules! impl_window_api_base_via {
                 <$inner_trait>::get_foreground_window(self)
             }
 
+            fn get_window_info(&self, window: Self::WindowId) -> ::anyhow::Result<$crate::platform::traits::WindowInfo> {
+                <$inner_trait>::get_window_info(self, window)
+            }
+
             fn set_window_pos(
                 &self,
                 window: Self::WindowId,
@@ -520,8 +531,16 @@ macro_rules! impl_window_api_base_via {
                 <$inner_trait>::set_topmost(self, window, topmost)
             }
 
+            fn is_topmost(&self, window: Self::WindowId) -> bool {
+                <$inner_trait>::is_topmost(self, window)
+            }
+
             fn get_monitors(&self) -> Vec<$crate::platform::traits::MonitorInfo> {
                 <$inner_trait>::get_monitors(self)
+            }
+
+            fn move_to_monitor(&self, window: Self::WindowId, monitor_index: usize) -> ::anyhow::Result<()> {
+                <$inner_trait>::move_to_monitor(self, window, monitor_index)
             }
 
             fn is_window_valid(&self, window: Self::WindowId) -> bool {

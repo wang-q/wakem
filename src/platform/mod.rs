@@ -45,12 +45,8 @@ pub mod platform_types {
 #[allow(unused_imports)]
 pub use macos::{
     Launcher, MonitorDirection, RawInputDevice, RealWindowApi, SendInputDevice,
-    TrayIcon, WindowManager, WindowPresetManager,
+    TrayIcon, WindowEventHook, WindowManager, WindowPresetManager,
 };
-
-#[cfg(target_os = "macos")]
-/// Window event hook type alias for macOS
-pub use macos::window_event_hook::MacosWindowEventHook as WindowEventHook;
 
 // Platform-specific type aliases for easier cross-platform code
 #[cfg(target_os = "macos")]

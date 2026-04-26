@@ -16,12 +16,12 @@ pub mod window_preset;
 
 // Re-export common types (aligned with Windows platform)
 pub use crate::platform::launcher_common::Launcher;
-pub use crate::platform::traits::MonitorDirection;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
 pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
 pub use window_api::RealWindowApi;
-pub use window_manager::{RealWindowManager, WindowManager};
+pub use window_event_hook::WindowEventHook;
+pub use window_manager::{MonitorDirection, RealWindowManager, WindowManager};
 pub use window_preset::WindowPresetManager;
 
 #[cfg(test)]
@@ -46,13 +46,17 @@ impl PlatformUtilities for MacosPlatform {
                 if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagShift) {
                     modifiers.shift = true;
                 }
-                if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagControl) {
+                if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagControl)
+                {
                     modifiers.ctrl = true;
                 }
-                if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagAlternate) {
+                if flags
+                    .contains(core_graphics::event::CGEventFlags::CGEventFlagAlternate)
+                {
                     modifiers.alt = true;
                 }
-                if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagCommand) {
+                if flags.contains(core_graphics::event::CGEventFlags::CGEventFlagCommand)
+                {
                     modifiers.meta = true;
                 }
             }
@@ -66,10 +70,14 @@ impl PlatformUtilities for MacosPlatform {
         use std::ffi::CStr;
 
         let mut path_buf = [0u8; 4096];
-        let path_len = unsafe { proc_pidpath(pid as i32, path_buf.as_mut_ptr() as *mut _, 4096) };
+        let path_len =
+            unsafe { proc_pidpath(pid as i32, path_buf.as_mut_ptr() as *mut _, 4096) };
 
         if path_len <= 0 {
-            return Err(anyhow::anyhow!("Failed to get process path for pid {}", pid));
+            return Err(anyhow::anyhow!(
+                "Failed to get process path for pid {}",
+                pid
+            ));
         }
 
         let path = unsafe { CStr::from_ptr(path_buf.as_ptr() as *const _) }
@@ -77,11 +85,7 @@ impl PlatformUtilities for MacosPlatform {
             .to_string();
 
         // Extract process name from path
-        let process_name = path
-            .split('/')
-            .next_back()
-            .unwrap_or("")
-            .to_string();
+        let process_name = path.split('/').next_back().unwrap_or("").to_string();
 
         if process_name.is_empty() {
             return Err(anyhow::anyhow!("Failed to extract process name from path"));
@@ -95,10 +99,14 @@ impl PlatformUtilities for MacosPlatform {
         use std::ffi::CStr;
 
         let mut path_buf = [0u8; 4096];
-        let path_len = unsafe { proc_pidpath(pid as i32, path_buf.as_mut_ptr() as *mut _, 4096) };
+        let path_len =
+            unsafe { proc_pidpath(pid as i32, path_buf.as_mut_ptr() as *mut _, 4096) };
 
         if path_len <= 0 {
-            return Err(anyhow::anyhow!("Failed to get executable path for pid {}", pid));
+            return Err(anyhow::anyhow!(
+                "Failed to get executable path for pid {}",
+                pid
+            ));
         }
 
         let path = unsafe { CStr::from_ptr(path_buf.as_ptr() as *const _) }
@@ -108,12 +116,3 @@ impl PlatformUtilities for MacosPlatform {
         Ok(path)
     }
 }
-
-// Re-export utility functions for backward compatibility
-/// Get current modifier state for macOS using CGEventSource
-pub fn get_modifier_state() -> ModifierState {
-    MacosPlatform::get_modifier_state()
-}
-
-// Note: get_process_name_by_pid and get_executable_path_by_pid are available
-// through PlatformUtilities trait implementation on MacosPlatform
