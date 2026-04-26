@@ -5,7 +5,7 @@ mod macos_integration_tests {
     use std::process::Command;
     use std::thread;
     use std::time::Duration;
-    use wakem::platform::macos::{RealMacosWindowApi, WindowManager};
+    use wakem::platform::macos::{RealWindowApi, RealWindowManager};
     use wakem::platform::traits::{WindowId, WindowManagerTrait};
     use wakem::platform::window_manager_common::CommonWindowApi;
     use wakem::types::Edge;
@@ -15,7 +15,7 @@ mod macos_integration_tests {
         thread::sleep(Duration::from_secs(2));
     }
 
-    fn get_foreground_window_id(wm: &WindowManager) -> Option<WindowId> {
+    fn get_foreground_window_id(wm: &RealWindowManager) -> Option<WindowId> {
         WindowManagerTrait::get_foreground_window(wm)
     }
 
@@ -33,7 +33,7 @@ mod macos_integration_tests {
     fn test_get_foreground_window_info() {
         setup();
 
-        let wm = WindowManager::new(RealMacosWindowApi::new());
+        let wm = RealWindowManager::new(RealWindowApi::new());
         let window_id = WindowManagerTrait::get_foreground_window(&wm);
         assert!(window_id.is_some());
 
@@ -52,7 +52,7 @@ mod macos_integration_tests {
     fn test_move_to_center() {
         setup();
 
-        let wm = WindowManager::new(RealMacosWindowApi::new());
+        let wm = RealWindowManager::new(RealWindowApi::new());
         let window_id = match get_foreground_window_id(&wm) {
             Some(id) => id,
             None => panic!("No foreground window found"),
@@ -79,7 +79,7 @@ mod macos_integration_tests {
     fn test_move_to_edge() {
         setup();
 
-        let wm = WindowManager::new(RealMacosWindowApi::new());
+        let wm = RealWindowManager::new(RealWindowApi::new());
         let window_id = match get_foreground_window_id(&wm) {
             Some(id) => id,
             None => panic!("No foreground window found"),
@@ -104,7 +104,7 @@ mod macos_integration_tests {
     fn test_toggle_topmost() {
         setup();
 
-        let wm = WindowManager::new(RealMacosWindowApi::new());
+        let wm = RealWindowManager::new(RealWindowApi::new());
         let window_id = match get_foreground_window_id(&wm) {
             Some(id) => id,
             None => panic!("No foreground window found"),
@@ -133,7 +133,7 @@ mod macos_integration_tests {
         let _ = Command::new("open").args(["-a", "Terminal"]).output();
         thread::sleep(Duration::from_secs(2));
 
-        let wm = WindowManager::new(RealMacosWindowApi::new());
+        let wm = RealWindowManager::new(RealWindowApi::new());
         let window_id = match get_foreground_window_id(&wm) {
             Some(id) => id,
             None => panic!("No foreground window found"),

@@ -1,14 +1,14 @@
 //! macOS window preset management
 
-use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
-use crate::platform::macos::window_manager::MacosWindowManager;
+use crate::platform::macos::window_api::{RealWindowApi, WindowApi};
+use crate::platform::macos::window_manager::WindowManager;
 use crate::platform::traits::WindowInfo;
 use crate::platform::window_preset_common::{
     WindowPresetApi, WindowPresetManager as CommonWindowPresetManager,
 };
 use anyhow::Result;
 
-impl<A: MacosWindowApi + Clone> WindowPresetApi for MacosWindowManager<A> {
+impl<A: WindowApi + Clone> WindowPresetApi for WindowManager<A> {
     type WindowId = crate::platform::traits::WindowId;
 
     fn get_foreground_window(&self) -> Option<Self::WindowId> {
@@ -40,12 +40,11 @@ impl<A: MacosWindowApi + Clone> WindowPresetApi for MacosWindowManager<A> {
 }
 
 /// Window preset manager type alias for macOS
-pub type WindowPresetManager =
-    CommonWindowPresetManager<MacosWindowManager<RealMacosWindowApi>>;
+pub type WindowPresetManager = CommonWindowPresetManager<WindowManager<RealWindowApi>>;
 
 impl Default for WindowPresetManager {
     fn default() -> Self {
-        let api = MacosWindowManager::<RealMacosWindowApi>::new_real();
+        let api = WindowManager::<RealWindowApi>::new_real();
         Self::new(api)
     }
 }

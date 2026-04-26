@@ -500,7 +500,7 @@ fn run_tray_sync(
     auto_start_daemon: bool,
     _detach_console: bool,
 ) -> Result<()> {
-    use platform::macos::run_tray_event_loop;
+    use platform::macos::run_tray_message_loop;
 
     info!("wakem starting (instance {})...", instance_id);
 
@@ -532,7 +532,7 @@ fn run_tray_sync(
 
     // Run tray on the main thread immediately - no blocking before this!
     info!("Starting tray on main thread...");
-    if let Err(e) = run_tray_event_loop(move |cmd| {
+    if let Err(e) = run_tray_message_loop(move |cmd| {
         let _ = cmd_tx_for_tray.blocking_send(cmd);
     }) {
         error!("Tray error: {}", e);

@@ -45,7 +45,7 @@ pub mod platform_types {
 pub mod platform_types {
     #![allow(unused_imports)]
     pub use super::macos::{
-        InputDevice, InputDeviceConfig, Launcher, MacosOutputDevice as OutputDevice,
+        InputDevice, Launcher, OutputDevice, RawInputDevice, SendInputDevice,
         WindowManager, WindowPresetManager,
     };
 }

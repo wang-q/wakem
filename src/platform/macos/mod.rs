@@ -19,27 +19,25 @@ pub use crate::platform::launcher_common::Launcher;
 pub use crate::platform::traits::InputDeviceConfig;
 
 // Re-export input device
-pub use input_device::MacosInputDeviceExt;
-/// InputDevice type alias for macOS
-pub type InputDevice = MacosInputDeviceExt;
+pub use input_device::{InputDevice, RawInputDevice};
 
 // Re-export output device
-pub use output_device::MacosOutputDevice;
+pub use output_device::{MacosOutputDevice, OutputDevice, SendInputDevice};
 
 // Re-export tray types
-pub use tray::{run_tray_event_loop, AppCommand};
+pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
 
 // Re-export window API types
-pub use window_api::RealMacosWindowApi;
+pub use window_api::RealWindowApi;
 
 // Re-export window manager types
-pub use window_manager::RealMacosWindowManager as WindowManager;
+pub use window_manager::{MonitorDirection, RealWindowManager, WindowManager};
 
 // Re-export window preset types
 pub use window_preset::WindowPresetManager;
 
 #[cfg(test)]
-pub use window_api::MockMacosWindowApi;
+pub use window_api::MockWindowApi;
 
 /// Get current modifier state for macOS using CGEventSource
 pub fn get_modifier_state() -> crate::types::ModifierState {

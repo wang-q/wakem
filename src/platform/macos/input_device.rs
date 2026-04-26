@@ -7,7 +7,7 @@
 // Allow dead code - this module is under development for macOS input support
 #![allow(dead_code)]
 
-use crate::platform::input_device_common::{InputDevice, PlatformInputDevice};
+use crate::platform::input_device_common::PlatformInputDevice;
 use crate::platform::traits::{InputDeviceConfig, InputDeviceTrait};
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
@@ -40,14 +40,14 @@ impl PlatformInputDevice for CGEventTapInner {
 /// This struct wraps the generic InputDevice and adds macOS-specific
 /// functionality like wait_for_event and pending event handling.
 pub struct MacosInputDeviceExt {
-    device: InputDevice<CGEventTapInner>,
+    device: crate::platform::input_device_common::InputDevice<CGEventTapInner>,
     pending_event: std::cell::RefCell<Option<InputEvent>>,
 }
 
 impl MacosInputDeviceExt {
     /// Create a new macOS input device with default config
     pub fn new(config: InputDeviceConfig) -> Result<Self> {
-        let device = InputDevice::new(config)?;
+        let device = crate::platform::input_device_common::InputDevice::new(config)?;
         Ok(Self {
             device,
             pending_event: std::cell::RefCell::new(None),
@@ -56,7 +56,7 @@ impl MacosInputDeviceExt {
 
     /// Create a macOS input device with custom sender
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
-        let device = InputDevice::with_sender(event_sender)?;
+        let device = crate::platform::input_device_common::InputDevice::with_sender(event_sender)?;
         Ok(Self {
             device,
             pending_event: std::cell::RefCell::new(None),
@@ -144,6 +144,12 @@ impl InputDeviceTrait for MacosInputDeviceExt {
         self.device.stop();
     }
 }
+
+/// Type alias for consistency with Windows API
+pub type InputDevice = MacosInputDeviceExt;
+
+/// Type alias for consistency with Windows API
+pub type RawInputDevice = MacosInputDeviceExt;
 
 #[cfg(test)]
 mod tests {

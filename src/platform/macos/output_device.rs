@@ -180,5 +180,11 @@ impl OutputDeviceTrait for MacosOutputDevice {
     }
 }
 
+/// Type alias for consistency with Windows API
+pub type OutputDevice = MacosOutputDevice;
+
+/// Type alias for consistency with Windows API
+pub type SendInputDevice = MacosOutputDevice;
+
 #[cfg(test)]
 crate::impl_test_output_device!(MacosOutputDevice);

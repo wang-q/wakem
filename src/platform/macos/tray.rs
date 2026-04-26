@@ -344,7 +344,7 @@ impl TrayApi for RealTrayApi {
 
 /// Run the tray event loop
 /// This function initializes NSApplication, creates the tray, and runs the event loop
-pub fn run_tray_event_loop<F>(callback: F) -> Result<()>
+pub fn run_tray_message_loop<F>(callback: F) -> Result<()>
 where
     F: Fn(AppCommand) + Send + 'static,
 {
@@ -377,6 +377,47 @@ where
 
     info!("Tray event loop ended");
     Ok(())
+}
+
+/// Alias for run_tray_message_loop for backward compatibility
+pub fn run_tray_event_loop<F>(callback: F) -> Result<()>
+where
+    F: Fn(AppCommand) + Send + 'static,
+{
+    run_tray_message_loop(callback)
+}
+
+/// Stop the tray event loop
+/// Posts a stop message to the NSApplication event loop
+pub fn stop_tray() {
+    unsafe {
+        let app_class = Class::get("NSApplication");
+        if let Some(cls) = app_class {
+            let app: id = msg_send![cls, sharedApplication];
+            if app != nil {
+                let _: () = msg_send![app, stop: nil];
+                info!("Posted stop message to NSApplication");
+            }
+        }
+    }
+}
+
+/// TrayIcon struct for API compatibility with Windows
+/// On macOS, this is a placeholder as the tray is managed by RealTrayApi
+pub struct TrayIcon;
+
+#[allow(dead_code)]
+impl TrayIcon {
+    /// Create a new tray icon (placeholder)
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for TrayIcon {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]

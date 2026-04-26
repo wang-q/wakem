@@ -8,7 +8,7 @@ use tracing::{debug, error, info};
 use crate::platform::windows::window_manager::RealWindowManager;
 
 #[cfg(target_os = "macos")]
-use crate::platform::macos::window_manager::RealMacosWindowManager;
+use crate::platform::macos::window_manager::RealWindowManager;
 
 /// Thread-safe wrapper for platform-specific window handles.
 ///
@@ -24,7 +24,7 @@ struct ThreadSafeWindowManager {
     #[cfg(target_os = "windows")]
     inner: Option<RealWindowManager>,
     #[cfg(target_os = "macos")]
-    inner: Option<RealMacosWindowManager>,
+    inner: Option<RealWindowManager>,
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     inner: Option<()>,
 }
@@ -127,7 +127,7 @@ pub struct KeyMapper {
 
     /// Window manager (for executing window management actions) - macOS
     #[cfg(target_os = "macos")]
-    pub(crate) window_manager: Option<RealMacosWindowManager>,
+    pub(crate) window_manager: Option<RealWindowManager>,
 
     /// Tray icon (for displaying notifications)
     #[cfg(target_os = "windows")]
@@ -201,7 +201,7 @@ impl KeyMapper {
 
     /// Create a mapping engine with window manager (macOS version)
     #[cfg(target_os = "macos")]
-    pub fn with_window_manager(window_manager: RealMacosWindowManager) -> Self {
+    pub fn with_window_manager(window_manager: RealWindowManager) -> Self {
         Self {
             rules: Vec::new(),
             context_rules: Vec::new(),
@@ -707,7 +707,7 @@ impl KeyMapper {
     /// Execute window management action (macOS implementation)
     #[cfg(target_os = "macos")]
     fn execute_window_action_internal(
-        wm: RealMacosWindowManager,
+        wm: RealWindowManager,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
         use crate::platform::traits::WindowManagerTrait;
@@ -756,29 +756,29 @@ impl KeyMapper {
                 wm.move_to_monitor(window, monitor_index)?;
             }
             WindowAction::Move { x, y } => {
-                let info = <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
-                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, *x, *y, info.width, info.height)?;
+                let info = <RealWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
+                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, *x, *y, info.width, info.height)?;
             }
             WindowAction::Resize { width, height } => {
-                let info = <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
-                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, info.x, info.y, *width, *height)?;
+                let info = <RealWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
+                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, info.x, info.y, *width, *height)?;
             }
             WindowAction::Minimize => {
-                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::minimize_window(&wm, window)?;
+                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::minimize_window(&wm, window)?;
             }
             WindowAction::Maximize => {
-                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::maximize_window(&wm, window)?;
+                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::maximize_window(&wm, window)?;
             }
             WindowAction::Restore => {
-                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::restore_window(&wm, window)?;
+                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::restore_window(&wm, window)?;
             }
             WindowAction::Close => {
-                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::close_window(&wm, window)?;
+                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::close_window(&wm, window)?;
             }
             WindowAction::ToggleTopmost => {
                 CommonWindowManager::toggle_topmost(&wm, window)?;
             }
-            WindowAction::ShowDebugInfo => match <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window) {
+            WindowAction::ShowDebugInfo => match <RealWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window) {
                 Ok(info) => {
                     let debug_info = format!(
                         "Window Debug Info:\n\

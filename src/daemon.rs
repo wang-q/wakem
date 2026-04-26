@@ -36,15 +36,15 @@ use crate::platform::windows::{
 // Platform-specific imports for production code (macOS)
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
-    AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, MacosOutputDevice as OutputDevice, RealMacosWindowApi, WindowManager,
+    tray::AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
+    Launcher, OutputDevice, RealWindowApi, WindowManager,
 };
 
 // Platform-specific imports for test code (macOS)
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
-    AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, RealMacosWindowApi, WindowManager,
+    tray::AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
+    Launcher, RealWindowApi, WindowManager,
 };
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::mock::MockOutputDevice as OutputDevice;
@@ -75,7 +75,7 @@ pub struct ServerState {
     /// Window manager - macOS only
     #[cfg(target_os = "macos")]
     #[allow(dead_code)]
-    window_manager: Arc<RwLock<crate::platform::macos::WindowManager>>,
+    window_manager: Arc<RwLock<crate::platform::macos::WindowManager<RealWindowApi>>>,
     /// Whether mapping is enabled (frequently read, rarely written)
     active: Arc<AtomicBool>,
     /// Whether config has been loaded
@@ -130,7 +130,7 @@ impl ServerState {
 
     #[cfg(target_os = "macos")]
     pub fn new(shutdown_signal: ShutdownSignal) -> Self {
-        let window_manager = WindowManager::new(RealMacosWindowApi::new());
+        let window_manager = WindowManager::new(RealWindowApi::new());
         let mapper = KeyMapper::with_window_manager(window_manager);
 
         // NOTE: Common fields are duplicated with Windows version above.
@@ -143,7 +143,7 @@ impl ServerState {
             output_device: Arc::new(Mutex::new(OutputDevice::new())),
             launcher: Arc::new(Mutex::new(Launcher::new())),
             window_manager: Arc::new(RwLock::new(WindowManager::new(
-                RealMacosWindowApi::new(),
+                RealWindowApi::new(),
             ))),
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),

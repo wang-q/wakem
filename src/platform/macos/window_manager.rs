@@ -3,7 +3,7 @@
 //! Provides comprehensive window management operations on macOS,
 //! including half-screen, centering, ratio control, and multi-monitor support.
 
-use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
+use crate::platform::macos::window_api::{RealWindowApi, WindowApi};
 use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTrait};
 use anyhow::Result;
 use tracing::debug;
@@ -19,13 +19,13 @@ pub enum MonitorDirection {
     Index(i32),
 }
 
-/// Generic macOS window manager using MacosWindowApi trait
+/// Generic macOS window manager using WindowApi trait
 #[derive(Clone)]
-pub struct MacosWindowManager<A: MacosWindowApi + Clone> {
+pub struct WindowManager<A: WindowApi + Clone> {
     api: A,
 }
 
-impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
+impl<A: WindowApi + Clone> WindowManager<A> {
     pub fn new(api: A) -> Self {
         Self { api }
     }
@@ -35,22 +35,22 @@ impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     }
 }
 
-impl MacosWindowManager<RealMacosWindowApi> {
+impl WindowManager<RealWindowApi> {
     pub fn new_real() -> Self {
         Self {
-            api: RealMacosWindowApi::new(),
+            api: RealWindowApi::new(),
         }
     }
 }
 
-impl<A: MacosWindowApi + Clone + Default> Default for MacosWindowManager<A> {
+impl<A: WindowApi + Clone + Default> Default for WindowManager<A> {
     fn default() -> Self {
         Self::new(A::default())
     }
 }
 
-impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
-    for MacosWindowManager<A>
+impl<A: WindowApi + Clone + Send + Sync> WindowManagerTrait
+    for WindowManager<A>
 {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
@@ -112,7 +112,7 @@ impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
     }
 }
 
-impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager<A> {
+impl<A: WindowApi + Clone + 'static> CommonWindowApi for WindowManager<A> {
     type WindowId = WindowId;
     type WindowInfo = WindowInfo;
 
@@ -156,7 +156,7 @@ impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager
     }
 }
 
-impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
+impl<A: WindowApi + Clone> WindowManager<A> {
     #[cfg(not(test))]
     pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
@@ -186,32 +186,32 @@ impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     }
 }
 
-pub type RealMacosWindowManager = MacosWindowManager<RealMacosWindowApi>;
+pub type RealWindowManager = WindowManager<RealWindowApi>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::macos::window_api::MockMacosWindowApi;
+    use crate::platform::macos::window_api::MockWindowApi;
     use crate::types::{Alignment, Edge};
 
     #[test]
     fn test_window_manager_creation() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         drop(mgr);
     }
 
     #[test]
     fn test_get_foreground_window() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         assert_eq!(mgr.get_foreground_window(), Some(1));
     }
 
     #[test]
     fn test_move_to_center() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         CommonWindowApi::move_to_center(&mgr, 1).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
@@ -221,8 +221,8 @@ mod tests {
 
     #[test]
     fn test_set_half_screen_left() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         CommonWindowApi::set_half_screen(&mgr, 1, Edge::Left).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
@@ -234,8 +234,8 @@ mod tests {
 
     #[test]
     fn test_set_half_screen_right() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         CommonWindowApi::set_half_screen(&mgr, 1, Edge::Right).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
@@ -246,8 +246,8 @@ mod tests {
 
     #[test]
     fn test_set_half_screen_top() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         CommonWindowApi::set_half_screen(&mgr, 1, Edge::Top).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
@@ -259,8 +259,8 @@ mod tests {
 
     #[test]
     fn test_set_half_screen_bottom() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         CommonWindowApi::set_half_screen(&mgr, 1, Edge::Bottom).unwrap();
 
         let info = mgr.api.get_window_info(1).unwrap();
@@ -271,8 +271,8 @@ mod tests {
 
     #[test]
     fn test_loop_width() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
 
         CommonWindowApi::loop_width(&mgr, 1, Alignment::Left).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
@@ -281,8 +281,8 @@ mod tests {
 
     #[test]
     fn test_loop_height() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
 
         CommonWindowApi::loop_height(&mgr, 1, Alignment::Top).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
@@ -291,8 +291,8 @@ mod tests {
 
     #[test]
     fn test_set_fixed_ratio() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
 
         CommonWindowApi::set_fixed_ratio(&mgr, 1, 16.0 / 9.0).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
@@ -303,8 +303,8 @@ mod tests {
 
     #[test]
     fn test_toggle_topmost() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
 
         assert!(!mgr.api.is_maximized(1));
 
@@ -314,8 +314,8 @@ mod tests {
 
     #[test]
     fn test_snap_to_grid_2x2() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
 
         CommonWindowApi::snap_to_grid(&mgr, 1, 2, 2, 0, 0).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
@@ -334,8 +334,8 @@ mod tests {
 
     #[test]
     fn test_move_to_edge() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
 
         CommonWindowApi::move_to_edge(&mgr, 1, Edge::Left).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
@@ -357,8 +357,8 @@ mod tests {
 
     #[test]
     fn test_resize_from_corner() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
 
         CommonWindowApi::resize_from_corner(&mgr, 1, 200, 150, Edge::Right).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
@@ -368,8 +368,8 @@ mod tests {
 
     #[test]
     fn test_switch_same_process() {
-        let mock = MockMacosWindowApi::new();
-        let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
+        let mock = MockWindowApi::new();
+        let mgr = WindowManager::<MockWindowApi>::new(mock);
         mgr.switch_to_next_window_of_same_process().unwrap();
     }
 }
