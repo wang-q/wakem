@@ -11,30 +11,13 @@ use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-#[allow(dead_code)]
-impl InputDeviceConfig {
-    pub fn keyboard_only() -> Self {
-        Self {
-            capture_keyboard: true,
-            capture_mouse: false,
-            block_legacy_input: true,
-        }
-    }
-
-    pub fn mouse_only() -> Self {
-        Self {
-            capture_keyboard: false,
-            capture_mouse: true,
-            block_legacy_input: true,
-        }
-    }
-}
-
 /// Shared base state for input device implementations
 ///
 /// Encapsulates the common fields and logic shared across all platform
 /// input devices: modifier state tracking, event channel, and running flag.
-#[allow(dead_code)]
+///
+/// Note: These fields are used by macOS implementation. Windows uses
+/// a different approach with RawInputDevice directly.
 pub struct InputDeviceBase {
     pub modifier_state: ModifierState,
     pub running: bool,
@@ -59,18 +42,6 @@ impl InputDeviceBase {
             modifier_state: ModifierState::default(),
             running: false,
             event_receiver: channel().1,
-            event_sender,
-        }
-    }
-
-    pub fn with_channel(
-        event_sender: Sender<InputEvent>,
-        event_receiver: Receiver<InputEvent>,
-    ) -> Self {
-        Self {
-            modifier_state: ModifierState::default(),
-            running: false,
-            event_receiver,
             event_sender,
         }
     }
@@ -118,7 +89,8 @@ impl Default for InputDeviceBase {
 ///
 /// This struct combines [InputDeviceBase] with a platform-specific inner device
 /// to provide a unified input device interface.
-#[allow(dead_code)]
+///
+/// Note: Used by macOS implementation. Windows uses RawInputDevice directly.
 pub struct InputDevice<T> {
     pub base: InputDeviceBase,
     pub inner: Option<T>,
@@ -183,18 +155,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_keyboard_only_config() {
-        let config = InputDeviceConfig::keyboard_only();
-        assert!(config.capture_keyboard);
-        assert!(!config.capture_mouse);
-        assert!(config.block_legacy_input);
+    fn test_input_device_base_creation() {
+        let base = InputDeviceBase::new();
+        assert!(!base.is_running());
     }
 
     #[test]
-    fn test_mouse_only_config() {
-        let config = InputDeviceConfig::mouse_only();
-        assert!(!config.capture_keyboard);
-        assert!(config.capture_mouse);
-        assert!(config.block_legacy_input);
+    fn test_input_device_base_with_sender() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let base = InputDeviceBase::with_sender(tx);
+        assert!(!base.is_running());
     }
 }

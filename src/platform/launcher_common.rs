@@ -55,16 +55,6 @@ impl Launcher {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn create_action(program: impl Into<String>) -> LaunchAction {
-        LaunchAction {
-            program: program.into(),
-            args: Vec::new(),
-            working_dir: None,
-            env_vars: Vec::new(),
-        }
-    }
-
     pub fn parse_command(command: &str) -> LaunchAction {
         let parts: Vec<&str> = command.split_whitespace().collect();
         if parts.is_empty() {
@@ -106,13 +96,6 @@ mod tests {
     fn test_parse_command_no_args() {
         let action = Launcher::parse_command("calc.exe");
         assert_eq!(action.program, "calc.exe");
-        assert!(action.args.is_empty());
-    }
-
-    #[test]
-    fn test_create_action() {
-        let action = Launcher::create_action("Safari");
-        assert_eq!(action.program, "Safari");
         assert!(action.args.is_empty());
     }
 
