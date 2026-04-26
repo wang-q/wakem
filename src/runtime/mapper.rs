@@ -2,7 +2,7 @@ use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
 };
 use std::collections::HashMap;
-use tracing::{debug, trace};
+use tracing::debug;
 
 #[cfg(target_os = "windows")]
 use crate::platform::windows::window_manager::RealWindowManager;
@@ -252,15 +252,23 @@ impl KeyMapper {
         event: &KeyEvent,
         context: Option<&crate::platform::traits::WindowContext>,
     ) -> Option<Action> {
-        trace!(
-            "Processing key event: scan_code={:04X}, vk={:04X}, state={:?}",
-            event.scan_code,
-            event.virtual_key,
-            event.state
+        debug!(
+            scan_code = event.scan_code,
+            virtual_key = event.virtual_key,
+            state = ?event.state,
+            modifiers = ?event.modifiers,
+            context_rules_count = self.context_rules.len(),
+            base_rules_count = self.rules.len(),
+            "Mapper processing key event"
         );
 
         // 1. First check context-specific rules (high priority)
         if let Some(ctx) = context {
+            debug!(
+                process_name = %ctx.process_name,
+                window_class = %ctx.window_class,
+                "Checking context rules"
+            );
             for rule in &self.context_rules {
                 // Check if context matches
                 if rule.context.matches(
@@ -274,11 +282,9 @@ impl KeyMapper {
                         let adjusted_action =
                             self.adjust_action_for_key_state(action, event);
                         if adjusted_action.is_some() {
-                            trace!(
-                                "Context mapping found: {:04X} -> {:?} (context: {:?})",
-                                event.scan_code,
-                                action,
-                                rule.context
+                            debug!(
+                                "Context mapping found: {:04X} -> {:?}",
+                                event.scan_code, action
                             );
                         }
                         return adjusted_action;
@@ -289,24 +295,24 @@ impl KeyMapper {
 
         // 2. Check base rules (considering modifiers)
         let input_event = InputEvent::Key(event.clone());
-        for rule in &self.rules {
+        debug!("Checking base rules");
+        for (idx, rule) in self.rules.iter().enumerate() {
             if !rule.enabled {
                 continue;
             }
+            debug!(rule_idx = idx, trigger = ?rule.trigger, "Checking rule");
             if rule.trigger.matches(&input_event) {
                 let action = &rule.action;
                 let adjusted_action = self.adjust_action_for_key_state(action, event);
-                if adjusted_action.is_some() {
-                    trace!(
-                        "Base rule matched: trigger={:?} -> {:?}",
-                        rule.trigger,
-                        action
-                    );
-                }
+                debug!(
+                    rule_idx = idx,
+                    "Base rule matched: trigger={:?} -> {:?}", rule.trigger, action
+                );
                 return adjusted_action;
             }
         }
 
+        debug!("No matching rule found");
         None
     }
 

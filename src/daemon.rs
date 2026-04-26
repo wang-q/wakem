@@ -11,7 +11,7 @@ use crate::constants::{
     WINDOW_PRESET_APPLY_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
-use crate::platform::traits::OutputDeviceTrait;
+use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
@@ -403,6 +403,17 @@ impl ServerState {
         // Merge virtual modifiers into the event for Hyper key support
         let event = self.merge_virtual_modifiers(event).await;
 
+        // Log key event details for debugging
+        if let InputEvent::Key(ref key_event) = event {
+            debug!(
+                scan_code = key_event.scan_code,
+                virtual_key = key_event.virtual_key,
+                state = ?key_event.state,
+                modifiers = ?key_event.modifiers,
+                "Processing key event"
+            );
+        }
+
         // Filter out key release events for non-hyper keys
         // This replaces the old RI_KEY_BREAK filter in input.rs which dropped ALL key-up events.
         // We need hyper-key releases to pass through (to clear virtual_modifiers),
@@ -412,6 +423,7 @@ impl ServerState {
                 let hyper_map = self.hyper_key_map.read().await;
                 if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
                 {
+                    debug!("Filtered non-hyper key release event");
                     return;
                 }
             }
@@ -422,6 +434,8 @@ impl ServerState {
             let mut layer_manager = self.layer_manager.write().await;
             layer_manager.process_event(&event)
         };
+
+        debug!(handled = handled, action = ?action, "Layer manager processing result");
 
         if handled {
             if let Some(action) = action {
@@ -446,11 +460,15 @@ impl ServerState {
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
+        debug!(action = ?action, "Mapper processing result");
+
         // Execute action (outside lock to avoid long lock hold)
         if let Some(action) = action {
             if let Err(e) = self.execute_action(action).await {
                 error!("Failed to execute action: {}", e);
             }
+        } else {
+            debug!("No action found for event");
         }
     }
 
@@ -985,12 +1003,24 @@ fn get_current_modifier_state() -> ModifierState {
     }
 }
 
-/// Run server
+/// Run server (legacy entry point, uses default config path)
 ///
 /// Improvement: integrated graceful shutdown mechanism, supports safe exit of all background tasks
+#[allow(dead_code)]
 pub async fn run_server(
     instance_id: u32,
     preloaded_config: Option<Config>,
+) -> Result<()> {
+    run_server_with_config(instance_id, preloaded_config, None).await
+}
+
+/// Run server with optional config path
+///
+/// Improvement: integrated graceful shutdown mechanism, supports safe exit of all background tasks
+pub async fn run_server_with_config(
+    instance_id: u32,
+    preloaded_config: Option<Config>,
+    config_path: Option<std::path::PathBuf>,
 ) -> Result<()> {
     info!("Starting wakemd server (instance {})...", instance_id);
 
@@ -1013,6 +1043,24 @@ pub async fn run_server(
         drop(config);
         state.load_config(cfg).await?;
         info!("Configuration loaded from preloaded config");
+    } else if let Some(path) = config_path {
+        // Try to load from explicit config path
+        info!("Loading config from: {:?}", path);
+        match Config::from_file(&path) {
+            Ok(cfg) => {
+                let mut config = state.config.write().await;
+                config.network.instance_id = instance_id;
+                drop(config);
+                state.load_config(cfg).await?;
+                info!("Configuration loaded successfully from {:?}", path);
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to load config from {:?}: {}. Using default config.",
+                    path, e
+                );
+            }
+        }
     } else if let Err(e) = state.reload_config_from_file().await {
         warn!(
             "Failed to load config on startup: {}. Using default config.",
@@ -1068,7 +1116,12 @@ pub async fn run_server(
         let raw_input_handle =
             std::thread::spawn(move || match RawInputDevice::with_sender(std_tx) {
                 Ok(mut device) => {
-                    info!("Raw Input device initialized");
+                    // Register the device to initialize Raw Input
+                    if let Err(e) = device.register() {
+                        error!("Failed to register Raw Input device: {}", e);
+                        return;
+                    }
+                    info!("Raw Input device initialized and registered");
                     // Run until shutdown signal
                     while !raw_input_shutdown.load(Ordering::SeqCst) {
                         if let Err(e) = device.run_once() {

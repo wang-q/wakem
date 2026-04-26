@@ -14,6 +14,10 @@ pub struct Cli {
     #[arg(short, long, default_value = "0")]
     pub instance: u32,
 
+    /// Config file path (optional, defaults to standard config location)
+    #[arg(short, long)]
+    pub config: Option<std::path::PathBuf>,
+
     /// Subcommand
     #[command(subcommand)]
     pub command: Option<Commands>,

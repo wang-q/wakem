@@ -76,6 +76,6 @@ CapsLock = "Ctrl+Alt+Meta"
 # Launch Notepad and open specific file
 "Ctrl+Alt+Meta+N" = "notepad.exe"
 # Open File Explorer to D: drive
-"Ctrl+Alt+Meta+E" = "explorer.exe D:\\"
+"Ctrl+Alt+Meta+E" = "explorer.exe D:/"
 # Launch Calculator
 "Ctrl+Alt+Meta+Equal" = "calc.exe"

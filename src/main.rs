@@ -29,11 +29,15 @@ use platform::traits::AppCommand;
 
 /// Initialize logging system with support for reading log level from config file
 /// Returns the parsed Config if successfully loaded, so it can be reused by the daemon
-fn init_logging(cli: &Cli) -> Option<config::Config> {
-    let (log_level, config_result) = if let Some(config_path) =
-        config::resolve_config_file_path(None, cli.instance)
-    {
-        match config::Config::from_file(&config_path) {
+fn init_logging(cli: &Cli) -> (Option<config::Config>, Option<std::path::PathBuf>) {
+    // Use explicit config path if provided, otherwise use default location
+    let config_path = cli
+        .config
+        .clone()
+        .or_else(|| config::resolve_config_file_path(None, cli.instance));
+
+    let (log_level, config_result) = if let Some(ref path) = config_path {
+        match config::Config::from_file(path) {
             Ok(cfg) => (cfg.log_level.clone(), Some(Ok(cfg))),
             Err(e) => {
                 eprintln!("Debug: Failed to load config for log level: {}", e);
@@ -53,7 +57,7 @@ fn init_logging(cli: &Cli) -> Option<config::Config> {
         match result {
             Ok(cfg) => {
                 info!("Logging initialized with level: {}", log_level);
-                return Some(cfg);
+                return (Some(cfg), config_path);
             }
             Err(err) => {
                 debug!("Failed to load config for log level: {}", err);
@@ -62,16 +66,18 @@ fn init_logging(cli: &Cli) -> Option<config::Config> {
     }
 
     info!("Logging initialized with level: {}", log_level);
-    None
+    (None, config_path)
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let preloaded_config = init_logging(&cli);
+    let (preloaded_config, config_path) = init_logging(&cli);
 
     match cli.command {
-        Some(Commands::Daemon) => run_daemon(cli.instance, preloaded_config),
+        Some(Commands::Daemon) => {
+            run_daemon(cli.instance, preloaded_config, config_path)
+        }
         Some(Commands::Status) => cmd_status_sync(cli.instance),
         Some(Commands::Reload) => cmd_reload_sync(cli.instance),
         Some(Commands::Save) => cmd_save_sync(cli.instance),
@@ -96,14 +102,18 @@ fn main() -> Result<()> {
 }
 
 /// Start the daemon with multi-thread tokio runtime
-fn run_daemon(instance_id: u32, preloaded_config: Option<config::Config>) -> Result<()> {
+fn run_daemon(
+    instance_id: u32,
+    preloaded_config: Option<config::Config>,
+    config_path: Option<std::path::PathBuf>,
+) -> Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
 
     rt.block_on(async {
         info!("Starting wakemd (instance {})...", instance_id);
-        daemon::run_server(instance_id, preloaded_config).await
+        daemon::run_server_with_config(instance_id, preloaded_config, config_path).await
     })
 }
 
@@ -159,7 +169,7 @@ fn run_tray_sync(
             // Check and start daemon if needed
             if !is_daemon_running(instance_id) {
                 info!("Daemon not running, auto-starting...");
-                if let Err(e) = run_daemon(instance_id, None) {
+                if let Err(e) = run_daemon(instance_id, None, None) {
                     error!("Daemon exited with error: {}", e);
                 }
             } else {

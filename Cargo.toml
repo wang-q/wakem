@@ -106,10 +106,9 @@ criterion = "0.5"
 name = "basic_benchmarks"
 harness = false
 
-[target.'cfg(target_os = "macos")'.bench]
-name = "macos_bench"
-harness = false
-path = "benches/macos/macos_bench.rs"
+# Note: macOS-specific benchmarks can be run with:
+# cargo bench --bench macos_bench (on macOS only)
+# The macos_bench.rs file is located at benches/macos/macos_bench.rs
 
 [profile.bench]
 opt-level = 3

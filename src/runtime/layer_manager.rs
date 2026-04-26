@@ -3,7 +3,7 @@ use crate::types::{
     MappingRule, Trigger,
 };
 use std::collections::HashMap;
-use tracing::{debug, trace};
+use tracing::debug;
 
 /// Activation key index entry
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -62,18 +62,29 @@ impl LayerManager {
 
     /// Process keyboard event
     fn process_key_event(&mut self, event: &KeyEvent) -> (bool, Option<Action>) {
+        debug!(
+            scan_code = event.scan_code,
+            virtual_key = event.virtual_key,
+            state = ?event.state,
+            layers_count = self.layers.len(),
+            activation_keys_count = self.activation_key_index.len(),
+            base_mappings_count = self.base_mappings.len(),
+            "LayerManager processing key event"
+        );
+
         let lookup_key = ActivationKey {
             scan_code: event.scan_code,
             virtual_key: event.virtual_key,
         };
 
         if let Some(layer_name) = self.activation_key_index.get(&lookup_key) {
+            debug!(layer_name = %layer_name, "Found activation key");
             if let Some(layer) = self.layers.get(layer_name) {
                 match layer.mode {
                     LayerMode::Hold => {
                         match event.state {
                             KeyState::Pressed => {
-                                trace!("Activating layer (Hold): {}", layer.name);
+                                debug!("Activating layer (Hold): {}", layer.name);
                                 if let Some(layer) =
                                     self.layers.get(&layer.name).cloned()
                                 {
@@ -82,7 +93,7 @@ impl LayerManager {
                                 }
                             }
                             KeyState::Released => {
-                                trace!("Deactivating layer (Hold): {}", layer.name);
+                                debug!("Deactivating layer (Hold): {}", layer.name);
                                 self.stack.release_layer(&layer.name);
                             }
                         }
@@ -90,7 +101,7 @@ impl LayerManager {
                     }
                     LayerMode::Toggle => {
                         if event.state == KeyState::Pressed {
-                            trace!("Toggling layer: {}", layer.name);
+                            debug!("Toggling layer: {}", layer.name);
                             if let Some(layer) = self.layers.get(&layer.name).cloned() {
                                 self.stack.toggle_layer(layer);
                             }
@@ -104,13 +115,29 @@ impl LayerManager {
         // If not an activation key, search for mapping in active layers
         let input_event = InputEvent::Key(event.clone());
         let mappings = self.stack.get_all_mappings();
-        for rule in &mappings {
+        debug!(mappings_count = mappings.len(), "Checking layer mappings");
+        for (idx, rule) in mappings.iter().enumerate() {
+            debug!(rule_idx = idx, trigger = ?rule.trigger, "Checking layer rule");
             if rule.trigger.matches(&input_event) {
-                trace!("Found mapping in layer: {:?}", rule.action);
+                debug!("Found mapping in layer stack: {:?}", rule.action);
                 return (true, Some(rule.action.clone()));
             }
         }
 
+        // Also check base mappings directly
+        debug!(
+            base_mappings_count = self.base_mappings.len(),
+            "Checking base mappings"
+        );
+        for (idx, rule) in self.base_mappings.iter().enumerate() {
+            debug!(rule_idx = idx, trigger = ?rule.trigger, "Checking base rule");
+            if rule.trigger.matches(&input_event) {
+                debug!("Found mapping in base: {:?}", rule.action);
+                return (true, Some(rule.action.clone()));
+            }
+        }
+
+        debug!("No mapping found in LayerManager");
         (false, None)
     }
 
