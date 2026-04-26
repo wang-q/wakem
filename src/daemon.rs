@@ -28,9 +28,10 @@ use crate::platform::windows::{
 };
 
 #[cfg(all(target_os = "windows", test))]
+use crate::platform::mock::MockOutputDevice as OutputDevice;
+#[cfg(all(target_os = "windows", test))]
 use crate::platform::windows::{
-    Launcher, LegacyRawInputDevice as RawInputDevice, MockOutputDevice as OutputDevice,
-    WindowManager, WindowPresetManager,
+    Launcher, LegacyRawInputDevice as RawInputDevice, WindowManager, WindowPresetManager,
 };
 
 #[cfg(target_os = "macos")]

@@ -110,37 +110,65 @@ impl MockInputDevice {
 
     pub fn inject_key_press(&self, scan_code: u16, virtual_key: u16) {
         let event = KeyEvent::new(scan_code, virtual_key, KeyState::Pressed);
-        self.state.lock().unwrap().events.push_back(InputEvent::Key(event));
+        self.state
+            .lock()
+            .unwrap()
+            .events
+            .push_back(InputEvent::Key(event));
     }
 
     pub fn inject_key_release(&self, scan_code: u16, virtual_key: u16) {
         let event = KeyEvent::new(scan_code, virtual_key, KeyState::Released);
-        self.state.lock().unwrap().events.push_back(InputEvent::Key(event));
+        self.state
+            .lock()
+            .unwrap()
+            .events
+            .push_back(InputEvent::Key(event));
     }
 
     pub fn inject_mouse_move(&self, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::Move, x, y);
-        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
+        self.state
+            .lock()
+            .unwrap()
+            .events
+            .push_back(InputEvent::Mouse(event));
     }
 
     pub fn inject_mouse_button_down(&self, button: MouseButton, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::ButtonDown(button), x, y);
-        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
+        self.state
+            .lock()
+            .unwrap()
+            .events
+            .push_back(InputEvent::Mouse(event));
     }
 
     pub fn inject_mouse_button_up(&self, button: MouseButton, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::ButtonUp(button), x, y);
-        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
+        self.state
+            .lock()
+            .unwrap()
+            .events
+            .push_back(InputEvent::Mouse(event));
     }
 
     pub fn inject_wheel(&self, delta: i32, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::Wheel(delta), x, y);
-        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
+        self.state
+            .lock()
+            .unwrap()
+            .events
+            .push_back(InputEvent::Mouse(event));
     }
 
     pub fn inject_hwheel(&self, delta: i32, x: i32, y: i32) {
         let event = MouseEvent::new(MouseEventType::HWheel(delta), x, y);
-        self.state.lock().unwrap().events.push_back(InputEvent::Mouse(event));
+        self.state
+            .lock()
+            .unwrap()
+            .events
+            .push_back(InputEvent::Mouse(event));
     }
 
     pub fn inject_event(&self, event: InputEvent) {

@@ -15,7 +15,11 @@ use tracing::debug;
 pub struct CommonWindowManager;
 
 /// Find the monitor that contains the given point, falling back to the first monitor.
-fn find_monitor_for_point(monitors: &[MonitorInfo], x: i32, y: i32) -> Option<&MonitorInfo> {
+fn find_monitor_for_point(
+    monitors: &[MonitorInfo],
+    x: i32,
+    y: i32,
+) -> Option<&MonitorInfo> {
     monitors
         .iter()
         .find(|m| x >= m.x && x < m.x + m.width && y >= m.y && y < m.y + m.height)
@@ -49,6 +53,9 @@ pub trait CommonWindowApi {
     fn is_topmost(&self, window: Self::WindowId) -> bool;
     /// Set window topmost state
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+
+    /// Get the underlying API reference (for extension methods)
+    fn api(&self) -> &dyn std::any::Any;
 
     /// Move window to center of its current monitor
     fn move_to_center(&self, window: Self::WindowId) -> Result<()>
@@ -91,11 +98,7 @@ pub trait CommonWindowApi {
     }
 
     /// Set window to a fixed aspect ratio and scale it up/down cyclically
-    fn set_fixed_ratio(
-        &self,
-        window: Self::WindowId,
-        ratio: f32,
-    ) -> Result<()>
+    fn set_fixed_ratio(&self, window: Self::WindowId, ratio: f32) -> Result<()>
     where
         Self: Sized,
     {
@@ -117,6 +120,97 @@ pub trait CommonWindowApi {
         Self: Sized,
     {
         CommonWindowManager::toggle_topmost(self, window)
+    }
+
+    /// Get foreground window information
+    fn get_foreground_window_info(
+        &self,
+    ) -> Option<Result<crate::platform::traits::WindowInfo>>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    /// Set window frame (convenience method)
+    fn set_window_frame(&self, window: Self::WindowId, frame: &WindowFrame) -> Result<()>
+    where
+        Self: Sized,
+    {
+        self.set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
+    }
+
+    /// Resize window from corner with anchor
+    fn resize_from_corner(
+        &self,
+        window: Self::WindowId,
+        delta_w: i32,
+        delta_h: i32,
+        anchor: Edge,
+    ) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let info = self.get_window_info(window)?;
+
+        let (new_x, new_y, new_w, new_h) = match anchor {
+            Edge::Right | Edge::Bottom => (
+                info.x(),
+                info.y(),
+                (info.width() + delta_w).max(100),
+                (info.height() + delta_h).max(100),
+            ),
+            Edge::Left => (
+                (info.x() - delta_w).max(0),
+                info.y(),
+                (info.width() + delta_w).max(100),
+                (info.height() + delta_h).max(100),
+            ),
+            Edge::Top => (
+                info.x(),
+                (info.y() - delta_h).max(0),
+                (info.width() + delta_w).max(100),
+                (info.height() + delta_h).max(100),
+            ),
+        };
+
+        self.set_window_pos(window, new_x, new_y, new_w, new_h)?;
+        debug!(
+            "Resized from {:?}: {}x{} at ({}, {})",
+            anchor, new_w, new_h, new_x, new_y
+        );
+        Ok(())
+    }
+
+    /// Snap window to grid position
+    fn snap_to_grid(
+        &self,
+        window: Self::WindowId,
+        cols: u32,
+        rows: u32,
+        col_idx: u32,
+        row_idx: u32,
+    ) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let monitors = self.get_monitors();
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+
+        let cell_w = monitor.width / cols as i32;
+        let cell_h = monitor.height / rows as i32;
+
+        let new_x = monitor.x + col_idx as i32 * cell_w;
+        let new_y = monitor.y + row_idx as i32 * cell_h;
+
+        self.set_window_pos(window, new_x, new_y, cell_w, cell_h)?;
+        debug!(
+            "Snapped to grid [{},{}] of {}x{}: {}x{} at ({}, {})",
+            col_idx, row_idx, cols, rows, cell_w, cell_h, new_x, new_y
+        );
+        Ok(())
     }
 }
 
@@ -249,11 +343,7 @@ impl CommonWindowManager {
 
     /// Set window to a fixed aspect ratio and scale it up/down cyclically
     /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
-    pub fn set_fixed_ratio<A, W, I>(
-        api: &A,
-        window: W,
-        ratio: f32,
-    ) -> Result<()>
+    pub fn set_fixed_ratio<A, W, I>(api: &A, window: W, ratio: f32) -> Result<()>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
         I: WindowInfoProvider,
@@ -298,10 +388,7 @@ impl CommonWindowManager {
 
     /// Set window to its "native" content ratio (e.g., video 16:9) and cycle sizes
     /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
-    pub fn set_native_ratio<A, W, I>(
-        api: &A,
-        window: W,
-    ) -> Result<()>
+    pub fn set_native_ratio<A, W, I>(api: &A, window: W) -> Result<()>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
         I: WindowInfoProvider,

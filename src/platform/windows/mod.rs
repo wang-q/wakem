@@ -3,7 +3,6 @@
 pub mod context;
 pub mod input;
 pub mod input_device;
-pub mod launcher;
 pub mod output_device;
 pub mod tray;
 pub mod window_api;
@@ -11,39 +10,18 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
+pub use crate::platform::launcher_common::Launcher;
 pub use input::RawInputDevice as LegacyRawInputDevice;
 pub use input_device::RawInputDevice;
-pub use launcher::Launcher;
 pub use output_device::SendInputDevice;
-#[allow(unused_imports)]
-pub use tray::{
-    run_tray_message_loop, stop_tray, RealTrayApi, TrayApi, TrayIcon, TrayManager,
-};
+pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
 pub use window_api::RealWindowApi;
-
-#[allow(unused_imports)]
-pub use crate::platform::traits::{
-    AppCommand, InputDeviceConfig, MenuAction, MonitorInfo, MonitorWorkArea,
-    WindowFrame, WindowOperation, WindowState,
-};
-
-#[allow(unused_imports)]
-pub use crate::config::WindowPreset;
-
-#[cfg(test)]
-#[allow(unused_imports)]
-pub use crate::platform::mock::MockInputDevice;
-#[cfg(test)]
-#[allow(unused_imports)]
-pub use crate::platform::mock::MockOutputDevice;
-#[cfg(test)]
-pub use window_api::MockWindowApi;
-
-#[allow(unused_imports)]
-pub use crate::platform::window_preset_common::WindowPresetApi;
 pub use window_event_hook::WindowEventHook;
 pub use window_manager::{MonitorDirection, WindowManager};
 pub use window_preset::WindowPresetManager;
+
+#[cfg(test)]
+pub use window_api::MockWindowApi;
 
 /// Get current modifier state for Windows
 pub fn get_modifier_state() -> crate::types::ModifierState {

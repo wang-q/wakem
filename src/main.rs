@@ -20,10 +20,12 @@ use client::DaemonClient;
 
 // Platform-specific imports
 #[cfg(target_os = "windows")]
-use platform::windows::{run_tray_message_loop, AppCommand};
+use platform::windows::run_tray_message_loop;
 
 #[cfg(target_os = "macos")]
-use platform::macos::{run_tray_event_loop, AppCommand};
+use platform::macos::run_tray_event_loop;
+
+use platform::traits::AppCommand;
 
 /// Initialize logging system with support for reading log level from config file
 /// Returns the parsed Config if successfully loaded, so it can be reused by the daemon

@@ -252,9 +252,13 @@ impl<A: WindowApi> WindowManager<A> {
 }
 
 // Implement CommonWindowApi for WindowManager to use common window manager logic
-impl<A: WindowApi> CommonWindowApi for WindowManager<A> {
+impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     type WindowId = HWND;
     type WindowInfo = WindowInfo;
+
+    fn api(&self) -> &dyn std::any::Any {
+        self
+    }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
         self.get_window_info(window)

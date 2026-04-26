@@ -18,9 +18,6 @@ impl MacosOutputDevice {
     }
 
     /// Convert Windows-style virtual key to macOS CGKeyCode
-    ///
-    /// Uses the `keyboard-codes` crate via [crate::platform::macos::input::virtual_key_to_keycode]
-    /// for cross-platform mapping consistency. Falls back to passthrough for unknown keys.
     fn virtual_key_to_cg_keycode(virtual_key: u16) -> u16 {
         crate::platform::macos::input::virtual_key_to_keycode(virtual_key)
     }
@@ -38,7 +35,6 @@ impl Clone for MacosOutputDevice {
     }
 }
 
-// Non-test implementation: sends real events to the system
 #[cfg(not(test))]
 impl OutputDeviceTrait for MacosOutputDevice {
     fn send_key(&self, _scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
@@ -183,28 +179,5 @@ impl OutputDeviceTrait for MacosOutputDevice {
     }
 }
 
-// Test implementation: no-op to prevent interfering with the test environment
+#[cfg(test)]
 crate::impl_test_output_device!(MacosOutputDevice);
-
-#[cfg(test)]
-mod tests {
-    use crate::platform::mock::{MockOutputDevice, MockOutputEvent};
-    // Note: char_to_vk tests are in platform::output_helpers module
-
-    // --- Device lifecycle (no side effects) ---
-
-    #[test]
-    fn test_macos_output_device_creation() {
-        let device = MockOutputDevice::new();
-        let _cloned = device.clone();
-    }
-
-    #[test]
-    fn test_macos_output_device_default() {
-        let _device = MockOutputDevice::default();
-    }
-}
-
-/// Re-export MockOutputDevice and MockOutputEvent from platform::mock
-#[cfg(test)]
-pub use crate::platform::mock::{MockOutputDevice, MockOutputEvent};

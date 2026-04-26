@@ -403,7 +403,10 @@ impl KeyMapper {
                 WindowAction::LoopHeight(align) => {
                     wm.loop_height(hwnd, *align)?;
                 }
-                WindowAction::FixedRatio { ratio, scale_index: _ } => {
+                WindowAction::FixedRatio {
+                    ratio,
+                    scale_index: _,
+                } => {
                     wm.set_fixed_ratio(hwnd, *ratio)?;
                 }
                 WindowAction::NativeRatio { scale_index: _ } => {
@@ -478,7 +481,7 @@ impl KeyMapper {
         x: i32,
         y: i32,
     ) -> anyhow::Result<()> {
-        use crate::platform::windows::WindowFrame;
+        use crate::platform::traits::WindowFrame;
         let info = wm.get_window_info(hwnd)?;
         let new_frame = WindowFrame::new(x, y, info.frame.width, info.frame.height);
         wm.set_window_frame(hwnd, &new_frame)
@@ -491,7 +494,7 @@ impl KeyMapper {
         width: i32,
         height: i32,
     ) -> anyhow::Result<()> {
-        use crate::platform::windows::WindowFrame;
+        use crate::platform::traits::WindowFrame;
         let info = wm.get_window_info(hwnd)?;
         let new_frame = WindowFrame::new(info.frame.x, info.frame.y, width, height);
         wm.set_window_frame(hwnd, &new_frame)

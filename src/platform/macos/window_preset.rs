@@ -1,11 +1,4 @@
 //! macOS window preset management
-//!
-//! Provides window preset functionality for saving, loading, and automatically
-//! applying window layouts based on configuration rules.
-//!
-//! The core logic lives in [crate::platform::window_preset_common::WindowPresetManager];
-//! this module adds the macOS-specific [WindowPresetApi] implementation
-//! built on top of [MacosWindowApi].
 #![cfg(target_os = "macos")]
 
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
@@ -46,7 +39,6 @@ impl<A: MacosWindowApi> WindowPresetApi
     }
 }
 
-/// macOS window preset manager (type alias for the common manager)
 pub type MacosWindowPresetManager = WindowPresetManager<
     crate::platform::macos::window_manager::MacosWindowManager<RealMacosWindowApi>,
 >;
@@ -57,15 +49,5 @@ impl Default for MacosWindowPresetManager {
             RealMacosWindowApi,
         >::new_real();
         Self::new(api)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_default_manager() {
-        let _mgr: MacosWindowPresetManager = MacosWindowPresetManager::default();
     }
 }

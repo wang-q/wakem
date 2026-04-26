@@ -15,7 +15,7 @@ use crate::types::{Action, KeyAction, Macro, ModifierState};
 use crate::platform::windows::SendInputDevice as OutputDevice;
 
 #[cfg(all(target_os = "windows", test))]
-use crate::platform::windows::MockOutputDevice as OutputDevice;
+use crate::platform::mock::MockOutputDevice as OutputDevice;
 
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::MacosOutputDevice as OutputDevice;

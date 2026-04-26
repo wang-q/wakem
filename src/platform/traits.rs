@@ -5,9 +5,7 @@
 
 #[allow(unused_imports)]
 use crate::platform::output_helpers::char_to_vk;
-use crate::types::{
-    InputEvent, KeyAction, ModifierState, MouseAction, MouseButton,
-};
+use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
 
 /// Input device configuration

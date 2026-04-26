@@ -253,7 +253,8 @@ impl MacosWindowApi for RealMacosWindowApi {
         for display_id in display_ids {
             let bounds = unsafe { CGDisplayBounds(display_id) };
             // Convert CG coordinates (bottom-left origin) to Windows-style (top-left origin)
-            let windows_y = (screen_height - bounds.origin.y - bounds.size.height) as i32;
+            let windows_y =
+                (screen_height - bounds.origin.y - bounds.size.height) as i32;
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
                 y: windows_y,
@@ -265,7 +266,8 @@ impl MacosWindowApi for RealMacosWindowApi {
         if monitors.is_empty() {
             let main = CGDisplay::main();
             let bounds = unsafe { CGDisplayBounds(main.id) };
-            let windows_y = (screen_height - bounds.origin.y - bounds.size.height) as i32;
+            let windows_y =
+                (screen_height - bounds.origin.y - bounds.size.height) as i32;
             monitors.push(MonitorInfo {
                 x: bounds.origin.x as i32,
                 y: windows_y,

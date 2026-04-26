@@ -108,11 +108,12 @@ impl MacosWindowEventHook {
 
                             if current_window_count != last_window_count && initialized {
                                 if current_window_count > last_window_count {
-                                    let _ =
-                                        sender.send(PlatformWindowEvent::WindowCreated {
+                                    let _ = sender.send(
+                                        PlatformWindowEvent::WindowCreated {
                                             process_name: last_process.clone(),
                                             window_title: last_title.clone(),
-                                        });
+                                        },
+                                    );
                                     debug!("Window created in {}", last_process);
                                 } else if current_window_count < last_window_count {
                                     let _ =

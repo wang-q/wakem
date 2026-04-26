@@ -1,11 +1,4 @@
 //! Windows window preset implementation
-//!
-//! Provides window preset functionality for saving, loading, and automatically
-//! applying window layouts based on configuration rules.
-//!
-//! The core logic lives in [crate::platform::window_preset_common::WindowPresetManager];
-//! this module adds the Windows-specific [WindowPresetApi] implementation
-//! built on top of [WindowManager].
 #![cfg(target_os = "windows")]
 
 use crate::platform::traits::WindowInfo;
@@ -85,7 +78,6 @@ unsafe fn get_window_executable_path(hwnd: HWND) -> Result<String> {
     super::get_executable_path_by_pid(pid)
 }
 
-/// Windows window preset manager (type alias for the common manager)
 pub type WindowPresetManager = CommonWindowPresetManager<
     WindowManager<crate::platform::windows::window_api::RealWindowApi>,
 >;
@@ -93,51 +85,5 @@ pub type WindowPresetManager = CommonWindowPresetManager<
 impl Default for WindowPresetManager {
     fn default() -> Self {
         Self::new(WindowManager::new())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::WindowPreset;
-
-    #[allow(dead_code)]
-    fn test_hwnd(value: usize) -> HWND {
-        HWND(value as *mut core::ffi::c_void)
-    }
-
-    #[test]
-    fn test_preset_matches() {
-        let preset = WindowPreset {
-            name: "test".to_string(),
-            process_name: Some("chrome.exe".to_string()),
-            executable_path: None,
-            title_pattern: None,
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 600,
-        };
-
-        assert!(preset.matches("chrome.exe", None, "Google Chrome"));
-        assert!(!preset.matches("firefox.exe", None, "Firefox"));
-    }
-
-    #[test]
-    fn test_preset_wildcard_match() {
-        let preset = WindowPreset {
-            name: "test".to_string(),
-            process_name: Some("*.exe".to_string()),
-            executable_path: None,
-            title_pattern: Some("*Chrome*".to_string()),
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 600,
-        };
-
-        assert!(preset.matches("chrome.exe", None, "Google Chrome"));
-        assert!(preset.matches("notepad.exe", None, "Chrome Extension"));
-        assert!(!preset.matches("chrome.exe", None, "Firefox"));
     }
 }

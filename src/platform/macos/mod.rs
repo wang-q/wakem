@@ -7,7 +7,6 @@
 pub mod context;
 pub mod input;
 pub mod input_device;
-pub mod launcher;
 pub mod native_api;
 pub mod output_device;
 pub mod tray;
@@ -16,28 +15,19 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
+pub use crate::platform::launcher_common::Launcher;
 pub use input::CGEventTapDevice as MacosEventTap;
 pub use input_device::MacosInputDevice;
-pub use launcher::Launcher;
 pub use output_device::MacosOutputDevice;
-pub use crate::platform::window_preset_common::WindowPresetApi;
 pub use tray::{
-    run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, MenuAction,
-    RealTrayApi, TrayApi, TrayIconWrapper as TrayIcon, TrayManager,
+    run_tray_event_loop, run_tray_message_loop, stop_tray, RealTrayApi,
+    TrayIconWrapper as TrayIcon, TrayManager,
 };
-pub use window_api::{MacosWindowApi, MonitorWorkArea, RealMacosWindowApi, WindowState};
+pub use window_api::{MacosWindowApi, RealMacosWindowApi};
 pub use window_event_hook::MacosWindowEventHook;
 pub use window_manager::{MacosWindowManager, RealMacosWindowManager};
 pub use window_preset::MacosWindowPresetManager;
 
-pub use crate::platform::traits::InputDeviceConfig;
-
-#[cfg(test)]
-pub use crate::platform::mock::MockInputDevice;
-#[cfg(test)]
-pub use crate::platform::mock::MockOutputDevice as MockMacosOutputDevice;
-#[cfg(test)]
-pub use tray::MockTrayApi;
 #[cfg(test)]
 pub use window_api::MockMacosWindowApi;
 

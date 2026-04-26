@@ -66,7 +66,11 @@ impl TrayIconData {
             LookupIconIdFromDirectoryEx(ICON_BYTES.as_ptr(), true, 0, 0, LR_DEFAULTCOLOR)
         } as usize;
         if offset >= ICON_BYTES.len() {
-            panic!("Icon offset {} out of bounds (max {})", offset, ICON_BYTES.len());
+            panic!(
+                "Icon offset {} out of bounds (max {})",
+                offset,
+                ICON_BYTES.len()
+            );
         }
         let icon_data = &ICON_BYTES[offset..];
         let hicon = unsafe {
@@ -347,7 +351,11 @@ impl TrayIcon {
             LookupIconIdFromDirectoryEx(ICON_BYTES.as_ptr(), true, 0, 0, LR_DEFAULTCOLOR)
         } as usize;
         if offset >= ICON_BYTES.len() {
-            panic!("Icon offset {} out of bounds (max {})", offset, ICON_BYTES.len());
+            panic!(
+                "Icon offset {} out of bounds (max {})",
+                offset,
+                ICON_BYTES.len()
+            );
         }
         let icon_data = &ICON_BYTES[offset..];
         let hicon = unsafe {
@@ -629,6 +637,7 @@ impl TrayApi for RealTrayApi {
 pub use crate::platform::tray_common::MockTrayApi;
 
 // Re-export shared TrayManager from tray_common
+#[allow(unused_imports)]
 pub use crate::platform::tray_common::TrayManager;
 
 #[cfg(test)]

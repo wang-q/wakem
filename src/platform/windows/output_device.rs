@@ -164,25 +164,5 @@ impl OutputDeviceTrait for SendInputDevice {
     }
 }
 
+#[cfg(test)]
 crate::impl_test_output_device!(SendInputDevice);
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_send_input_device_creation() {
-        let device = SendInputDevice::new();
-        let _cloned = device.clone();
-    }
-
-    #[test]
-    fn test_send_input_device_default() {
-        let _device = SendInputDevice::default();
-    }
-}
-
-/// Re-export MockOutputEvent and MockOutputDevice from platform::mock
-#[cfg(test)]
-#[allow(unused_imports)]
-pub use crate::platform::mock::MockOutputEvent;

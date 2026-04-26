@@ -5,15 +5,11 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
-use crate::platform::traits::{
-    MonitorInfo, WindowFrame, WindowId, WindowInfo, WindowManagerTrait,
-};
-use crate::types::Edge;
+use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTrait};
 use anyhow::Result;
 use tracing::debug;
 
-use crate::platform::traits::WindowInfoProvider;
-use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
+use crate::platform::window_manager_common::CommonWindowApi;
 
 /// Generic macOS window manager using MacosWindowApi trait
 pub struct MacosWindowManager<A: MacosWindowApi> {
@@ -109,9 +105,13 @@ impl<A: MacosWindowApi + Send + Sync> WindowManagerTrait for MacosWindowManager<
     }
 }
 
-impl<A: MacosWindowApi> CommonWindowApi for MacosWindowManager<A> {
+impl<A: MacosWindowApi + 'static> CommonWindowApi for MacosWindowManager<A> {
     type WindowId = WindowId;
     type WindowInfo = WindowInfo;
+
+    fn api(&self) -> &dyn std::any::Any {
+        self
+    }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
         self.api.get_window_info(window)
@@ -150,20 +150,6 @@ impl<A: MacosWindowApi> CommonWindowApi for MacosWindowManager<A> {
 }
 
 impl<A: MacosWindowApi> MacosWindowManager<A> {
-    pub fn get_foreground_window_info(&self) -> Option<Result<WindowInfo>> {
-        let id = self.api.get_foreground_window()?;
-        Some(self.api.get_window_info(id))
-    }
-
-    pub fn set_window_frame(
-        &self,
-        window: WindowId,
-        frame: &WindowFrame,
-    ) -> Result<()> {
-        self.api
-            .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
-    }
-
     #[cfg(not(test))]
     pub fn switch_to_next_window_of_same_process(
         &self,
@@ -197,73 +183,6 @@ impl<A: MacosWindowApi> MacosWindowManager<A> {
         debug!("[TEST MODE] switch_to_next_window_of_same_process called");
         Ok(())
     }
-
-    pub fn resize_from_corner(
-        &self,
-        window: WindowId,
-        delta_w: i32,
-        delta_h: i32,
-        anchor: Edge,
-    ) -> Result<()> {
-        let info = self.api.get_window_info(window)?;
-
-        let (new_x, new_y, new_w, new_h) = match anchor {
-            Edge::Right | Edge::Bottom => (
-                info.x,
-                info.y,
-                (info.width + delta_w).max(100),
-                (info.height + delta_h).max(100),
-            ),
-            Edge::Left => (
-                (info.x - delta_w).max(0),
-                info.y,
-                (info.width + delta_w).max(100),
-                (info.height + delta_h).max(100),
-            ),
-            Edge::Top => (
-                info.x,
-                (info.y - delta_h).max(0),
-                (info.width + delta_w).max(100),
-                (info.height + delta_h).max(100),
-            ),
-        };
-
-        self.api
-            .set_window_pos(window, new_x, new_y, new_w, new_h)?;
-        debug!(
-            "Resized from {:?}: {}x{} at ({}, {})",
-            anchor, new_w, new_h, new_x, new_y
-        );
-        Ok(())
-    }
-
-    pub fn snap_to_grid(
-        &self,
-        window: WindowId,
-        cols: u32,
-        rows: u32,
-        col_idx: u32,
-        row_idx: u32,
-    ) -> Result<()> {
-        let monitors = self.api.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-
-        let cell_w = monitor.width / cols as i32;
-        let cell_h = monitor.height / rows as i32;
-
-        let new_x = monitor.x + col_idx as i32 * cell_w;
-        let new_y = monitor.y + row_idx as i32 * cell_h;
-
-        self.api
-            .set_window_pos(window, new_x, new_y, cell_w, cell_h)?;
-        debug!(
-            "Snapped to grid [{},{}] of {}x{}: {}x{} at ({}, {})",
-            col_idx, row_idx, cols, rows, cell_w, cell_h, new_x, new_y
-        );
-        Ok(())
-    }
 }
 
 pub type RealMacosWindowManager = MacosWindowManager<RealMacosWindowApi>;
@@ -272,7 +191,7 @@ pub type RealMacosWindowManager = MacosWindowManager<RealMacosWindowApi>;
 mod tests {
     use super::*;
     use crate::platform::macos::window_api::MockMacosWindowApi;
-    use crate::types::Alignment;
+    use crate::types::{Alignment, Edge};
 
     #[test]
     fn test_window_manager_creation() {
@@ -397,14 +316,14 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
-        mgr.snap_to_grid(1, 2, 2, 0, 0).unwrap();
+        CommonWindowApi::snap_to_grid(&mgr, 1, 2, 2, 0, 0).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.x, 0);
         assert_eq!(info.y, 0);
         assert_eq!(info.width, 960);
         assert_eq!(info.height, 540);
 
-        mgr.snap_to_grid(1, 2, 2, 1, 1).unwrap();
+        CommonWindowApi::snap_to_grid(&mgr, 1, 2, 2, 1, 1).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.x, 960);
         assert_eq!(info.y, 540);
@@ -440,7 +359,7 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
 
-        mgr.resize_from_corner(1, 200, 150, Edge::Right).unwrap();
+        CommonWindowApi::resize_from_corner(&mgr, 1, 200, 150, Edge::Right).unwrap();
         let info = mgr.api.get_window_info(1).unwrap();
         assert_eq!(info.width, 1000);
         assert_eq!(info.height, 750);
@@ -451,18 +370,5 @@ mod tests {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
         mgr.switch_to_next_window_of_same_process(1).unwrap();
-    }
-
-    #[test]
-    fn test_window_frame_aspect_ratio() {
-        let frame = WindowFrame::new(0, 0, 1920, 1080);
-        assert!((frame.aspect_ratio() - 16.0 / 9.0).abs() < 0.001);
-        assert!(frame.is_valid());
-    }
-
-    #[test]
-    fn test_window_frame_invalid() {
-        let frame = WindowFrame::new(0, 0, -100, 500);
-        assert!(!frame.is_valid());
     }
 }
