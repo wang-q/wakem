@@ -576,25 +576,8 @@ fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
                 }
             }
         },
-        open_config_folder_macos_sync,
+        open_config_folder_sync,
     ));
-}
-
-/// Open config folder (macOS) - sync version
-#[cfg(target_os = "macos")]
-fn open_config_folder_macos_sync(instance_id: u32) -> Result<()> {
-    use std::process::Command;
-
-    let config_path = config::resolve_config_file_path(None, instance_id)
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| {
-            std::env::var("HOME")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_default()
-        });
-
-    Command::new("open").arg(config_path).spawn()?;
-    Ok(())
 }
 
 /// Open config folder - sync version
@@ -604,12 +587,24 @@ fn open_config_folder_sync(instance_id: u32) -> Result<()> {
     let config_path = config::resolve_config_file_path(None, instance_id)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| {
-            std::env::var("USERPROFILE")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_default()
+            #[cfg(target_os = "windows")]
+            {
+                std::env::var("USERPROFILE")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_default()
+            }
+            #[cfg(target_os = "macos")]
+            {
+                std::env::var("HOME")
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_default()
+            }
         });
 
+    #[cfg(target_os = "windows")]
     Command::new("explorer").arg(config_path).spawn()?;
+    #[cfg(target_os = "macos")]
+    Command::new("open").arg(config_path).spawn()?;
 
     Ok(())
 }

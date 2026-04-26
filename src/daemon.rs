@@ -10,7 +10,9 @@ use crate::constants::{
     IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
-use crate::platform::traits::{ContextProvider, NotificationService, OutputDeviceTrait, PlatformUtilities};
+use crate::platform::traits::{
+    ContextProvider, NotificationService, OutputDeviceTrait, PlatformUtilities,
+};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
@@ -884,9 +886,11 @@ impl ServerState {
         *h = Some(hwnd_value);
         // Also update the notification service with the hwnd
         if let Ok(service) = self.notification_service.try_lock() {
-            if let Some(win_svc) =
-                service.as_ref().as_any().downcast_ref::<crate::platform::windows::WindowsNotificationService>()
-            {
+            if let Some(win_svc) = service
+                .as_ref()
+                .as_any()
+                .downcast_ref::<crate::platform::windows::WindowsNotificationService>(
+            ) {
                 win_svc.set_message_window_hwnd(hwnd_value);
             }
         }
@@ -929,38 +933,11 @@ impl Default for ServerState {
 
 /// Get current modifier key state using platform abstraction layer
 fn get_current_modifier_state() -> ModifierState {
-    #[cfg(target_os = "windows")]
-    {
-        <crate::platform::windows::WindowsPlatform as PlatformUtilities>::get_modifier_state()
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        <crate::platform::macos::MacosPlatform as PlatformUtilities>::get_modifier_state()
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        ModifierState::default()
-    }
+    <crate::platform::CurrentPlatform as PlatformUtilities>::get_modifier_state()
 }
 
-/// Get current window context using platform abstraction layer
 fn get_current_window_context() -> Option<crate::platform::traits::WindowContext> {
-    #[cfg(target_os = "windows")]
-    {
-        <crate::platform::windows::WindowsPlatform as ContextProvider>::get_current_context()
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        <crate::platform::macos::MacosPlatform as ContextProvider>::get_current_context()
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        None
-    }
+    <crate::platform::CurrentPlatform as ContextProvider>::get_current_context()
 }
 
 /// Run server (legacy entry point, uses default config path)

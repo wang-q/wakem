@@ -7,7 +7,8 @@
 
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;
-use crate::platform::traits::WindowInfo;
+use crate::platform::traits::{WindowApiBase, WindowInfo};
+use crate::platform::window_manager_common::WindowManager;
 use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -33,6 +34,38 @@ pub trait WindowPresetApi {
     ) -> Result<()>;
     fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
     fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
+}
+
+impl<A: WindowApiBase + 'static> WindowPresetApi for WindowManager<A> {
+    type WindowId = A::WindowId;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        self.api().get_foreground_window()
+    }
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+        self.api().get_window_info(window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    ) -> Result<()> {
+        let frame = crate::platform::traits::WindowFrame::new(x, y, w, h);
+        self.set_window_frame(window, &frame)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.api().minimize_window(window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.api().maximize_window(window)
+    }
 }
 
 /// Macro to implement [WindowPresetApi] for a window manager.

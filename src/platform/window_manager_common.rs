@@ -4,7 +4,8 @@
 //! that can be used by any platform-specific window manager.
 
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo, WindowInfoProvider,
+    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo,
+    WindowInfoProvider,
 };
 use crate::types::{Alignment, Edge};
 use anyhow::Result;
@@ -58,17 +59,16 @@ impl<A: WindowApiBase> WindowManager<A> {
 
         Ok(format!(
             "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
-            info.title,
-            info.id,
-            info.x,
-            info.y,
-            info.width,
-            info.height,
+            info.title, info.id, info.x, info.y, info.width, info.height,
         ))
     }
 
     /// Set window position and size
-    pub fn set_window_frame(&self, window: A::WindowId, frame: &WindowFrame) -> Result<()> {
+    pub fn set_window_frame(
+        &self,
+        window: A::WindowId,
+        frame: &WindowFrame,
+    ) -> Result<()> {
         self.api.ensure_window_restored(window)?;
         self.api
             .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)?;
@@ -99,6 +99,68 @@ impl<A: WindowApiBase> WindowManager<A> {
     /// Close window
     pub fn close_window(&self, window: A::WindowId) -> Result<()> {
         self.api.close_window(window)
+    }
+}
+
+impl<A: WindowApiBase + 'static> CommonWindowApi for WindowManager<A> {
+    type WindowId = A::WindowId;
+    type WindowInfo = WindowInfo;
+
+    fn api(&self) -> &dyn std::any::Any {
+        self.api()
+    }
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
+        self.api().get_window_info(window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        let frame = WindowFrame::new(x, y, width, height);
+        self.set_window_frame(window, &frame)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        #[cfg(not(test))]
+        {
+            self.api().get_monitors()
+        }
+        #[cfg(test)]
+        {
+            if let Some(_window) = self.api().get_foreground_window() {
+                if let Some(monitor) = self.api().get_monitors().first().cloned() {
+                    return vec![monitor];
+                }
+            }
+            vec![MonitorInfo {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            }]
+        }
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.api().is_window_valid(window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.api().is_maximized(window)
+    }
+
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.api().is_topmost(window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.api().set_topmost(window, topmost)
     }
 }
 

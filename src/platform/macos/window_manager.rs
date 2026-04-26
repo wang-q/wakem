@@ -8,8 +8,8 @@
 //! All operations complete in < 10ms (typically < 5ms).
 
 use crate::platform::macos::window_api::RealWindowApi;
-use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowFrame, WindowId};
 pub use crate::platform::traits::MonitorDirection;
+use crate::platform::traits::{WindowApiBase, WindowFrame, WindowId};
 pub use crate::platform::window_manager_common::WindowManager;
 use anyhow::Result;
 use tracing::debug;
@@ -56,7 +56,11 @@ impl Default for RealWindowManager {
 /// Features requiring real macOS API
 impl RealWindowManager {
     /// Move window to another monitor
-    pub fn move_to_monitor(&self, window: WindowId, direction: MonitorDirection) -> Result<()> {
+    pub fn move_to_monitor(
+        &self,
+        window: WindowId,
+        direction: MonitorDirection,
+    ) -> Result<()> {
         use crate::platform::window_manager_common::CommonWindowManager;
         CommonWindowManager::move_to_monitor(self, window, direction)
     }
@@ -71,7 +75,10 @@ impl crate::platform::traits::WindowManagerTrait for RealWindowManager {
         self.api().get_foreground_window()
     }
 
-    fn get_window_info(&self, window: crate::platform::traits::WindowId) -> Result<crate::platform::traits::WindowInfo> {
+    fn get_window_info(
+        &self,
+        window: crate::platform::traits::WindowId,
+    ) -> Result<crate::platform::traits::WindowInfo> {
         let info = self.api().get_window_info(window)?;
         Ok(crate::platform::traits::WindowInfo {
             id: info.id,
@@ -148,69 +155,6 @@ impl crate::platform::traits::WindowManagerTrait for RealWindowManager {
 
     fn is_topmost(&self, window: crate::platform::traits::WindowId) -> bool {
         self.api().is_topmost(window)
-    }
-}
-
-/// Platform-specific CommonWindowApi implementation with test environment support
-impl<A: crate::platform::traits::WindowApiBase<WindowId = WindowId> + 'static> crate::platform::window_manager_common::CommonWindowApi for WindowManager<A> {
-    type WindowId = WindowId;
-    type WindowInfo = crate::platform::traits::WindowInfo;
-
-    fn api(&self) -> &dyn std::any::Any {
-        self.api()
-    }
-
-    fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
-        self.api().get_window_info(window)
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        let frame = WindowFrame::new(x, y, width, height);
-        self.set_window_frame(window, &frame)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        #[cfg(not(test))]
-        {
-            self.api().get_monitors()
-        }
-        #[cfg(test)]
-        {
-            if let Some(_window) = self.api().get_foreground_window() {
-                if let Some(monitor) = self.api().get_monitors().first().cloned() {
-                    return vec![monitor];
-                }
-            }
-            vec![MonitorInfo {
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1080,
-            }]
-        }
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.api().is_window_valid(window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.api().is_maximized(window)
-    }
-
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
-        self.api().is_topmost(window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        self.api().set_topmost(window, topmost)
     }
 }
 

@@ -25,7 +25,6 @@ pub struct InputDeviceBase {
     pub event_sender: Sender<InputEvent>,
 }
 
-#[allow(dead_code)]
 impl InputDeviceBase {
     pub fn new() -> Self {
         let (sender, receiver) = channel();
@@ -96,7 +95,6 @@ pub struct InputDevice<T> {
     pub inner: Option<T>,
 }
 
-#[allow(dead_code)]
 impl<T> InputDevice<T> {
     /// Create a new input device with default config
     pub fn new(_config: InputDeviceConfig) -> Result<Self> {
@@ -131,7 +129,6 @@ impl<T> InputDevice<T> {
 ///
 /// Implement this trait for platform-specific inner device types
 /// to enable the generic [InputDevice] to work with them.
-#[allow(dead_code)]
 pub trait PlatformInputDevice: Sized + Send {
     /// Create the platform-specific device with a sender
     fn create(sender: Sender<InputEvent>) -> Result<Self>;
@@ -142,6 +139,47 @@ pub trait PlatformInputDevice: Sized + Send {
 
     /// Stop the device
     fn stop(&mut self);
+}
+
+impl<T: PlatformInputDevice> InputDevice<T> {
+    pub fn run_once(&mut self) -> Result<bool> {
+        if let Some(ref mut inner) = self.inner {
+            inner.run_once()
+        } else {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            Ok(true)
+        }
+    }
+
+    pub fn unregister_inner(&mut self) {
+        self.base.running = false;
+        if let Some(mut inner) = self.inner.take() {
+            inner.stop();
+        }
+    }
+
+    pub fn poll_event_inner(&mut self) -> Option<InputEvent> {
+        if !self.base.running {
+            return None;
+        }
+
+        if let Some(ref mut inner) = self.inner {
+            let _ = inner.run_once();
+        }
+
+        self.base.try_recv_event()
+    }
+
+    pub fn is_running_inner(&self) -> bool {
+        self.base.is_running()
+    }
+
+    pub fn stop_inner(&mut self) {
+        self.base.stop();
+        if let Some(mut inner) = self.inner.take() {
+            inner.stop();
+        }
+    }
 }
 
 #[cfg(test)]

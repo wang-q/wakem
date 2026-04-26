@@ -16,10 +16,10 @@ use super::window_api::RealWindowApi;
 #[allow(unused_imports)]
 pub use crate::types::{Alignment, Edge};
 // Import common window manager and shared types
-pub use crate::platform::window_manager_common::WindowManager;
 use crate::platform::traits::{
     MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo,
 };
+pub use crate::platform::window_manager_common::WindowManager;
 
 /// Type alias for window manager using real Windows API
 pub type RealWindowManager = WindowManager<RealWindowApi>;
@@ -101,7 +101,9 @@ impl Default for RealWindowManager {
 }
 
 /// Platform-specific CommonWindowApi implementation for Windows
-impl<A: WindowApiBase<WindowId = HWND> + 'static> crate::platform::window_manager_common::CommonWindowApi for WindowManager<A> {
+impl<A: WindowApiBase<WindowId = HWND> + 'static>
+    crate::platform::window_manager_common::CommonWindowApi for WindowManager<A>
+{
     type WindowId = HWND;
     type WindowInfo = WindowInfo;
 
@@ -166,7 +168,11 @@ impl<A: WindowApiBase<WindowId = HWND> + 'static> crate::platform::window_manage
 /// Features requiring real Windows API (cross-monitor movement, window switching, etc.)
 impl RealWindowManager {
     /// Move window to another monitor
-    pub fn move_to_monitor(&self, hwnd: HWND, direction: MonitorDirection) -> Result<()> {
+    pub fn move_to_monitor(
+        &self,
+        hwnd: HWND,
+        direction: MonitorDirection,
+    ) -> Result<()> {
         use crate::platform::window_manager_common::CommonWindowManager;
         CommonWindowManager::move_to_monitor(self, hwnd, direction)
     }
@@ -523,7 +529,10 @@ impl crate::platform::traits::WindowManagerTrait for RealWindowManager {
             .map(|hwnd| hwnd.0 as usize)
     }
 
-    fn get_window_info(&self, window: crate::platform::traits::WindowId) -> Result<crate::platform::traits::WindowInfo> {
+    fn get_window_info(
+        &self,
+        window: crate::platform::traits::WindowId,
+    ) -> Result<crate::platform::traits::WindowInfo> {
         let hwnd = HWND(window as *mut std::ffi::c_void);
         let info = self.api().get_window_info(hwnd)?;
         Ok(crate::platform::traits::WindowInfo {

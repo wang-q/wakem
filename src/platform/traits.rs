@@ -457,7 +457,10 @@ pub trait NotificationService: Send + Sync {
     fn show(&self, title: &str, message: &str) -> Result<()>;
 
     /// Returns self as `Any` for downcasting to concrete type
-    fn as_any(&self) -> &dyn std::any::Any where Self: Sized {
+    fn as_any(&self) -> &dyn std::any::Any
+    where
+        Self: Sized,
+    {
         // Default implementation - override in concrete types if needed
         unimplemented!("as_any() must be implemented for downcasting support")
     }

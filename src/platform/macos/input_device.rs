@@ -16,7 +16,6 @@ pub type RawInputDevice = InputDevice<CGEventTapInner>;
 
 /// Inner CGEventTap device from the low-level module
 pub struct CGEventTapInner {
-    #[allow(dead_code)]
     tap: crate::platform::macos::input::CGEventTapDevice,
 }
 
@@ -27,7 +26,6 @@ impl PlatformInputDevice for CGEventTapInner {
     }
 
     fn run_once(&mut self) -> Result<bool> {
-        // CGEventTap runs in its own thread, so this is a no-op
         Ok(true)
     }
 
@@ -36,23 +34,7 @@ impl PlatformInputDevice for CGEventTapInner {
     }
 }
 
-// SAFETY: CGEventTapInner is Send because the CGEventTap runs in its own thread
-// and the device is only used on the thread that created it.
 unsafe impl Send for CGEventTapInner {}
-
-impl InputDevice<CGEventTapInner> {
-    /// Run one iteration of the input processing loop
-    /// Returns Ok(true) if should continue, Ok(false) if shutdown requested
-    pub fn run_once(&mut self) -> Result<bool> {
-        if let Some(ref mut inner) = self.inner {
-            inner.run_once()
-        } else {
-            // If not registered, just sleep briefly to avoid busy loop
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            Ok(true)
-        }
-    }
-}
 
 impl InputDeviceTrait for InputDevice<CGEventTapInner> {
     fn register(&mut self) -> Result<()> {
@@ -82,33 +64,19 @@ impl InputDeviceTrait for InputDevice<CGEventTapInner> {
 
     fn unregister(&mut self) {
         debug!("Unregistering CGEventTap device");
-        self.base.running = false;
-        if let Some(mut inner) = self.inner.take() {
-            inner.stop();
-        }
+        self.unregister_inner();
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
-        if !self.base.running {
-            return None;
-        }
-
-        if let Some(ref mut inner) = self.inner {
-            let _ = inner.run_once();
-        }
-
-        self.base.try_recv_event()
+        self.poll_event_inner()
     }
 
     fn is_running(&self) -> bool {
-        self.base.is_running()
+        self.is_running_inner()
     }
 
     fn stop(&mut self) {
-        self.base.stop();
-        if let Some(mut inner) = self.inner.take() {
-            inner.stop();
-        }
+        self.stop_inner();
     }
 }
 

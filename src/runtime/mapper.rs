@@ -4,7 +4,7 @@ use crate::types::{
 use std::collections::HashMap;
 use tracing::{debug, error, info};
 
-use crate::platform::traits::{MonitorInfo, WindowManagerTrait, WindowApiBase};
+use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowManagerTrait};
 
 /// Thread-safe wrapper for platform-specific window handles.
 ///
@@ -166,7 +166,9 @@ impl KeyMapper {
 
     /// Create a mapping engine with window manager
     /// Accepts any type that implements WindowManagerTrait
-    pub fn with_window_manager<T: WindowManagerTrait + 'static>(window_manager: T) -> Self {
+    pub fn with_window_manager<T: WindowManagerTrait + 'static>(
+        window_manager: T,
+    ) -> Self {
         Self {
             rules: Vec::new(),
             context_rules: Vec::new(),
@@ -388,8 +390,12 @@ impl KeyMapper {
     #[allow(unused_variables)]
     fn execute_window_action_internal(
         wm: &dyn WindowManagerTrait,
-        #[cfg(target_os = "windows")] tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
-        #[cfg(target_os = "windows")] preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
+        #[cfg(target_os = "windows")] tray_icon: Option<
+            &mut crate::platform::windows::TrayIcon,
+        >,
+        #[cfg(target_os = "windows")] preset_manager: Option<
+            &mut crate::platform::windows::WindowPresetManager,
+        >,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
         use crate::types::{MonitorDirection, WindowAction};
@@ -493,7 +499,9 @@ impl KeyMapper {
         use crate::platform::traits::MonitorInfo;
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
-        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
         let new_x = monitor.x + (monitor.width - info.width) / 2;
         let new_y = monitor.y + (monitor.height - info.height) / 2;
         wm.set_window_pos(window, new_x, new_y, info.width, info.height)
@@ -507,7 +515,9 @@ impl KeyMapper {
         use crate::platform::traits::MonitorInfo;
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
-        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
 
         let new_x = match edge {
             crate::types::Edge::Left => monitor.x,
@@ -532,13 +542,17 @@ impl KeyMapper {
     ) -> anyhow::Result<()> {
         use crate::platform::traits::MonitorInfo;
         let monitors = wm.get_monitors();
-        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
 
         let half_width = monitor.width / 2;
         let (x, width) = match edge {
             crate::types::Edge::Left => (monitor.x, half_width),
             crate::types::Edge::Right => (monitor.x + half_width, half_width),
-            _ => return Err(anyhow::anyhow!("HalfScreen only supports Left/Right edges")),
+            _ => {
+                return Err(anyhow::anyhow!("HalfScreen only supports Left/Right edges"))
+            }
         };
 
         wm.set_window_pos(window, x, monitor.y, width, monitor.height)
@@ -554,7 +568,9 @@ impl KeyMapper {
 
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
-        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
 
         let current_ratio = info.width as f32 / monitor.width as f32;
         let mut next_index = 0;
@@ -573,7 +589,9 @@ impl KeyMapper {
         let target_width = (monitor.width as f32 * WIDTH_RATIOS[next_index]) as i32;
         let x = match align {
             crate::types::Alignment::Left => monitor.x,
-            crate::types::Alignment::Center => monitor.x + (monitor.width - target_width) / 2,
+            crate::types::Alignment::Center => {
+                monitor.x + (monitor.width - target_width) / 2
+            }
             crate::types::Alignment::Right => monitor.x + monitor.width - target_width,
             _ => monitor.x, // Top/Bottom default to left for width operations
         };
@@ -591,7 +609,9 @@ impl KeyMapper {
 
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
-        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
 
         let current_ratio = info.height as f32 / monitor.height as f32;
         let mut next_index = 0;
@@ -610,8 +630,12 @@ impl KeyMapper {
         let target_height = (monitor.height as f32 * HEIGHT_RATIOS[next_index]) as i32;
         let y = match align {
             crate::types::Alignment::Top => monitor.y,
-            crate::types::Alignment::Center => monitor.y + (monitor.height - target_height) / 2,
-            crate::types::Alignment::Bottom => monitor.y + monitor.height - target_height,
+            crate::types::Alignment::Center => {
+                monitor.y + (monitor.height - target_height) / 2
+            }
+            crate::types::Alignment::Bottom => {
+                monitor.y + monitor.height - target_height
+            }
             _ => monitor.y, // Left/Right default to top for height operations
         };
 
@@ -626,7 +650,9 @@ impl KeyMapper {
         use crate::platform::traits::MonitorInfo;
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
-        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
 
         let smaller_dim = std::cmp::min(monitor.width, monitor.height);
         let base_size = smaller_dim as f32;
@@ -650,7 +676,9 @@ impl KeyMapper {
         use crate::platform::traits::MonitorInfo;
         let info = wm.get_window_info(window)?;
         let monitors = wm.get_monitors();
-        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let monitor = monitors
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
 
         let ratio = monitor.width as f32 / monitor.height as f32;
         Self::window_set_fixed_ratio(wm, window, ratio)
@@ -660,7 +688,8 @@ impl KeyMapper {
         wm: &dyn WindowManagerTrait,
         _current_window: crate::platform::traits::WindowId,
     ) -> anyhow::Result<()> {
-        let info = wm.get_foreground_window()
+        let info = wm
+            .get_foreground_window()
             .and_then(|w| wm.get_window_info(w).ok());
 
         if let Some(info) = info {

@@ -40,16 +40,16 @@ pub mod platform_types {
         Launcher, RawInputDevice as InputDevice, SendInputDevice as OutputDevice,
         WindowManager, WindowPresetManager,
     };
-    pub use super::WindowsPlatform;
     pub use super::WindowsNotificationService;
+    pub use super::WindowsPlatform;
 }
 
 #[cfg(target_os = "macos")]
 #[allow(unused_imports)]
 pub use macos::{
-    Launcher, MonitorDirection, RawInputDevice, RealWindowApi, SendInputDevice,
-    TrayIcon, WindowEventHook, WindowManager, WindowPresetManager,
-    MacosNotificationService, MacosPlatform,
+    Launcher, MacosNotificationService, MacosPlatform, MonitorDirection, RawInputDevice,
+    RealWindowApi, SendInputDevice, TrayIcon, WindowEventHook, WindowManager,
+    WindowPresetManager,
 };
 
 // Platform-specific type aliases for easier cross-platform code
@@ -60,6 +60,12 @@ pub mod platform_types {
         Launcher, RawInputDevice as InputDevice, SendInputDevice as OutputDevice,
         WindowManager, WindowPresetManager,
     };
-    pub use super::MacosPlatform;
     pub use super::MacosNotificationService;
+    pub use super::MacosPlatform;
 }
+
+#[cfg(target_os = "windows")]
+pub type CurrentPlatform = windows::WindowsPlatform;
+
+#[cfg(target_os = "macos")]
+pub type CurrentPlatform = macos::MacosPlatform;

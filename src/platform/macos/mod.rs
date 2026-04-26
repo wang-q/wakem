@@ -89,10 +89,8 @@ impl ContextProvider for MacosPlatform {
 }
 
 /// macOS notification service using native notification center API
-#[allow(dead_code)]
 pub struct MacosNotificationService;
 
-#[allow(dead_code)]
 impl MacosNotificationService {
     pub fn new() -> Self {
         Self
@@ -127,7 +125,6 @@ impl crate::platform::traits::NotificationService for MacosNotificationService {
 }
 
 /// Get full executable path for a process using proc_pidpath (internal helper)
-#[allow(dead_code)]
 fn get_process_path(pid: u32) -> anyhow::Result<String> {
     use libc::proc_pidpath;
     use std::ffi::CStr;

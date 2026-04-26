@@ -185,16 +185,16 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
                 let title_len = title_wide.len().min(64);
                 let message_len = message_wide.len().min(256);
 
-                nid.szInfoTitle[..title_len]
-                    .copy_from_slice(&title_wide[..title_len]);
-                nid.szInfo[..message_len]
-                    .copy_from_slice(&message_wide[..message_len]);
+                nid.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
+                nid.szInfo[..message_len].copy_from_slice(&message_wide[..message_len]);
 
                 nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
 
                 unsafe {
                     windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid)
-                        .map_err(|e| anyhow::anyhow!("Failed to show notification: {}", e))?;
+                        .map_err(|e| {
+                            anyhow::anyhow!("Failed to show notification: {}", e)
+                        })?;
                 }
 
                 tracing::info!("Notification shown: {} - {}", title, message);
