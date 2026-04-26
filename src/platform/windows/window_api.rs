@@ -6,7 +6,6 @@ use anyhow::Result;
 use std::cell::RefCell;
 #[cfg(test)]
 use std::collections::HashMap;
-use std::time::Instant;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{

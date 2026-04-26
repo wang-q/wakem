@@ -44,11 +44,6 @@ pub const WINDOW_PRESET_APPLY_DELAY_MS: u64 = 500;
 /// Delay to wait for tasks to complete during shutdown (milliseconds)
 pub const SHUTDOWN_WAIT_DELAY_MS: u64 = 500;
 
-// ==================== Wildcard Matching Related Constants ====================
-
-/// Wildcard matching max input size (prevent memory issues)
-pub const WILDCARD_MAX_INPUT_SIZE: usize = 1024;
-
 // ==================== Authentication Related Constants ====================
 
 /// Authentication operation timeout (seconds)

@@ -93,16 +93,16 @@ pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
     data.monitors
 }
 
-/// Window information
+/// Windows-specific window information
 #[derive(Debug, Clone)]
-pub struct WindowInfo {
+pub struct WindowsWindowInfo {
     pub hwnd: HWND,
     pub title: String,
     pub frame: WindowFrame,
     pub work_area: MonitorWorkArea,
 }
 
-impl WindowInfoProvider for WindowInfo {
+impl WindowInfoProvider for WindowsWindowInfo {
     fn x(&self) -> i32 {
         self.frame.x
     }
@@ -157,7 +157,7 @@ impl<A: WindowApi> WindowManager<A> {
     }
 
     /// Get foreground window information
-    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
+    pub fn get_foreground_window_info(&self) -> Result<WindowsWindowInfo> {
         let hwnd = self
             .api
             .get_foreground_window()
@@ -166,7 +166,7 @@ impl<A: WindowApi> WindowManager<A> {
     }
 
     /// Get specified window information
-    pub fn get_window_info(&self, hwnd: HWND) -> Result<WindowInfo> {
+    pub fn get_window_info(&self, hwnd: HWND) -> Result<WindowsWindowInfo> {
         if !self.api.is_window(hwnd) {
             return Err(anyhow::anyhow!("Invalid window handle"));
         }
@@ -191,7 +191,7 @@ impl<A: WindowApi> WindowManager<A> {
             hwnd, title, frame, work_area
         );
 
-        Ok(WindowInfo {
+        Ok(WindowsWindowInfo {
             hwnd,
             title,
             frame,
@@ -254,7 +254,7 @@ impl<A: WindowApi> WindowManager<A> {
 // Implement CommonWindowApi for WindowManager to use common window manager logic
 impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     type WindowId = HWND;
-    type WindowInfo = WindowInfo;
+    type WindowInfo = WindowsWindowInfo;
 
     fn api(&self) -> &dyn std::any::Any {
         self

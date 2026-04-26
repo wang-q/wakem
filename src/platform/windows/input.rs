@@ -1,7 +1,7 @@
 //! Windows Raw Input implementation
 #![cfg(target_os = "windows")]
 
-use crate::constants::{WHEEL_DELTA, WILDCARD_MAX_INPUT_SIZE};
+use crate::constants::WHEEL_DELTA;
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
@@ -28,11 +28,13 @@ thread_local! {
 }
 
 /// Raw Input device manager
+#[allow(dead_code)]
 pub struct RawInputDevice {
     hwnd: HWND,
     running: bool,
 }
 
+#[allow(dead_code)]
 impl RawInputDevice {
     pub fn new(event_sender: Sender<InputEvent>) -> Result<Self> {
         CURRENT_SENDER.with(|s| {
@@ -186,8 +188,9 @@ impl RawInputDevice {
 
     /// Handle Raw Input message
     unsafe fn handle_raw_input(lparam: LPARAM) {
-        let mut raw_data: [u8; WILDCARD_MAX_INPUT_SIZE] = [0; WILDCARD_MAX_INPUT_SIZE];
-        let mut size: u32 = WILDCARD_MAX_INPUT_SIZE as u32;
+        const MAX_INPUT_SIZE: usize = 1024;
+        let mut raw_data: [u8; MAX_INPUT_SIZE] = [0; MAX_INPUT_SIZE];
+        let mut size: u32 = MAX_INPUT_SIZE as u32;
 
         let hrawinput: windows::Win32::UI::Input::HRAWINPUT =
             std::mem::transmute(lparam.0);
