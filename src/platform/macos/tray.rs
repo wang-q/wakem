@@ -390,6 +390,26 @@ where
     Ok(())
 }
 
+/// Stop the tray message loop
+/// On macOS, this posts a stop request to the NSApplication
+pub fn stop_tray() {
+    unsafe {
+        use cocoa::base::id;
+        use objc::{msg_send, sel, sel_impl};
+
+        let app_class = Class::get("NSApplication").expect("NSApplication not found");
+        let app: id = msg_send![app_class, sharedApplication];
+
+        if app != nil {
+            let _: () = msg_send![app, terminate: nil];
+        }
+    }
+}
+
+/// TrayIcon type alias for macOS (aligned with Windows API)
+/// On macOS, this wraps RealTrayApi for API compatibility
+pub type TrayIcon = RealTrayApi;
+
 // Re-export shared tray types from tray_common (aligned with Windows)
 pub use crate::platform::tray_common::{MockTrayApi, TrayManager};
 

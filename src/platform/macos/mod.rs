@@ -16,9 +16,10 @@ pub mod window_preset;
 
 // Re-export common types (aligned with Windows platform)
 pub use crate::platform::launcher_common::Launcher;
+pub use crate::platform::traits::MonitorDirection;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
-pub use tray::run_tray_message_loop;
+pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
 pub use window_api::RealWindowApi;
 pub use window_manager::{RealWindowManager, WindowManager};
 pub use window_preset::WindowPresetManager;
@@ -78,7 +79,7 @@ impl PlatformUtilities for MacosPlatform {
         // Extract process name from path
         let process_name = path
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or("")
             .to_string();
 

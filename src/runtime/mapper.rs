@@ -707,7 +707,7 @@ impl KeyMapper {
     /// Execute window management action (macOS implementation)
     #[cfg(target_os = "macos")]
     fn execute_window_action_internal(
-        wm: RealWindowManager,
+        wm: &RealWindowManager,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
         use crate::platform::traits::WindowManagerTrait;
@@ -723,27 +723,27 @@ impl KeyMapper {
 
         match action {
             WindowAction::Center => {
-                CommonWindowManager::move_to_center(&wm, window)?;
+                CommonWindowManager::move_to_center(wm, window)?;
             }
             WindowAction::MoveToEdge(edge) => {
-                CommonWindowManager::move_to_edge(&wm, window, *edge)?;
+                CommonWindowManager::move_to_edge(wm, window, *edge)?;
             }
             WindowAction::HalfScreen(edge) => {
-                CommonWindowManager::set_half_screen(&wm, window, *edge)?;
+                CommonWindowManager::set_half_screen(wm, window, *edge)?;
             }
             WindowAction::LoopWidth(_) => {
                 use crate::types::Alignment;
-                CommonWindowManager::loop_width(&wm, window, Alignment::Left)?;
+                CommonWindowManager::loop_width(wm, window, Alignment::Left)?;
             }
             WindowAction::LoopHeight(_) => {
                 use crate::types::Alignment;
-                CommonWindowManager::loop_height(&wm, window, Alignment::Top)?;
+                CommonWindowManager::loop_height(wm, window, Alignment::Top)?;
             }
             WindowAction::FixedRatio { ratio, .. } => {
-                CommonWindowManager::set_fixed_ratio(&wm, window, *ratio)?;
+                CommonWindowManager::set_fixed_ratio(wm, window, *ratio)?;
             }
             WindowAction::NativeRatio { .. } => {
-                CommonWindowManager::set_native_ratio(&wm, window)?;
+                CommonWindowManager::set_native_ratio(wm, window)?;
             }
             WindowAction::SwitchToNextWindow => {
                 wm.switch_to_next_window_of_same_process()?;
@@ -758,29 +758,29 @@ impl KeyMapper {
                 wm.move_to_monitor(window, monitor_direction)?;
             }
             WindowAction::Move { x, y } => {
-                let info = <RealWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
-                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, *x, *y, info.width, info.height)?;
+                let info = wm.get_window_info(window)?;
+                wm.set_window_pos(window, *x, *y, info.width, info.height)?;
             }
             WindowAction::Resize { width, height } => {
-                let info = <RealWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
-                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, info.x, info.y, *width, *height)?;
+                let info = wm.get_window_info(window)?;
+                wm.set_window_pos(window, info.x, info.y, *width, *height)?;
             }
             WindowAction::Minimize => {
-                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::minimize_window(&wm, window)?;
+                wm.minimize_window(window)?;
             }
             WindowAction::Maximize => {
-                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::maximize_window(&wm, window)?;
+                wm.maximize_window(window)?;
             }
             WindowAction::Restore => {
-                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::restore_window(&wm, window)?;
+                wm.restore_window(window)?;
             }
             WindowAction::Close => {
-                <RealWindowManager as crate::platform::traits::WindowManagerTrait>::close_window(&wm, window)?;
+                wm.close_window(window)?;
             }
             WindowAction::ToggleTopmost => {
-                CommonWindowManager::toggle_topmost(&wm, window)?;
+                CommonWindowManager::toggle_topmost(wm, window)?;
             }
-            WindowAction::ShowDebugInfo => match <RealWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window) {
+            WindowAction::ShowDebugInfo => match wm.get_window_info(window) {
                 Ok(info) => {
                     let debug_info = format!(
                         "Window Debug Info:\n\
@@ -834,7 +834,7 @@ impl KeyMapper {
                 info!(?window_action, "Processing window action in mapper");
                 if let Some(ref wm) = self.window_manager {
                     info!("WindowManager found, executing window action");
-                    match Self::execute_window_action_internal(wm.clone(), window_action)
+                    match Self::execute_window_action_internal(wm, window_action)
                     {
                         Ok(()) => info!("Window action executed successfully"),
                         Err(e) => error!(error = %e, "Failed to execute window action"),

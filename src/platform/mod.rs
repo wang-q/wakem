@@ -42,12 +42,22 @@ pub mod platform_types {
 }
 
 #[cfg(target_os = "macos")]
+#[allow(unused_imports)]
+pub use macos::{
+    Launcher, MonitorDirection, RawInputDevice, RealWindowApi, SendInputDevice,
+    TrayIcon, WindowManager, WindowPresetManager,
+};
+
+#[cfg(target_os = "macos")]
+/// Window event hook type alias for macOS
+pub use macos::window_event_hook::MacosWindowEventHook as WindowEventHook;
+
+// Platform-specific type aliases for easier cross-platform code
+#[cfg(target_os = "macos")]
 pub mod platform_types {
     #![allow(unused_imports)]
     pub use super::macos::{
-        Launcher, RawInputDevice, SendInputDevice, WindowManager, WindowPresetManager,
+        Launcher, RawInputDevice as InputDevice, SendInputDevice as OutputDevice,
+        WindowManager, WindowPresetManager,
     };
-    // Type aliases for compatibility
-    pub type InputDevice = super::macos::RawInputDevice;
-    pub type OutputDevice = super::macos::SendInputDevice;
 }

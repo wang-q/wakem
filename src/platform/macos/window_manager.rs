@@ -5,7 +5,7 @@
 
 use crate::platform::macos::window_api::{RealWindowApi, WindowApi};
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, WindowId, WindowInfo, WindowManagerTrait,
+    MonitorDirection, MonitorInfo, WindowFrame, WindowId, WindowInfo, WindowManagerTrait,
 };
 use anyhow::Result;
 use tracing::debug;
@@ -13,12 +13,11 @@ use tracing::debug;
 use crate::platform::window_manager_common::CommonWindowApi;
 
 /// Generic macOS window manager using WindowApi trait
-#[derive(Clone)]
-pub struct WindowManager<A: WindowApi + Clone> {
+pub struct WindowManager<A: WindowApi> {
     api: A,
 }
 
-impl<A: WindowApi + Clone> WindowManager<A> {
+impl<A: WindowApi> WindowManager<A> {
     pub fn new(api: A) -> Self {
         Self { api }
     }
@@ -36,13 +35,13 @@ impl WindowManager<RealWindowApi> {
     }
 }
 
-impl<A: WindowApi + Clone + Default> Default for WindowManager<A> {
+impl<A: WindowApi + Default> Default for WindowManager<A> {
     fn default() -> Self {
         Self::new(A::default())
     }
 }
 
-impl<A: WindowApi + Clone + Send + Sync> WindowManagerTrait
+impl<A: WindowApi + Send + Sync> WindowManagerTrait
     for WindowManager<A>
 {
     fn get_foreground_window(&self) -> Option<WindowId> {
@@ -105,7 +104,7 @@ impl<A: WindowApi + Clone + Send + Sync> WindowManagerTrait
     }
 }
 
-impl<A: WindowApi + Clone + 'static> CommonWindowApi for WindowManager<A> {
+impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     type WindowId = WindowId;
     type WindowInfo = WindowInfo;
 
@@ -149,7 +148,33 @@ impl<A: WindowApi + Clone + 'static> CommonWindowApi for WindowManager<A> {
     }
 }
 
-impl<A: WindowApi + Clone> WindowManager<A> {
+
+
+impl<A: WindowApi> WindowManager<A> {
+    /// Get foreground window information
+    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
+        let window = self
+            .api
+            .get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
+        self.api.get_window_info(window)
+    }
+
+    /// Get debug info string
+    pub fn get_debug_info(&self) -> Result<String> {
+        let info = self.get_foreground_window_info()?;
+
+        Ok(format!(
+            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
+            info.title, info.id, info.x, info.y, info.width, info.height
+        ))
+    }
+
+    /// Set window frame (convenience method)
+    pub fn set_window_frame(&self, window: WindowId, frame: &WindowFrame) -> Result<()> {
+        self.api.set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
+    }
+
     #[cfg(not(test))]
     pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
