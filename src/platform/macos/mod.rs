@@ -36,7 +36,7 @@ pub use window_api::RealMacosWindowApi;
 pub use window_manager::RealMacosWindowManager as WindowManager;
 
 // Re-export window preset types
-pub use window_preset::MacosWindowPresetManager as WindowPresetManager;
+pub use window_preset::WindowPresetManager;
 
 #[cfg(test)]
 pub use window_api::MockMacosWindowApi;

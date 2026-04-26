@@ -139,7 +139,7 @@ mod macos_integration_tests {
             None => panic!("No foreground window found"),
         };
 
-        let result = wm.switch_to_next_window_of_same_process(window_id);
+        let result = wm.switch_to_next_window_of_same_process();
         assert!(result.is_ok());
 
         teardown();
