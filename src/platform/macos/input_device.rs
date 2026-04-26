@@ -110,11 +110,6 @@ impl MacosInputDevice {
         #[cfg(test)]
         Ok(false)
     }
-
-    #[deprecated(since = "0.1.2", note = "Use wait_for_event() instead for clarity")]
-    pub fn run_once(&mut self) -> Result<bool, String> {
-        self.wait_for_event(100)
-    }
 }
 
 impl InputDeviceTrait for MacosInputDevice {

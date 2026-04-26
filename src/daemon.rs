@@ -23,7 +23,7 @@ use crate::runtime::{KeyMapper, LayerManager};
 // Platform-specific imports for production code
 #[cfg(all(target_os = "windows", not(test)))]
 use crate::platform::windows::{
-    Launcher, LegacyRawInputDevice as RawInputDevice, SendInputDevice as OutputDevice,
+    Launcher, RawInputDevice, SendInputDevice as OutputDevice,
     WindowManager, WindowPresetManager,
 };
 
@@ -31,7 +31,7 @@ use crate::platform::windows::{
 use crate::platform::mock::MockOutputDevice as OutputDevice;
 #[cfg(all(target_os = "windows", test))]
 use crate::platform::windows::{
-    Launcher, LegacyRawInputDevice as RawInputDevice, WindowManager, WindowPresetManager,
+    Launcher, RawInputDevice, WindowManager, WindowPresetManager,
 };
 
 #[cfg(target_os = "macos")]
@@ -1066,7 +1066,7 @@ pub async fn run_server(
 
         #[cfg(target_os = "windows")]
         let raw_input_handle =
-            std::thread::spawn(move || match RawInputDevice::new(std_tx) {
+            std::thread::spawn(move || match RawInputDevice::with_sender(std_tx) {
                 Ok(mut device) => {
                     info!("Raw Input device initialized");
                     // Run until shutdown signal

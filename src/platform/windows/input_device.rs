@@ -51,6 +51,18 @@ impl RawInputDevice {
     pub fn get_sender(&self) -> Sender<InputEvent> {
         self.base.sender()
     }
+
+    /// Run one iteration of the input processing loop
+    /// Returns Ok(true) if should continue, Ok(false) if shutdown requested
+    pub fn run_once(&mut self) -> Result<bool> {
+        if let Some(ref mut inner) = self.inner {
+            inner.run_once()
+        } else {
+            // If not registered, just sleep briefly to avoid busy loop
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            Ok(true)
+        }
+    }
 }
 
 impl InputDeviceTrait for RawInputDevice {

@@ -7,7 +7,6 @@ mod integration_tests {
     use std::time::Duration;
     use wakem::platform::traits::WindowFrame;
     use wakem::platform::window_manager_common::CommonWindowApi;
-    use wakem::platform::windows::window_api::WindowApi;
     use wakem::platform::windows::WindowManager;
     use wakem::types::{Alignment, Edge};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
@@ -24,13 +23,14 @@ mod integration_tests {
             .spawn()
             .expect("Failed to launch notepad.exe");
 
-        let api = wakem::platform::windows::RealWindowApi::new();
-        let _ = api.wait_for_window(
-            Some(r"Notepad|Untitled"),
-            None,
-            Duration::from_secs(5),
-            Duration::from_millis(100),
-        );
+        // Wait for window to appear
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_secs(5) {
+            if get_first_notepad_hwnd().is_some() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
 
         child.id()
     }
@@ -40,19 +40,18 @@ mod integration_tests {
         cleanup_test_windows();
         thread::sleep(Duration::from_millis(100));
 
-        let api = wakem::platform::windows::RealWindowApi::new();
         let mut pids = Vec::new();
 
-        for i in 0..count {
+        for _ in 0..count {
             if let Ok(child) = Command::new("notepad.exe").spawn() {
                 pids.push(child.id());
 
                 // Wait for the new window to appear
                 let start = std::time::Instant::now();
                 while start.elapsed() < Duration::from_secs(5) {
-                    let windows =
-                        api.find_windows(Some(r"Notepad|Untitled"), None, true);
-                    if windows.len() >= i + 1 {
+                    let wm = WindowManager::new();
+                    let windows = wm.get_app_visible_windows("notepad.exe");
+                    if windows.len() >= pids.len() {
                         break;
                     }
                     thread::sleep(Duration::from_millis(100));

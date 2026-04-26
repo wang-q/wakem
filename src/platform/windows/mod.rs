@@ -11,7 +11,6 @@ pub mod window_manager;
 pub mod window_preset;
 
 pub use crate::platform::launcher_common::Launcher;
-pub use input::RawInputDevice as LegacyRawInputDevice;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
 pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
