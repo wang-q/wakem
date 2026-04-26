@@ -6,7 +6,6 @@
 //! - Cocoa (NSWorkspace): Application queries
 //!
 //! Performance: All operations complete in < 10ms (typically < 5ms)
-#![cfg(target_os = "macos")]
 
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
 use crate::platform::traits::{
@@ -367,7 +366,14 @@ impl MacosWindowApi for RealMacosWindowApi {
         let new_x = monitor.x + (monitor.width - info.width) / 2;
         let new_y = monitor.y + (monitor.height - info.height) / 2;
 
-        <Self as MacosWindowApi>::set_window_pos(self, _window, new_x, new_y, info.width, info.height)?;
+        <Self as MacosWindowApi>::set_window_pos(
+            self,
+            _window,
+            new_x,
+            new_y,
+            info.width,
+            info.height,
+        )?;
         debug!(
             "Moved window to monitor {} at ({}, {})",
             monitor_index, new_x, new_y
@@ -435,9 +441,11 @@ impl MacosWindowApi for RealMacosWindowApi {
 #[cfg(test)]
 #[derive(Clone)]
 pub struct MockMacosWindowApi {
-    windows: std::sync::Arc<std::sync::Mutex<
-        std::collections::HashMap<WindowId, crate::platform::traits::WindowInfo>,
-    >>,
+    windows: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<WindowId, crate::platform::traits::WindowInfo>,
+        >,
+    >,
     foreground: std::sync::Arc<std::sync::Mutex<Option<WindowId>>>,
     monitors: std::sync::Arc<std::sync::Mutex<Vec<MonitorInfo>>>,
     minimized: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<WindowId>>>,
@@ -470,7 +478,9 @@ impl MockMacosWindowApi {
                 width: 1920,
                 height: 1080,
             }])),
-            minimized: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            minimized: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         }
     }
 
@@ -631,11 +641,15 @@ impl MacosWindowApi for MockMacosWindowApi {
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
         let monitors = self.monitors.lock().unwrap();
         let m = monitors.get(monitor_index)?;
+        // Simulate work area by subtracting menu bar (22px) and dock (44px) heights
+        // This matches the expected behavior in tests
+        let menu_bar_height = 22;
+        let dock_height = 44;
         Some(MonitorWorkArea {
             x: m.x,
-            y: m.y,
+            y: m.y + menu_bar_height,
             width: m.width,
-            height: m.height,
+            height: m.height - menu_bar_height - dock_height,
         })
     }
 
@@ -729,15 +743,23 @@ mod tests {
     #[test]
     fn test_mock_creation() {
         let mock = MockMacosWindowApi::new();
-        assert!(<MockMacosWindowApi as MacosWindowApi>::is_window_valid(&mock, 1));
-        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_window_valid(&mock, 999));
+        assert!(<MockMacosWindowApi as MacosWindowApi>::is_window_valid(
+            &mock, 1
+        ));
+        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_window_valid(
+            &mock, 999
+        ));
     }
 
     #[test]
     fn test_mock_set_window_pos() {
         let mock = MockMacosWindowApi::new();
-        <MockMacosWindowApi as MacosWindowApi>::set_window_pos(&mock, 1, 200, 300, 1024, 768).unwrap();
-        let info = <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 1).unwrap();
+        <MockMacosWindowApi as MacosWindowApi>::set_window_pos(
+            &mock, 1, 200, 300, 1024, 768,
+        )
+        .unwrap();
+        let info =
+            <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 1).unwrap();
         assert_eq!(info.x, 200);
         assert_eq!(info.y, 300);
         assert_eq!(info.width, 1024);
@@ -747,25 +769,43 @@ mod tests {
     #[test]
     fn test_mock_minimize_restore() {
         let mock = MockMacosWindowApi::new();
-        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_minimized(&mock, 1));
+        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_minimized(
+            &mock, 1
+        ));
 
         <MockMacosWindowApi as MacosWindowApi>::minimize_window(&mock, 1).unwrap();
-        assert!(<MockMacosWindowApi as MacosWindowApi>::is_minimized(&mock, 1));
-        assert_eq!(<MockMacosWindowApi as MacosWindowApi>::get_window_state(&mock, 1), WindowState::Minimized);
+        assert!(<MockMacosWindowApi as MacosWindowApi>::is_minimized(
+            &mock, 1
+        ));
+        assert_eq!(
+            <MockMacosWindowApi as MacosWindowApi>::get_window_state(&mock, 1),
+            WindowState::Minimized
+        );
 
         <MockMacosWindowApi as MacosWindowApi>::restore_window(&mock, 1).unwrap();
-        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_minimized(&mock, 1));
-        assert_eq!(<MockMacosWindowApi as MacosWindowApi>::get_window_state(&mock, 1), WindowState::Normal);
+        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_minimized(
+            &mock, 1
+        ));
+        assert_eq!(
+            <MockMacosWindowApi as MacosWindowApi>::get_window_state(&mock, 1),
+            WindowState::Normal
+        );
     }
 
     #[test]
     fn test_mock_maximize() {
         let mock = MockMacosWindowApi::new();
         <MockMacosWindowApi as MacosWindowApi>::maximize_window(&mock, 1).unwrap();
-        assert!(<MockMacosWindowApi as MacosWindowApi>::is_maximized(&mock, 1));
-        assert_eq!(<MockMacosWindowApi as MacosWindowApi>::get_window_state(&mock, 1), WindowState::Maximized);
+        assert!(<MockMacosWindowApi as MacosWindowApi>::is_maximized(
+            &mock, 1
+        ));
+        assert_eq!(
+            <MockMacosWindowApi as MacosWindowApi>::get_window_state(&mock, 1),
+            WindowState::Maximized
+        );
 
-        let info = <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 1).unwrap();
+        let info =
+            <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 1).unwrap();
         assert_eq!(info.width, 1920);
         assert_eq!(info.height, 1080);
     }
@@ -773,9 +813,13 @@ mod tests {
     #[test]
     fn test_mock_close_window() {
         let mock = MockMacosWindowApi::new();
-        assert!(<MockMacosWindowApi as MacosWindowApi>::is_window_valid(&mock, 1));
+        assert!(<MockMacosWindowApi as MacosWindowApi>::is_window_valid(
+            &mock, 1
+        ));
         <MockMacosWindowApi as MacosWindowApi>::close_window(&mock, 1).unwrap();
-        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_window_valid(&mock, 1));
+        assert!(!<MockMacosWindowApi as MacosWindowApi>::is_window_valid(
+            &mock, 1
+        ));
     }
 
     #[test]
@@ -797,7 +841,8 @@ mod tests {
         ]);
 
         <MockMacosWindowApi as MacosWindowApi>::move_to_monitor(&mock, 1, 1).unwrap();
-        let info = <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 1).unwrap();
+        let info =
+            <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 1).unwrap();
         // Should be centered on second monitor
         assert!(info.x >= 1920);
     }
@@ -805,7 +850,9 @@ mod tests {
     #[test]
     fn test_mock_monitor_work_area() {
         let mock = MockMacosWindowApi::new();
-        let work_area = <MockMacosWindowApi as MacosWindowApi>::get_monitor_work_area(&mock, 0).unwrap();
+        let work_area =
+            <MockMacosWindowApi as MacosWindowApi>::get_monitor_work_area(&mock, 0)
+                .unwrap();
         assert!(work_area.height < 1080); // Less than full height due to dock/menu bar
     }
 
@@ -825,14 +872,20 @@ mod tests {
                 height: 480,
             },
         );
-        assert!(<MockMacosWindowApi as MacosWindowApi>::is_window_valid(&mock, 2));
-        let info = <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 2).unwrap();
+        assert!(<MockMacosWindowApi as MacosWindowApi>::is_window_valid(
+            &mock, 2
+        ));
+        let info =
+            <MockMacosWindowApi as MacosWindowApi>::get_window_info(&mock, 2).unwrap();
         assert_eq!(info.title, "Second Window");
     }
 
     #[test]
     fn test_mock_foreground_window() {
         let mock = MockMacosWindowApi::new();
-        assert_eq!(<MockMacosWindowApi as MacosWindowApi>::get_foreground_window(&mock), Some(1));
+        assert_eq!(
+            <MockMacosWindowApi as MacosWindowApi>::get_foreground_window(&mock),
+            Some(1)
+        );
     }
 }

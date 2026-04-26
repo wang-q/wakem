@@ -5,8 +5,6 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
 
-use keyboard_codes::{Key, KeyCodeMapper, Platform};
-
 use crate::constants::{
     DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
 };
@@ -880,18 +878,8 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     let name_lower = name.to_lowercase();
 
-    // Try keyboard-codes first (supports standard key names)
-    if let Ok(key) = name_lower.parse::<Key>() {
-        let win_code = key.to_code(Platform::Windows) as u16;
-        if win_code != 0 || !name_lower.is_empty() {
-            return Ok((win_code, win_code));
-        }
-    }
-
-    // Fallback to hardcoded mappings (Windows-specific scan codes)
-    // On non-Windows platforms, keyboard-codes should cover all needed keys;
-    // returning Windows scan codes would cause silent incorrect behavior.
-    #[cfg(target_os = "windows")]
+    // Try hardcoded mappings first (Windows-specific scan codes)
+    // These provide consistent scan codes across all platforms
     match name_lower.as_str() {
         // Special keys
         "capslock" | "caps" => Ok((0x3A, 0x14)),
@@ -1011,12 +999,6 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
 
         _ => Err(anyhow::anyhow!("Unknown key name: {}", name)),
     }
-
-    #[cfg(not(target_os = "windows"))]
-    Err(anyhow::anyhow!(
-        "Unknown key name '{}' on this platform. Windows-specific scan code mappings are not available; only names supported by the keyboard-codes crate are accepted.",
-        name
-    ))
 }
 
 /// Config file path cache (reduces repeated file system I/O)

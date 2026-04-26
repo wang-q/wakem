@@ -7,11 +7,10 @@ use tracing::{debug, error, info, warn};
 use crate::config::Config;
 use crate::constants::{
     INPUT_BATCH_SIZE_LIMIT, INPUT_BATCH_TIMEOUT_MICROS, INPUT_CHANNEL_CAPACITY,
-    IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS, WINDOW_EVENT_CHANNEL_CAPACITY,
-    WINDOW_PRESET_APPLY_DELAY_MS,
+    IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
-use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
+use crate::platform::traits::OutputDeviceTrait;
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
@@ -38,18 +37,17 @@ use crate::platform::windows::{
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
     AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, MacosOutputDevice as OutputDevice, RealMacosWindowApi,
-    WindowManager, WindowPresetManager,
+    Launcher, MacosOutputDevice as OutputDevice, RealMacosWindowApi, WindowManager,
 };
 
 // Platform-specific imports for test code (macOS)
-#[cfg(all(target_os = "macos", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
     AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
     Launcher, RealMacosWindowApi, WindowManager, WindowPresetManager,
 };
+#[cfg(all(target_os = "macos", test))]
+use crate::platform::mock::MockOutputDevice as OutputDevice;
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
@@ -1104,7 +1102,7 @@ pub async fn run_server_with_config(
     let raw_input_shutdown_flag_clone = raw_input_shutdown_flag.clone();
 
     let input_bridge_handle = std::thread::spawn(move || {
-        let (std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
+        let (_std_tx, std_rx) = std::sync::mpsc::channel::<InputEvent>();
         let tx_clone = input_tx_bridge;
         let shutdown_flag = input_shutdown_flag_clone;
         let raw_input_shutdown = raw_input_shutdown_flag_clone;

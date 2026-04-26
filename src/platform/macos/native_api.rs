@@ -21,5 +21,4 @@ pub mod notification;
 pub mod ns_workspace;
 
 // Re-export common types and functions for convenience
-pub use coordinate::{cg_to_windows, windows_to_cg};
-pub use notification::show_notification;
+pub use coordinate::windows_to_cg;

@@ -2,7 +2,6 @@
 //!
 //! This module provides macOS-specific implementations of the platform traits
 //! using Core Graphics, Cocoa, and Accessibility APIs.
-#![cfg(target_os = "macos")]
 
 pub mod context;
 pub mod input;
@@ -28,17 +27,13 @@ pub type InputDevice = MacosInputDeviceExt;
 pub use output_device::MacosOutputDevice;
 
 // Re-export tray types
-pub use tray::{
-    run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, RealTrayApi,
-    TrayIconWrapper as TrayIcon, TrayManager,
-};
+pub use tray::{run_tray_event_loop, AppCommand};
 
 // Re-export window API types
-pub use window_api::{MacosWindowApi, RealMacosWindowApi};
-pub use window_event_hook::MacosWindowEventHook;
+pub use window_api::RealMacosWindowApi;
 
 // Re-export window manager types
-pub use window_manager::{MacosWindowManager, RealMacosWindowManager as WindowManager};
+pub use window_manager::RealMacosWindowManager as WindowManager;
 
 // Re-export window preset types
 pub use window_preset::MacosWindowPresetManager as WindowPresetManager;

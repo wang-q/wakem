@@ -2,12 +2,11 @@
 
 #[cfg(target_os = "macos")]
 mod macos_specific_tests {
-    use wakem::platform::macos::context::WindowContext;
     use wakem::platform::macos::input::{
         keycode_to_virtual_key, virtual_key_to_keycode,
     };
-    use wakem::platform::macos::launcher::Launcher;
-    use wakem::platform::traits::MonitorInfo;
+    use wakem::platform::macos::Launcher;
+    use wakem::platform::traits::{MonitorInfo, WindowContext};
     use wakem::types::{
         Alignment, Edge, KeyAction, KeyEvent, KeyState, ModifierState, MouseAction,
         MouseButton, MouseEvent, MouseEventType,

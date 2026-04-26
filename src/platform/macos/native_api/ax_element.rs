@@ -1,4 +1,3 @@
-#![cfg(target_os = "macos")]
 //! Accessibility AXUIElement operations.
 //!
 //! Direct access to window properties via Accessibility API.

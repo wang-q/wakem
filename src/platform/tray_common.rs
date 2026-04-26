@@ -392,6 +392,7 @@ impl MockTrayApi {
         Self {
             state: std::sync::Mutex::new(MockTrayState {
                 active: true,
+                visible: true,
                 ..Default::default()
             }),
         }

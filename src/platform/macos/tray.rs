@@ -5,21 +5,19 @@
 //! - Context menu with Enable/Disable, Reload Config, Open Config Folder, Exit
 //! - NSApplication event loop for handling tray events
 //! - Async API trait for integration with async code
-#![cfg(target_os = "macos")]
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
 use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
-use cocoa::appkit::{NSApplication, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem};
+use cocoa::appkit::NSStatusBar;
 use cocoa::base::{id, nil, NO, YES};
 use cocoa::foundation::{NSAutoreleasePool, NSString};
 use objc::declare::ClassDecl;
-use objc::runtime::{Class, Object, Protocol, Sel};
+use objc::runtime::{Class, Object, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 
 // Re-export shared tray types
@@ -29,7 +27,7 @@ pub use crate::platform::tray_common::TrayApi;
 // Re-export menu ID constants from tray_common
 use crate::platform::tray_common::menu_ids;
 
-/// Global callback storage for menu actions
+// Global callback storage for menu actions
 thread_local! {
     static GLOBAL_CALLBACK: RefCell<Option<Box<dyn Fn(AppCommand) + Send + 'static>>> = RefCell::new(None);
 }
@@ -339,8 +337,7 @@ impl TrayApi for RealTrayApi {
 }
 
 // Re-export TrayIconWrapper and TrayManager from tray_common
-pub use crate::platform::tray_common::TrayIconWrapper;
-pub use crate::platform::tray_common::TrayManager;
+pub use crate::platform::tray_common::{TrayIconWrapper, TrayManager};
 
 /// Type aliases for convenience
 pub type RealTrayManager = TrayManager<RealTrayApi>;

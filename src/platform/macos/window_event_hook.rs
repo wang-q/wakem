@@ -4,7 +4,6 @@
 //! and Accessibility APIs. This is the macOS equivalent of Windows WinEventHook.
 //!
 //! Performance: < 2ms per poll (vs 100-200ms with AppleScript)
-#![cfg(target_os = "macos")]
 
 use crate::platform::traits::PlatformWindowEvent;
 use anyhow::Result;
@@ -197,8 +196,7 @@ fn get_frontmost_app_info() -> Result<(String, String, usize)> {
 
     let frontmost = windows
         .iter()
-        .filter(|w| w.layer == 0 && !w.owner_name.is_empty())
-        .next_back();
+        .rfind(|w| w.layer == 0 && !w.owner_name.is_empty());
 
     if let Some(window) = frontmost {
         let process_name = window.owner_name.clone();

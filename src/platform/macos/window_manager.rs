@@ -2,7 +2,6 @@
 //!
 //! Provides comprehensive window management operations on macOS,
 //! including half-screen, centering, ratio control, and multi-monitor support.
-#![cfg(target_os = "macos")]
 
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
 use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTrait};
@@ -45,7 +44,9 @@ impl<A: MacosWindowApi + Clone + Default> Default for MacosWindowManager<A> {
     }
 }
 
-impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait for MacosWindowManager<A> {
+impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
+    for MacosWindowManager<A>
+{
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
     }
@@ -149,8 +150,6 @@ impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager
         self.api.set_topmost(window, topmost)
     }
 }
-
-
 
 impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     #[cfg(not(test))]

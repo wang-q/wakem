@@ -22,9 +22,6 @@ use client::DaemonClient;
 #[cfg(target_os = "windows")]
 use platform::windows::run_tray_message_loop;
 
-#[cfg(target_os = "macos")]
-use platform::macos::run_tray_event_loop;
-
 use platform::traits::AppCommand;
 
 /// Initialize logging system with support for reading log level from config file
@@ -564,7 +561,6 @@ fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
         cmd_rx,
         instance_id,
         || unsafe {
-            use cocoa::appkit::NSApplication;
             use cocoa::base::nil;
             use objc::runtime::Class;
             use objc::{msg_send, sel, sel_impl};

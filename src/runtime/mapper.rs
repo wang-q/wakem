@@ -717,7 +717,8 @@ impl KeyMapper {
         info!(?action, "execute_window_action_internal called");
 
         // Get foreground window
-        let window = wm.get_foreground_window()
+        let window = wm
+            .get_foreground_window()
             .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
 
         match action {
@@ -831,7 +832,8 @@ impl KeyMapper {
                 info!(?window_action, "Processing window action in mapper");
                 if let Some(ref wm) = self.window_manager {
                     info!("WindowManager found, executing window action");
-                    match Self::execute_window_action_internal(wm.clone(), window_action) {
+                    match Self::execute_window_action_internal(wm.clone(), window_action)
+                    {
                         Ok(()) => info!("Window action executed successfully"),
                         Err(e) => error!(error = %e, "Failed to execute window action"),
                     }

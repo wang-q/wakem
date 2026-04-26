@@ -3,7 +3,6 @@
 //! Fast access to foreground application metadata using Cocoa frameworks.
 //!
 //! Performance: < 0.5ms for all operations (vs 30ms+ with AppleScript)
-#![cfg(target_os = "macos")]
 
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
 
@@ -83,9 +82,8 @@ pub fn get_main_display_height() -> f64 {
 /// Falls back to CGDisplay bounds minus estimated deductions if NSScreen is unavailable.
 pub fn get_screen_visible_frame(screen_index: usize) -> Option<(i32, i32, i32, i32)> {
     unsafe {
-        use cocoa::appkit::NSScreen;
         use cocoa::base::{id, nil};
-        use cocoa::foundation::NSArray;
+
         use objc::{class, msg_send, sel, sel_impl};
 
         let screens: id = msg_send![class!(NSScreen), screens];

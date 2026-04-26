@@ -1,5 +1,4 @@
 //! macOS window preset management
-#![cfg(target_os = "macos")]
 
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
 use crate::platform::traits::WindowInfo;

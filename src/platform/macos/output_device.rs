@@ -2,7 +2,6 @@
 //!
 //! This module uses Core Graphics to send simulated input events.
 //! Shared logic (char mapping, text input, key combos) is in [output_helpers].
-#![cfg(target_os = "macos")]
 
 use crate::platform::traits::OutputDeviceTrait;
 use crate::types::MouseButton;
@@ -141,7 +140,6 @@ impl OutputDeviceTrait for MacosOutputDevice {
             CGEvent, CGEventTapLocation, CGEventType, CGMouseButton,
         };
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-        use core_graphics::geometry::CGPoint;
 
         let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
             .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;

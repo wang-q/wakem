@@ -13,8 +13,6 @@
 //!
 //! Event callback latency: < 0.1ms per event (kernel-level interception)
 
-#![cfg(target_os = "macos")]
-
 use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 

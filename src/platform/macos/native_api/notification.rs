@@ -2,7 +2,6 @@
 //!
 //! Uses direct Cocoa API calls for displaying system notifications.
 //! Performance: < 5ms
-#![cfg(target_os = "macos")]
 // Allow deprecated warnings for cocoa/objc crates
 // These crates are deprecated in favor of objc2, but we're using them
 // for compatibility with the existing codebase.

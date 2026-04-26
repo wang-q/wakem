@@ -3,7 +3,6 @@
 //! Provides fast access to window metadata without AppleScript.
 //!
 //! Performance: < 2ms for get_on_screen_windows() (vs 181ms with AppleScript)
-#![cfg(target_os = "macos")]
 
 use anyhow::{anyhow, Result};
 use std::ffi::c_void;

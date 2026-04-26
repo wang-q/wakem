@@ -3,7 +3,6 @@
 //! macOS uses bottom-left origin (Core Graphics).
 //! Windows/wakem uses top-left origin.
 //! This module provides conversion functions.
-#![cfg(target_os = "macos")]
 
 /// Convert Y-coordinate from Windows-style (top-left) to CG-style (bottom-left)
 pub fn windows_to_cg(y: f64, screen_height: f64) -> f64 {
