@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.3 - 2026-04-26
+
 ### Improvements
 
 - Improved memory management and thread safety
