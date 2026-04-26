@@ -100,71 +100,6 @@ impl Default for RealWindowManager {
     }
 }
 
-/// Platform-specific CommonWindowApi implementation for Windows
-impl<A: WindowApiBase<WindowId = HWND> + 'static>
-    crate::platform::window_manager_common::CommonWindowApi for WindowManager<A>
-{
-    type WindowId = HWND;
-    type WindowInfo = WindowInfo;
-
-    fn api(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
-        self.api().get_window_info(window)
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        let frame = WindowFrame::new(x, y, width, height);
-        self.set_window_frame(window, &frame)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        #[cfg(not(test))]
-        {
-            unsafe { enumerate_all_monitors() }
-        }
-        #[cfg(test)]
-        {
-            if let Some(hwnd) = self.api().get_foreground_window() {
-                if let Some(monitor) = self.api().get_monitors().first().cloned() {
-                    return vec![monitor];
-                }
-            }
-            vec![MonitorInfo {
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1080,
-            }]
-        }
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.api().is_window_valid(window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.api().is_maximized(window)
-    }
-
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
-        self.api().is_topmost(window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        self.api().set_topmost(window, topmost)
-    }
-}
-
 /// Features requiring real Windows API (cross-monitor movement, window switching, etc.)
 impl RealWindowManager {
     /// Move window to another monitor
@@ -540,10 +475,10 @@ impl crate::platform::traits::WindowManagerTrait for RealWindowManager {
             title: info.title,
             process_name: info.process_name,
             executable_path: info.executable_path,
-            x: info.frame.x,
-            y: info.frame.y,
-            width: info.frame.width,
-            height: info.frame.height,
+            x: info.x,
+            y: info.y,
+            width: info.width,
+            height: info.height,
         })
     }
 

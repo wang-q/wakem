@@ -18,7 +18,8 @@ pub mod window_preset;
 pub use crate::platform::launcher_common::Launcher;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
-pub use tray::TrayIcon;
+#[allow(unused_imports)]
+pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
 pub use window_api::RealWindowApi;
 
 #[cfg(test)]
