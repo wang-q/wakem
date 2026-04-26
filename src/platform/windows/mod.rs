@@ -211,9 +211,9 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
         }
     }
 
-    fn initialize(&self, hwnd: Option<isize>) {
-        if let Some(h) = hwnd {
-            self.set_message_window_hwnd(h);
+    fn initialize(&self, ctx: &crate::platform::traits::NotificationInitContext) {
+        if let Some(h) = ctx.native_handle {
+            self.set_message_window_hwnd(h as isize);
         }
     }
 }

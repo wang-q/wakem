@@ -623,13 +623,24 @@ pub trait NotificationService: Send + Sync {
     /// or an error if the notification could not be displayed.
     fn show(&self, title: &str, message: &str) -> Result<()>;
 
-    /// Initialize the notification service with platform-specific data
+    /// Initialize the notification service with platform-specific context
     ///
-    /// On Windows, `hwnd` should be `Some(message_window_handle)`.
-    /// On macOS, `hwnd` is ignored (pass `None`).
-    fn initialize(&self, _hwnd: Option<isize>) {
-        // Default no-op; platforms that need hwnd override this
-    }
+    /// The [NotificationInitContext] carries opaque platform data that
+    /// individual implementations interpret as needed. Callers should
+    /// obtain the context from the platform layer and pass it through
+    /// without inspecting its contents.
+    fn initialize(&self, _ctx: &NotificationInitContext) {}
+}
+
+/// Platform-agnostic initialization context for [NotificationService].
+///
+/// Carries opaque native handles that platform implementations need
+/// during initialization. The `native_handle` field stores a platform-specific
+/// window or message handle (e.g., HWND on Windows) as an opaque integer;
+/// non-Windows platforms typically receive `None`.
+pub struct NotificationInitContext {
+    #[allow(dead_code)]
+    pub native_handle: Option<usize>,
 }
 
 /// Trait for window preset management

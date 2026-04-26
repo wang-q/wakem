@@ -38,7 +38,6 @@ pub struct ServerState {
     active: Arc<AtomicBool>,
     config_loaded: Arc<RwLock<bool>>,
     macro_recorder: Arc<MacroRecorder>,
-    message_window_hwnd: Arc<RwLock<Option<isize>>>,
     notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
     auth_key: Arc<RwLock<String>>,
     active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
@@ -78,7 +77,6 @@ impl ServerState {
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
-            message_window_hwnd: Arc::new(RwLock::new(None)),
             notification_service: Arc::new(Mutex::new(
                 CurrentPlatform::create_notification_service(),
             )),
@@ -771,15 +769,14 @@ impl ServerState {
         self.macro_recorder.is_recording().await
     }
 
-    /// Set message window handle (for notification service initialization)
-    pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
-        {
-            let mut h = self.message_window_hwnd.write().await;
-            *h = Some(hwnd_value);
-        }
+    /// Initialize platform-specific services (e.g., notification service)
+    pub async fn init_notification_service(
+        &self,
+        ctx: &crate::platform::traits::NotificationInitContext,
+    ) {
         let service = self.notification_service.lock().await;
-        service.initialize(Some(hwnd_value));
-        info!("Message window handle registered");
+        service.initialize(ctx);
+        info!("Platform services initialized");
     }
 
     /// Show notification using platform-abstracted notification service
@@ -1377,9 +1374,9 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
                 message: format!("Failed to bind macro: {}", e),
             },
         },
-        Message::RegisterMessageWindow { hwnd } => {
-            // Pass isize directly to avoid Send issues with HWND
-            state.set_message_window_hwnd(hwnd as isize).await;
+        Message::InitializePlatform { native_handle } => {
+            let ctx = crate::platform::traits::NotificationInitContext { native_handle };
+            state.init_notification_service(&ctx).await;
             Message::Success
         }
         Message::Shutdown => {

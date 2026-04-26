@@ -288,8 +288,8 @@ pub enum Message {
     DeleteMacro { name: String },
     /// Bind macro to trigger key
     BindMacro { macro_name: String, trigger: String },
-    /// Register message window handle (for sending notifications)
-    RegisterMessageWindow { hwnd: usize },
+    /// Initialize platform-specific services (e.g., notification service)
+    InitializePlatform { native_handle: Option<usize> },
     /// Shutdown the daemon
     Shutdown,
 

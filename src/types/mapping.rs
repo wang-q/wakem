@@ -253,7 +253,6 @@ pub struct ContextInfo {
     pub process_name: String,
     pub process_path: String,
     pub window_title: String,
-    pub window_handle: isize, // HWND
 }
 
 /// Wildcard matching (supports * and ?)
@@ -602,7 +601,6 @@ mod tests {
             process_name: "notepad.exe".to_string(),
             process_path: "C:\\Windows\\notepad.exe".to_string(),
             window_title: "Untitled".to_string(),
-            window_handle: 0,
         };
 
         let non_matching_info = ContextInfo {
@@ -610,7 +608,6 @@ mod tests {
             process_name: "chrome.exe".to_string(),
             process_path: "C:\\Program Files\\chrome.exe".to_string(),
             window_title: "Google".to_string(),
-            window_handle: 0,
         };
 
         assert!(context.matches(
@@ -842,7 +839,6 @@ mod tests {
             process_name: "code.exe".to_string(),
             process_path: "".to_string(),
             window_title: "".to_string(),
-            window_handle: 0,
         };
 
         let partial_match = ContextInfo {
@@ -850,7 +846,6 @@ mod tests {
             process_name: "notepad.exe".to_string(),
             process_path: "".to_string(),
             window_title: "".to_string(),
-            window_handle: 0,
         };
 
         assert!(cond.matches(
@@ -943,7 +938,6 @@ mod tests {
         assert_eq!(context.process_name, "");
         assert_eq!(context.process_path, "");
         assert_eq!(context.window_title, "");
-        assert_eq!(context.window_handle, 0);
     }
 
     #[test]
@@ -977,7 +971,6 @@ mod tests {
             process_name: "any.exe".to_string(),
             process_path: "C:\\any.exe".to_string(),
             window_title: "Any Title".to_string(),
-            window_handle: 0,
         };
 
         assert!(cond.matches(
@@ -997,7 +990,6 @@ mod tests {
             process_name: "notepad.exe".to_string(),
             process_path: "C:\\Windows\\notepad.exe".to_string(),
             window_title: "Untitled".to_string(),
-            window_handle: 0,
         };
 
         let non_matching_context = ContextInfo {
@@ -1005,7 +997,6 @@ mod tests {
             process_name: "chrome.exe".to_string(),
             process_path: "C:\\Program Files\\chrome.exe".to_string(),
             window_title: "Google".to_string(),
-            window_handle: 0,
         };
 
         assert!(cond.matches(
@@ -1035,7 +1026,6 @@ mod tests {
             process_name: "chrome.exe".to_string(),
             process_path: "".to_string(),
             window_title: "".to_string(),
-            window_handle: 0,
         };
 
         // Simplified matching may not be perfect, but at least won't panic

@@ -209,13 +209,16 @@ impl DaemonClient {
         Self::expect_success(response, "BindMacro")
     }
 
-    /// Register message window handle
+    /// Initialize platform-specific services
     #[allow(dead_code)]
-    pub async fn register_message_window(&mut self, hwnd: usize) -> Result<()> {
+    pub async fn initialize_platform(
+        &mut self,
+        native_handle: Option<usize>,
+    ) -> Result<()> {
         let response = self
-            .send_receive(&Message::RegisterMessageWindow { hwnd })
+            .send_receive(&Message::InitializePlatform { native_handle })
             .await?;
-        Self::expect_success(response, "RegisterMessageWindow")
+        Self::expect_success(response, "InitializePlatform")
     }
 
     /// Shutdown the daemon
@@ -367,14 +370,14 @@ mod tests {
         );
     }
 
-    /// Test register_message_window should return error when not connected
+    /// Test initialize_platform should return error when not connected
     #[tokio::test]
-    async fn test_register_message_window_not_connected() {
+    async fn test_initialize_platform_not_connected() {
         let mut client = DaemonClient::new();
-        let result = client.register_message_window(12345).await;
+        let result = client.initialize_platform(Some(12345)).await;
         assert!(
             result.is_err(),
-            "register_message_window should return error when not connected"
+            "initialize_platform should return error when not connected"
         );
     }
 
@@ -477,14 +480,16 @@ mod tests {
             panic!("Expected BindMacro message");
         }
 
-        // RegisterMessageWindow message
-        let msg = Message::RegisterMessageWindow { hwnd: 12345 };
+        // InitializePlatform message
+        let msg = Message::InitializePlatform {
+            native_handle: Some(12345),
+        };
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
-        if let Message::RegisterMessageWindow { hwnd } = deserialized {
-            assert_eq!(hwnd, 12345);
+        if let Message::InitializePlatform { native_handle } = deserialized {
+            assert_eq!(native_handle, Some(12345));
         } else {
-            panic!("Expected RegisterMessageWindow message");
+            panic!("Expected InitializePlatform message");
         }
     }
 
