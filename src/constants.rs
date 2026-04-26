@@ -27,9 +27,6 @@ pub const IPC_CHANNEL_CAPACITY: usize = 100;
 /// Input event channel capacity
 pub const INPUT_CHANNEL_CAPACITY: usize = 1000;
 
-/// Window event channel capacity
-pub const WINDOW_EVENT_CHANNEL_CAPACITY: usize = 100;
-
 /// Input batch processing timeout (microseconds)
 pub const INPUT_BATCH_TIMEOUT_MICROS: u64 = 100;
 
@@ -37,9 +34,6 @@ pub const INPUT_BATCH_TIMEOUT_MICROS: u64 = 100;
 pub const INPUT_BATCH_SIZE_LIMIT: usize = 50;
 
 // ==================== Window Management Related Constants ====================
-
-/// Window preset apply delay (milliseconds) - wait for window to be fully created
-pub const WINDOW_PRESET_APPLY_DELAY_MS: u64 = 500;
 
 /// Delay to wait for tasks to complete during shutdown (milliseconds)
 pub const SHUTDOWN_WAIT_DELAY_MS: u64 = 500;
@@ -58,10 +52,6 @@ pub const RATE_LIMIT_MAX_ATTEMPTS: u32 = 5;
 pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
 
 // ==================== Wheel Constants ====================
-
-/// WHEEL_DELTA standard value (Windows API standard: 120)
-/// On macOS, wheel delta values are typically 1 or 3
-pub const WHEEL_DELTA: i32 = 120;
 
 /// Default wheel speed
 pub const DEFAULT_WHEEL_SPEED: i32 = 3;
@@ -82,11 +72,3 @@ pub const MAX_RECONNECT_RETRIES: u32 = 3;
 
 /// Maximum connection retries for initial connection
 pub const MAX_CONNECTION_RETRIES: u32 = 10;
-
-/// Short sleep duration for polling (milliseconds)
-#[allow(dead_code)]
-pub const POLLING_SLEEP_MS: u64 = 10;
-
-/// Medium sleep duration for polling (milliseconds)
-#[allow(dead_code)]
-pub const MEDIUM_POLLING_SLEEP_MS: u64 = 100;

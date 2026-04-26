@@ -3,6 +3,9 @@
 //! This module uses Core Graphics to send simulated input events.
 //! Shared logic (char mapping, text input, key combos) is in [output_helpers].
 
+// Allow dead code - this module is under development for macOS output support
+#![allow(dead_code)]
+
 use crate::platform::traits::OutputDeviceTrait;
 use crate::types::MouseButton;
 use anyhow::Result;

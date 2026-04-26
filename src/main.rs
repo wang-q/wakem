@@ -561,15 +561,19 @@ fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
         cmd_rx,
         instance_id,
         || unsafe {
-            use cocoa::base::nil;
-            use objc::runtime::Class;
-            use objc::{msg_send, sel, sel_impl};
+            // Allow deprecated cocoa APIs - migration to objc2 is planned for future
+            #[allow(deprecated)]
+            {
+                use cocoa::base::nil;
+                use objc::runtime::Class;
+                use objc::{msg_send, sel, sel_impl};
 
-            let app_class = Class::get("NSApplication").unwrap();
-            let app: *mut objc::runtime::Object =
-                msg_send![app_class, sharedApplication];
-            if app != nil {
-                let _: () = msg_send![app, terminate: nil];
+                let app_class = Class::get("NSApplication").unwrap();
+                let app: *mut objc::runtime::Object =
+                    msg_send![app_class, sharedApplication];
+                if app != nil {
+                    let _: () = msg_send![app, terminate: nil];
+                }
             }
         },
         open_config_folder_macos_sync,

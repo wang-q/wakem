@@ -28,7 +28,7 @@ mod macos_property_tests {
         }
     }
 
-    /// Roundtrip consistency
+    // Roundtrip consistency
     proptest! {
         #[test]
         fn prop_roundtrip_consistency_for_letters(a in 0x00u16..=0x0Du16) {
@@ -51,7 +51,7 @@ mod macos_property_tests {
         }
     }
 
-    /// Unknown keycode passthrough
+    // Unknown keycode passthrough
     proptest! {
         #[test]
         fn prop_unknown_keycode_passthrough(kc in 0xC0u16..0xFFu16) {
@@ -84,7 +84,7 @@ mod macos_property_tests {
             assert!(vk2 > vk1);
         }
 
-        for (kc, vk) in &f_keycodes {
+        for (_kc, vk) in &f_keycodes {
             assert!((0x70..=0x7B).contains(vk));
         }
     }

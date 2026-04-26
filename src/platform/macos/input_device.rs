@@ -4,15 +4,15 @@
 //! Uses the generic [InputDevice] from [input_device_common] to share code
 //! with the Windows implementation.
 
+// Allow dead code - this module is under development for macOS input support
+#![allow(dead_code)]
+
 use crate::platform::input_device_common::{InputDevice, PlatformInputDevice};
 use crate::platform::traits::{InputDeviceConfig, InputDeviceTrait};
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 use std::sync::mpsc::Sender;
 use tracing::debug;
-
-/// macOS CGEventTap device type alias
-pub type MacosInputDevice = InputDevice<CGEventTapInner>;
 
 /// Inner CGEventTap device
 pub struct CGEventTapInner {
@@ -63,43 +63,9 @@ impl MacosInputDeviceExt {
         })
     }
 
-    /// Get the event sender
-    pub fn get_sender(&self) -> Sender<InputEvent> {
-        self.device.get_sender()
-    }
-
     /// Get current modifier key state
     pub fn get_modifier_state(&self) -> &ModifierState {
         &self.device.base.modifier_state
-    }
-
-    /// Wait for an event with timeout
-    pub fn wait_for_event(&mut self, timeout_ms: u64) -> Result<bool, String> {
-        if !self.device.base.running {
-            self.device.base.running = true;
-        }
-
-        #[cfg(not(test))]
-        {
-            match self
-                .device
-                .base
-                .event_receiver
-                .recv_timeout(std::time::Duration::from_millis(timeout_ms))
-            {
-                Ok(event) => {
-                    *self.pending_event.borrow_mut() = Some(event);
-                    Ok(true)
-                }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(false),
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    Err("Channel disconnected".to_string())
-                }
-            }
-        }
-
-        #[cfg(test)]
-        Ok(false)
     }
 
     /// Run one iteration of the input processing loop

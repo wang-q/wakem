@@ -6,6 +6,9 @@
 //! - NSApplication event loop for handling tray events
 //! - Async API trait for integration with async code
 
+// Allow deprecated cocoa APIs - migration to objc2 is planned for future
+#![allow(deprecated)]
+
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -21,15 +24,18 @@ use objc::runtime::{Class, Object, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 
 // Re-export shared tray types
-pub use crate::platform::traits::{AppCommand, MenuAction};
+pub use crate::platform::traits::AppCommand;
 // Import unified TrayApi trait from tray_common
 pub use crate::platform::tray_common::TrayApi;
 // Re-export menu ID constants from tray_common
 use crate::platform::tray_common::menu_ids;
 
+/// Type alias for the global callback to reduce complexity
+pub type AppCommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
+
 // Global callback storage for menu actions
 thread_local! {
-    static GLOBAL_CALLBACK: RefCell<Option<Box<dyn Fn(AppCommand) + Send + 'static>>> = RefCell::new(None);
+    static GLOBAL_CALLBACK: RefCell<Option<AppCommandCallback>> = RefCell::new(None);
 }
 
 /// Set the global callback for menu actions
@@ -38,7 +44,7 @@ where
     F: Fn(AppCommand) + Send + 'static,
 {
     GLOBAL_CALLBACK.with(|cb| {
-        *cb.borrow_mut() = Some(Box::new(callback));
+        *cb.borrow_mut() = Some(AppCommandCallback::from(Box::new(callback)));
     });
 }
 
@@ -336,15 +342,6 @@ impl TrayApi for RealTrayApi {
     }
 }
 
-// Re-export TrayIconWrapper and TrayManager from tray_common
-pub use crate::platform::tray_common::{TrayIconWrapper, TrayManager};
-
-/// Type aliases for convenience
-pub type RealTrayManager = TrayManager<RealTrayApi>;
-
-#[cfg(test)]
-pub type MockTrayManager = TrayManager<MockTrayApi>;
-
 /// Run the tray event loop
 /// This function initializes NSApplication, creates the tray, and runs the event loop
 pub fn run_tray_event_loop<F>(callback: F) -> Result<()>
@@ -382,47 +379,18 @@ where
     Ok(())
 }
 
-/// Run the tray message loop (blocking, for main thread)
-pub fn run_tray_message_loop<F>(callback: F) -> Result<()>
-where
-    F: Fn(AppCommand) + Send + 'static,
-{
-    info!("Starting tray message loop (macOS native)");
-    let result = run_tray_event_loop(callback);
-    info!("Tray message loop ended");
-    result
-}
-
-/// Stop the tray loop
-pub fn stop_tray() {
-    unsafe {
-        let app_class = Class::get("NSApplication").expect("NSApplication not found");
-        let app: id = msg_send![app_class, sharedApplication];
-        if app != nil {
-            let _: () = msg_send![app, terminate: nil];
-        }
-    }
-    debug!("Stop signal sent to tray loop");
-}
-
-// Re-export unified MockTrayApi from tray_common
-pub use crate::platform::tray_common::MockTrayApi;
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::tray_common::{MockTrayApi, TrayIconWrapper, TrayManager};
+
+    /// Type alias for test
+    pub type MockTrayManager = TrayManager<MockTrayApi>;
 
     #[test]
     fn test_app_command_variants() {
         assert_eq!(AppCommand::ToggleActive, AppCommand::ToggleActive);
         assert_ne!(AppCommand::ToggleActive, AppCommand::Exit);
-    }
-
-    #[test]
-    fn test_menu_action_variants() {
-        assert_eq!(MenuAction::None, MenuAction::None);
-        assert_eq!(MenuAction::ToggleActive, MenuAction::ToggleActive);
-        assert_ne!(MenuAction::ToggleActive, MenuAction::Exit);
     }
 
     #[tokio::test]

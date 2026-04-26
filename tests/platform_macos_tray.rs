@@ -2,7 +2,8 @@
 
 #[cfg(all(test, target_os = "macos"))]
 mod macos_tray_tests {
-    use wakem::platform::macos::tray::{AppCommand, MenuAction};
+    use wakem::platform::macos::tray::AppCommand;
+    use wakem::platform::traits::MenuAction;
 
     #[test]
     fn test_menu_action_debug() {

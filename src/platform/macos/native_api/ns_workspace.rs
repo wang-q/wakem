@@ -4,6 +4,11 @@
 //!
 //! Performance: < 0.5ms for all operations (vs 30ms+ with AppleScript)
 
+// Allow deprecated cocoa APIs - migration to objc2 is planned for future
+#![allow(deprecated)]
+// Allow dead code - some functions are under development
+#![allow(dead_code)]
+
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
 
 /// Get PID of the frontmost application

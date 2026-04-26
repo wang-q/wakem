@@ -7,6 +7,9 @@
 //!
 //! Performance: All operations complete in < 10ms (typically < 5ms)
 
+// Allow dead code - some trait methods are under development
+#![allow(dead_code)]
+
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
 use crate::platform::traits::{
     MonitorInfo, MonitorWorkArea, WindowApiBase, WindowId, WindowInfo, WindowState,
@@ -587,7 +590,7 @@ impl MacosWindowApi for MockMacosWindowApi {
         w: i32,
         h: i32,
     ) -> Result<()> {
-        if let Some(mut info) = self.windows.lock().unwrap().get_mut(&window) {
+        if let Some(info) = self.windows.lock().unwrap().get_mut(&window) {
             info.x = x;
             info.y = y;
             info.width = w;
@@ -606,7 +609,7 @@ impl MacosWindowApi for MockMacosWindowApi {
     fn maximize_window(&self, window: WindowId) -> Result<()> {
         let monitors = self.monitors.lock().unwrap();
         if let Some(monitor) = monitors.first() {
-            if let Some(mut info) = self.windows.lock().unwrap().get_mut(&window) {
+            if let Some(info) = self.windows.lock().unwrap().get_mut(&window) {
                 info.x = monitor.x;
                 info.y = monitor.y;
                 info.width = monitor.width;
@@ -658,7 +661,7 @@ impl MacosWindowApi for MockMacosWindowApi {
         let m = monitors
             .get(monitor_index)
             .ok_or_else(|| anyhow::anyhow!("Invalid monitor index"))?;
-        if let Some(mut info) = self.windows.lock().unwrap().get_mut(&window) {
+        if let Some(info) = self.windows.lock().unwrap().get_mut(&window) {
             info.x = m.x + (m.width - info.width) / 2;
             info.y = m.y + (m.height - info.height) / 2;
         }
@@ -824,7 +827,7 @@ mod tests {
 
     #[test]
     fn test_mock_move_to_monitor() {
-        let mut mock = MockMacosWindowApi::new();
+        let mock = MockMacosWindowApi::new();
         mock.set_monitors(vec![
             MonitorInfo {
                 x: 0,

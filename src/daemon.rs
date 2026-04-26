@@ -44,7 +44,7 @@ use crate::platform::macos::{
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
     AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, RealMacosWindowApi, WindowManager, WindowPresetManager,
+    Launcher, RealMacosWindowApi, WindowManager,
 };
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::mock::MockOutputDevice as OutputDevice;
@@ -1613,6 +1613,7 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
 /// This is called synchronously from the menu callback on the main thread
 /// Following Windows design: handle command directly without async
 #[cfg(target_os = "macos")]
+#[allow(dead_code)]
 fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
     use tokio::runtime::Handle;
 

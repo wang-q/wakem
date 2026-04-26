@@ -43,13 +43,6 @@ pub fn get_current() -> Option<WindowContext> {
     })
 }
 
-/// Get current modifier state using CGEventSource
-///
-/// Delegates to [crate::platform::macos::get_modifier_state] to avoid duplication.
-pub fn get_modifier_state() -> crate::types::ModifierState {
-    super::get_modifier_state()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,11 +167,5 @@ mod tests {
         }
 
         let _ = path;
-    }
-
-    #[test]
-    fn test_modifier_state() {
-        let modifiers = get_modifier_state();
-        let _ = modifiers;
     }
 }

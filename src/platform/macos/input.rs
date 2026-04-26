@@ -13,6 +13,9 @@
 //!
 //! Event callback latency: < 0.1ms per event (kernel-level interception)
 
+// Allow dead code - this module is under development for macOS input support
+#![allow(dead_code)]
+
 use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 
@@ -548,21 +551,6 @@ impl CGEventTapDevice {
                 }
             }
         }
-    }
-
-    /// Check if the device is currently running
-    pub fn is_running(&self) -> bool {
-        self.running.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    /// Get the event sender (for external use)
-    pub fn get_sender(&self) -> Sender<InputEvent> {
-        self.event_sender.clone()
-    }
-
-    /// Get the configuration
-    pub fn get_config(&self) -> &InputDeviceConfig {
-        &self.config
     }
 }
 

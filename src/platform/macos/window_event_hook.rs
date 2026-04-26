@@ -5,6 +5,9 @@
 //!
 //! Performance: < 2ms per poll (vs 100-200ms with AppleScript)
 
+// Allow dead code - this module is under development for macOS window event support
+#![allow(dead_code)]
+
 use crate::platform::traits::PlatformWindowEvent;
 use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};

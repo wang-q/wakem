@@ -14,6 +14,9 @@
 //! - Bring windows to front
 //! - Query window state (minimized, focused, title)
 
+// Allow dead code - this module is under development for macOS accessibility support
+#![allow(dead_code)]
+
 use anyhow::{bail, Result};
 use std::ffi::{c_void, CStr, CString};
 use tracing::{debug, trace, warn};

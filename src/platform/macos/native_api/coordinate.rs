@@ -10,6 +10,7 @@ pub fn windows_to_cg(y: f64, screen_height: f64) -> f64 {
 }
 
 /// Convert Y-coordinate from CG-style (bottom-left) to Windows-style (top-left)
+#[allow(dead_code)]
 pub fn cg_to_windows(y: f64, screen_height: f64) -> f64 {
     screen_height - y
 }
