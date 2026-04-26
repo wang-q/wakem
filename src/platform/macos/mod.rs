@@ -28,7 +28,7 @@ pub use window_event_hook::WindowEventHook;
 pub use window_manager::{MonitorDirection, WindowManager};
 pub use window_preset::WindowPresetManager;
 
-use crate::platform::traits::PlatformUtilities;
+use crate::platform::traits::{ContextProvider, PlatformUtilities};
 use crate::types::ModifierState;
 
 /// macOS platform utilities
@@ -79,6 +79,50 @@ impl PlatformUtilities for MacosPlatform {
 
     fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
         get_process_path(pid)
+    }
+}
+
+impl ContextProvider for MacosPlatform {
+    fn get_current_context() -> Option<crate::platform::traits::WindowContext> {
+        context::get_current()
+    }
+}
+
+/// macOS notification service using native notification center API
+#[allow(dead_code)]
+pub struct MacosNotificationService;
+
+#[allow(dead_code)]
+impl MacosNotificationService {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for MacosNotificationService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl crate::platform::traits::NotificationService for MacosNotificationService {
+    fn show(&self, title: &str, message: &str) -> anyhow::Result<()> {
+        use crate::platform::macos::native_api::notification::show_notification;
+
+        match show_notification(title, message) {
+            Ok(()) => {
+                tracing::info!("Notification shown: {} - {}", title, message);
+                Ok(())
+            }
+            Err(e) => {
+                tracing::warn!("Failed to show notification: {}", e);
+                Ok(())
+            }
+        }
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

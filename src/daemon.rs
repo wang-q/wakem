@@ -10,7 +10,7 @@ use crate::constants::{
     IPC_CHANNEL_CAPACITY, SHUTDOWN_WAIT_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
-use crate::platform::traits::{OutputDeviceTrait, PlatformUtilities};
+use crate::platform::traits::{ContextProvider, NotificationService, OutputDeviceTrait, PlatformUtilities};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
@@ -87,6 +87,8 @@ pub struct ServerState {
     /// Stored as isize for Send/Sync safety (HWND is *mut c_void which is not Send)
     #[allow(dead_code)]
     message_window_hwnd: Arc<RwLock<Option<isize>>>,
+    /// Notification service (platform-abstracted)
+    notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
     /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
     /// Active hyper keys and their contributed modifier states
@@ -122,6 +124,9 @@ impl ServerState {
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
+            notification_service: Arc::new(Mutex::new(Box::new(
+                crate::platform::windows::WindowsNotificationService::new(),
+            ))),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -148,6 +153,9 @@ impl ServerState {
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
+            notification_service: Arc::new(Mutex::new(Box::new(
+                crate::platform::macos::MacosNotificationService::new(),
+            ))),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -444,14 +452,8 @@ impl ServerState {
         // Layer manager didn't handle, use base mapping engine (with context awareness) - use read lock
         let action = {
             let mapper = self.mapper.read().await;
-            #[cfg(target_os = "windows")]
             let context: Option<crate::platform::traits::WindowContext> =
-                crate::platform::windows::context::get_current();
-            #[cfg(target_os = "macos")]
-            let context: Option<crate::platform::traits::WindowContext> =
-                crate::platform::macos::context::get_current();
-            #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-            let context: Option<crate::platform::traits::WindowContext> = None;
+                get_current_window_context();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
@@ -862,11 +864,10 @@ impl ServerState {
         );
     }
 
-    /// Set message window handle (macOS version - no-op)
-    #[cfg(target_os = "macos")]
-    pub async fn set_message_window_hwnd(&self, _hwnd_value: isize) {
-        // macOS doesn't use HWND, this is a no-op
-        info!("Message window handle registered (macOS)");
+    /// Show notification using platform-abstracted notification service
+    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
+        let service = self.notification_service.lock().await;
+        service.show(title, message)
     }
 
     /// Get current auth key (for IPC authentication)
@@ -875,85 +876,31 @@ impl ServerState {
         self.auth_key.read().await.clone()
     }
 
-    /// Show tray notification
+    /// Set message window handle (for Windows tray notifications)
+    /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
     #[cfg(target_os = "windows")]
-    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        if let Some(hwnd_isize) = *self.message_window_hwnd.read().await {
-            // Show notification using tray icon (pass isize directly)
-            self.show_tray_notification(hwnd_isize, title, message)
-                .await?;
-        } else {
-            debug!("Message window not registered, skipping notification");
+    pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
+        let mut h = self.message_window_hwnd.write().await;
+        *h = Some(hwnd_value);
+        // Also update the notification service with the hwnd
+        if let Ok(service) = self.notification_service.try_lock() {
+            if let Some(win_svc) =
+                service.as_ref().as_any().downcast_ref::<crate::platform::windows::WindowsNotificationService>()
+            {
+                win_svc.set_message_window_hwnd(hwnd_value);
+            }
         }
-        Ok(())
+        info!(
+            "Message window handle registered: {:?}",
+            windows::Win32::Foundation::HWND(hwnd_value as *mut std::ffi::c_void)
+        );
     }
 
-    /// Show tray notification (macOS version)
+    /// Set message window handle (macOS version - no-op)
     #[cfg(target_os = "macos")]
-    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        use crate::platform::macos::native_api::notification::show_notification;
-
-        match show_notification(title, message) {
-            Ok(()) => {
-                info!("Notification shown: {} - {}", title, message);
-                Ok(())
-            }
-            Err(e) => {
-                warn!("Failed to show notification: {}", e);
-                Ok(())
-            }
-        }
-    }
-
-    /// Show notification using tray icon (internal method)
-    /// Takes isize instead of HWND to avoid Send issues
-    #[cfg(target_os = "windows")]
-    async fn show_tray_notification(
-        &self,
-        hwnd_value: isize,
-        title: &str,
-        message: &str,
-    ) -> Result<()> {
-        use windows::Win32::UI::Shell::{
-            NIF_INFO, NIM_MODIFY, NOTIFYICONDATAW, NOTIFY_ICON_INFOTIP_FLAGS,
-        };
-
-        // Create HWND from isize for API calls
-        let hwnd = HWND(hwnd_value as *mut std::ffi::c_void);
-
-        let mut nid = NOTIFYICONDATAW {
-            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-            hWnd: hwnd,
-            uID: 1, // Tray icon ID
-            uFlags: NIF_INFO,
-            ..Default::default()
-        };
-
-        // Convert title and message to wide strings
-        let title_wide: Vec<u16> =
-            title.encode_utf16().chain(std::iter::once(0)).collect();
-        let message_wide: Vec<u16> =
-            message.encode_utf16().chain(std::iter::once(0)).collect();
-
-        // Copy to struct (limit length)
-        let title_len = title_wide.len().min(64);
-        let message_len = message_wide.len().min(256);
-
-        nid.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
-        nid.szInfo[..message_len].copy_from_slice(&message_wide[..message_len]);
-
-        // Set notification type (0 = no icon)
-        nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
-
-        unsafe {
-            let result = windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid);
-            if !result.as_bool() {
-                return Err(anyhow::anyhow!("Failed to show notification"));
-            }
-        }
-
-        info!("Notification shown: {} - {}", title, message);
-        Ok(())
+    pub async fn set_message_window_hwnd(&self, _hwnd_value: isize) {
+        // macOS doesn't use HWND, this is a no-op
+        info!("Message window handle registered (macOS)");
     }
 
     /// Trigger graceful shutdown
@@ -980,21 +927,39 @@ impl Default for ServerState {
     }
 }
 
-/// Get current modifier key state
+/// Get current modifier key state using platform abstraction layer
 fn get_current_modifier_state() -> ModifierState {
     #[cfg(target_os = "windows")]
     {
-        crate::platform::windows::WindowsPlatform::get_modifier_state()
+        <crate::platform::windows::WindowsPlatform as PlatformUtilities>::get_modifier_state()
     }
 
     #[cfg(target_os = "macos")]
     {
-        crate::platform::macos::MacosPlatform::get_modifier_state()
+        <crate::platform::macos::MacosPlatform as PlatformUtilities>::get_modifier_state()
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         ModifierState::default()
+    }
+}
+
+/// Get current window context using platform abstraction layer
+fn get_current_window_context() -> Option<crate::platform::traits::WindowContext> {
+    #[cfg(target_os = "windows")]
+    {
+        <crate::platform::windows::WindowsPlatform as ContextProvider>::get_current_context()
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        <crate::platform::macos::MacosPlatform as ContextProvider>::get_current_context()
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        None
     }
 }
 

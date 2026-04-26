@@ -3,7 +3,7 @@
 //! This module provides mock implementations of platform-specific traits
 //! that can be used for testing on any platform.
 
-use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
+use crate::platform::traits::{ContextProvider, InputDeviceTrait, OutputDeviceTrait, PlatformUtilities};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
@@ -339,6 +339,82 @@ impl OutputDeviceTrait for MockOutputDevice {
             .unwrap()
             .push(MockOutputEvent::MouseWheel { delta, horizontal });
         Ok(())
+    }
+}
+
+/// Mock platform implementation for testing
+#[allow(dead_code)]
+pub struct MockPlatform;
+
+impl PlatformUtilities for MockPlatform {
+    fn get_modifier_state() -> ModifierState {
+        ModifierState::default()
+    }
+
+    fn get_process_name_by_pid(_pid: u32) -> anyhow::Result<String> {
+        Ok("mock_process".to_string())
+    }
+
+    fn get_executable_path_by_pid(_pid: u32) -> anyhow::Result<String> {
+        Ok("/mock/path/mock_process".to_string())
+    }
+}
+
+impl ContextProvider for MockPlatform {
+    fn get_current_context() -> Option<crate::platform::traits::WindowContext> {
+        Some(crate::platform::traits::WindowContext {
+            process_name: "MockApp".to_string(),
+            window_class: "MockWindow".to_string(),
+            window_title: "Mock Window".to_string(),
+            executable_path: Some("/mock/app".to_string()),
+        })
+    }
+}
+
+/// Mock notification service for testing
+#[allow(dead_code)]
+pub struct MockNotificationService {
+    notifications: Arc<Mutex<Vec<(String, String)>>>,
+}
+
+#[allow(dead_code)]
+impl MockNotificationService {
+    pub fn new() -> Self {
+        Self {
+            notifications: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn get_notifications(&self) -> Vec<(String, String)> {
+        self.notifications.lock().unwrap().clone()
+    }
+
+    pub fn notification_count(&self) -> usize {
+        self.notifications.lock().unwrap().len()
+    }
+
+    pub fn clear(&self) {
+        self.notifications.lock().unwrap().clear();
+    }
+}
+
+impl Default for MockNotificationService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl crate::platform::traits::NotificationService for MockNotificationService {
+    fn show(&self, title: &str, message: &str) -> Result<()> {
+        self.notifications
+            .lock()
+            .unwrap()
+            .push((title.to_string(), message.to_string()));
+        Ok(())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 

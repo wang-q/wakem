@@ -430,6 +430,38 @@ pub trait PlatformUtilities {
     fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String>;
 }
 
+/// Trait for providing current window context information
+///
+/// This trait abstracts the platform-specific implementation of obtaining
+/// the current foreground window's context (process name, window title, etc.).
+/// It enables core logic to access window context without direct platform API calls.
+pub trait ContextProvider {
+    /// Get the current foreground window context
+    ///
+    /// Returns `None` if no window is in foreground or if the information
+    /// cannot be obtained (e.g., insufficient permissions on macOS).
+    fn get_current_context() -> Option<WindowContext>;
+}
+
+/// Trait for showing desktop notifications
+///
+/// This trait provides a cross-platform abstraction for displaying
+/// system notifications (toast notifications on Windows, notification center
+/// on macOS). Implementations should handle platform-specific details internally.
+pub trait NotificationService: Send + Sync {
+    /// Show a notification with the given title and message
+    ///
+    /// Returns `Ok(())` if the notification was shown successfully,
+    /// or an error if the notification could not be displayed.
+    fn show(&self, title: &str, message: &str) -> Result<()>;
+
+    /// Returns self as `Any` for downcasting to concrete type
+    fn as_any(&self) -> &dyn std::any::Any where Self: Sized {
+        // Default implementation - override in concrete types if needed
+        unimplemented!("as_any() must be implemented for downcasting support")
+    }
+}
+
 /// Window context information (for context-aware mappings)
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]

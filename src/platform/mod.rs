@@ -29,6 +29,7 @@ pub mod macos;
 pub use windows::{
     Launcher, MonitorDirection, RawInputDevice, RealWindowApi, SendInputDevice,
     TrayIcon, WindowEventHook, WindowManager, WindowPresetManager,
+    WindowsNotificationService, WindowsPlatform,
 };
 
 // Platform-specific type aliases for easier cross-platform code
@@ -39,6 +40,8 @@ pub mod platform_types {
         Launcher, RawInputDevice as InputDevice, SendInputDevice as OutputDevice,
         WindowManager, WindowPresetManager,
     };
+    pub use super::WindowsPlatform;
+    pub use super::WindowsNotificationService;
 }
 
 #[cfg(target_os = "macos")]
@@ -46,6 +49,7 @@ pub mod platform_types {
 pub use macos::{
     Launcher, MonitorDirection, RawInputDevice, RealWindowApi, SendInputDevice,
     TrayIcon, WindowEventHook, WindowManager, WindowPresetManager,
+    MacosNotificationService, MacosPlatform,
 };
 
 // Platform-specific type aliases for easier cross-platform code
@@ -56,4 +60,6 @@ pub mod platform_types {
         Launcher, RawInputDevice as InputDevice, SendInputDevice as OutputDevice,
         WindowManager, WindowPresetManager,
     };
+    pub use super::MacosPlatform;
+    pub use super::MacosNotificationService;
 }
