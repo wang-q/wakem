@@ -2,6 +2,18 @@
 
 ## Unreleased - ReleaseDate
 
+### Improvements
+
+- Improved memory management and thread safety
+- Improved error handling and shutdown logic
+- Made config file operations non-fatal
+
+### Refactoring
+
+- Consolidated platform-specific implementations
+- Reorganized IPC module structure
+- Cleaned up unused code and imports
+
 ## 0.1.2 - 2026-04-24
 
 ### Bug Fixes
