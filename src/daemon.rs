@@ -34,23 +34,21 @@ use crate::platform::windows::{
     Launcher, RawInputDevice, WindowManager, WindowPresetManager,
 };
 
-#[cfg(target_os = "macos")]
-use crate::platform::macos::input_device::{InputDevice, InputDeviceConfig};
-
 // Platform-specific imports for production code (macOS)
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
-    AppCommand as TrayAppCommand, Launcher, MacosInputDevice as RawInputDevice,
-    MacosOutputDevice as OutputDevice, RealMacosWindowApi,
-    RealMacosWindowManager as WindowManager,
+    AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
+    Launcher, MacosOutputDevice as OutputDevice, RealMacosWindowApi,
+    WindowManager, WindowPresetManager,
 };
 
 // Platform-specific imports for test code (macOS)
 #[cfg(all(target_os = "macos", test))]
+use crate::platform::mock::MockOutputDevice as OutputDevice;
+#[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
-    output_device::MockMacosOutputDevice as OutputDevice, AppCommand as TrayAppCommand,
-    Launcher, MacosInputDevice as RawInputDevice, RealMacosWindowApi,
-    RealMacosWindowManager as WindowManager,
+    AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
+    Launcher, RealMacosWindowApi, WindowManager, WindowPresetManager,
 };
 
 #[cfg(target_os = "windows")]
@@ -79,7 +77,7 @@ pub struct ServerState {
     /// Window manager - macOS only
     #[cfg(target_os = "macos")]
     #[allow(dead_code)]
-    window_manager: Arc<RwLock<crate::platform::macos::RealMacosWindowManager>>,
+    window_manager: Arc<RwLock<crate::platform::macos::WindowManager>>,
     /// Whether mapping is enabled (frequently read, rarely written)
     active: Arc<AtomicBool>,
     /// Whether config has been loaded

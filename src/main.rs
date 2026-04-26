@@ -522,7 +522,7 @@ fn run_tray_sync(
             // Check and start daemon if needed
             if !is_daemon_running(instance_id) {
                 info!("Daemon not running, auto-starting...");
-                if let Err(e) = run_daemon(instance_id, None) {
+                if let Err(e) = run_daemon(instance_id, None, None) {
                     error!("Daemon exited with error: {}", e);
                 }
             } else {

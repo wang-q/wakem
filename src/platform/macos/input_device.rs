@@ -103,6 +103,15 @@ impl MacosInputDeviceExt {
         Ok(false)
     }
 
+    /// Run one iteration of the input processing loop
+    pub fn run_once(&mut self) -> Result<bool> {
+        if let Some(ref mut inner) = self.device.inner {
+            inner.run_once()
+        } else {
+            Ok(true)
+        }
+    }
+
     /// Poll event with pending event support
     fn poll_event_with_pending(&mut self) -> Option<InputEvent> {
         if !self.device.base.running {
@@ -136,7 +145,7 @@ impl InputDeviceTrait for MacosInputDeviceExt {
         #[cfg(not(test))]
         if crate::platform::macos::input::check_accessibility_permissions() {
             let sender = self.device.base.sender();
-            let inner = CGEventTapInner::create(sender)?;
+            let mut inner = CGEventTapInner::create(sender)?;
             inner.tap.run()?;
             self.device.inner = Some(inner);
             debug!("CGEventTap started");
