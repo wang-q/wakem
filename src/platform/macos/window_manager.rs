@@ -23,43 +23,8 @@ impl<A: WindowApi + Clone> WindowManager<A> {
         Self { api }
     }
 
-    pub fn with_api(api: A) -> Self {
-        Self { api }
-    }
-
     pub fn api(&self) -> &A {
         &self.api
-    }
-}
-
-impl<A: WindowApi + Clone + Send + Sync> WindowManager<A> {
-    /// Get foreground window information
-    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
-        let window = self
-            .api
-            .get_foreground_window()
-            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
-        self.api.get_window_info(window)
-    }
-
-    /// Set window frame (position and size)
-    pub fn set_window_frame(
-        &self,
-        window: WindowId,
-        frame: &crate::platform::traits::WindowFrame,
-    ) -> Result<()> {
-        self.api
-            .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)
-    }
-
-    /// Get debug info string for the foreground window
-    pub fn get_debug_info(&self) -> Result<String> {
-        let info = self.get_foreground_window_info()?;
-
-        Ok(format!(
-            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
-            info.title, info.id, info.x, info.y, info.width, info.height
-        ))
     }
 }
 

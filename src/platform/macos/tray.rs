@@ -390,32 +390,8 @@ where
     Ok(())
 }
 
-/// Alias for run_tray_message_loop for backward compatibility
-pub fn run_tray_event_loop<F>(callback: F) -> Result<()>
-where
-    F: Fn(AppCommand) + Send + 'static,
-{
-    run_tray_message_loop(callback)
-}
-
-/// Stop the tray event loop
-/// Posts a stop message to the NSApplication event loop
-pub fn stop_tray() {
-    unsafe {
-        let app_class = Class::get("NSApplication");
-        if let Some(cls) = app_class {
-            let app: id = msg_send![cls, sharedApplication];
-            if app != nil {
-                let _: () = msg_send![app, stop: nil];
-                info!("Posted stop message to NSApplication");
-            }
-        }
-    }
-}
-
 // Re-export shared tray types from tray_common (aligned with Windows)
-pub use crate::platform::tray_common::MockTrayApi;
-pub use crate::platform::tray_common::TrayManager;
+pub use crate::platform::tray_common::{MockTrayApi, TrayManager};
 
 #[cfg(test)]
 mod tests {

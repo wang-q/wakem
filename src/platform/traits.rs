@@ -398,6 +398,21 @@ pub trait WindowManagerTrait: Send + Sync {
     fn is_maximized(&self, window: WindowId) -> bool;
 }
 
+/// Platform utility functions trait
+///
+/// Provides common platform operations that are implemented differently
+/// on each platform (Windows, macOS).
+pub trait PlatformUtilities {
+    /// Get current modifier state
+    fn get_modifier_state() -> ModifierState;
+
+    /// Get process name by PID
+    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String>;
+
+    /// Get executable path by PID
+    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String>;
+}
+
 /// Window context information (for context-aware mappings)
 #[derive(Debug, Clone, Default)]
 #[allow(dead_code)]

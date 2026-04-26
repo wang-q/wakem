@@ -35,6 +35,57 @@ pub trait WindowPresetApi {
     fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
 }
 
+/// Macro to implement [WindowPresetApi] for a window manager.
+///
+/// This macro eliminates the boilerplate of implementing [WindowPresetApi]
+/// for each platform's window manager. The implementation delegates all
+/// operations to the underlying window API.
+///
+/// # Usage
+///
+/// ```ignore
+/// // In windows/window_preset.rs:
+/// impl_window_preset_api_for_manager!(WindowManager<A>, A, HWND);
+///
+/// // In macos/window_preset.rs:
+/// impl_window_preset_api_for_manager!(WindowManager<A>, A, WindowId);
+/// ```
+#[macro_export]
+macro_rules! impl_window_preset_api_for_manager {
+    ($manager:ty, $api_trait:path, $window_id:ty) => {
+        impl $crate::platform::window_preset_common::WindowPresetApi for $manager {
+            type WindowId = $window_id;
+
+            fn get_foreground_window(&self) -> Option<Self::WindowId> {
+                <$api_trait>::get_foreground_window(self)
+            }
+
+            fn get_window_info(&self, window: Self::WindowId) -> ::anyhow::Result<$crate::platform::traits::WindowInfo> {
+                <$api_trait>::get_window_info(self, window)
+            }
+
+            fn set_window_pos(
+                &self,
+                window: Self::WindowId,
+                x: i32,
+                y: i32,
+                w: i32,
+                h: i32,
+            ) -> ::anyhow::Result<()> {
+                <$api_trait>::set_window_pos(self, window, x, y, w, h)
+            }
+
+            fn minimize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
+                <$api_trait>::minimize_window(self, window)
+            }
+
+            fn maximize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
+                <$api_trait>::maximize_window(self, window)
+            }
+        }
+    };
+}
+
 /// Generic window preset manager.
 ///
 /// Manages a collection of [WindowPreset] definitions and saved presets,
