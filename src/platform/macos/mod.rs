@@ -18,10 +18,11 @@ pub mod window_preset;
 pub use crate::platform::launcher_common::Launcher;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
-pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
+pub use tray::{run_tray_message_loop, stop_tray};
 pub use window_api::RealWindowApi;
 pub use window_event_hook::MacosWindowEventHook as WindowEventHook;
-pub use window_manager::{MonitorDirection, RealWindowManager, WindowManager};
+pub use window_manager::{RealWindowManager, WindowManager};
+pub use crate::platform::traits::MonitorDirection;
 pub use window_preset::WindowPresetManager;
 
 #[cfg(test)]

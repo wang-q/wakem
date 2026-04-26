@@ -4,20 +4,13 @@
 //! including half-screen, centering, ratio control, and multi-monitor support.
 
 use crate::platform::macos::window_api::{RealWindowApi, WindowApi};
-use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTrait};
+use crate::platform::traits::{
+    MonitorDirection, MonitorInfo, WindowId, WindowInfo, WindowManagerTrait,
+};
 use anyhow::Result;
 use tracing::debug;
 
 use crate::platform::window_manager_common::CommonWindowApi;
-
-/// Monitor direction (for moving between displays)
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-pub enum MonitorDirection {
-    Next,
-    Prev,
-    Index(i32),
-}
 
 /// Generic macOS window manager using WindowApi trait
 #[derive(Clone)]
@@ -230,70 +223,8 @@ impl RealWindowManager {
         window: WindowId,
         direction: MonitorDirection,
     ) -> Result<()> {
-        use crate::platform::traits::WindowManagerTrait;
-
-        let monitors = WindowManagerTrait::get_monitors(self);
-        if monitors.len() < 2 {
-            debug!("Only one monitor, nothing to do");
-            return Ok(());
-        }
-
-        // Get current window info to find which monitor it's on
-        let info = WindowManagerTrait::get_window_info(self, window)?;
-
-        // Find current monitor index
-        let current_monitor_index = monitors
-            .iter()
-            .position(|m| {
-                info.x >= m.x
-                    && info.x < m.x + m.width
-                    && info.y >= m.y
-                    && info.y < m.y + m.height
-            })
-            .unwrap_or(0);
-
-        // Calculate target monitor index
-        let target_index = match direction {
-            MonitorDirection::Next => (current_monitor_index + 1) % monitors.len(),
-            MonitorDirection::Prev => {
-                if current_monitor_index == 0 {
-                    monitors.len() - 1
-                } else {
-                    current_monitor_index - 1
-                }
-            }
-            MonitorDirection::Index(idx) => {
-                let idx = idx as usize;
-                if idx >= monitors.len() {
-                    return Err(anyhow::anyhow!("Invalid monitor index: {}", idx));
-                }
-                idx
-            }
-        };
-
-        let target_monitor = &monitors[target_index];
-        let current_monitor = &monitors[current_monitor_index];
-
-        // Calculate relative position ratio
-        let rel_x = (info.x - current_monitor.x) as f32 / current_monitor.width as f32;
-        let rel_y = (info.y - current_monitor.y) as f32 / current_monitor.height as f32;
-        let rel_width = info.width as f32 / current_monitor.width as f32;
-        let rel_height = info.height as f32 / current_monitor.height as f32;
-
-        // Calculate new position (maintain relative position and size ratio)
-        let new_x = target_monitor.x + (rel_x * target_monitor.width as f32) as i32;
-        let new_y = target_monitor.y + (rel_y * target_monitor.height as f32) as i32;
-        let new_width = (rel_width * target_monitor.width as f32) as i32;
-        let new_height = (rel_height * target_monitor.height as f32) as i32;
-
-        WindowManagerTrait::set_window_pos(self, window, new_x, new_y, new_width, new_height)?;
-
-        debug!(
-            "Moved window from monitor {} to monitor {}: ({}, {}) {}x{}",
-            current_monitor_index, target_index, new_x, new_y, new_width, new_height
-        );
-
-        Ok(())
+        use crate::platform::window_manager_common::CommonWindowManager;
+        CommonWindowManager::move_to_monitor(self, window, direction)
     }
 }
 

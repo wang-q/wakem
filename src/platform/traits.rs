@@ -272,6 +272,15 @@ pub enum WindowOperation {
     ToggleTopmost,
 }
 
+/// Monitor direction for moving windows between displays
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
+pub enum MonitorDirection {
+    Next,
+    Prev,
+    Index(i32),
+}
+
 /// Application commands sent from tray menu
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppCommand {

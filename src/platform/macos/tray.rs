@@ -413,24 +413,6 @@ pub fn stop_tray() {
     }
 }
 
-/// TrayIcon struct for API compatibility with Windows
-/// On macOS, this is a placeholder as the tray is managed by RealTrayApi
-pub struct TrayIcon;
-
-#[allow(dead_code)]
-impl TrayIcon {
-    /// Create a new tray icon (placeholder)
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for TrayIcon {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 // Re-export shared tray types from tray_common (aligned with Windows)
 pub use crate::platform::tray_common::MockTrayApi;
 pub use crate::platform::tray_common::TrayManager;

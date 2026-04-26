@@ -3,7 +3,7 @@
 //! This module provides platform-agnostic window management operations
 //! that can be used by any platform-specific window manager.
 
-use crate::platform::traits::{MonitorInfo, WindowFrame, WindowInfoProvider};
+use crate::platform::traits::{MonitorDirection, MonitorInfo, WindowFrame, WindowInfoProvider};
 use crate::types::{Alignment, Edge};
 use anyhow::Result;
 use tracing::debug;
@@ -472,6 +472,81 @@ impl CommonWindowManager {
 
         api.set_window_pos(window, new_x, new_y, info.width(), info.height())?;
         debug!("Moved window to {:?} edge: ({}, {})", edge, new_x, new_y);
+        Ok(())
+    }
+
+    /// Move window to another monitor
+    pub fn move_to_monitor<A, W, I>(
+        api: &A,
+        window: W,
+        direction: MonitorDirection,
+    ) -> Result<()>
+    where
+        A: CommonWindowApi<WindowId = W, WindowInfo = I>,
+        I: WindowInfoProvider,
+        W: Copy,
+    {
+        let monitors = api.get_monitors();
+        if monitors.len() < 2 {
+            debug!("Only one monitor, nothing to do");
+            return Ok(());
+        }
+
+        // Get current window info
+        let info = api.get_window_info(window)?;
+
+        // Find current monitor index based on window position
+        let current_monitor_index = monitors
+            .iter()
+            .position(|m| {
+                info.x() >= m.x
+                    && info.x() < m.x + m.width
+                    && info.y() >= m.y
+                    && info.y() < m.y + m.height
+            })
+            .unwrap_or(0);
+
+        // Calculate target monitor index
+        let target_index = match direction {
+            MonitorDirection::Next => (current_monitor_index + 1) % monitors.len(),
+            MonitorDirection::Prev => {
+                if current_monitor_index == 0 {
+                    monitors.len() - 1
+                } else {
+                    current_monitor_index - 1
+                }
+            }
+            MonitorDirection::Index(idx) => {
+                let idx = idx as usize;
+                if idx >= monitors.len() {
+                    return Err(anyhow::anyhow!("Invalid monitor index: {}", idx));
+                }
+                idx
+            }
+        };
+
+        let target_monitor = &monitors[target_index];
+        let current_monitor = &monitors[current_monitor_index];
+
+        // Calculate relative position ratio
+        let rel_x = (info.x() - current_monitor.x) as f32 / current_monitor.width as f32;
+        let rel_y = (info.y() - current_monitor.y) as f32 / current_monitor.height as f32;
+        let rel_width = info.width() as f32 / current_monitor.width as f32;
+        let rel_height = info.height() as f32 / current_monitor.height as f32;
+
+        // Calculate new position (maintain relative position and size ratio)
+        let new_x = target_monitor.x + (rel_x * target_monitor.width as f32) as i32;
+        let new_y = target_monitor.y + (rel_y * target_monitor.height as f32) as i32;
+        let new_width = (rel_width * target_monitor.width as f32) as i32;
+        let new_height = (rel_height * target_monitor.height as f32) as i32;
+
+        api.set_window_pos(window, new_x, new_y, new_width, new_height)?;
+
+        debug!(
+            "Moved window from monitor {} to monitor {}: ({}, {}) {}x{}",
+            current_monitor_index, target_index, new_x, new_y, new_width, new_height
+        );
+
         Ok(())
     }
 }
