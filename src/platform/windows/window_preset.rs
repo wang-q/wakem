@@ -1,15 +1,14 @@
 //! Windows window preset implementation
 #![cfg(target_os = "windows")]
 
-use crate::platform::traits::{WindowApiBase, WindowInfo};
+use crate::platform::traits::WindowInfo;
 use crate::platform::window_preset_common::{
     WindowPresetApi, WindowPresetManager as CommonWindowPresetManager,
 };
 use crate::platform::windows::window_manager::WindowManager;
-use anyhow::Result;
 use windows::Win32::Foundation::HWND;
 
-impl<A: WindowApiBase<WindowId = HWND>> WindowPresetApi for WindowManager<A> {
+impl<A: crate::platform::traits::WindowApiBase<WindowId = HWND>> WindowPresetApi for WindowManager<A> {
     type WindowId = HWND;
 
     fn get_foreground_window(&self) -> Option<Self::WindowId> {

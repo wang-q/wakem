@@ -567,3 +567,86 @@ macro_rules! impl_window_api_base_via {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_matches_basic() {
+        let ctx = WindowContext {
+            process_name: "firefox.exe".to_string(),
+            window_class: "MozillaWindowClass".to_string(),
+            window_title: "Firefox".to_string(),
+            executable_path: Some("C:\\Program Files\\Firefox\\firefox.exe".to_string()),
+        };
+
+        // Test process name matching
+        assert!(ctx.matches(Some("firefox.exe"), None, None, None));
+        assert!(ctx.matches(Some("*.exe"), None, None, None));
+        assert!(!ctx.matches(Some("chrome.exe"), None, None, None));
+
+        // Test window class name matching
+        assert!(ctx.matches(None, Some("Mozilla*"), None, None));
+        assert!(!ctx.matches(None, Some("Chrome*"), None, None));
+
+        // Test window title matching
+        assert!(ctx.matches(None, None, Some("Fire*"), None));
+
+        // Test path matching
+        assert!(ctx.matches(None, None, None, Some("*Firefox*")));
+    }
+
+    #[test]
+    fn test_matches_exact() {
+        let ctx = WindowContext {
+            process_name: "Safari".to_string(),
+            window_class: String::new(),
+            window_title: "Apple".to_string(),
+            executable_path: Some("/Applications/Safari.app".to_string()),
+        };
+
+        assert!(ctx.matches(Some("Safari"), None, None, None));
+        assert!(ctx.matches(None, None, Some("Apple"), None));
+        assert!(ctx.matches(None, None, None, Some("*Safari*")));
+    }
+
+    #[test]
+    fn test_matches_wildcard() {
+        let ctx = WindowContext {
+            process_name: "Google Chrome".to_string(),
+            window_class: String::new(),
+            window_title: "Google Chrome - Wikipedia".to_string(),
+            executable_path: Some("/Applications/Google Chrome.app".to_string()),
+        };
+
+        assert!(ctx.matches(Some("Google*"), None, None, None));
+        assert!(ctx.matches(Some("*Chrome"), None, None, None));
+        assert!(ctx.matches(None, None, Some("*Wikipedia*"), None));
+        assert!(ctx.matches(None, None, None, Some("*Google*")));
+
+        assert!(!ctx.matches(Some("Firefox"), None, None, None));
+        assert!(!ctx.matches(None, None, Some("Safari"), None));
+    }
+
+    #[test]
+    fn test_matches_no_conditions() {
+        let ctx = WindowContext {
+            process_name: "Test".to_string(),
+            ..Default::default()
+        };
+
+        assert!(ctx.matches(None, None, None, None));
+    }
+
+    #[test]
+    fn test_matches_executable_path_none() {
+        let ctx = WindowContext {
+            process_name: "Test".to_string(),
+            executable_path: None,
+            ..Default::default()
+        };
+
+        assert!(!ctx.matches(None, None, None, Some("/some/path")));
+    }
+}

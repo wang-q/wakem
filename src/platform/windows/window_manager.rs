@@ -16,10 +16,13 @@ use super::window_api::RealWindowApi;
 #[allow(unused_imports)]
 pub use crate::types::{Alignment, Edge};
 // Import common window manager and shared types
+pub use crate::platform::window_manager_common::WindowManager;
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowInfo, WindowInfoProvider,
+    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo,
 };
-use crate::platform::window_manager_common::CommonWindowApi;
+
+/// Type alias for window manager using real Windows API
+pub type RealWindowManager = WindowManager<RealWindowApi>;
 
 /// Create WindowFrame from RECT
 #[allow(dead_code)]
@@ -84,108 +87,21 @@ pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
     data.monitors
 }
 
-/// Window manager using WindowApiBase trait
-#[allow(dead_code)]
-pub struct WindowManager<A: WindowApiBase<WindowId = HWND>> {
-    api: A,
-}
-
-/// Type alias for window manager using real Windows API
-pub type RealWindowManager = WindowManager<RealWindowApi>;
-
 impl WindowManager<RealWindowApi> {
     /// Create a window manager using real Windows API
     pub fn new() -> Self {
-        Self {
-            api: RealWindowApi::new(),
-        }
+        Self::with_api(RealWindowApi::new())
     }
 }
 
-impl Default for WindowManager<RealWindowApi> {
+impl Default for RealWindowManager {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[allow(dead_code)]
-impl<A: WindowApiBase<WindowId = HWND>> WindowManager<A> {
-    /// Create a window manager with specified API implementation
-    pub fn with_api(api: A) -> Self {
-        Self { api }
-    }
-
-    /// Get API reference (for testing)
-    pub fn api(&self) -> &A {
-        &self.api
-    }
-
-    /// Get foreground window information
-    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
-        let hwnd = self
-            .api
-            .get_foreground_window()
-            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
-        self.api.get_window_info(hwnd)
-    }
-
-    /// Get specified window information
-    pub fn get_window_info(&self, hwnd: HWND) -> Result<WindowInfo> {
-        self.api.get_window_info(hwnd)
-    }
-
-    /// Get debug info string
-    pub fn get_debug_info(&self) -> Result<String> {
-        let info = self.get_foreground_window_info()?;
-
-        Ok(format!(
-            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
-            info.title,
-            info.id,
-            info.x,
-            info.y,
-            info.width,
-            info.height,
-        ))
-    }
-
-    /// Set window position and size
-    pub fn set_window_frame(&self, hwnd: HWND, frame: &WindowFrame) -> Result<()> {
-        self.api.ensure_window_restored(hwnd)?;
-        self.api
-            .set_window_pos(hwnd, frame.x, frame.y, frame.width, frame.height)?;
-
-        debug!(
-            "Window moved to: x={}, y={}, width={}, height={}",
-            frame.x, frame.y, frame.width, frame.height
-        );
-
-        Ok(())
-    }
-
-    /// Minimize window
-    pub fn minimize_window(&self, hwnd: HWND) -> Result<()> {
-        self.api.minimize_window(hwnd)
-    }
-
-    /// Maximize window
-    pub fn maximize_window(&self, hwnd: HWND) -> Result<()> {
-        self.api.maximize_window(hwnd)
-    }
-
-    /// Restore window
-    pub fn restore_window(&self, hwnd: HWND) -> Result<()> {
-        self.api.restore_window(hwnd)
-    }
-
-    /// Close window
-    pub fn close_window(&self, hwnd: HWND) -> Result<()> {
-        self.api.close_window(hwnd)
-    }
-}
-
-// Implement CommonWindowApi for WindowManager to use common window manager logic
-impl<A: WindowApiBase<WindowId = HWND> + 'static> CommonWindowApi for WindowManager<A> {
+/// Platform-specific CommonWindowApi implementation for Windows
+impl<A: WindowApiBase<WindowId = HWND> + 'static> crate::platform::window_manager_common::CommonWindowApi for WindowManager<A> {
     type WindowId = HWND;
     type WindowInfo = WindowInfo;
 
@@ -194,7 +110,7 @@ impl<A: WindowApiBase<WindowId = HWND> + 'static> CommonWindowApi for WindowMana
     }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
-        self.api.get_window_info(window)
+        self.api().get_window_info(window)
     }
 
     fn set_window_pos(
@@ -216,8 +132,8 @@ impl<A: WindowApiBase<WindowId = HWND> + 'static> CommonWindowApi for WindowMana
         }
         #[cfg(test)]
         {
-            if let Some(hwnd) = self.api.get_foreground_window() {
-                if let Some(monitor) = self.api.get_monitors().first().cloned() {
+            if let Some(hwnd) = self.api().get_foreground_window() {
+                if let Some(monitor) = self.api().get_monitors().first().cloned() {
                     return vec![monitor];
                 }
             }
@@ -231,58 +147,28 @@ impl<A: WindowApiBase<WindowId = HWND> + 'static> CommonWindowApi for WindowMana
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.api.is_window_valid(window)
+        self.api().is_window_valid(window)
     }
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.api.is_maximized(window)
+        self.api().is_maximized(window)
     }
 
     fn is_topmost(&self, window: Self::WindowId) -> bool {
-        self.api.is_topmost(window)
+        self.api().is_topmost(window)
     }
 
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        self.api.set_topmost(window, topmost)
+        self.api().set_topmost(window, topmost)
     }
 }
 
 /// Features requiring real Windows API (cross-monitor movement, window switching, etc.)
 impl RealWindowManager {
     /// Move window to another monitor
-    pub fn move_to_monitor(
-        &self,
-        hwnd: HWND,
-        direction: MonitorDirection,
-    ) -> Result<()> {
+    pub fn move_to_monitor(&self, hwnd: HWND, direction: MonitorDirection) -> Result<()> {
         use crate::platform::window_manager_common::CommonWindowManager;
         CommonWindowManager::move_to_monitor(self, hwnd, direction)
-    }
-
-    /// Get the index of the monitor where the window is currently located
-    unsafe fn get_current_monitor_index(
-        &self,
-        hwnd: HWND,
-        monitors: &[MonitorInfo],
-    ) -> Result<usize> {
-        let mut rect = RECT::default();
-        GetWindowRect(hwnd, &mut rect)?;
-
-        let window_center_x = rect.left + (rect.right - rect.left) / 2;
-        let window_center_y = rect.top + (rect.bottom - rect.top) / 2;
-
-        for (i, monitor) in monitors.iter().enumerate() {
-            if window_center_x >= monitor.x
-                && window_center_x < monitor.x + monitor.width
-                && window_center_y >= monitor.y
-                && window_center_y < monitor.y + monitor.height
-            {
-                return Ok(i);
-            }
-        }
-
-        // Default to first monitor
-        Ok(0)
     }
 
     /// Switch to next window of same application (Alt+` function)

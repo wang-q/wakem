@@ -4,11 +4,103 @@
 //! that can be used by any platform-specific window manager.
 
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, WindowFrame, WindowInfoProvider,
+    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo, WindowInfoProvider,
 };
 use crate::types::{Alignment, Edge};
 use anyhow::Result;
 use tracing::debug;
+
+/// Generic window manager implementation shared across platforms
+///
+/// Provides a unified interface for window management operations that delegates
+/// to platform-specific `WindowApiBase` implementations. Both Windows and macOS
+/// use this struct, with platform-specific extensions in their respective modules.
+pub struct WindowManager<A: WindowApiBase> {
+    api: A,
+}
+
+impl<A: WindowApiBase> WindowManager<A> {
+    /// Create a window manager with a custom API implementation (for testing)
+    pub fn with_api(api: A) -> Self {
+        Self { api }
+    }
+
+    /// Get reference to the underlying API
+    pub fn api(&self) -> &A {
+        &self.api
+    }
+
+    /// Get foreground window
+    #[allow(dead_code)]
+    pub fn get_foreground_window(&self) -> Option<A::WindowId> {
+        self.api.get_foreground_window()
+    }
+
+    /// Get foreground window information
+    #[allow(dead_code)]
+    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
+        let window = self
+            .api
+            .get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
+        self.api.get_window_info(window)
+    }
+
+    /// Get window information
+    pub fn get_window_info(&self, window: A::WindowId) -> Result<WindowInfo> {
+        self.api.get_window_info(window)
+    }
+
+    /// Get debug info string
+    #[allow(dead_code)]
+    pub fn get_debug_info(&self) -> Result<String> {
+        let info = self.get_foreground_window_info()?;
+
+        Ok(format!(
+            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
+            info.title,
+            info.id,
+            info.x,
+            info.y,
+            info.width,
+            info.height,
+        ))
+    }
+
+    /// Set window position and size
+    pub fn set_window_frame(&self, window: A::WindowId, frame: &WindowFrame) -> Result<()> {
+        self.api.ensure_window_restored(window)?;
+        self.api
+            .set_window_pos(window, frame.x, frame.y, frame.width, frame.height)?;
+
+        debug!(
+            "Window moved to: x={}, y={}, width={}, height={}",
+            frame.x, frame.y, frame.width, frame.height
+        );
+
+        Ok(())
+    }
+
+    /// Minimize window
+    pub fn minimize_window(&self, window: A::WindowId) -> Result<()> {
+        self.api.minimize_window(window)
+    }
+
+    /// Maximize window
+    pub fn maximize_window(&self, window: A::WindowId) -> Result<()> {
+        self.api.maximize_window(window)
+    }
+
+    /// Restore window
+    pub fn restore_window(&self, window: A::WindowId) -> Result<()> {
+        self.api.restore_window(window)
+    }
+
+    /// Close window
+    pub fn close_window(&self, window: A::WindowId) -> Result<()> {
+        self.api.close_window(window)
+    }
+}
 
 /// Common window manager operations
 ///
