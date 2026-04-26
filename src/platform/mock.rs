@@ -814,6 +814,14 @@ mod mock_window_api {
         fn is_maximized(&self, window: Self::WindowId) -> bool {
             self.is_zoomed(window)
         }
+
+        fn window_id_to_usize(id: Self::WindowId) -> usize {
+            id.to_usize()
+        }
+
+        fn usize_to_window_id(id: usize) -> Self::WindowId {
+            Id::from_usize(id)
+        }
     }
 }
 

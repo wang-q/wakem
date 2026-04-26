@@ -333,6 +333,14 @@ impl Default for RealWindowApi {
 impl WindowApiBase for RealWindowApi {
     type WindowId = WindowId;
 
+    fn window_id_to_usize(id: Self::WindowId) -> usize {
+        id
+    }
+
+    fn usize_to_window_id(id: usize) -> Self::WindowId {
+        id
+    }
+
     fn get_foreground_window(&self) -> Option<Self::WindowId> {
         self.get_foreground_window()
     }

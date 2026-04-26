@@ -235,50 +235,6 @@ impl WindowEventHookTrait for WindowEventHook {
     }
 }
 
-impl WindowPresetManagerTrait for WindowPresetManager {
-    fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>) {
-        WindowPresetManager::load_presets(self, presets);
-    }
-
-    fn save_preset(&mut self, name: String) -> anyhow::Result<()> {
-        self.save_preset(name)
-    }
-
-    fn load_preset(&self, name: &str) -> anyhow::Result<()> {
-        self.load_preset(name)
-    }
-
-    fn get_foreground_window_info(
-        &self,
-    ) -> Option<anyhow::Result<crate::platform::traits::WindowInfo>> {
-        self.get_foreground_window_info()
-    }
-
-    fn apply_preset_for_window_by_id(
-        &self,
-        window_id: crate::platform::traits::WindowId,
-    ) -> anyhow::Result<bool> {
-        use windows::Win32::Foundation::HWND;
-        let hwnd = HWND(window_id as *mut std::ffi::c_void);
-        self.apply_preset_for_window_by_id(hwnd)
-    }
-
-    fn apply_preset_for_window(&self) -> anyhow::Result<bool> {
-        self.apply_preset_for_window()
-    }
-}
-
-impl LauncherTrait for Launcher {
-    fn launch(&self, action: &crate::types::LaunchAction) -> anyhow::Result<()> {
-        self.launch(action)
-    }
-
-    fn open(&self, path: &str) -> anyhow::Result<()> {
-        std::process::Command::new("explorer").arg(path).spawn()?;
-        Ok(())
-    }
-}
-
 impl TrayLifecycle for WindowsPlatform {
     fn run_tray_message_loop(
         callback: Box<dyn Fn(crate::platform::traits::AppCommand) + Send>,

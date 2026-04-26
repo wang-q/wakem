@@ -5,29 +5,8 @@ use std::collections::HashMap;
 use tracing::debug;
 
 use crate::platform::traits::{
-    NotificationService, WindowManagerTrait, WindowPresetManagerTrait,
+    NotificationService, WindowManagerExt, WindowManagerTrait, WindowPresetManagerTrait,
 };
-
-/// Thread-safe wrapper for platform-specific window handles.
-///
-/// This struct wraps a WindowManagerTrait object and provides
-/// a Send + Sync implementation that is safe because:
-/// 1. The WindowManagerTrait provides cross-platform abstraction
-/// 2. All actual operations are performed through trait methods
-/// 3. The wrapper ensures thread-safe access patterns
-#[allow(dead_code)]
-struct ThreadSafeWindowManager {
-    inner: Option<Box<dyn WindowManagerTrait>>,
-}
-
-// SAFETY: ThreadSafeWindowManager is safe to Send/Sync because:
-// - It only stores a boxed trait object (Box<dyn WindowManagerTrait>)
-// - All window operations are performed through the trait's methods
-// - The inner WindowManager is only accessed through &mut self methods
-#[allow(dead_code)]
-unsafe impl Send for ThreadSafeWindowManager {}
-#[allow(dead_code)]
-unsafe impl Sync for ThreadSafeWindowManager {}
 
 /// Context-aware mapping rule
 ///
@@ -126,9 +105,6 @@ pub struct KeyMapper {
 //
 // VIOLATION RISK: Removing the outer RwLock or calling execute_action from multiple threads
 // concurrently would be undefined behavior.
-//
-// NOTE: We keep these unsafe impls for backward compatibility, but the ThreadSafeWindowManager
-// struct above provides a safer pattern for future refactoring.
 unsafe impl Send for KeyMapper {}
 unsafe impl Sync for KeyMapper {}
 
@@ -380,31 +356,39 @@ impl KeyMapper {
 
         match action {
             WindowAction::Center => {
-                Self::window_move_to_center(wm, window_id)?;
+                wm.move_to_center(window_id)?;
             }
             WindowAction::MoveToEdge(edge) => {
-                Self::window_move_to_edge(wm, window_id, *edge)?;
+                wm.move_to_edge(window_id, *edge)?;
             }
             WindowAction::HalfScreen(edge) => {
-                Self::window_set_half_screen(wm, window_id, *edge)?;
+                wm.set_half_screen(window_id, *edge)?;
             }
             WindowAction::LoopWidth(align) => {
-                Self::window_loop_width(wm, window_id, *align)?;
+                wm.loop_width(window_id, *align)?;
             }
             WindowAction::LoopHeight(align) => {
-                Self::window_loop_height(wm, window_id, *align)?;
+                wm.loop_height(window_id, *align)?;
             }
             WindowAction::FixedRatio {
                 ratio,
                 scale_index: _,
             } => {
-                Self::window_set_fixed_ratio(wm, window_id, *ratio)?;
+                wm.set_fixed_ratio(window_id, *ratio)?;
             }
             WindowAction::NativeRatio { scale_index: _ } => {
-                Self::window_set_native_ratio(wm, window_id)?;
+                wm.set_native_ratio(window_id)?;
             }
             WindowAction::SwitchToNextWindow => {
-                Self::window_switch_next(wm, window_id)?;
+                if let Some(info) = wm
+                    .get_foreground_window()
+                    .and_then(|w| wm.get_window_info(w).ok())
+                {
+                    debug!(
+                        process_name = %info.process_name,
+                        "Switching to next window of same process"
+                    );
+                }
             }
             WindowAction::MoveToMonitor(direction) => {
                 let monitor_index: usize = match direction {
@@ -433,12 +417,16 @@ impl KeyMapper {
                 wm.close_window(window_id)?;
             }
             WindowAction::ToggleTopmost => {
-                let is_topmost = wm.is_topmost(window_id);
-                wm.set_topmost(window_id, !is_topmost)?;
+                wm.toggle_topmost(window_id)?;
             }
-            WindowAction::ShowDebugInfo => {
-                Self::window_show_debug_info(wm, window_id);
-            }
+            WindowAction::ShowDebugInfo => match wm.get_window_info(window_id) {
+                Ok(info) => {
+                    debug!(?info, "Window debug info");
+                }
+                Err(e) => {
+                    debug!("Failed to get debug info: {}", e);
+                }
+            },
             WindowAction::ShowNotification { title, message } => {
                 if let Some(ns) = notification_service {
                     let ns = ns.lock();
@@ -508,221 +496,6 @@ impl KeyMapper {
         }
 
         Ok(())
-    }
-
-    fn window_move_to_center(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-    ) -> anyhow::Result<()> {
-        let info = wm.get_window_info(window)?;
-        let monitors = wm.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
-        let new_x = monitor.x + (monitor.width - info.width) / 2;
-        let new_y = monitor.y + (monitor.height - info.height) / 2;
-        wm.set_window_pos(window, new_x, new_y, info.width, info.height)
-    }
-
-    fn window_move_to_edge(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-        edge: crate::types::Edge,
-    ) -> anyhow::Result<()> {
-        let info = wm.get_window_info(window)?;
-        let monitors = wm.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
-
-        let new_x = match edge {
-            crate::types::Edge::Left => monitor.x,
-            crate::types::Edge::Right => monitor.x + monitor.width - info.width,
-            crate::types::Edge::Top => info.x,
-            crate::types::Edge::Bottom => info.x,
-        };
-
-        let new_y = match edge {
-            crate::types::Edge::Top => monitor.y,
-            crate::types::Edge::Bottom => monitor.y + monitor.height - info.height,
-            _ => info.y,
-        };
-
-        wm.set_window_pos(window, new_x, new_y, info.width, info.height)
-    }
-
-    fn window_set_half_screen(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-        edge: crate::types::Edge,
-    ) -> anyhow::Result<()> {
-        let monitors = wm.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
-
-        let half_width = monitor.width / 2;
-        let (x, width) = match edge {
-            crate::types::Edge::Left => (monitor.x, half_width),
-            crate::types::Edge::Right => (monitor.x + half_width, half_width),
-            _ => {
-                return Err(anyhow::anyhow!("HalfScreen only supports Left/Right edges"))
-            }
-        };
-
-        wm.set_window_pos(window, x, monitor.y, width, monitor.height)
-    }
-
-    fn window_loop_width(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-        align: crate::types::Alignment,
-    ) -> anyhow::Result<()> {
-        const WIDTH_RATIOS: &[f32] = &[0.5, 0.4, 0.33, 0.25];
-
-        let info = wm.get_window_info(window)?;
-        let monitors = wm.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
-
-        let current_ratio = info.width as f32 / monitor.width as f32;
-        let mut next_index = 0;
-
-        for (i, &ratio) in WIDTH_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.05 {
-                next_index = i + 1;
-                break;
-            }
-        }
-
-        if next_index >= WIDTH_RATIOS.len() {
-            next_index = 0;
-        }
-
-        let target_width = (monitor.width as f32 * WIDTH_RATIOS[next_index]) as i32;
-        let x = match align {
-            crate::types::Alignment::Left => monitor.x,
-            crate::types::Alignment::Center => {
-                monitor.x + (monitor.width - target_width) / 2
-            }
-            crate::types::Alignment::Right => monitor.x + monitor.width - target_width,
-            _ => monitor.x,
-        };
-
-        wm.set_window_pos(window, x, monitor.y, target_width, monitor.height)
-    }
-
-    fn window_loop_height(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-        align: crate::types::Alignment,
-    ) -> anyhow::Result<()> {
-        const HEIGHT_RATIOS: &[f32] = &[1.0, 0.8, 0.66, 0.5];
-
-        let info = wm.get_window_info(window)?;
-        let monitors = wm.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
-
-        let current_ratio = info.height as f32 / monitor.height as f32;
-        let mut next_index = 0;
-
-        for (i, &ratio) in HEIGHT_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.05 {
-                next_index = i + 1;
-                break;
-            }
-        }
-
-        if next_index >= HEIGHT_RATIOS.len() {
-            next_index = 0;
-        }
-
-        let target_height = (monitor.height as f32 * HEIGHT_RATIOS[next_index]) as i32;
-        let y = match align {
-            crate::types::Alignment::Top => monitor.y,
-            crate::types::Alignment::Center => {
-                monitor.y + (monitor.height - target_height) / 2
-            }
-            crate::types::Alignment::Bottom => {
-                monitor.y + monitor.height - target_height
-            }
-            _ => monitor.y,
-        };
-
-        wm.set_window_pos(window, info.x, y, info.width, target_height)
-    }
-
-    fn window_set_fixed_ratio(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-        ratio: f32,
-    ) -> anyhow::Result<()> {
-        let _info = wm.get_window_info(window)?;
-        let monitors = wm.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
-
-        let smaller_dim = std::cmp::min(monitor.width, monitor.height);
-        let base_size = smaller_dim as f32;
-
-        let (target_width, target_height) = if ratio > 1.0 {
-            ((base_size * ratio) as i32, smaller_dim)
-        } else {
-            (smaller_dim, (base_size / ratio) as i32)
-        };
-
-        let x = monitor.x + (monitor.width - target_width) / 2;
-        let y = monitor.y + (monitor.height - target_height) / 2;
-
-        wm.set_window_pos(window, x, y, target_width, target_height)
-    }
-
-    fn window_set_native_ratio(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-    ) -> anyhow::Result<()> {
-        let monitors = wm.get_monitors();
-        let monitor = monitors
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No monitors"))?;
-
-        let ratio = monitor.width as f32 / monitor.height as f32;
-        Self::window_set_fixed_ratio(wm, window, ratio)
-    }
-
-    fn window_switch_next(
-        wm: &dyn WindowManagerTrait,
-        _current_window: crate::platform::traits::WindowId,
-    ) -> anyhow::Result<()> {
-        let info = wm
-            .get_foreground_window()
-            .and_then(|w| wm.get_window_info(w).ok());
-
-        if let Some(info) = info {
-            debug!(
-                process_name = %info.process_name,
-                "Switching to next window of same process"
-            );
-        }
-        Ok(())
-    }
-
-    fn window_show_debug_info(
-        wm: &dyn WindowManagerTrait,
-        window: crate::platform::traits::WindowId,
-    ) {
-        match wm.get_window_info(window) {
-            Ok(info) => {
-                debug!(?info, "Window debug info");
-            }
-            Err(e) => {
-                debug!("Failed to get debug info: {}", e);
-            }
-        }
     }
 
     /// Load context-aware mapping rules

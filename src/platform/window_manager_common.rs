@@ -4,8 +4,8 @@
 //! that can be used by any platform-specific window manager.
 
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo,
-    WindowInfoProvider,
+    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowId, WindowInfo,
+    WindowInfoProvider, WindowManagerTrait,
 };
 use crate::types::{Alignment, Edge};
 use anyhow::Result;
@@ -82,21 +82,25 @@ impl<A: WindowApiBase> WindowManager<A> {
     }
 
     /// Minimize window
+    #[allow(dead_code)]
     pub fn minimize_window(&self, window: A::WindowId) -> Result<()> {
         self.api.minimize_window(window)
     }
 
     /// Maximize window
+    #[allow(dead_code)]
     pub fn maximize_window(&self, window: A::WindowId) -> Result<()> {
         self.api.maximize_window(window)
     }
 
     /// Restore window
+    #[allow(dead_code)]
     pub fn restore_window(&self, window: A::WindowId) -> Result<()> {
         self.api.restore_window(window)
     }
 
     /// Close window
+    #[allow(dead_code)]
     pub fn close_window(&self, window: A::WindowId) -> Result<()> {
         self.api.close_window(window)
     }
@@ -161,6 +165,100 @@ impl<A: WindowApiBase + 'static> CommonWindowApi for WindowManager<A> {
 
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
         self.api().set_topmost(window, topmost)
+    }
+}
+
+impl<A: WindowApiBase + Send + Sync + 'static> WindowManagerTrait for WindowManager<A> {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.api
+            .get_foreground_window()
+            .map(|id| A::window_id_to_usize(id))
+    }
+
+    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
+        let id = A::usize_to_window_id(window);
+        let info = self.api.get_window_info(id)?;
+        Ok(WindowInfo {
+            id: window,
+            title: info.title,
+            process_name: info.process_name,
+            executable_path: info.executable_path,
+            x: info.x,
+            y: info.y,
+            width: info.width,
+            height: info.height,
+        })
+    }
+
+    fn set_window_pos(
+        &self,
+        window: WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        let frame = WindowFrame::new(x, y, width, height);
+        self.set_window_frame(id, &frame)
+    }
+
+    fn minimize_window(&self, window: WindowId) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        self.api.minimize_window(id)
+    }
+
+    fn maximize_window(&self, window: WindowId) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        self.api.maximize_window(id)
+    }
+
+    fn restore_window(&self, window: WindowId) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        self.api.restore_window(id)
+    }
+
+    fn close_window(&self, window: WindowId) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        self.api.close_window(id)
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        self.api.set_topmost(id, topmost)
+    }
+
+    fn is_topmost(&self, window: WindowId) -> bool {
+        let id = A::usize_to_window_id(window);
+        self.api.is_topmost(id)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.api.get_monitors()
+    }
+
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        CommonWindowManager::move_to_monitor(
+            self,
+            id,
+            MonitorDirection::Index(monitor_index as i32),
+        )
+    }
+
+    fn is_window_valid(&self, window: WindowId) -> bool {
+        let id = A::usize_to_window_id(window);
+        self.api.is_window_valid(id)
+    }
+
+    fn is_minimized(&self, window: WindowId) -> bool {
+        let id = A::usize_to_window_id(window);
+        self.api.is_minimized(id)
+    }
+
+    fn is_maximized(&self, window: WindowId) -> bool {
+        let id = A::usize_to_window_id(window);
+        self.api.is_maximized(id)
     }
 }
 

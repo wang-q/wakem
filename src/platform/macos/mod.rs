@@ -30,9 +30,8 @@ pub use window_manager::{MonitorDirection, WindowManager};
 pub use window_preset::WindowPresetManager;
 
 use crate::platform::traits::{
-    ApplicationControl, ContextProvider, InputDeviceConfig, LauncherTrait,
-    PlatformFactory, PlatformUtilities, TrayLifecycle, WindowEventHookTrait,
-    WindowPresetManagerTrait,
+    ApplicationControl, ContextProvider, InputDeviceConfig, PlatformFactory,
+    PlatformUtilities, TrayLifecycle, WindowEventHookTrait,
 };
 use crate::types::ModifierState;
 
@@ -139,47 +138,6 @@ impl WindowEventHookTrait for WindowEventHook {
 
     fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
         self.shutdown_flag()
-    }
-}
-
-impl WindowPresetManagerTrait for WindowPresetManager {
-    fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>) {
-        WindowPresetManager::load_presets(self, presets);
-    }
-
-    fn save_preset(&mut self, name: String) -> anyhow::Result<()> {
-        self.save_preset(name)
-    }
-
-    fn load_preset(&self, name: &str) -> anyhow::Result<()> {
-        self.load_preset(name)
-    }
-
-    fn get_foreground_window_info(
-        &self,
-    ) -> Option<anyhow::Result<crate::platform::traits::WindowInfo>> {
-        self.get_foreground_window_info()
-    }
-
-    fn apply_preset_for_window_by_id(
-        &self,
-        window_id: crate::platform::traits::WindowId,
-    ) -> anyhow::Result<bool> {
-        self.apply_preset_for_window_by_id(window_id)
-    }
-
-    fn apply_preset_for_window(&self) -> anyhow::Result<bool> {
-        self.apply_preset_for_window()
-    }
-}
-
-impl LauncherTrait for Launcher {
-    fn launch(&self, action: &crate::types::LaunchAction) -> anyhow::Result<()> {
-        self.launch(action)
-    }
-
-    fn open(&self, path: &str) -> anyhow::Result<()> {
-        self.open(path)
     }
 }
 

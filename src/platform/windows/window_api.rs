@@ -235,6 +235,14 @@ impl Default for RealWindowApi {
 impl WindowApiBase for RealWindowApi {
     type WindowId = HWND;
 
+    fn window_id_to_usize(id: Self::WindowId) -> usize {
+        id.0 as usize
+    }
+
+    fn usize_to_window_id(id: usize) -> Self::WindowId {
+        HWND(id as *mut std::ffi::c_void)
+    }
+
     fn get_foreground_window(&self) -> Option<Self::WindowId> {
         self.get_foreground_window()
     }
@@ -304,10 +312,7 @@ impl WindowApiBase for RealWindowApi {
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = self.get_foreground_window();
-        fg.and_then(|hwnd| self.get_monitor_info(hwnd))
-            .map(|info| vec![info])
-            .unwrap_or_default()
+        unsafe { super::window_manager::enumerate_all_monitors() }
     }
 
     fn move_to_monitor(

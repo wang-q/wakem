@@ -7,7 +7,9 @@
 
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;
-use crate::platform::traits::{WindowApiBase, WindowInfo};
+use crate::platform::traits::{
+    WindowApiBase, WindowId, WindowInfo, WindowPresetManagerTrait,
+};
 use crate::platform::window_manager_common::WindowManager;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -66,60 +68,6 @@ impl<A: WindowApiBase + 'static> WindowPresetApi for WindowManager<A> {
     fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
         self.api().maximize_window(window)
     }
-}
-
-/// Macro to implement [WindowPresetApi] for a window manager.
-///
-/// This macro eliminates the boilerplate of implementing [WindowPresetApi]
-/// for each platform's window manager. The implementation delegates all
-/// operations to the underlying window API.
-///
-/// # Usage
-///
-/// ```ignore
-/// // In windows/window_preset.rs:
-/// impl_window_preset_api_for_manager!(WindowManager<A>, A, HWND);
-///
-/// // In macos/window_preset.rs:
-/// impl_window_preset_api_for_manager!(WindowManager<A>, A, WindowId);
-/// ```
-#[macro_export]
-macro_rules! impl_window_preset_api_for_manager {
-    ($manager:ty, $api_trait:path, $window_id:ty) => {
-        impl $crate::platform::window_preset_common::WindowPresetApi for $manager {
-            type WindowId = $window_id;
-
-            fn get_foreground_window(&self) -> Option<Self::WindowId> {
-                <$api_trait>::get_foreground_window(self)
-            }
-
-            fn get_window_info(
-                &self,
-                window: Self::WindowId,
-            ) -> ::anyhow::Result<$crate::platform::traits::WindowInfo> {
-                <$api_trait>::get_window_info(self, window)
-            }
-
-            fn set_window_pos(
-                &self,
-                window: Self::WindowId,
-                x: i32,
-                y: i32,
-                w: i32,
-                h: i32,
-            ) -> ::anyhow::Result<()> {
-                <$api_trait>::set_window_pos(self, window, x, y, w, h)
-            }
-
-            fn minimize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$api_trait>::minimize_window(self, window)
-            }
-
-            fn maximize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$api_trait>::maximize_window(self, window)
-            }
-        }
-    };
 }
 
 /// Generic window preset manager.
@@ -279,6 +227,35 @@ impl<A: WindowPresetApi> WindowPresetManager<A> {
 
     pub fn clear_saved(&mut self) {
         self.saved_presets.clear();
+    }
+}
+
+impl<A: WindowApiBase + Send + Sync + 'static> WindowPresetManagerTrait
+    for WindowPresetManager<WindowManager<A>>
+{
+    fn load_presets(&mut self, presets: Vec<WindowPreset>) {
+        WindowPresetManager::load_presets(self, presets);
+    }
+
+    fn save_preset(&mut self, name: String) -> Result<()> {
+        self.save_preset(name)
+    }
+
+    fn load_preset(&self, name: &str) -> Result<()> {
+        self.load_preset(name)
+    }
+
+    fn get_foreground_window_info(&self) -> Option<Result<WindowInfo>> {
+        self.get_foreground_window_info()
+    }
+
+    fn apply_preset_for_window_by_id(&self, window_id: WindowId) -> Result<bool> {
+        let id = A::usize_to_window_id(window_id);
+        self.apply_preset_for_window_by_id(id)
+    }
+
+    fn apply_preset_for_window(&self) -> Result<bool> {
+        self.apply_preset_for_window()
     }
 }
 

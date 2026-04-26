@@ -616,18 +616,12 @@ impl TrayApi for RealTrayApi {
         inner.active
     }
 
-    fn get_notifications(&self) -> Vec<(String, String)> {
-        Vec::new()
-    }
-
     fn is_registered(&self) -> bool {
         match self.inner.try_lock() {
             Ok(inner) => inner.registered,
             Err(_) => false,
         }
     }
-
-    fn set_menu_selections(&self, _selections: Vec<u32>) {}
 }
 
 /// Mock tray icon API implementation - for testing

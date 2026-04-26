@@ -351,12 +351,6 @@ impl TrayApi for RealTrayApi {
     fn is_registered(&self) -> bool {
         self.registered.load(Ordering::SeqCst)
     }
-
-    fn get_notifications(&self) -> Vec<(String, String)> {
-        Vec::new()
-    }
-
-    fn set_menu_selections(&self, _selections: Vec<u32>) {}
 }
 
 /// Run the tray event loop

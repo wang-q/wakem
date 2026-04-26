@@ -2,6 +2,7 @@
 //!
 //! This module provides a cross-platform program launcher using std::process::Command.
 
+use crate::platform::traits::LauncherTrait;
 use crate::types::LaunchAction;
 use anyhow::Result;
 use std::process::Command;
@@ -78,6 +79,24 @@ impl Launcher {
 impl Default for Launcher {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl LauncherTrait for Launcher {
+    fn launch(&self, action: &LaunchAction) -> Result<()> {
+        self.launch(action)
+    }
+
+    fn open(&self, path: &str) -> Result<()> {
+        #[cfg(target_os = "windows")]
+        {
+            Command::new("explorer").arg(path).spawn()?;
+            Ok(())
+        }
+        #[cfg(target_os = "macos")]
+        {
+            self.open(path)
+        }
     }
 }
 
