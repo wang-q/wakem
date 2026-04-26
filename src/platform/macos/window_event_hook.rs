@@ -5,18 +5,15 @@
 //!
 //! Performance: < 2ms per poll (vs 100-200ms with AppleScript)
 
-// Allow dead code - this module is under development for macOS window event support
-#![allow(dead_code)]
-
 use crate::platform::traits::PlatformWindowEvent;
 use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use tracing::{debug, info, trace};
 
-/// macOS window event hook using native APIs (Core Graphics + Accessibility)
-pub struct MacosWindowEventHook {
+/// Window event hook manager
+pub struct WindowEventHook {
     event_sender: Sender<PlatformWindowEvent>,
     running: Arc<AtomicBool>,
     shutdown_flag: Arc<AtomicBool>,
@@ -24,8 +21,8 @@ pub struct MacosWindowEventHook {
     thread_handle: Option<std::thread::JoinHandle<()>>,
 }
 
-impl MacosWindowEventHook {
-    /// Create new window event hook (aligned with Windows API)
+impl WindowEventHook {
+    /// Create new window event hook
     pub fn new(event_sender: Sender<PlatformWindowEvent>) -> Self {
         Self {
             event_sender,
@@ -36,26 +33,7 @@ impl MacosWindowEventHook {
         }
     }
 
-    /// Create with default channel (for backward compatibility)
-    pub fn with_default_channel() -> Self {
-        let (sender, _) = channel();
-        Self::new(sender)
-    }
-
-    /// Create with custom poll interval
-    pub fn with_interval(
-        event_sender: Sender<PlatformWindowEvent>,
-        interval_ms: u64,
-    ) -> Self {
-        Self {
-            event_sender,
-            running: Arc::new(AtomicBool::new(false)),
-            shutdown_flag: Arc::new(AtomicBool::new(false)),
-            poll_interval_ms: interval_ms,
-            thread_handle: None,
-        }
-    }
-
+    /// Start window event monitoring
     pub fn start(&mut self) -> Result<()> {
         self.start_with_shutdown(self.shutdown_flag.clone())
     }
@@ -139,53 +117,35 @@ impl MacosWindowEventHook {
             }
 
             is_running.store(false, Ordering::SeqCst);
-            debug!("MacosWindowEventHook thread stopped");
+            debug!("WindowEventHook thread stopped");
         });
 
         self.thread_handle = Some(handle);
-        info!("MacosWindowEventHook started (using native APIs)");
+        info!("WindowEventHook started (using native APIs)");
 
         Ok(())
     }
 
+    /// Stop window event monitoring
     pub fn stop(&mut self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
 
         if let Some(handle) = self.thread_handle.take() {
             let _ = handle.join();
-            debug!("MacosWindowEventHook thread joined");
+            debug!("WindowEventHook thread joined");
         }
 
         self.running.store(false, Ordering::SeqCst);
-        debug!("MacosWindowEventHook stopped");
+        debug!("WindowEventHook stopped");
     }
 
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
-    }
-
+    /// Get shutdown flag reference
     pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
         self.shutdown_flag.clone()
     }
-
-    pub fn event_sender(&self) -> &Sender<PlatformWindowEvent> {
-        &self.event_sender
-    }
-
-    pub fn create_receiver(&mut self) -> Receiver<PlatformWindowEvent> {
-        let (sender, receiver) = channel();
-        self.event_sender = sender;
-        receiver
-    }
 }
 
-impl Default for MacosWindowEventHook {
-    fn default() -> Self {
-        Self::with_default_channel()
-    }
-}
-
-impl Drop for MacosWindowEventHook {
+impl Drop for WindowEventHook {
     fn drop(&mut self) {
         if self.running.load(Ordering::SeqCst) {
             self.stop();
@@ -228,68 +188,35 @@ fn get_frontmost_app_info() -> Result<(String, String, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc::channel;
 
     #[test]
-    fn test_event_hook_creation() {
-        let (sender, _receiver) = channel::<PlatformWindowEvent>();
-        let hook = MacosWindowEventHook::new(sender);
-        assert!(!hook.is_running());
-    }
-
-    #[test]
-    fn test_event_hook_with_default_channel() {
-        let hook = MacosWindowEventHook::with_default_channel();
-        assert!(!hook.is_running());
-    }
-
-    #[test]
-    fn test_event_hook_with_interval() {
-        let (sender, _receiver) = channel::<PlatformWindowEvent>();
-        let hook = MacosWindowEventHook::with_interval(sender, 500);
-        assert!(!hook.is_running());
+    fn test_window_event_creation() {
+        let (tx, _rx) = channel::<PlatformWindowEvent>();
+        let hook = WindowEventHook::new(tx);
+        drop(hook);
     }
 
     #[test]
     fn test_event_hook_start_stop() {
         let (sender, receiver) = channel::<PlatformWindowEvent>();
-        let mut hook = MacosWindowEventHook::new(sender);
+        let mut hook = WindowEventHook::new(sender);
 
         hook.start().unwrap();
-        assert!(hook.is_running());
 
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         hook.stop();
-        assert!(!hook.is_running());
 
         drop(hook);
         drop(receiver);
     }
 
     #[test]
-    fn test_default_creation() {
-        let hook = MacosWindowEventHook::default();
-        assert!(!hook.is_running());
-    }
-
-    #[test]
     fn test_shutdown_flag() {
         let (sender, _receiver) = channel::<PlatformWindowEvent>();
-        let hook = MacosWindowEventHook::new(sender);
+        let hook = WindowEventHook::new(sender);
         assert!(!hook.shutdown_flag().load(Ordering::SeqCst));
-    }
-
-    #[test]
-    fn test_multiple_starts_ignored() {
-        let (sender, _receiver) = channel::<PlatformWindowEvent>();
-        let mut hook = MacosWindowEventHook::new(sender);
-        hook.start().unwrap();
-        assert!(hook.is_running());
-
-        hook.start().unwrap();
-        assert!(hook.is_running());
-
-        hook.stop();
     }
 
     #[test]
@@ -305,6 +232,3 @@ mod tests {
         }
     }
 }
-
-/// Type alias for consistency with Windows API
-pub type WindowEventHook = MacosWindowEventHook;
