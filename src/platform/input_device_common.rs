@@ -122,8 +122,6 @@ impl Default for InputDeviceBase {
 pub struct InputDevice<T> {
     pub base: InputDeviceBase,
     pub inner: Option<T>,
-    /// Pending event storage for platforms that need it (e.g., macOS)
-    pub pending_event: std::cell::RefCell<Option<InputEvent>>,
 }
 
 #[allow(dead_code)]
@@ -134,7 +132,6 @@ impl<T> InputDevice<T> {
         Ok(Self {
             base,
             inner: None,
-            pending_event: std::cell::RefCell::new(None),
         })
     }
 
@@ -144,7 +141,6 @@ impl<T> InputDevice<T> {
         Ok(Self {
             base,
             inner: None,
-            pending_event: std::cell::RefCell::new(None),
         })
     }
 
@@ -162,31 +158,6 @@ impl<T> InputDevice<T> {
     pub fn stop(&mut self) {
         self.base.stop();
         self.inner = None;
-    }
-
-    /// Poll event with pending event support
-    /// Checks pending_event first, then tries to receive from channel
-    pub fn poll_event_with_pending(&mut self) -> Option<InputEvent> {
-        if !self.base.running {
-            return None;
-        }
-
-        let pending = {
-            let mut borrowed = self.pending_event.borrow_mut();
-            borrowed.take()
-        };
-
-        if let Some(event) = pending {
-            if let InputEvent::Key(key_event) = &event {
-                self.base.update_modifier_state(
-                    key_event.virtual_key,
-                    key_event.state == KeyState::Pressed,
-                );
-            }
-            return Some(event);
-        }
-
-        self.base.try_recv_event()
     }
 }
 

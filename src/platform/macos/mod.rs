@@ -17,7 +17,7 @@ pub mod window_preset;
 
 pub use crate::platform::launcher_common::Launcher;
 pub use input::CGEventTapDevice as MacosEventTap;
-pub use input_device::MacosInputDevice;
+pub use input_device::MacosInputDeviceExt as MacosInputDevice;
 pub use output_device::MacosOutputDevice;
 pub use tray::{
     run_tray_event_loop, run_tray_message_loop, stop_tray, RealTrayApi,
