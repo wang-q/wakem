@@ -604,6 +604,9 @@ CapsLock = "Backspace"
 /// Test full config
 #[test]
 fn test_full_config() {
+    // Skip icon path validation for this test
+    std::env::set_var("WAKEM_SKIP_ICON_VALIDATION", "1");
+
     let config_str = r#"
 log_level = "debug"
 tray_icon = false

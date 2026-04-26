@@ -157,9 +157,10 @@ impl Config {
             );
         }
 
-        // 9. Validate icon_path exists if specified
+        // 9. Validate icon_path exists if specified (skip in test mode or when WAKEM_SKIP_ICON_VALIDATION is set)
         if let Some(ref icon_path) = self.icon_path {
-            if !std::path::Path::new(icon_path).exists() {
+            let skip_validation = std::env::var("WAKEM_SKIP_ICON_VALIDATION").is_ok();
+            if !skip_validation && !std::path::Path::new(icon_path).exists() {
                 anyhow::bail!("Icon path '{}' does not exist", icon_path);
             }
         }
@@ -176,10 +177,13 @@ impl Config {
             if let Err(e) = parse_key(from) {
                 anyhow::bail!("Invalid key '{}' in keyboard.remap: {}", from, e);
             }
-            // Try to parse as key or window action
-            if parse_key(to).is_err() && parse_window_action(to).is_err() {
+            // Try to parse as key, window action, or modifier combo (e.g., "Ctrl+Alt+Win" or just "Ctrl")
+            let is_valid_target = parse_key(to).is_ok()
+                || parse_window_action(to).is_ok()
+                || parse_modifier_combo(to).is_ok();
+            if !is_valid_target {
                 anyhow::bail!(
-                    "Invalid target '{}' in keyboard.remap for key '{}': must be a valid key or window action",
+                    "Invalid target '{}' in keyboard.remap for key '{}': must be a valid key, window action, or modifier combo",
                     to, from
                 );
             }
@@ -913,14 +917,14 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
         "insert" | "ins" => Ok((0x52, 0x2D)),
 
         // Modifier keys
-        "lshift" => Ok((0x2A, 0xA0)),
-        "rshift" => Ok((0x36, 0xA1)),
-        "lctrl" | "lcontrol" => Ok((0x1D, 0xA2)),
-        "rctrl" | "rcontrol" => Ok((0xE01D, 0xA3)),
-        "lalt" => Ok((0x38, 0xA4)),
-        "ralt" => Ok((0xE038, 0xA5)),
-        "lwin" | "lmeta" => Ok((0xE05B, 0x5B)),
-        "rwin" | "rmeta" => Ok((0xE05C, 0x5C)),
+        "lshift" | "leftshift" => Ok((0x2A, 0xA0)),
+        "rshift" | "rightshift" => Ok((0x36, 0xA1)),
+        "lctrl" | "lcontrol" | "leftctrl" | "leftcontrol" => Ok((0x1D, 0xA2)),
+        "rctrl" | "rcontrol" | "rightctrl" | "rightcontrol" => Ok((0xE01D, 0xA3)),
+        "lalt" | "leftalt" => Ok((0x38, 0xA4)),
+        "ralt" | "rightalt" => Ok((0xE038, 0xA5)),
+        "lwin" | "lmeta" | "leftwin" | "leftmeta" => Ok((0xE05B, 0x5B)),
+        "rwin" | "rmeta" | "rightwin" | "rightmeta" => Ok((0xE05C, 0x5C)),
 
         // Letter keys a-z
         "a" => Ok((0x1E, 0x41)),
