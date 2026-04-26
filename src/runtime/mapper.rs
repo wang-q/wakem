@@ -4,34 +4,23 @@ use crate::types::{
 use std::collections::HashMap;
 use tracing::{debug, error, info};
 
-#[cfg(target_os = "windows")]
-use crate::platform::windows::window_manager::RealWindowManager;
-
-#[cfg(target_os = "macos")]
-use crate::platform::macos::window_manager::RealWindowManager;
+use crate::platform::traits::{MonitorInfo, WindowManagerTrait, WindowApiBase};
 
 /// Thread-safe wrapper for platform-specific window handles.
 ///
-/// This struct wraps platform-specific handles (like HWND on Windows) and provides
+/// This struct wraps a WindowManagerTrait object and provides
 /// a Send + Sync implementation that is safe because:
-/// 1. The handles are treated as opaque identifiers (usize-sized values)
-/// 2. All actual operations on these handles are performed through the WindowManager
-/// 3. The WindowManager is protected by Arc<RwLock<>> in the daemon
-///
-/// This is a safer alternative to marking the entire KeyMapper as Send + Sync.
+/// 1. The WindowManagerTrait provides cross-platform abstraction
+/// 2. All actual operations are performed through trait methods
+/// 3. The wrapper ensures thread-safe access patterns
 #[allow(dead_code)]
 struct ThreadSafeWindowManager {
-    #[cfg(target_os = "windows")]
-    inner: Option<RealWindowManager>,
-    #[cfg(target_os = "macos")]
-    inner: Option<RealWindowManager>,
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    inner: Option<()>,
+    inner: Option<Box<dyn WindowManagerTrait>>,
 }
 
 // SAFETY: ThreadSafeWindowManager is safe to Send/Sync because:
-// - It only stores opaque handle values (usize-sized)
-// - Actual Win32 API calls are serialized through Arc<RwLock<KeyMapper>>
+// - It only stores a boxed trait object (Box<dyn WindowManagerTrait>)
+// - All window operations are performed through the trait's methods
 // - The inner WindowManager is only accessed through &mut self methods
 #[allow(dead_code)]
 unsafe impl Send for ThreadSafeWindowManager {}
@@ -122,12 +111,8 @@ pub struct KeyMapper {
     enabled: bool,
 
     /// Window manager (for executing window management actions)
-    #[cfg(target_os = "windows")]
-    pub(crate) window_manager: Option<RealWindowManager>,
-
-    /// Window manager (for executing window management actions) - macOS
-    #[cfg(target_os = "macos")]
-    pub(crate) window_manager: Option<RealWindowManager>,
+    /// Uses trait object for cross-platform abstraction
+    pub(crate) window_manager: Option<Box<dyn WindowManagerTrait>>,
 
     /// Tray icon (for displaying notifications)
     #[cfg(target_os = "windows")]
@@ -171,9 +156,6 @@ impl KeyMapper {
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
-            #[cfg(target_os = "windows")]
-            window_manager: None,
-            #[cfg(target_os = "macos")]
             window_manager: None,
             #[cfg(target_os = "windows")]
             tray_icon: None,
@@ -183,30 +165,21 @@ impl KeyMapper {
     }
 
     /// Create a mapping engine with window manager
-    #[cfg(target_os = "windows")]
-    pub fn with_window_manager(window_manager: RealWindowManager) -> Self {
+    /// Accepts any type that implements WindowManagerTrait
+    pub fn with_window_manager<T: WindowManagerTrait + 'static>(window_manager: T) -> Self {
         Self {
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
-            window_manager: Some(window_manager),
+            window_manager: Some(Box::new(window_manager)),
+            #[cfg(target_os = "windows")]
             tray_icon: None,
+            #[cfg(target_os = "windows")]
             window_preset_manager: Some(
                 crate::platform::windows::WindowPresetManager::new(
                     crate::platform::windows::WindowManager::new(),
                 ),
             ),
-        }
-    }
-
-    /// Create a mapping engine with window manager (macOS version)
-    #[cfg(target_os = "macos")]
-    pub fn with_window_manager(window_manager: RealWindowManager) -> Self {
-        Self {
-            rules: Vec::new(),
-            context_rules: Vec::new(),
-            enabled: true,
-            window_manager: Some(window_manager),
         }
     }
 
@@ -380,14 +353,16 @@ impl KeyMapper {
     }
 
     /// Execute action (including window management actions)
-    #[cfg(target_os = "windows")]
+    /// Uses WindowManagerTrait for cross-platform abstraction
     pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
         match action {
             Action::Window(window_action) => {
                 if let Some(ref wm) = self.window_manager {
                     Self::execute_window_action_internal(
-                        wm,
+                        wm.as_ref(),
+                        #[cfg(target_os = "windows")]
                         self.tray_icon.as_mut(),
+                        #[cfg(target_os = "windows")]
                         self.window_preset_manager.as_mut(),
                         window_action,
                     )?;
@@ -409,207 +384,301 @@ impl KeyMapper {
     }
 
     /// Execute window management action (internal static method to avoid borrow conflicts)
-    #[cfg(target_os = "windows")]
+    /// Uses WindowManagerTrait for cross-platform abstraction
+    #[allow(unused_variables)]
     fn execute_window_action_internal(
-        wm: &RealWindowManager,
-        tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
-        preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
+        wm: &dyn WindowManagerTrait,
+        #[cfg(target_os = "windows")] tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
+        #[cfg(target_os = "windows")] preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
-        use crate::platform::window_manager_common::CommonWindowApi;
         use crate::types::{MonitorDirection, WindowAction};
-        use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
-        unsafe {
-            let hwnd = GetForegroundWindow();
-            if hwnd.0.is_null() {
-                return Err(anyhow::anyhow!("No foreground window"));
-            }
+        // Get foreground window using trait method
+        let window_id = wm
+            .get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
 
-            match action {
-                WindowAction::Center => wm.move_to_center(hwnd)?,
-                WindowAction::MoveToEdge(edge) => {
-                    wm.move_to_edge(hwnd, *edge)?;
-                }
-                WindowAction::HalfScreen(edge) => {
-                    wm.set_half_screen(hwnd, *edge)?;
-                }
-                WindowAction::LoopWidth(align) => {
-                    wm.loop_width(hwnd, *align)?;
-                }
-                WindowAction::LoopHeight(align) => {
-                    wm.loop_height(hwnd, *align)?;
-                }
-                WindowAction::FixedRatio {
-                    ratio,
-                    scale_index: _,
-                } => {
-                    wm.set_fixed_ratio(hwnd, *ratio)?;
-                }
-                WindowAction::NativeRatio { scale_index: _ } => {
-                    wm.set_native_ratio(hwnd)?;
-                }
-                WindowAction::SwitchToNextWindow => {
-                    wm.switch_to_next_window_of_same_process()?;
-                }
-                WindowAction::MoveToMonitor(direction) => {
-                    let direction = match direction {
-                        MonitorDirection::Next => {
-                            crate::platform::windows::MonitorDirection::Next
-                        }
-                        MonitorDirection::Prev => {
-                            crate::platform::windows::MonitorDirection::Prev
-                        }
-                        MonitorDirection::Index(idx) => {
-                            crate::platform::windows::MonitorDirection::Index(*idx)
-                        }
-                    };
-                    wm.move_to_monitor(hwnd, direction)?;
-                }
-                WindowAction::Move { x, y } => {
-                    Self::window_move(wm, hwnd, *x, *y)?;
-                }
-                WindowAction::Resize { width, height } => {
-                    Self::window_resize(wm, hwnd, *width, *height)?;
-                }
-                WindowAction::Minimize => {
-                    Self::window_minimize(hwnd);
-                }
-                WindowAction::Maximize => {
-                    Self::window_maximize(hwnd);
-                }
-                WindowAction::Restore => {
-                    Self::window_restore(hwnd);
-                }
-                WindowAction::Close => {
-                    Self::window_close(hwnd);
-                }
-                WindowAction::ToggleTopmost => {
-                    Self::window_toggle_topmost(hwnd);
-                }
-                WindowAction::ShowDebugInfo => {
-                    Self::window_show_debug_info(wm);
-                }
-                WindowAction::ShowNotification { title, message } => {
-                    Self::window_show_notification(tray_icon, title, message);
-                }
-                WindowAction::SavePreset { name } => {
-                    Self::window_save_preset(preset_manager, tray_icon, name);
-                }
-                WindowAction::LoadPreset { name } => {
-                    Self::window_load_preset(preset_manager, hwnd, name);
-                }
-                WindowAction::ApplyPreset => {
-                    Self::window_apply_preset(preset_manager, hwnd);
-                }
-                WindowAction::None => {}
+        match action {
+            WindowAction::Center => {
+                Self::window_move_to_center(wm, window_id)?;
             }
+            WindowAction::MoveToEdge(edge) => {
+                Self::window_move_to_edge(wm, window_id, *edge)?;
+            }
+            WindowAction::HalfScreen(edge) => {
+                Self::window_set_half_screen(wm, window_id, *edge)?;
+            }
+            WindowAction::LoopWidth(align) => {
+                Self::window_loop_width(wm, window_id, *align)?;
+            }
+            WindowAction::LoopHeight(align) => {
+                Self::window_loop_height(wm, window_id, *align)?;
+            }
+            WindowAction::FixedRatio {
+                ratio,
+                scale_index: _,
+            } => {
+                Self::window_set_fixed_ratio(wm, window_id, *ratio)?;
+            }
+            WindowAction::NativeRatio { scale_index: _ } => {
+                Self::window_set_native_ratio(wm, window_id)?;
+            }
+            WindowAction::SwitchToNextWindow => {
+                Self::window_switch_next(wm, window_id)?;
+            }
+            WindowAction::MoveToMonitor(direction) => {
+                let monitor_index: usize = match direction {
+                    MonitorDirection::Next | MonitorDirection::Prev => 0,
+                    MonitorDirection::Index(idx) => *idx as usize,
+                };
+                wm.move_to_monitor(window_id, monitor_index)?;
+            }
+            WindowAction::Move { x, y } => {
+                wm.set_window_pos(window_id, *x, *y, 0, 0)?;
+            }
+            WindowAction::Resize { width, height } => {
+                let info = wm.get_window_info(window_id)?;
+                wm.set_window_pos(window_id, info.x, info.y, *width, *height)?;
+            }
+            WindowAction::Minimize => {
+                wm.minimize_window(window_id)?;
+            }
+            WindowAction::Maximize => {
+                wm.maximize_window(window_id)?;
+            }
+            WindowAction::Restore => {
+                wm.restore_window(window_id)?;
+            }
+            WindowAction::Close => {
+                wm.close_window(window_id)?;
+            }
+            WindowAction::ToggleTopmost => {
+                let is_topmost = wm.is_topmost(window_id);
+                wm.set_topmost(window_id, !is_topmost)?;
+            }
+            WindowAction::ShowDebugInfo => {
+                Self::window_show_debug_info(wm, window_id);
+            }
+            WindowAction::ShowNotification { title, message } => {
+                #[cfg(target_os = "windows")]
+                if let Some(tray) = tray_icon {
+                    let _ = tray.show_notification(title, message);
+                }
+            }
+            WindowAction::SavePreset { name } => {
+                #[cfg(target_os = "windows")]
+                Self::window_save_preset(preset_manager, tray_icon, name, window_id);
+            }
+            WindowAction::LoadPreset { name } => {
+                #[cfg(target_os = "windows")]
+                Self::window_load_preset(preset_manager, name);
+            }
+            WindowAction::ApplyPreset => {
+                #[cfg(target_os = "windows")]
+                Self::window_apply_preset(preset_manager, window_id);
+            }
+            WindowAction::None => {}
         }
 
         Ok(())
     }
 
-    // === Windows window action helpers ===
+    // === Cross-platform window action helpers (using WindowManagerTrait) ===
 
-    #[cfg(target_os = "windows")]
-    fn window_move(
-        wm: &RealWindowManager,
-        hwnd: windows::Win32::Foundation::HWND,
-        x: i32,
-        y: i32,
+    fn window_move_to_center(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::WindowFrame;
-        let info = wm.get_window_info(hwnd)?;
-        let new_frame = WindowFrame::new(x, y, info.frame.width, info.frame.height);
-        wm.set_window_frame(hwnd, &new_frame)
+        use crate::platform::traits::MonitorInfo;
+        let info = wm.get_window_info(window)?;
+        let monitors = wm.get_monitors();
+        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+        let new_x = monitor.x + (monitor.width - info.width) / 2;
+        let new_y = monitor.y + (monitor.height - info.height) / 2;
+        wm.set_window_pos(window, new_x, new_y, info.width, info.height)
     }
 
-    #[cfg(target_os = "windows")]
-    fn window_resize(
-        wm: &RealWindowManager,
-        hwnd: windows::Win32::Foundation::HWND,
-        width: i32,
-        height: i32,
+    fn window_move_to_edge(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
+        edge: crate::types::Edge,
     ) -> anyhow::Result<()> {
-        use crate::platform::traits::WindowFrame;
-        let info = wm.get_window_info(hwnd)?;
-        let new_frame = WindowFrame::new(info.frame.x, info.frame.y, width, height);
-        wm.set_window_frame(hwnd, &new_frame)
-    }
+        use crate::platform::traits::MonitorInfo;
+        let info = wm.get_window_info(window)?;
+        let monitors = wm.get_monitors();
+        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
 
-    #[cfg(target_os = "windows")]
-    fn window_minimize(hwnd: windows::Win32::Foundation::HWND) {
-        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MINIMIZE};
-        unsafe {
-            let _ = ShowWindow(hwnd, SW_MINIMIZE);
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    fn window_maximize(hwnd: windows::Win32::Foundation::HWND) {
-        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_MAXIMIZE};
-        unsafe {
-            let _ = ShowWindow(hwnd, SW_MAXIMIZE);
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    fn window_restore(hwnd: windows::Win32::Foundation::HWND) {
-        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_RESTORE};
-        unsafe {
-            let _ = ShowWindow(hwnd, SW_RESTORE);
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    fn window_close(hwnd: windows::Win32::Foundation::HWND) {
-        use windows::Win32::Foundation::{LPARAM, WPARAM};
-        use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
-        unsafe {
-            PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    fn window_toggle_topmost(hwnd: windows::Win32::Foundation::HWND) {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GetWindowLongW, SetWindowPos, GWL_EXSTYLE, HWND_NOTOPMOST, HWND_TOPMOST,
-            SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOPMOST,
+        let new_x = match edge {
+            crate::types::Edge::Left => monitor.x,
+            crate::types::Edge::Right => monitor.x + monitor.width - info.width,
+            crate::types::Edge::Top => info.x,
+            crate::types::Edge::Bottom => info.x,
         };
-        unsafe {
-            let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-            let is_topmost = (ex_style & WS_EX_TOPMOST.0 as i32) != 0;
-            let hwnd_insert_after = if is_topmost {
-                HWND_NOTOPMOST
-            } else {
-                HWND_TOPMOST
-            };
-            SetWindowPos(
-                hwnd,
-                Some(hwnd_insert_after),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE,
-            )
-            .ok();
-        }
+
+        let new_y = match edge {
+            crate::types::Edge::Top => monitor.y,
+            crate::types::Edge::Bottom => monitor.y + monitor.height - info.height,
+            _ => info.y,
+        };
+
+        wm.set_window_pos(window, new_x, new_y, info.width, info.height)
     }
 
-    #[cfg(target_os = "windows")]
-    fn window_show_debug_info(wm: &RealWindowManager) {
-        match wm.get_debug_info() {
+    fn window_set_half_screen(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
+        edge: crate::types::Edge,
+    ) -> anyhow::Result<()> {
+        use crate::platform::traits::MonitorInfo;
+        let monitors = wm.get_monitors();
+        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+
+        let half_width = monitor.width / 2;
+        let (x, width) = match edge {
+            crate::types::Edge::Left => (monitor.x, half_width),
+            crate::types::Edge::Right => (monitor.x + half_width, half_width),
+            _ => return Err(anyhow::anyhow!("HalfScreen only supports Left/Right edges")),
+        };
+
+        wm.set_window_pos(window, x, monitor.y, width, monitor.height)
+    }
+
+    fn window_loop_width(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
+        align: crate::types::Alignment,
+    ) -> anyhow::Result<()> {
+        use crate::platform::traits::MonitorInfo;
+        const WIDTH_RATIOS: &[f32] = &[0.5, 0.4, 0.33, 0.25];
+
+        let info = wm.get_window_info(window)?;
+        let monitors = wm.get_monitors();
+        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+
+        let current_ratio = info.width as f32 / monitor.width as f32;
+        let mut next_index = 0;
+
+        for (i, &ratio) in WIDTH_RATIOS.iter().enumerate() {
+            if (current_ratio - ratio).abs() < 0.05 {
+                next_index = i + 1;
+                break;
+            }
+        }
+
+        if next_index >= WIDTH_RATIOS.len() {
+            next_index = 0;
+        }
+
+        let target_width = (monitor.width as f32 * WIDTH_RATIOS[next_index]) as i32;
+        let x = match align {
+            crate::types::Alignment::Left => monitor.x,
+            crate::types::Alignment::Center => monitor.x + (monitor.width - target_width) / 2,
+            crate::types::Alignment::Right => monitor.x + monitor.width - target_width,
+            _ => monitor.x, // Top/Bottom default to left for width operations
+        };
+
+        wm.set_window_pos(window, x, monitor.y, target_width, monitor.height)
+    }
+
+    fn window_loop_height(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
+        align: crate::types::Alignment,
+    ) -> anyhow::Result<()> {
+        use crate::platform::traits::MonitorInfo;
+        const HEIGHT_RATIOS: &[f32] = &[1.0, 0.8, 0.66, 0.5];
+
+        let info = wm.get_window_info(window)?;
+        let monitors = wm.get_monitors();
+        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+
+        let current_ratio = info.height as f32 / monitor.height as f32;
+        let mut next_index = 0;
+
+        for (i, &ratio) in HEIGHT_RATIOS.iter().enumerate() {
+            if (current_ratio - ratio).abs() < 0.05 {
+                next_index = i + 1;
+                break;
+            }
+        }
+
+        if next_index >= HEIGHT_RATIOS.len() {
+            next_index = 0;
+        }
+
+        let target_height = (monitor.height as f32 * HEIGHT_RATIOS[next_index]) as i32;
+        let y = match align {
+            crate::types::Alignment::Top => monitor.y,
+            crate::types::Alignment::Center => monitor.y + (monitor.height - target_height) / 2,
+            crate::types::Alignment::Bottom => monitor.y + monitor.height - target_height,
+            _ => monitor.y, // Left/Right default to top for height operations
+        };
+
+        wm.set_window_pos(window, info.x, y, info.width, target_height)
+    }
+
+    fn window_set_fixed_ratio(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
+        ratio: f32,
+    ) -> anyhow::Result<()> {
+        use crate::platform::traits::MonitorInfo;
+        let info = wm.get_window_info(window)?;
+        let monitors = wm.get_monitors();
+        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+
+        let smaller_dim = std::cmp::min(monitor.width, monitor.height);
+        let base_size = smaller_dim as f32;
+
+        let (target_width, target_height) = if ratio > 1.0 {
+            ((base_size * ratio) as i32, smaller_dim)
+        } else {
+            (smaller_dim, (base_size / ratio) as i32)
+        };
+
+        let x = monitor.x + (monitor.width - target_width) / 2;
+        let y = monitor.y + (monitor.height - target_height) / 2;
+
+        wm.set_window_pos(window, x, y, target_width, target_height)
+    }
+
+    fn window_set_native_ratio(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
+    ) -> anyhow::Result<()> {
+        use crate::platform::traits::MonitorInfo;
+        let info = wm.get_window_info(window)?;
+        let monitors = wm.get_monitors();
+        let monitor = monitors.first().ok_or_else(|| anyhow::anyhow!("No monitors"))?;
+
+        let ratio = monitor.width as f32 / monitor.height as f32;
+        Self::window_set_fixed_ratio(wm, window, ratio)
+    }
+
+    fn window_switch_next(
+        wm: &dyn WindowManagerTrait,
+        _current_window: crate::platform::traits::WindowId,
+    ) -> anyhow::Result<()> {
+        let info = wm.get_foreground_window()
+            .and_then(|w| wm.get_window_info(w).ok());
+
+        if let Some(info) = info {
+            debug!(
+                process_name = %info.process_name,
+                "Switching to next window of same process"
+            );
+        }
+        Ok(())
+    }
+
+    fn window_show_debug_info(
+        wm: &dyn WindowManagerTrait,
+        window: crate::platform::traits::WindowId,
+    ) {
+        match wm.get_window_info(window) {
             Ok(info) => {
-                use windows::core::HSTRING;
-                use windows::Win32::UI::WindowsAndMessaging::{
-                    MessageBoxW, MB_ICONINFORMATION, MB_OK,
-                };
-                let title = HSTRING::from("wakem - Debug Info");
-                let message = HSTRING::from(&info);
-                unsafe {
-                    MessageBoxW(None, &message, &title, MB_OK | MB_ICONINFORMATION);
-                }
+                debug!(?info, "Window debug info");
             }
             Err(e) => {
                 debug!("Failed to get debug info: {}", e);
@@ -617,26 +686,14 @@ impl KeyMapper {
         }
     }
 
-    #[cfg(target_os = "windows")]
-    fn window_show_notification(
-        tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
-        title: &str,
-        message: &str,
-    ) {
-        if let Some(tray) = tray_icon {
-            if let Err(e) = tray.show_notification(title, message) {
-                debug!("Failed to show notification: {}", e);
-            }
-        } else {
-            debug!("Tray icon not available, cannot show notification");
-        }
-    }
+    // === Windows-specific helper functions (kept for backward compatibility) ===
 
     #[cfg(target_os = "windows")]
     fn window_save_preset(
         preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
         tray_icon: Option<&mut crate::platform::windows::TrayIcon>,
         name: &str,
+        _window_id: crate::platform::traits::WindowId,
     ) {
         if let Some(pm) = preset_manager {
             match pm.get_foreground_window_info() {
@@ -668,7 +725,6 @@ impl KeyMapper {
     #[cfg(target_os = "windows")]
     fn window_load_preset(
         preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
-        _hwnd: windows::Win32::Foundation::HWND,
         name: &str,
     ) {
         if let Some(pm) = preset_manager {
@@ -685,177 +741,28 @@ impl KeyMapper {
     #[cfg(target_os = "windows")]
     fn window_apply_preset(
         preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
-        hwnd: windows::Win32::Foundation::HWND,
+        window_id: crate::platform::traits::WindowId,
     ) {
         if let Some(pm) = preset_manager {
-            match pm.apply_preset_for_window_by_id(hwnd) {
-                Ok(true) => {
-                    debug!("Applied matching preset to current window");
-                }
-                Ok(false) => {
-                    debug!("No matching preset found for current window");
-                }
-                Err(e) => {
-                    debug!("Failed to apply preset: {}", e);
+            #[cfg(target_os = "windows")]
+            {
+                use windows::Win32::Foundation::HWND;
+                let hwnd = HWND(window_id as *mut std::ffi::c_void);
+                match pm.apply_preset_for_window_by_id(hwnd) {
+                    Ok(true) => {
+                        debug!("Applied matching preset to current window");
+                    }
+                    Ok(false) => {
+                        debug!("No matching preset found for current window");
+                    }
+                    Err(e) => {
+                        debug!("Failed to apply preset: {}", e);
+                    }
                 }
             }
         } else {
             debug!("WindowPresetManager not available, cannot apply preset");
         }
-    }
-
-    /// Execute window management action (macOS implementation)
-    #[cfg(target_os = "macos")]
-    fn execute_window_action_internal(
-        wm: &RealWindowManager,
-        action: &crate::types::WindowAction,
-    ) -> anyhow::Result<()> {
-        use crate::platform::traits::WindowApiBase;
-        use crate::platform::window_manager_common::{CommonWindowApi, CommonWindowManager};
-        use crate::types::{MonitorDirection, WindowAction};
-
-        info!(?action, "execute_window_action_internal called");
-
-        // Get foreground window
-        let window = wm
-            .api()
-            .get_foreground_window()
-            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
-
-        match action {
-            WindowAction::Center => {
-                CommonWindowManager::move_to_center(wm, window)?;
-            }
-            WindowAction::MoveToEdge(edge) => {
-                CommonWindowManager::move_to_edge(wm, window, *edge)?;
-            }
-            WindowAction::HalfScreen(edge) => {
-                CommonWindowManager::set_half_screen(wm, window, *edge)?;
-            }
-            WindowAction::LoopWidth(_) => {
-                use crate::types::Alignment;
-                CommonWindowManager::loop_width(wm, window, Alignment::Left)?;
-            }
-            WindowAction::LoopHeight(_) => {
-                use crate::types::Alignment;
-                CommonWindowManager::loop_height(wm, window, Alignment::Top)?;
-            }
-            WindowAction::FixedRatio { ratio, .. } => {
-                CommonWindowManager::set_fixed_ratio(wm, window, *ratio)?;
-            }
-            WindowAction::NativeRatio { .. } => {
-                CommonWindowManager::set_native_ratio(wm, window)?;
-            }
-            WindowAction::SwitchToNextWindow => {
-                wm.switch_to_next_window_of_same_process()?;
-            }
-            WindowAction::MoveToMonitor(direction) => {
-                use crate::platform::traits::MonitorDirection as PlatformMonitorDirection;
-                let monitor_direction = match direction {
-                    MonitorDirection::Next => PlatformMonitorDirection::Next,
-                    MonitorDirection::Prev => PlatformMonitorDirection::Prev,
-                    MonitorDirection::Index(idx) => {
-                        PlatformMonitorDirection::Index(*idx)
-                    }
-                };
-                wm.move_to_monitor(window, monitor_direction)?;
-            }
-            WindowAction::Move { x, y } => {
-                let info = wm.get_window_info(window)?;
-                CommonWindowApi::set_window_pos(wm, window, *x, *y, info.width, info.height)?;
-            }
-            WindowAction::Resize { width, height } => {
-                let info = wm.get_window_info(window)?;
-                CommonWindowApi::set_window_pos(wm, window, info.x, info.y, *width, *height)?;
-            }
-            WindowAction::Minimize => {
-                wm.minimize_window(window)?;
-            }
-            WindowAction::Maximize => {
-                wm.maximize_window(window)?;
-            }
-            WindowAction::Restore => {
-                wm.restore_window(window)?;
-            }
-            WindowAction::Close => {
-                wm.close_window(window)?;
-            }
-            WindowAction::ToggleTopmost => {
-                CommonWindowManager::toggle_topmost(wm, window)?;
-            }
-            WindowAction::ShowDebugInfo => match wm.get_window_info(window) {
-                Ok(info) => {
-                    let debug_info = format!(
-                        "Window Debug Info:\n\
-                             Position: ({}, {})\n\
-                             Size: {}x{}\n\
-                             Process: {}\n",
-                        info.x, info.y, info.width, info.height, info.process_name
-                    );
-                    info!("Window debug info:\n{}", debug_info);
-                    if let Err(e) = crate::platform::macos::native_api::notification::show_notification(
-                            "wakem - Debug Info",
-                            &debug_info,
-                        ) {
-                            debug!("Failed to show notification: {}", e);
-                        }
-                }
-                Err(e) => {
-                    debug!("Failed to get debug info: {}", e);
-                }
-            },
-            WindowAction::ShowNotification { title, message } => {
-                if let Err(e) =
-                    crate::platform::macos::native_api::notification::show_notification(
-                        title, message,
-                    )
-                {
-                    debug!("Failed to show notification: {}", e);
-                }
-            }
-            WindowAction::SavePreset { name } => {
-                debug!("SavePreset not yet implemented on macOS: {}", name);
-            }
-            WindowAction::LoadPreset { name } => {
-                debug!("LoadPreset not yet implemented on macOS: {}", name);
-            }
-            WindowAction::ApplyPreset => {
-                debug!("ApplyPreset not yet implemented on macOS");
-            }
-            WindowAction::None => {}
-        }
-
-        Ok(())
-    }
-
-    /// Execute action (macOS version)
-    #[cfg(target_os = "macos")]
-    pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
-        debug!(?action, "Mapper execute_action called (macOS)");
-        match action {
-            Action::Window(window_action) => {
-                info!(?window_action, "Processing window action in mapper");
-                if let Some(ref wm) = self.window_manager {
-                    info!("WindowManager found, executing window action");
-                    match Self::execute_window_action_internal(wm, window_action) {
-                        Ok(()) => info!("Window action executed successfully"),
-                        Err(e) => error!(error = %e, "Failed to execute window action"),
-                    }
-                } else {
-                    error!("WindowManager not available, skipping window action. This means with_window_manager() was not called during initialization.");
-                }
-            }
-            Action::Key(_)
-            | Action::Mouse(_)
-            | Action::Launch(_)
-            | Action::Sequence(_)
-            | Action::Delay { .. }
-            | Action::None => {
-                // These actions are handled by other components
-            }
-        }
-
-        Ok(())
     }
 
     /// Load context-aware mapping rules

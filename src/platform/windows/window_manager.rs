@@ -512,6 +512,109 @@ impl RealWindowManager {
     }
 }
 
+/// Implement WindowManagerTrait for Windows RealWindowManager
+///
+/// This bridges the platform-specific HWND type to the unified WindowId (usize)
+/// used by the cross-platform trait abstraction.
+impl crate::platform::traits::WindowManagerTrait for RealWindowManager {
+    fn get_foreground_window(&self) -> Option<crate::platform::traits::WindowId> {
+        self.api()
+            .get_foreground_window()
+            .map(|hwnd| hwnd.0 as usize)
+    }
+
+    fn get_window_info(&self, window: crate::platform::traits::WindowId) -> Result<crate::platform::traits::WindowInfo> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        let info = self.api().get_window_info(hwnd)?;
+        Ok(crate::platform::traits::WindowInfo {
+            id: window,
+            title: info.title,
+            process_name: info.process_name,
+            executable_path: info.executable_path,
+            x: info.frame.x,
+            y: info.frame.y,
+            width: info.frame.width,
+            height: info.frame.height,
+        })
+    }
+
+    fn set_window_pos(
+        &self,
+        window: crate::platform::traits::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        let frame = WindowFrame::new(x, y, width, height);
+        self.set_window_frame(hwnd, &frame)
+    }
+
+    fn minimize_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.minimize_window(hwnd)
+    }
+
+    fn maximize_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.maximize_window(hwnd)
+    }
+
+    fn restore_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.restore_window(hwnd)
+    }
+
+    fn close_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.close_window(hwnd)
+    }
+
+    fn set_topmost(
+        &self,
+        window: crate::platform::traits::WindowId,
+        topmost: bool,
+    ) -> Result<()> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.api().set_topmost(hwnd, topmost)
+    }
+
+    fn get_monitors(&self) -> Vec<crate::platform::traits::MonitorInfo> {
+        unsafe { enumerate_all_monitors() }
+    }
+
+    fn move_to_monitor(
+        &self,
+        window: crate::platform::traits::WindowId,
+        monitor_index: usize,
+    ) -> Result<()> {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        let direction = MonitorDirection::Index(monitor_index as i32);
+        self.move_to_monitor(hwnd, direction)
+    }
+
+    fn is_window_valid(&self, window: crate::platform::traits::WindowId) -> bool {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.api().is_window_valid(hwnd)
+    }
+
+    fn is_minimized(&self, window: crate::platform::traits::WindowId) -> bool {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.api().is_minimized(hwnd)
+    }
+
+    fn is_maximized(&self, window: crate::platform::traits::WindowId) -> bool {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.api().is_maximized(hwnd)
+    }
+
+    fn is_topmost(&self, window: crate::platform::traits::WindowId) -> bool {
+        let hwnd = HWND(window as *mut std::ffi::c_void);
+        self.api().is_topmost(hwnd)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::MockWindowApi;

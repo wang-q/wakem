@@ -406,6 +406,7 @@ pub trait WindowManagerTrait: Send + Sync {
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost(&self, window: WindowId) -> bool;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
     fn is_window_valid(&self, window: WindowId) -> bool;

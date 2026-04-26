@@ -8,7 +8,7 @@
 //! All operations complete in < 10ms (typically < 5ms).
 
 use crate::platform::macos::window_api::RealWindowApi;
-use crate::platform::traits::{MonitorInfo, WindowFrame, WindowId};
+use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowFrame, WindowId};
 pub use crate::platform::traits::MonitorDirection;
 pub use crate::platform::window_manager_common::WindowManager;
 use anyhow::Result;
@@ -59,6 +59,95 @@ impl RealWindowManager {
     pub fn move_to_monitor(&self, window: WindowId, direction: MonitorDirection) -> Result<()> {
         use crate::platform::window_manager_common::CommonWindowManager;
         CommonWindowManager::move_to_monitor(self, window, direction)
+    }
+}
+
+/// Implement WindowManagerTrait for macOS RealWindowManager
+///
+/// This bridges the platform-specific CGWindowNumber (usize) to the unified
+/// WindowId (usize) used by the cross-platform trait abstraction.
+impl crate::platform::traits::WindowManagerTrait for RealWindowManager {
+    fn get_foreground_window(&self) -> Option<crate::platform::traits::WindowId> {
+        self.api().get_foreground_window()
+    }
+
+    fn get_window_info(&self, window: crate::platform::traits::WindowId) -> Result<crate::platform::traits::WindowInfo> {
+        let info = self.api().get_window_info(window)?;
+        Ok(crate::platform::traits::WindowInfo {
+            id: info.id,
+            title: info.title,
+            process_name: info.process_name,
+            executable_path: info.executable_path,
+            x: info.x,
+            y: info.y,
+            width: info.width,
+            height: info.height,
+        })
+    }
+
+    fn set_window_pos(
+        &self,
+        window: crate::platform::traits::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        let frame = WindowFrame::new(x, y, width, height);
+        self.set_window_frame(window, &frame)
+    }
+
+    fn minimize_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        self.minimize_window(window)
+    }
+
+    fn maximize_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        self.maximize_window(window)
+    }
+
+    fn restore_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        self.restore_window(window)
+    }
+
+    fn close_window(&self, window: crate::platform::traits::WindowId) -> Result<()> {
+        self.close_window(window)
+    }
+
+    fn set_topmost(
+        &self,
+        window: crate::platform::traits::WindowId,
+        topmost: bool,
+    ) -> Result<()> {
+        self.api().set_topmost(window, topmost)
+    }
+
+    fn get_monitors(&self) -> Vec<crate::platform::traits::MonitorInfo> {
+        self.api().get_monitors()
+    }
+
+    fn move_to_monitor(
+        &self,
+        window: crate::platform::traits::WindowId,
+        monitor_index: usize,
+    ) -> Result<()> {
+        let direction = MonitorDirection::Index(monitor_index as i32);
+        self.move_to_monitor(window, direction)
+    }
+
+    fn is_window_valid(&self, window: crate::platform::traits::WindowId) -> bool {
+        self.api().is_window_valid(window)
+    }
+
+    fn is_minimized(&self, window: crate::platform::traits::WindowId) -> bool {
+        self.api().is_minimized(window)
+    }
+
+    fn is_maximized(&self, window: crate::platform::traits::WindowId) -> bool {
+        self.api().is_maximized(window)
+    }
+
+    fn is_topmost(&self, window: crate::platform::traits::WindowId) -> bool {
+        self.api().is_topmost(window)
     }
 }
 
