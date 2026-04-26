@@ -298,7 +298,10 @@ impl WindowApi for RealWindowApi {
     fn get_window_title(&self, hwnd: HWND) -> Option<String> {
         unsafe {
             let mut title_buffer = [0u16; 256];
-            let len = windows::Win32::UI::WindowsAndMessaging::GetWindowTextW(hwnd, &mut title_buffer);
+            let len = windows::Win32::UI::WindowsAndMessaging::GetWindowTextW(
+                hwnd,
+                &mut title_buffer,
+            );
             if len == 0 {
                 None
             } else {

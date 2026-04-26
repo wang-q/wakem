@@ -1,89 +1,50 @@
 //! macOS input device implementation using CGEventTap
 //!
-//! This module provides:
-//! - `MacosInputDevice` - Real implementation using CGEventTap (from input.rs)
-//! - `InputDeviceConfig` - Configuration for input device behavior
+//! This module provides a macOS input device using CGEventTap.
+//! Uses the generic [InputDevice] from [input_device_common] to share code
+//! with the Windows implementation.
 #![cfg(target_os = "macos")]
 
-use crate::platform::input_device_common::InputDeviceBase;
-use crate::platform::macos::input::CGEventTapDevice;
+use crate::platform::input_device_common::{
+    InputDevice, InputDeviceBase, PlatformInputDevice,
+};
 use crate::platform::traits::{InputDeviceConfig, InputDeviceTrait};
-use crate::types::{InputEvent, KeyState, ModifierState};
+use crate::types::{InputEvent, ModifierState};
 use anyhow::Result;
 use std::sync::mpsc::Sender;
 use tracing::debug;
 
-/// Real macOS input device implementation using CGEventTap
-pub struct MacosInputDevice {
-    base: InputDeviceBase,
-    tap: Option<CGEventTapDevice>,
-    pending_event: std::cell::RefCell<Option<InputEvent>>,
+/// macOS CGEventTap device type alias
+pub type MacosInputDevice = InputDevice<CGEventTapInner>;
+
+/// Inner CGEventTap device
+pub struct CGEventTapInner {
+    tap: crate::platform::macos::input::CGEventTapDevice,
 }
 
-impl MacosInputDevice {
-    /// Create a new macOS input device with default config
-    pub fn new(_config: InputDeviceConfig) -> Result<Self> {
-        Ok(Self {
-            base: InputDeviceBase::new(),
-            tap: None,
-            pending_event: std::cell::RefCell::new(None),
-        })
+impl PlatformInputDevice for CGEventTapInner {
+    fn create(sender: Sender<InputEvent>) -> Result<Self> {
+        let tap = crate::platform::macos::input::CGEventTapDevice::new(sender);
+        Ok(Self { tap })
     }
 
-    /// Create a MacosInputDevice with custom sender (for integration with existing systems)
-    pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
-        Ok(Self {
-            base: InputDeviceBase::with_sender(event_sender),
-            tap: None,
-            pending_event: std::cell::RefCell::new(None),
-        })
+    fn run_once(&mut self) -> Result<bool> {
+        // CGEventTap runs in its own thread, so this is a no-op
+        Ok(true)
     }
 
-    /// Get the event sender
-    pub fn get_sender(&self) -> Sender<InputEvent> {
-        self.base.sender()
+    fn stop(&mut self) {
+        self.tap.stop();
     }
+}
 
+impl InputDevice<CGEventTapInner> {
     /// Get current modifier key state
     pub fn get_modifier_state(&self) -> &ModifierState {
         &self.base.modifier_state
     }
 
-    /// Start the CGEventTap in background thread
-    fn start_tap(&mut self) -> Result<()> {
-        let sender = self.base.sender();
-        let mut tap_device = CGEventTapDevice::new(sender);
-        tap_device.run()?;
-
-        self.tap = Some(tap_device);
-        debug!("CGEventTap started");
-
-        Ok(())
-    }
-
-    /// Poll event with pending event support (macOS-specific)
-    fn poll_event_with_pending(&mut self) -> Option<InputEvent> {
-        if !self.base.running {
-            return None;
-        }
-
-        let pending = {
-            let mut borrowed = self.pending_event.borrow_mut();
-            borrowed.take()
-        };
-
-        if let Some(event) = pending {
-            if let InputEvent::Key(key_event) = &event {
-                self.base.update_modifier_state(
-                    key_event.virtual_key,
-                    key_event.state == KeyState::Pressed,
-                );
-            }
-            return Some(event);
-        }
-
-        self.base.try_recv_event()
-    }
+    /// Wait for an event with timeout
     pub fn wait_for_event(&mut self, timeout_ms: u64) -> Result<bool, String> {
         if !self.base.running {
             self.base.running = true;
@@ -112,14 +73,18 @@ impl MacosInputDevice {
     }
 }
 
-impl InputDeviceTrait for MacosInputDevice {
+impl InputDeviceTrait for InputDevice<CGEventTapInner> {
     fn register(&mut self) -> Result<()> {
         debug!("Registering MacosInputDevice");
         self.base.running = true;
 
         #[cfg(not(test))]
         if crate::platform::macos::input::check_accessibility_permissions() {
-            self.start_tap()?;
+            let sender = self.base.sender();
+            let inner = CGEventTapInner::create(sender)?;
+            inner.tap.run()?;
+            self.inner = Some(inner);
+            debug!("CGEventTap started");
         } else {
             debug!("Accessibility permissions not granted, using passive mode");
         }
@@ -133,8 +98,8 @@ impl InputDeviceTrait for MacosInputDevice {
     fn unregister(&mut self) {
         debug!("Unregistering MacosInputDevice");
         self.base.running = false;
-        if let Some(ref mut tap) = self.tap {
-            tap.stop();
+        if let Some(ref mut inner) = self.inner.take() {
+            inner.stop();
         }
     }
 
@@ -148,8 +113,8 @@ impl InputDeviceTrait for MacosInputDevice {
 
     fn stop(&mut self) {
         self.base.stop();
-        if let Some(ref mut tap) = self.tap {
-            tap.stop();
+        if let Some(ref mut inner) = self.inner.take() {
+            inner.stop();
         }
     }
 }
@@ -171,5 +136,19 @@ mod tests {
             space != 0 || ret != 0,
             "At least one special key should be mapped"
         );
+    }
+
+    #[test]
+    fn test_macos_input_device_creation() {
+        let config = InputDeviceConfig::default();
+        let device = MacosInputDevice::new(config).unwrap();
+        assert!(!device.is_running());
+    }
+
+    #[test]
+    fn test_macos_input_device_with_sender() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let device = MacosInputDevice::with_sender(tx).unwrap();
+        assert!(!device.is_running());
     }
 }
