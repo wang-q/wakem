@@ -12,7 +12,7 @@
 
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
 use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowId, WindowInfo, WindowState,
+    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowId, WindowInfo,
 };
 use anyhow::{anyhow, Result};
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
@@ -321,7 +321,12 @@ impl RealWindowApi {
             .is_some()
     }
 
-    fn is_minimized(&self, _window: WindowId) -> bool {
+    /// Check if window is minimized (iconic)
+    /// Internal method named after Windows API convention
+    fn is_iconic(&self, window: WindowId) -> bool {
+        // For macOS, we check if the frontmost app's main window is minimized
+        // This is a limitation - we don't check the specific window ID
+        let _ = window; // Unused for now
         match ns_workspace::get_frontmost_app_pid() {
             Some(pid) => match ax_element::create_app_element(pid) {
                 Ok(app_elem) => match ax_element::get_main_window(&app_elem) {
@@ -334,7 +339,9 @@ impl RealWindowApi {
         }
     }
 
-    fn is_maximized(&self, window: WindowId) -> bool {
+    /// Check if window is maximized (zoomed)
+    /// Internal method named after Windows API convention
+    fn is_zoomed(&self, window: WindowId) -> bool {
         let info = match self.get_window_info(window) {
             Ok(info) => info,
             Err(_) => return false,
@@ -352,19 +359,10 @@ impl RealWindowApi {
         width_ratio >= threshold && height_ratio >= threshold
     }
 
-    fn get_window_state(&self, window: WindowId) -> WindowState {
-        if self.is_minimized(window) {
-            WindowState::Minimized
-        } else if self.is_maximized(window) {
-            WindowState::Maximized
-        } else {
-            WindowState::Normal
-        }
-    }
-
     /// Ensure window is restored (not minimized or maximized)
+    /// Internal method named after Windows API convention
     pub fn ensure_window_restored(&self, window: WindowId) -> Result<()> {
-        if self.is_minimized(window) || self.is_maximized(window) {
+        if self.is_iconic(window) || self.is_zoomed(window) {
             self.restore_window(window)?;
         }
         Ok(())
@@ -440,11 +438,11 @@ impl WindowApiBase for RealWindowApi {
     }
 
     fn is_minimized(&self, window: Self::WindowId) -> bool {
-        self.is_minimized(window)
+        self.is_iconic(window)
     }
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.is_maximized(window)
+        self.is_zoomed(window)
     }
 }
 

@@ -82,9 +82,33 @@ impl<A: WindowApiBase<WindowId = WindowId>> WindowManager<A> {
         self.api.get_foreground_window()
     }
 
+    /// Get foreground window information
+    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
+        let window = self
+            .api
+            .get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
+        self.api.get_window_info(window)
+    }
+
     /// Get window information
     pub fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
         self.api.get_window_info(window)
+    }
+
+    /// Get debug info string
+    pub fn get_debug_info(&self) -> Result<String> {
+        let info = self.get_foreground_window_info()?;
+
+        Ok(format!(
+            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
+            info.title,
+            info.id,
+            info.x,
+            info.y,
+            info.width,
+            info.height,
+        ))
     }
 
     /// Get window rectangle

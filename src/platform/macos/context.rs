@@ -12,6 +12,8 @@ use tracing::debug;
 /// Get current window context using native APIs
 ///
 /// Uses NSWorkspace + CGWindowList + proc_pidpath for maximum performance.
+/// On macOS, `window_class` is mapped from the Accessibility API's "role" attribute
+/// (typically "AXWindow" for standard windows).
 ///
 /// # Performance
 ///
@@ -28,19 +30,32 @@ pub fn get_current() -> Option<WindowContext> {
 
     let executable_path = ns_workspace::get_app_path(pid);
 
+    // Try to get window role (macOS equivalent of window class) via Accessibility API
+    let window_class = get_window_role(pid);
+
     debug!(
-        "Got window context natively: {} ({}) - '{}'",
+        "Got window context natively: {} ({}) - '{}' [class: {}]",
         process_name,
         window_title,
-        executable_path.as_deref().unwrap_or("unknown")
+        executable_path.as_deref().unwrap_or("unknown"),
+        window_class.as_deref().unwrap_or("unknown")
     );
 
     Some(WindowContext {
         process_name,
-        window_class: String::new(),
+        window_class: window_class.unwrap_or_default(),
         window_title,
         executable_path,
     })
+}
+
+/// Get window role (Accessibility API) for the given PID's main window
+fn get_window_role(pid: u32) -> Option<String> {
+    use crate::platform::macos::native_api::ax_element;
+
+    let app_elem = ax_element::create_app_element(pid).ok()?;
+    let win_elem = ax_element::get_main_window(&app_elem).ok()?;
+    ax_element::get_role(&win_elem).ok()
 }
 
 #[cfg(test)]

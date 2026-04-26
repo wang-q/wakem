@@ -450,6 +450,12 @@ impl Default for TrayIcon {
     }
 }
 
+impl Drop for TrayIcon {
+    fn drop(&mut self) {
+        let _ = self.unregister();
+    }
+}
+
 // Re-export shared tray types from tray_common (aligned with Windows)
 #[allow(unused_imports)]
 pub use crate::platform::tray_common::TrayManager;
