@@ -12,7 +12,7 @@
 
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
 use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowId, WindowInfo, WindowState,
+    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowId, WindowInfo, WindowState,
 };
 use anyhow::{anyhow, Result};
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
@@ -23,7 +23,7 @@ use tracing::debug;
 #[allow(dead_code)]
 pub enum WindowApiCall {
     GetForegroundWindow,
-    GetWindowInfo {
+    GetWindowRect {
         window: WindowId,
     },
     SetWindowPos {
@@ -33,7 +33,15 @@ pub enum WindowApiCall {
         width: i32,
         height: i32,
     },
-    GetMonitors,
+    GetMonitorInfo {
+        window: WindowId,
+    },
+    IsWindow {
+        window: WindowId,
+    },
+    GetWindowTitle {
+        window: WindowId,
+    },
     MinimizeWindow {
         window: WindowId,
     },
@@ -50,13 +58,7 @@ pub enum WindowApiCall {
         window: WindowId,
         topmost: bool,
     },
-    IsWindowValid {
-        window: WindowId,
-    },
-    IsMinimized {
-        window: WindowId,
-    },
-    IsMaximized {
+    EnsureRestored {
         window: WindowId,
     },
 }
@@ -76,7 +78,7 @@ pub enum WindowApiCall {
 /// This is a unique system-wide identifier assigned by Core Graphics.
 /// Note: manipulation methods currently target the frontmost app's main
 /// window regardless of the passed `WindowId`.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RealWindowApi;
 
 impl RealWindowApi {
@@ -125,6 +127,12 @@ impl RealWindowApi {
             "Failed to get window info for window number {}",
             target_number
         ))
+    }
+
+    fn get_window_rect(&self, window: WindowId) -> Option<WindowFrame> {
+        self.get_window_info(window).ok().map(|info| {
+            WindowFrame::new(info.x, info.y, info.width, info.height)
+        })
     }
 
     fn set_window_pos(
@@ -256,6 +264,11 @@ impl RealWindowApi {
         monitors
     }
 
+    fn get_monitor_info(&self, _window: WindowId) -> Option<MonitorInfo> {
+        let monitors = self.get_monitors();
+        monitors.first().cloned()
+    }
+
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
         if let Some((x, y, width, height)) =
             ns_workspace::get_screen_visible_frame(monitor_index)
@@ -358,6 +371,12 @@ impl RealWindowApi {
     }
 }
 
+impl Default for RealWindowApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WindowApiBase for RealWindowApi {
     type WindowId = WindowId;
 
@@ -431,78 +450,75 @@ impl WindowApiBase for RealWindowApi {
 
 /// Mock window API for testing
 #[cfg(test)]
-#[derive(Clone)]
 pub struct MockWindowApi {
-    windows: std::sync::Arc<
-        std::sync::Mutex<
-            std::collections::HashMap<WindowId, WindowInfo>,
-        >,
-    >,
-    foreground: std::sync::Arc<std::sync::Mutex<Option<WindowId>>>,
-    monitors: std::sync::Arc<std::sync::Mutex<Vec<MonitorInfo>>>,
-    minimized: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<WindowId>>>,
+    pub foreground_window: std::cell::RefCell<Option<WindowId>>,
+    pub window_rects: std::cell::RefCell<std::collections::HashMap<WindowId, WindowFrame>>,
+    pub monitor_info: std::cell::RefCell<std::collections::HashMap<WindowId, MonitorInfo>>,
+    pub window_states: std::cell::RefCell<std::collections::HashMap<WindowId, MockWindowState>>,
+    pub operations_log: std::cell::RefCell<Vec<WindowApiCall>>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct MockWindowState {
+    minimized: bool,
+    maximized: bool,
+    topmost: bool,
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 impl MockWindowApi {
     pub fn new() -> Self {
-        let mut windows = std::collections::HashMap::new();
-        windows.insert(
-            1,
-            WindowInfo {
-                id: 1,
-                title: "Test Window".to_string(),
-                process_name: "TestApp".to_string(),
-                executable_path: None,
-                x: 100,
-                y: 100,
-                width: 800,
-                height: 600,
-            },
-        );
-
         Self {
-            windows: std::sync::Arc::new(std::sync::Mutex::new(windows)),
-            foreground: std::sync::Arc::new(std::sync::Mutex::new(Some(1))),
-            monitors: std::sync::Arc::new(std::sync::Mutex::new(vec![MonitorInfo {
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1080,
-            }])),
-            minimized: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
+            foreground_window: std::cell::RefCell::new(None),
+            window_rects: std::cell::RefCell::new(std::collections::HashMap::new()),
+            monitor_info: std::cell::RefCell::new(std::collections::HashMap::new()),
+            window_states: std::cell::RefCell::new(std::collections::HashMap::new()),
+            operations_log: std::cell::RefCell::new(Vec::new()),
         }
     }
 
-    pub fn add_window(&self, id: WindowId, info: WindowInfo) {
-        self.windows.lock().unwrap().insert(id, info);
+    pub fn set_foreground_window(&self, window: WindowId) {
+        *self.foreground_window.borrow_mut() = Some(window);
     }
 
-    pub fn set_monitors(&self, monitors: Vec<MonitorInfo>) {
-        *self.monitors.lock().unwrap() = monitors;
+    pub fn set_window_rect(&self, window: WindowId, frame: WindowFrame) {
+        self.window_rects
+            .borrow_mut()
+            .insert(window, frame);
     }
 
-    pub fn set_minimized(&self, id: WindowId, minimized: bool) {
-        if minimized {
-            self.minimized.lock().unwrap().insert(id);
-        } else {
-            self.minimized.lock().unwrap().remove(&id);
-        }
+    pub fn set_monitor_info(&self, window: WindowId, info: MonitorInfo) {
+        self.monitor_info.borrow_mut().insert(window, info);
+    }
+
+    pub fn set_window_state(&self, window: WindowId, minimized: bool, maximized: bool) {
+        let mut states = self.window_states.borrow_mut();
+        let state = states.entry(window).or_default();
+        state.minimized = minimized;
+        state.maximized = maximized;
+    }
+
+    pub fn get_operations(&self) -> Vec<WindowApiCall> {
+        self.operations_log.borrow().clone()
+    }
+
+    pub fn clear_operations(&self) {
+        self.operations_log.borrow_mut().clear();
+    }
+
+    fn log_operation(&self, op: WindowApiCall) {
+        self.operations_log.borrow_mut().push(op);
     }
 
     fn get_foreground_window(&self) -> Option<WindowId> {
-        *self.foreground.lock().unwrap()
+        self.log_operation(WindowApiCall::GetForegroundWindow);
+        *self.foreground_window.borrow()
     }
 
-    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
-        self.windows
-            .lock()
-            .unwrap()
-            .get(&window)
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("Window not found: {}", window))
+    fn get_window_rect(&self, window: WindowId) -> Option<WindowFrame> {
+        self.log_operation(WindowApiCall::GetWindowRect { window });
+        self.window_rects.borrow().get(&window).copied()
     }
 
     fn set_window_pos(
@@ -510,111 +526,121 @@ impl MockWindowApi {
         window: WindowId,
         x: i32,
         y: i32,
-        w: i32,
-        h: i32,
+        width: i32,
+        height: i32,
     ) -> Result<()> {
-        if let Some(info) = self.windows.lock().unwrap().get_mut(&window) {
-            info.x = x;
-            info.y = y;
-            info.width = w;
-            info.height = h;
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("Window not found: {}", window))
+        self.log_operation(WindowApiCall::SetWindowPos {
+            window,
+            x,
+            y,
+            width,
+            height,
+        });
+
+        let mut rects = self.window_rects.borrow_mut();
+        rects.insert(window, WindowFrame::new(x, y, width, height));
+
+        let mut states = self.window_states.borrow_mut();
+        if let Some(state) = states.get_mut(&window) {
+            state.minimized = false;
+            state.maximized = false;
         }
+
+        Ok(())
+    }
+
+    fn get_monitor_info(&self, window: WindowId) -> Option<MonitorInfo> {
+        self.log_operation(WindowApiCall::GetMonitorInfo { window });
+        self.monitor_info.borrow().get(&window).cloned()
+    }
+
+    fn get_monitor_work_area(&self, window: WindowId) -> Option<MonitorWorkArea> {
+        self.get_monitor_info(window).map(|info| MonitorWorkArea {
+            x: info.x,
+            y: info.y,
+            width: info.width,
+            height: info.height,
+        })
+    }
+
+    fn is_window(&self, window: WindowId) -> bool {
+        self.log_operation(WindowApiCall::IsWindow { window });
+        self.window_rects.borrow().contains_key(&window)
+    }
+
+    fn get_window_title(&self, window: WindowId) -> Option<String> {
+        self.log_operation(WindowApiCall::GetWindowTitle { window });
+        Some(format!("Window {:?}", window))
+    }
+
+    fn is_iconic(&self, window: WindowId) -> bool {
+        self.window_states
+            .borrow()
+            .get(&window)
+            .map(|s| s.minimized)
+            .unwrap_or(false)
+    }
+
+    fn is_zoomed(&self, window: WindowId) -> bool {
+        self.window_states
+            .borrow()
+            .get(&window)
+            .map(|s| s.maximized)
+            .unwrap_or(false)
     }
 
     fn minimize_window(&self, window: WindowId) -> Result<()> {
-        self.set_minimized(window, true);
+        self.log_operation(WindowApiCall::MinimizeWindow { window });
+        let mut states = self.window_states.borrow_mut();
+        states.entry(window).or_default().minimized = true;
         Ok(())
     }
 
     fn maximize_window(&self, window: WindowId) -> Result<()> {
-        let monitors = self.monitors.lock().unwrap();
-        if let Some(monitor) = monitors.first() {
-            if let Some(info) = self.windows.lock().unwrap().get_mut(&window) {
-                info.x = monitor.x;
-                info.y = monitor.y;
-                info.width = monitor.width;
-                info.height = monitor.height;
-            }
-        }
+        self.log_operation(WindowApiCall::MaximizeWindow { window });
+        let mut states = self.window_states.borrow_mut();
+        states.entry(window).or_default().maximized = true;
         Ok(())
     }
 
     fn restore_window(&self, window: WindowId) -> Result<()> {
-        self.set_minimized(window, false);
+        self.log_operation(WindowApiCall::RestoreWindow { window });
+        let mut states = self.window_states.borrow_mut();
+        if let Some(state) = states.get_mut(&window) {
+            state.minimized = false;
+            state.maximized = false;
+        }
         Ok(())
     }
 
     fn close_window(&self, window: WindowId) -> Result<()> {
-        self.windows.lock().unwrap().remove(&window);
+        self.log_operation(WindowApiCall::CloseWindow { window });
+        self.window_rects.borrow_mut().remove(&window);
+        self.window_states.borrow_mut().remove(&window);
         Ok(())
     }
 
-    fn set_topmost(&self, _window: WindowId, _topmost: bool) -> Result<()> {
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        self.log_operation(WindowApiCall::SetTopmost { window, topmost });
+        let mut states = self.window_states.borrow_mut();
+        states.entry(window).or_default().topmost = topmost;
         Ok(())
     }
 
-    fn is_topmost(&self, _window: WindowId) -> bool {
-        false
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        self.monitors.lock().unwrap().clone()
-    }
-
-    fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
-        let monitors = self.monitors.lock().unwrap();
-        let m = monitors.get(monitor_index)?;
-        let menu_bar_height = 22;
-        let dock_height = 44;
-        Some(MonitorWorkArea {
-            x: m.x,
-            y: m.y + menu_bar_height,
-            width: m.width,
-            height: m.height - menu_bar_height - dock_height,
-        })
-    }
-
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
-        let monitors = self.monitors.lock().unwrap();
-        let m = monitors
-            .get(monitor_index)
-            .ok_or_else(|| anyhow::anyhow!("Invalid monitor index"))?;
-        if let Some(info) = self.windows.lock().unwrap().get_mut(&window) {
-            info.x = m.x + (m.width - info.width) / 2;
-            info.y = m.y + (m.height - info.height) / 2;
+    fn ensure_window_restored(&self, window: WindowId) -> Result<()> {
+        self.log_operation(WindowApiCall::EnsureRestored { window });
+        if self.is_iconic(window) || self.is_zoomed(window) {
+            self.restore_window(window)?;
         }
         Ok(())
     }
 
-    fn is_window_valid(&self, window: WindowId) -> bool {
-        self.windows.lock().unwrap().contains_key(&window)
-    }
-
-    fn is_minimized(&self, window: WindowId) -> bool {
-        self.minimized.lock().unwrap().contains(&window)
-    }
-
-    fn is_maximized(&self, window: WindowId) -> bool {
-        if let Some(info) = self.windows.lock().unwrap().get(&window) {
-            let monitors = self.monitors.lock().unwrap();
-            if let Some(m) = monitors.first() {
-                return info.width == m.width && info.height == m.height;
-            }
-        }
-        false
-    }
-
-    fn get_window_state(&self, window: WindowId) -> WindowState {
-        if self.is_minimized(window) {
-            WindowState::Minimized
-        } else if self.is_maximized(window) {
-            WindowState::Maximized
-        } else {
-            WindowState::Normal
-        }
+    fn is_topmost(&self, window: WindowId) -> bool {
+        self.window_states
+            .borrow()
+            .get(&window)
+            .map(|s| s.topmost)
+            .unwrap_or(false)
     }
 }
 
@@ -634,7 +660,20 @@ impl WindowApiBase for MockWindowApi {
     }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
-        self.get_window_info(window)
+        let title = self.get_window_title(window).unwrap_or_default();
+        let frame = self
+            .get_window_rect(window)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
+        Ok(WindowInfo {
+            id: window,
+            title,
+            process_name: "TestProcess".to_string(),
+            executable_path: None,
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height,
+        })
     }
 
     fn set_window_pos(
@@ -673,27 +712,30 @@ impl WindowApiBase for MockWindowApi {
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        self.get_monitors()
+        let fg = self.get_foreground_window();
+        fg.and_then(|window| self.get_monitor_info(window))
+            .map(|info| vec![info])
+            .unwrap_or_default()
     }
 
     fn move_to_monitor(
         &self,
-        window: Self::WindowId,
-        monitor_index: usize,
+        _window: Self::WindowId,
+        _monitor_index: usize,
     ) -> Result<()> {
-        self.move_to_monitor(window, monitor_index)
+        Ok(())
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.is_window_valid(window)
+        self.is_window(window)
     }
 
     fn is_minimized(&self, window: Self::WindowId) -> bool {
-        self.is_minimized(window)
+        self.is_iconic(window)
     }
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.is_maximized(window)
+        self.is_zoomed(window)
     }
 }
 
@@ -740,109 +782,67 @@ mod tests {
     #[test]
     fn test_mock_creation() {
         let mock = MockWindowApi::new();
-        assert!(mock.is_window_valid(1));
+        assert!(!mock.is_window_valid(0));
         assert!(!mock.is_window_valid(999));
     }
 
     #[test]
     fn test_mock_set_window_pos() {
         let mock = MockWindowApi::new();
-        mock.set_window_pos(1, 200, 300, 1024, 768).unwrap();
-        let info = mock.get_window_info(1).unwrap();
-        assert_eq!(info.x, 200);
-        assert_eq!(info.y, 300);
-        assert_eq!(info.width, 1024);
-        assert_eq!(info.height, 768);
+        let window = 1234;
+
+        mock.set_window_pos(window, 50, 100, 1024, 768).unwrap();
+
+        let frame = mock.get_window_rect(window).unwrap();
+        assert_eq!(frame.x, 50);
+        assert_eq!(frame.y, 100);
+        assert_eq!(frame.width, 1024);
+        assert_eq!(frame.height, 768);
     }
 
     #[test]
-    fn test_mock_minimize_restore() {
+    fn test_mock_window_state() {
         let mock = MockWindowApi::new();
-        assert!(!mock.is_minimized(1));
+        let window = 9999;
 
-        mock.minimize_window(1).unwrap();
-        assert!(mock.is_minimized(1));
-        assert_eq!(mock.get_window_state(1), WindowState::Minimized);
+        assert!(!mock.is_iconic(window));
+        assert!(!mock.is_zoomed(window));
 
-        mock.restore_window(1).unwrap();
-        assert!(!mock.is_minimized(1));
-        assert_eq!(mock.get_window_state(1), WindowState::Normal);
-    }
+        mock.minimize_window(window).unwrap();
+        assert!(mock.is_iconic(window));
+        assert!(!mock.is_zoomed(window));
 
-    #[test]
-    fn test_mock_maximize() {
-        let mock = MockWindowApi::new();
-        mock.maximize_window(1).unwrap();
-        assert!(mock.is_maximized(1));
-        assert_eq!(mock.get_window_state(1), WindowState::Maximized);
+        mock.restore_window(window).unwrap();
+        assert!(!mock.is_iconic(window));
+        assert!(!mock.is_zoomed(window));
 
-        let info = mock.get_window_info(1).unwrap();
-        assert_eq!(info.width, 1920);
-        assert_eq!(info.height, 1080);
-    }
-
-    #[test]
-    fn test_mock_close_window() {
-        let mock = MockWindowApi::new();
-        assert!(mock.is_window_valid(1));
-        mock.close_window(1).unwrap();
-        assert!(!mock.is_window_valid(1));
-    }
-
-    #[test]
-    fn test_mock_move_to_monitor() {
-        let mock = MockWindowApi::new();
-        mock.set_monitors(vec![
-            MonitorInfo {
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1080,
-            },
-            MonitorInfo {
-                x: 1920,
-                y: 0,
-                width: 2560,
-                height: 1440,
-            },
-        ]);
-
-        mock.move_to_monitor(1, 1).unwrap();
-        let info = mock.get_window_info(1).unwrap();
-        assert!(info.x >= 1920);
-    }
-
-    #[test]
-    fn test_mock_monitor_work_area() {
-        let mock = MockWindowApi::new();
-        let work_area = mock.get_monitor_work_area(0).unwrap();
-        assert!(work_area.height < 1080);
-    }
-
-    #[test]
-    fn test_mock_add_window() {
-        let mock = MockWindowApi::new();
-        mock.add_window(
-            2,
-            WindowInfo {
-                id: 2,
-                title: "Second Window".to_string(),
-                process_name: "OtherApp".to_string(),
-                executable_path: None,
-                x: 500,
-                y: 500,
-                width: 640,
-                height: 480,
-            },
-        );
-        assert!(mock.is_window_valid(2));
-        let info = mock.get_window_info(2).unwrap();
-        assert_eq!(info.title, "Second Window");
+        mock.maximize_window(window).unwrap();
+        assert!(!mock.is_iconic(window));
+        assert!(mock.is_zoomed(window));
     }
 
     #[test]
     fn test_mock_foreground_window() {
         let mock = MockWindowApi::new();
-        assert_eq!(mock.get_foreground_window(), Some(1));
+        let window = 1111;
+
+        assert!(mock.get_foreground_window().is_none());
+
+        mock.set_foreground_window(window);
+        assert_eq!(mock.get_foreground_window().unwrap(), 1111);
+    }
+
+    #[test]
+    fn test_mock_api_base() {
+        let mock = MockWindowApi::new();
+        let window = 5678;
+
+        mock.set_window_rect(window, WindowFrame::new(100, 200, 800, 600));
+
+        let info = mock.get_window_info(window).unwrap();
+        assert_eq!(info.x, 100);
+        assert_eq!(info.y, 200);
+        assert_eq!(info.width, 800);
+        assert_eq!(info.height, 600);
     }
 }
