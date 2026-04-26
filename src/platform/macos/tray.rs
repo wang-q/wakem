@@ -420,6 +420,10 @@ impl Default for TrayIcon {
     }
 }
 
+// Re-export shared tray types from tray_common (aligned with Windows)
+pub use crate::platform::tray_common::MockTrayApi;
+pub use crate::platform::tray_common::TrayManager;
+
 #[cfg(test)]
 mod tests {
     use super::*;

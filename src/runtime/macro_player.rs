@@ -18,7 +18,7 @@ use crate::platform::windows::SendInputDevice as OutputDevice;
 use crate::platform::mock::MockOutputDevice as OutputDevice;
 
 #[cfg(all(target_os = "macos", not(test)))]
-use crate::platform::macos::MacosOutputDevice as OutputDevice;
+use crate::platform::macos::SendInputDevice as OutputDevice;
 
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::mock::MockOutputDevice as OutputDevice;

@@ -14,26 +14,14 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-// Re-export common types
+// Re-export common types (aligned with Windows platform)
 pub use crate::platform::launcher_common::Launcher;
-pub use crate::platform::traits::InputDeviceConfig;
-
-// Re-export input device
-pub use input_device::{InputDevice, RawInputDevice};
-
-// Re-export output device
-pub use output_device::{MacosOutputDevice, OutputDevice, SendInputDevice};
-
-// Re-export tray types
+pub use input_device::RawInputDevice;
+pub use output_device::SendInputDevice;
 pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
-
-// Re-export window API types
 pub use window_api::RealWindowApi;
-
-// Re-export window manager types
+pub use window_event_hook::MacosWindowEventHook as WindowEventHook;
 pub use window_manager::{MonitorDirection, RealWindowManager, WindowManager};
-
-// Re-export window preset types
 pub use window_preset::WindowPresetManager;
 
 #[cfg(test)]

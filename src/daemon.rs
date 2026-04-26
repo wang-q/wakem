@@ -36,15 +36,16 @@ use crate::platform::windows::{
 // Platform-specific imports for production code (macOS)
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
-    tray::AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, OutputDevice, RealWindowApi, WindowManager,
+    tray::AppCommand as TrayAppCommand, Launcher, RawInputDevice,
+    SendInputDevice as OutputDevice, RealWindowApi, WindowManager,
 };
+use crate::platform::traits::InputDeviceConfig;
 
 // Platform-specific imports for test code (macOS)
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
-    tray::AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, RealWindowApi, WindowManager,
+    tray::AppCommand as TrayAppCommand, Launcher, RawInputDevice, RealWindowApi,
+    WindowManager,
 };
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::mock::MockOutputDevice as OutputDevice;
