@@ -21,8 +21,13 @@ pub const IPC_REQUEST_TIMEOUT_SECS: u64 = 10;
 /// IPC discovery timeout (milliseconds) - quick scan for active instances
 pub const IPC_DISCOVERY_TIMEOUT_MS: u64 = 100;
 
-/// IPC idle timeout (seconds) - 10 minutes, long enough for tray client connections
-pub const IPC_IDLE_TIMEOUT_SECS: u64 = 600;
+/// IPC idle timeout for short-lived connections (seconds) - for one-shot commands
+/// like status, reload, save, etc. These connections should complete quickly.
+pub const IPC_IDLE_TIMEOUT_SHORT_SECS: u64 = 30;
+
+/// IPC idle timeout for long-lived connections (seconds) - for tray clients
+/// that maintain a persistent connection for status updates and notifications.
+pub const IPC_IDLE_TIMEOUT_LONG_SECS: u64 = 600;
 
 /// IPC channel capacity
 pub const IPC_CHANNEL_CAPACITY: usize = 100;

@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
+use zeroize::Zeroizing;
 
 use crate::config::Config;
 use crate::constants::{
@@ -33,6 +34,12 @@ use crate::runtime::{KeyMapper, LayerManager};
 /// Combined config state to reduce lock count.
 /// `loaded` flag is kept together with `config` since they are always
 /// accessed together and should be consistent.
+///
+/// Note: `auth_key` is stored as a separate `Arc<RwLock<Zeroizing<String>>>`
+/// in `ServerState` rather than here, because it must be shared with
+/// `IpcServer` via `Arc` cloning. Embedding it in ConfigState would require
+/// nested locking (RwLock<ConfigState> containing another RwLock), which
+/// adds complexity without meaningful benefit.
 #[derive(Default)]
 struct ConfigState {
     config: Config,
@@ -59,7 +66,7 @@ pub struct ServerState {
     active: Arc<AtomicBool>,
     macro_recorder: Arc<MacroRecorder>,
     notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
-    auth_key: Arc<RwLock<String>>,
+    auth_key: Arc<RwLock<Zeroizing<String>>>,
     active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     shutdown_signal: ShutdownSignal,
@@ -103,7 +110,7 @@ impl ServerState {
             active: Arc::new(AtomicBool::new(true)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             notification_service: Arc::new(Mutex::new(Box::new(notification_service))),
-            auth_key: Arc::new(RwLock::new(String::new())),
+            auth_key: Arc::new(RwLock::new(Zeroizing::new(String::new()))),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
             shutdown_signal,
@@ -140,7 +147,7 @@ impl ServerState {
         // 1. Update auth key (stored separately from config)
         {
             let mut key = self.auth_key.write().await;
-            *key = config.network.auth_key.clone().unwrap_or_default();
+            *key = Zeroizing::new(config.network.auth_key.clone().unwrap_or_default());
         }
 
         // 2. Update base mapping rules and context rules (merged into one write lock)
@@ -1559,5 +1566,287 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
         _ => Message::Error {
             message: "Unknown message".to_string(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{KeyAction, KeyEvent, MouseEventType};
+
+    #[test]
+    fn test_check_modifier_match_ctrl() {
+        let mut mods = ModifierState::new();
+        mods.ctrl = true;
+        assert!(ServerState::check_modifier_match("ctrl", &mods));
+        assert!(ServerState::check_modifier_match("Ctrl", &mods));
+        assert!(ServerState::check_modifier_match("control", &mods));
+        assert!(ServerState::check_modifier_match("Control", &mods));
+        assert!(!ServerState::check_modifier_match("alt", &mods));
+    }
+
+    #[test]
+    fn test_check_modifier_match_alt() {
+        let mut mods = ModifierState::new();
+        mods.alt = true;
+        assert!(ServerState::check_modifier_match("alt", &mods));
+        assert!(ServerState::check_modifier_match("Alt", &mods));
+        assert!(!ServerState::check_modifier_match("ctrl", &mods));
+    }
+
+    #[test]
+    fn test_check_modifier_match_shift() {
+        let mut mods = ModifierState::new();
+        mods.shift = true;
+        assert!(ServerState::check_modifier_match("shift", &mods));
+        assert!(ServerState::check_modifier_match("Shift", &mods));
+        assert!(!ServerState::check_modifier_match("alt", &mods));
+    }
+
+    #[test]
+    fn test_check_modifier_match_meta() {
+        let mut mods = ModifierState::new();
+        mods.meta = true;
+        assert!(ServerState::check_modifier_match("win", &mods));
+        assert!(ServerState::check_modifier_match("Win", &mods));
+        assert!(ServerState::check_modifier_match("meta", &mods));
+        assert!(ServerState::check_modifier_match("Meta", &mods));
+        assert!(ServerState::check_modifier_match("command", &mods));
+        assert!(ServerState::check_modifier_match("Command", &mods));
+        assert!(!ServerState::check_modifier_match("ctrl", &mods));
+    }
+
+    #[test]
+    fn test_check_modifier_match_right_variants() {
+        let mut mods = ModifierState::new();
+        mods.ctrl = true;
+        mods.alt = true;
+        mods.shift = true;
+        assert!(ServerState::check_modifier_match("rightctrl", &mods));
+        assert!(ServerState::check_modifier_match("rightalt", &mods));
+        assert!(ServerState::check_modifier_match("rightshift", &mods));
+    }
+
+    #[test]
+    fn test_check_modifier_match_unknown() {
+        let mods = ModifierState::new();
+        assert!(!ServerState::check_modifier_match("unknown", &mods));
+        assert!(!ServerState::check_modifier_match("", &mods));
+        assert!(!ServerState::check_modifier_match("super", &mods));
+    }
+
+    #[test]
+    fn test_check_modifier_match_empty_modifiers() {
+        let mods = ModifierState::new();
+        assert!(!ServerState::check_modifier_match("ctrl", &mods));
+        assert!(!ServerState::check_modifier_match("alt", &mods));
+        assert!(!ServerState::check_modifier_match("shift", &mods));
+        assert!(!ServerState::check_modifier_match("win", &mods));
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_simple() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let actions = vec![
+            Action::Key(KeyAction::click(0x1E, 0x41)),
+            Action::Delay { milliseconds: 100 },
+            Action::None,
+        ];
+        let result = state.flatten_action_sequence(&actions).unwrap();
+        assert_eq!(result.len(), 3);
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_nested() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let inner = vec![
+            Action::Key(KeyAction::click(0x1E, 0x41)),
+            Action::Key(KeyAction::click(0x1F, 0x42)),
+        ];
+        let actions = vec![
+            Action::Key(KeyAction::click(0x1E, 0x41)),
+            Action::Sequence(inner),
+            Action::None,
+        ];
+        let result = state.flatten_action_sequence(&actions).unwrap();
+        assert_eq!(result.len(), 4);
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_deeply_nested() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let level3 = vec![Action::Key(KeyAction::click(0x1E, 0x41))];
+        let level2 = vec![Action::Sequence(level3)];
+        let level1 = vec![Action::Sequence(level2)];
+        let actions = vec![Action::Sequence(level1)];
+        let result = state.flatten_action_sequence(&actions).unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_depth_exceeded() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let mut actions = vec![Action::Key(KeyAction::click(0x1E, 0x41))];
+        for _ in 0..12 {
+            let inner = actions.clone();
+            actions = vec![Action::Sequence(inner)];
+        }
+        let result = state.flatten_action_sequence(&actions);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("maximum depth"));
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_total_actions_exceeded() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let actions: Vec<Action> = (0..1001)
+            .map(|_| Action::Key(KeyAction::click(0x1E, 0x41)))
+            .collect();
+        let result = state.flatten_action_sequence(&actions);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("maximum total actions"));
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_empty() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let actions: Vec<Action> = vec![];
+        let result = state.flatten_action_sequence(&actions).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_empty_nested() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let actions = vec![Action::Sequence(vec![]), Action::None];
+        let result = state.flatten_action_sequence(&actions).unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_signal_propagation() {
+        let shutdown = ShutdownSignal::new();
+        let state = ServerState::new(shutdown.clone());
+
+        let mut rx = state.subscribe_shutdown();
+        assert!(!*rx.borrow_and_update());
+
+        state.shutdown();
+
+        tokio::select! {
+            _ = rx.changed() => {
+                assert!(*rx.borrow());
+            }
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
+                panic!("Shutdown signal not received within timeout");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_multiple_config_loads() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config1: Config = toml::from_str(r#"
+[keyboard.remap]
+CapsLock = "Backspace"
+"#).unwrap();
+        state.load_config(config1).await.unwrap();
+        let (_, loaded) = state.get_status().await;
+        assert!(loaded);
+
+        let config2: Config = toml::from_str(r#"
+[keyboard.remap]
+A = "B"
+"#).unwrap();
+        state.load_config(config2).await.unwrap();
+        let (_, loaded) = state.get_status().await;
+        assert!(loaded);
+    }
+
+    #[tokio::test]
+    async fn test_load_config_with_auth_key() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config: Config = toml::from_str(r#"
+[network]
+auth_key = "my-secret-key"
+"#).unwrap();
+        let result = state.load_config(config).await;
+        assert!(result.is_ok());
+
+        let auth_key = state.auth_key.read().await;
+        assert_eq!(auth_key.as_str(), "my-secret-key");
+    }
+
+    #[tokio::test]
+    async fn test_load_config_without_auth_key() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config = Config::default();
+        let result = state.load_config(config).await;
+        assert!(result.is_ok());
+
+        let auth_key = state.auth_key.read().await;
+        assert!(auth_key.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_hyper_key_processing() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config: Config = toml::from_str(r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#).unwrap();
+        state.load_config(config).await.unwrap();
+
+        let (caps_sc, caps_vk) = crate::config::parse_key("CapsLock").unwrap();
+
+        let press_event = InputEvent::Key(KeyEvent::new(
+            caps_sc,
+            caps_vk,
+            KeyState::Pressed,
+        ));
+        state.process_input_event(press_event).await;
+
+        let release_event = InputEvent::Key(KeyEvent::new(
+            caps_sc,
+            caps_vk,
+            KeyState::Released,
+        ));
+        state.process_input_event(release_event).await;
+    }
+
+    #[tokio::test]
+    async fn test_wheel_enhancement_with_acceleration() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config: Config = toml::from_str(r#"
+[mouse.wheel]
+acceleration = true
+acceleration_multiplier = 3
+"#).unwrap();
+        state.load_config(config).await.unwrap();
+
+        let mouse_event = crate::types::MouseEvent::new(MouseEventType::Wheel(120), 0, 0);
+        let event = InputEvent::Mouse(mouse_event);
+        state.process_input_event(event).await;
+    }
+
+    #[tokio::test]
+    async fn test_wheel_enhancement_horizontal_scroll() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config: Config = toml::from_str(r#"
+[mouse.wheel.horizontal_scroll]
+modifier = "Shift"
+step = 3
+"#).unwrap();
+        state.load_config(config).await.unwrap();
+
+        let mouse_event = crate::types::MouseEvent::new(MouseEventType::Wheel(120), 0, 0);
+        let event = InputEvent::Mouse(mouse_event);
+        state.process_input_event(event).await;
     }
 }

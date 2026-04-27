@@ -1,6 +1,7 @@
 use crate::constants::{
     AUTH_OPERATION_TIMEOUT_SECS, IPC_BASE_PORT, IPC_CHANNEL_CAPACITY,
-    IPC_CONNECTION_TIMEOUT_SECS, IPC_DISCOVERY_TIMEOUT_MS, IPC_IDLE_TIMEOUT_SECS,
+    IPC_CONNECTION_TIMEOUT_SECS, IPC_DISCOVERY_TIMEOUT_MS, IPC_IDLE_TIMEOUT_LONG_SECS,
+    IPC_IDLE_TIMEOUT_SHORT_SECS,
     IPC_MAX_MESSAGE_SIZE, RATE_LIMIT_MAX_ATTEMPTS, RATE_LIMIT_WINDOW_SECS,
 };
 use hmac::{Hmac, Mac};
@@ -17,7 +18,7 @@ use tokio::sync::{mpsc, RwLock};
 use tokio::task::JoinSet;
 use tokio::time::{timeout, Duration as TokioDuration};
 use tracing::{debug, error, info, warn};
-use zeroize::Zeroize;
+use zeroize::Zeroizing;
 
 // ==================== Authentication ====================
 
@@ -379,7 +380,12 @@ pub fn get_instance_address(instance_id: u32) -> String {
 // ==================== Message I/O ====================
 
 /// Read message from TCP stream
-pub async fn read_message(stream: &mut TcpStream) -> Result<Message> {
+/// Read message from TCP stream with reusable buffer
+///
+/// The buffer is cleared and reused across calls to avoid repeated heap
+/// allocations. This is especially beneficial for high-frequency IPC
+/// communication where many messages are exchanged on a single connection.
+pub async fn read_message(stream: &mut TcpStream, buffer: &mut Vec<u8>) -> Result<Message> {
     let mut len_bytes = [0u8; 4];
     stream.read_exact(&mut len_bytes).await?;
     let len = u32::from_be_bytes(len_bytes) as usize;
@@ -391,10 +397,11 @@ pub async fn read_message(stream: &mut TcpStream) -> Result<Message> {
         )));
     }
 
-    let mut buffer = vec![0u8; len];
-    stream.read_exact(&mut buffer).await?;
+    buffer.clear();
+    buffer.resize(len, 0);
+    stream.read_exact(buffer).await?;
 
-    let message = serde_json::from_slice(&buffer)?;
+    let message = serde_json::from_slice(buffer)?;
     Ok(message)
 }
 
@@ -416,6 +423,8 @@ pub struct IpcClient {
     stream: Option<TcpStream>,
     address: String,
     auth_key: Option<String>,
+    /// Reusable buffer for reading messages to avoid per-message allocation
+    read_buffer: Vec<u8>,
 }
 
 impl IpcClient {
@@ -425,6 +434,7 @@ impl IpcClient {
             stream: None,
             address: address.into(),
             auth_key: None,
+            read_buffer: Vec::new(),
         }
     }
 
@@ -485,7 +495,7 @@ impl IpcClient {
     /// Receive message
     pub async fn receive(&mut self) -> Result<Message> {
         let stream = self.stream.as_mut().ok_or(IpcError::ConnectionClosed)?;
-        read_message(stream).await
+        read_message(stream, &mut self.read_buffer).await
     }
 
     /// Send message and wait for response
@@ -550,8 +560,8 @@ async fn client_perform_authentication(
 pub struct IpcServer {
     listener: Option<TcpListener>,
     bind_address: String,
-    /// Authentication key (using Arc<RwLock> for dynamic updates)
-    auth_key: Option<Arc<RwLock<String>>>,
+    /// Authentication key (Zeroizing ensures old key data is wiped on update)
+    auth_key: Option<Arc<RwLock<Zeroizing<String>>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
     /// Connection rate limiter (prevent brute force attacks)
     rate_limiter: Arc<RwLock<ConnectionLimiter>>,
@@ -561,7 +571,7 @@ impl IpcServer {
     /// Create new server (with dynamic key)
     pub fn new_with_dynamic_key(
         bind_address: impl Into<String>,
-        auth_key: Arc<RwLock<String>>,
+        auth_key: Arc<RwLock<Zeroizing<String>>>,
         message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
     ) -> Self {
         Self {
@@ -631,17 +641,16 @@ impl IpcServer {
 async fn handle_connection(
     mut stream: TcpStream,
     addr: SocketAddr,
-    auth_key: Option<Arc<RwLock<String>>>,
+    auth_key: Option<Arc<RwLock<Zeroizing<String>>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
 ) -> Result<()> {
     if let Some(key_arc) = auth_key {
-        let mut key = {
+        let key = {
             let key_guard = key_arc.read().await;
             key_guard.clone()
         };
         if !key.is_empty() {
             let auth_result = server_perform_authentication(&mut stream, &key).await;
-            zero_string(&mut key);
             if !auth_result? {
                 warn!("Authentication failed for {}", addr);
                 return Err(IpcError::ConnectionRefused);
@@ -656,17 +665,25 @@ async fn handle_connection(
                 IPC_PROTOCOL_VERSION, addr
             );
         } else {
-            zero_string(&mut key);
+            // Zeroizing<String> automatically zeroes on drop
         }
     }
 
     let (response_tx, mut response_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
+    let mut read_buffer = Vec::new();
+    let mut idle_timeout = IPC_IDLE_TIMEOUT_SHORT_SECS;
 
     loop {
         tokio::select! {
-            result = read_message(&mut stream) => {
+            result = read_message(&mut stream, &mut read_buffer) => {
                 match result {
                     Ok(message) => {
+                        // Upgrade to long timeout for persistent connections.
+                        // InitializePlatform is used by tray clients that maintain
+                        // a long-lived connection for status updates.
+                        if matches!(message, Message::InitializePlatform { .. }) {
+                            idle_timeout = IPC_IDLE_TIMEOUT_LONG_SECS;
+                        }
                         if message_tx.send((message, response_tx.clone())).await.is_err() {
                             break;
                         }
@@ -687,8 +704,8 @@ async fn handle_connection(
                 }
             }
 
-            _ = tokio::time::sleep(Duration::from_secs(IPC_IDLE_TIMEOUT_SECS)) => {
-                debug!("Connection timeout for {}", addr);
+            _ = tokio::time::sleep(Duration::from_secs(idle_timeout)) => {
+                debug!("Connection idle timeout ({})s for {}", idle_timeout, addr);
                 break;
             }
         }
@@ -745,10 +762,6 @@ async fn server_perform_authentication(
 ///
 /// Uses the zeroize crate which provides secure memory clearing that is not
 /// optimized away by the compiler.
-fn zero_string(s: &mut String) {
-    s.zeroize();
-}
-
 // ==================== Tests ====================
 
 #[cfg(test)]
@@ -924,7 +937,7 @@ mod tests {
     #[ignore = "binds to real port, may conflict with running instances"]
     async fn test_server_start() {
         let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
-        let auth_key = Arc::new(RwLock::new("test-key".to_string()));
+        let auth_key = Arc::new(RwLock::new(Zeroizing::new("test-key".to_string())));
         let mut server =
             IpcServer::new_with_dynamic_key("127.0.0.1:57428", auth_key, tx);
         server.start().await.unwrap();
@@ -936,7 +949,7 @@ mod tests {
     #[ignore = "binds to real port, may conflict with running instances"]
     async fn test_server_start_with_dynamic_key() {
         let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
-        let auth_key = Arc::new(RwLock::new("test-key".to_string()));
+        let auth_key = Arc::new(RwLock::new(Zeroizing::new("test-key".to_string())));
         let mut server =
             IpcServer::new_with_dynamic_key("127.0.0.1:57429", auth_key, tx);
         server.start().await.unwrap();
