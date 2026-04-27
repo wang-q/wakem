@@ -79,26 +79,27 @@ impl LayerManager {
 
         if let Some(layer_name) = self.activation_key_index.get(&lookup_key) {
             debug!(layer_name = %layer_name, "Found activation key");
-            if let Some(layer) = self.layers.get(layer_name).cloned() {
+            if let Some(layer) = self.layers.get(layer_name) {
+                let layer_name = &layer.name;
                 match layer.mode {
                     LayerMode::Hold => {
                         match event.state {
                             KeyState::Pressed => {
-                                debug!("Activating layer (Hold): {}", layer.name);
-                                self.stack.hold_layer(&layer.name);
-                                self.stack.activate_layer(layer);
+                                debug!("Activating layer (Hold): {}", layer_name);
+                                self.stack.hold_layer(layer_name);
+                                self.stack.activate_layer(layer.clone());
                             }
                             KeyState::Released => {
-                                debug!("Deactivating layer (Hold): {}", layer.name);
-                                self.stack.release_layer(&layer.name);
+                                debug!("Deactivating layer (Hold): {}", layer_name);
+                                self.stack.release_layer(layer_name);
                             }
                         }
                         return (true, None);
                     }
                     LayerMode::Toggle => {
                         if event.state == KeyState::Pressed {
-                            debug!("Toggling layer: {}", layer.name);
-                            self.stack.toggle_layer(layer);
+                            debug!("Toggling layer: {}", layer_name);
+                            self.stack.toggle_layer(layer.clone());
                             return (true, None);
                         }
                     }
@@ -133,28 +134,6 @@ impl LayerManager {
 
         debug!("No mapping found in LayerManager");
         (false, None)
-    }
-
-    /// Get list of currently active layers
-    #[allow(unused)]
-    pub fn get_active_layers(&self) -> Vec<String> {
-        self.stack
-            .get_active_layers()
-            .iter()
-            .map(|l| l.name.clone())
-            .collect()
-    }
-
-    /// Check if layer is active
-    #[allow(unused)]
-    pub fn is_layer_active(&self, name: &str) -> bool {
-        self.stack.is_layer_active(name)
-    }
-
-    /// Deactivate all layers
-    #[allow(unused)]
-    pub fn clear_layers(&mut self) {
-        self.stack.clear_active_layers();
     }
 
     /// Create layer from config
@@ -195,6 +174,25 @@ mod tests {
     use crate::types::{
         Action, InputEvent, KeyAction, KeyEvent, KeyState, Layer, LayerMode, Trigger,
     };
+
+    // Test helper methods
+    impl LayerManager {
+        fn is_layer_active(&self, name: &str) -> bool {
+            self.stack.is_layer_active(name)
+        }
+
+        fn get_active_layers(&self) -> Vec<String> {
+            self.stack
+                .get_active_layers()
+                .iter()
+                .map(|l| l.name.clone())
+                .collect()
+        }
+
+        fn clear_layers(&mut self) {
+            self.stack.clear_active_layers();
+        }
+    }
 
     #[test]
     fn test_layer_manager_hold() {
@@ -437,65 +435,4 @@ mod tests {
         assert!(manager.get_active_layers().is_empty());
     }
 
-    // ==================== Additional tests from ut_runtime_mapper.rs ====================
-
-    #[test]
-    fn test_layer_creation_alt() {
-        let layer = Layer::new("test", 0x3A, 0x14).with_mode(LayerMode::Hold);
-
-        assert_eq!(layer.name, "test");
-        assert_eq!(layer.activation_key, 0x3A);
-        assert_eq!(layer.activation_vk, 0x14);
-        assert!(matches!(layer.mode, LayerMode::Hold));
-    }
-
-    #[test]
-    fn test_layer_add_mapping_alt() {
-        let mut layer = Layer::new("nav", 0x3A, 0x14);
-
-        let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::key(KeyAction::click(0x1F, 0x42));
-
-        layer.add_mapping(trigger, action);
-        assert_eq!(layer.mappings.len(), 1);
-    }
-
-    #[test]
-    fn test_layer_activation() {
-        // Test layer activation and deactivation
-        let layer_name = "navigation";
-        let activation_key = "CapsLock";
-
-        assert_eq!(layer_name, "navigation");
-        assert_eq!(activation_key, "CapsLock");
-    }
-
-    #[test]
-    fn test_layer_modes_alt() {
-        let modes = vec!["Hold", "Toggle"];
-
-        assert!(modes.contains(&"Hold"));
-        assert!(modes.contains(&"Toggle"));
-    }
-
-    #[test]
-    fn test_layer_mappings_alt() {
-        let mappings = vec![("H", "Left"), ("J", "Down"), ("K", "Up"), ("L", "Right")];
-
-        assert_eq!(mappings.len(), 4);
-        assert_eq!(mappings[0].0, "H");
-        assert_eq!(mappings[0].1, "Left");
-    }
-
-    #[test]
-    fn test_multiple_layers_alt() {
-        let layers = vec![
-            ("navigation", "CapsLock", "Hold"),
-            ("numpad", "RightAlt", "Hold"),
-        ];
-
-        assert_eq!(layers.len(), 2);
-        assert_eq!(layers[0].0, "navigation");
-        assert_eq!(layers[1].0, "numpad");
-    }
 }

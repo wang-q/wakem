@@ -85,29 +85,9 @@ pub struct KeyMapper {
         Option<std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>>,
 }
 
-// SAFETY: KeyMapper is manually marked as Send + Sync because it contains
-// trait objects (Box<dyn WindowManagerTrait>, Box<dyn NotificationService>, etc.)
-// that may not be auto-Send/Sync depending on the platform implementation,
-// but are safe to transfer across threads under the following constraints:
-//
-// 1. All platform-specific handles stored inside trait objects are opaque
-//    pointer-sized values. Storing them is safe; only using them requires care.
-//
-// 2. All mutating operations via trait methods MUST be serialized externally.
-//    The caller is responsible for ensuring mutual exclusion — currently achieved
-//    through Arc<RwLock<KeyMapper>> in the daemon, where write access is gated
-//    by the RwLock.
-//
-// 3. Read operations (process_event_with_context) never invoke platform API
-//    calls directly; they only inspect Rust data structures.
-//
-// 4. If KeyMapper is ever used without external synchronization (e.g., without
-//    RwLock), the unsafe impl must be revisited.
-//
-// VIOLATION RISK: Removing the outer RwLock or calling execute_action from
-// multiple threads concurrently would be undefined behavior.
-unsafe impl Send for KeyMapper {}
-unsafe impl Sync for KeyMapper {}
+// Note: KeyMapper is Send + Sync because all contained trait objects
+// (WindowManagerTrait, NotificationService, WindowPresetManagerTrait)
+// already require Send + Sync bounds in their trait definitions.
 
 impl KeyMapper {
     pub fn new() -> Self {
@@ -383,7 +363,6 @@ impl KeyMapper {
         Ok(())
     }
 
-    #[allow(unused_variables)]
     fn execute_window_action_internal(
         wm: &dyn WindowManagerTrait,
         notification_service: Option<
