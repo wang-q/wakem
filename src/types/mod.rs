@@ -19,8 +19,8 @@ pub use key_codes::{
     VK_ALT, VK_CONTROL, VK_LALT, VK_LCONTROL, VK_LMETA, VK_LSHIFT, VK_RALT, VK_RCONTROL,
     VK_RMETA, VK_RSHIFT, VK_SHIFT,
 };
-// Note: VK_META is available from key_codes but not re-exported here to avoid unused import warning
-// It can be accessed directly via `wakem::types::VK_META`
+// Note: VK_META is defined in key_codes module but not re-exported here
+// to avoid unused import warnings. It can be accessed via `wakem::types::key_codes::VK_META`
 
 /// Device type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

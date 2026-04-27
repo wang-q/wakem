@@ -60,19 +60,6 @@ impl KeyAction {
             virtual_key,
         }
     }
-
-    /// Create key combination action
-    #[allow(dead_code)]
-    pub fn combo(
-        modifiers: super::ModifierState,
-        scan_code: u16,
-        virtual_key: u16,
-    ) -> Self {
-        Self::Combo {
-            modifiers,
-            key: (scan_code, virtual_key),
-        }
-    }
 }
 
 /// Mouse action
@@ -203,7 +190,6 @@ impl Action {
     }
 
     /// Create mouse action
-    #[allow(dead_code)]
     pub fn mouse(action: MouseAction) -> Self {
         Self::Mouse(action)
     }
@@ -224,7 +210,6 @@ impl Action {
     }
 
     /// Create action sequence
-    #[allow(dead_code)]
     pub fn sequence(actions: Vec<Action>) -> Self {
         Self::Sequence(actions)
     }
@@ -334,15 +319,6 @@ mod tests {
         {
             assert_eq!(scan_code, 0x1E);
             assert_eq!(virtual_key, 0x41);
-        }
-
-        // combo
-        let mut modifiers = super::super::ModifierState::default();
-        modifiers.ctrl = true;
-        let action = KeyAction::combo(modifiers, 0x1E, 0x41);
-        if let KeyAction::Combo { modifiers: m, key } = action {
-            assert!(m.ctrl);
-            assert_eq!(key, (0x1E, 0x41));
         }
     }
 

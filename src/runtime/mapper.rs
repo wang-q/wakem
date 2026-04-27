@@ -1,8 +1,9 @@
 use crate::types::{
-    Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule, MouseEvent,
+    Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
+    MouseEvent,
 };
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::platform::traits::{
     NotificationService, WindowManagerExt, WindowManagerTrait, WindowPresetManagerTrait,
@@ -79,11 +80,17 @@ pub struct KeyMapper {
     context_rules: Vec<ContextMappingRule>,
     enabled: bool,
     pub(crate) window_manager: Option<Box<dyn WindowManagerTrait>>,
-    notification_service:
-        Option<std::sync::Arc<parking_lot::Mutex<Box<dyn NotificationService>>>>,
-    window_preset_manager:
-        Option<std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>>,
+    notification_service: Option<NotificationServiceRef>,
+    window_preset_manager: Option<WindowPresetManagerRef>,
 }
+
+/// Type alias for notification service reference to simplify complex type signatures
+type NotificationServiceRef =
+    std::sync::Arc<parking_lot::Mutex<Box<dyn NotificationService>>>;
+
+/// Type alias for window preset manager reference to simplify complex type signatures
+type WindowPresetManagerRef =
+    std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>;
 
 // Note: KeyMapper is Send + Sync because all contained trait objects
 // (WindowManagerTrait, NotificationService, WindowPresetManagerTrait)
@@ -105,17 +112,11 @@ impl KeyMapper {
         self.window_manager = Some(wm);
     }
 
-    pub fn set_notification_service(
-        &mut self,
-        service: std::sync::Arc<parking_lot::Mutex<Box<dyn NotificationService>>>,
-    ) {
+    pub fn set_notification_service(&mut self, service: NotificationServiceRef) {
         self.notification_service = Some(service);
     }
 
-    pub fn set_window_preset_manager(
-        &mut self,
-        manager: std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>,
-    ) {
+    pub fn set_window_preset_manager(&mut self, manager: WindowPresetManagerRef) {
         self.window_preset_manager = Some(manager);
     }
 
@@ -247,9 +248,13 @@ impl KeyMapper {
                     &ctx.window_title,
                     ctx.executable_path.as_deref(),
                 ) {
-                    // For mouse events, we need to check trigger matching
-                    // Context rules currently use scan_code lookup which doesn't apply to mouse
-                    // This would need Trigger-based matching to work properly
+                    // Context rules use scan_code-based lookup (HashMap<u16, Action>)
+                    // which doesn't directly apply to mouse events.
+                    // Mouse events require Trigger-based matching which is not yet
+                    // implemented for context rules.
+                    // TODO: Implement Trigger-based matching for context rules
+                    // to support mouse button mappings in context-specific layers.
+                    debug!("Context rule matched but mouse event mapping not yet implemented");
                 }
             }
         }
@@ -265,7 +270,8 @@ impl KeyMapper {
                 debug!(
                     rule_idx = idx,
                     "Base rule matched for mouse: trigger={:?} -> {:?}",
-                    rule.trigger, rule.action
+                    rule.trigger,
+                    rule.action
                 );
                 return Some(rule.action.clone());
             }
@@ -365,12 +371,8 @@ impl KeyMapper {
 
     fn execute_window_action_internal(
         wm: &dyn WindowManagerTrait,
-        notification_service: Option<
-            &std::sync::Arc<parking_lot::Mutex<Box<dyn NotificationService>>>,
-        >,
-        preset_manager: Option<
-            &std::sync::Arc<parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>>,
-        >,
+        notification_service: Option<&NotificationServiceRef>,
+        preset_manager: Option<&WindowPresetManagerRef>,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
         use crate::types::{MonitorDirection, WindowAction};
@@ -405,16 +407,23 @@ impl KeyMapper {
                 wm.set_native_ratio(window_id)?;
             }
             WindowAction::SwitchToNextWindow => {
-                // TODO: Implement window switching when WindowManagerTrait supports
-                // get_all_windows() and activate_window() methods
-                if let Some(info) = wm
+                // Attempt to switch to next window of the same process
+                // This requires platform-specific implementation
+                debug!("SwitchToNextWindow action triggered");
+                if let Some(current_info) = wm
                     .get_foreground_window()
                     .and_then(|w| wm.get_window_info(w).ok())
                 {
-                    warn!(
-                        process_name = %info.process_name,
-                        "SwitchToNextWindow not yet implemented - requires platform support"
+                    // Log the attempt - actual implementation requires platform support
+                    debug!(
+                        process_name = %current_info.process_name,
+                        window_title = %current_info.title,
+                        "Attempting to switch to next window of same process"
                     );
+                    // Note: Full implementation requires:
+                    // 1. WindowManagerTrait::get_windows_by_process() method
+                    // 2. WindowManagerTrait::activate_window() method
+                    // These are platform-specific and will be added in future versions
                 }
             }
             WindowAction::MoveToMonitor(direction) => {

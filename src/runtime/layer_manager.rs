@@ -434,5 +434,4 @@ mod tests {
         assert!(!manager.is_layer_active("test"));
         assert!(manager.get_active_layers().is_empty());
     }
-
 }

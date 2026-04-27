@@ -77,8 +77,13 @@ impl MacroPlayer {
             .await?;
 
             // Execute action
-            Self::execute_action(output_device, &step.action, &cancel_flag, context.as_ref())
-                .await?;
+            Self::execute_action(
+                output_device,
+                &step.action,
+                &cancel_flag,
+                context.as_ref(),
+            )
+            .await?;
         }
 
         // Release only modifiers that were pressed by the macro player
@@ -116,6 +121,7 @@ impl MacroPlayer {
         target: &ModifierState,
     ) -> anyhow::Result<()> {
         // Press modifiers that are in target but not in current
+        // Order: Ctrl -> Shift -> Alt -> Meta (outside-in for pressing)
         if target.ctrl && !current.ctrl {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_CTRL,
@@ -146,6 +152,8 @@ impl MacroPlayer {
         }
 
         // Release modifiers that are in current but not in target
+        // Order: Meta -> Alt -> Shift -> Ctrl (inside-out for releasing)
+        // This reverse order prevents unintended key combinations during release
         if current.meta && !target.meta {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_META,
@@ -273,7 +281,10 @@ impl MacroPlayer {
                                     }
                                 }
                                 _ => {
-                                    debug!("Window action {:?} not supported in macros", window_action);
+                                    debug!(
+                                        "Window action {:?} not supported in macros",
+                                        window_action
+                                    );
                                 }
                             }
                         } else {
@@ -328,8 +339,8 @@ impl MacroPlayer {
 mod tests {
     use crate::types::{
         Action, InputEvent, KeyAction, KeyEvent, KeyState, LaunchAction, LayerMode,
-        Macro, MacroStep, MappingRule, ModifierState, MouseAction, MouseButton,
-        Trigger, WindowAction,
+        Macro, MacroStep, MappingRule, ModifierState, MouseAction, MouseButton, Trigger,
+        WindowAction,
     };
 
     #[test]
@@ -606,5 +617,4 @@ mod tests {
 
         assert_eq!(macro_def.steps.len(), 100);
     }
-
 }

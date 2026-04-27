@@ -7,6 +7,18 @@ use tracing::{debug, info};
 
 use crate::types::{Action, InputEvent, KeyState, ModifierState, Timestamp};
 
+/// Minimum delay threshold in milliseconds for macro recording.
+///
+/// Delays shorter than this are considered negligible and are not recorded
+/// as separate delay actions. This helps reduce macro size and makes
+/// playback more natural by filtering out tiny timing variations.
+///
+/// The value of 50ms was chosen because:
+/// - It's below human perception threshold for UI responsiveness (100ms)
+/// - It's long enough to absorb minor timing jitter during recording
+/// - It's short enough to not interfere with intentional pauses
+const MIN_DELAY_MS: u64 = 50;
+
 /// Macro step (includes full context)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MacroStep {
@@ -178,18 +190,6 @@ fn simplify_delays(steps: Vec<(Duration, MacroStep)>) -> Vec<MacroStep> {
     // This is a conservative estimate to avoid reallocations
     let mut result = Vec::with_capacity(steps.len() * 2);
     let mut last_time = Duration::from_millis(0);
-
-    /// Minimum delay threshold in milliseconds.
-    ///
-    /// Delays shorter than this are considered negligible and are not recorded
-    /// as separate delay actions. This helps reduce macro size and makes
-    /// playback more natural by filtering out tiny timing variations.
-    ///
-    /// The value of 50ms was chosen because:
-    /// - It's below human perception threshold for UI responsiveness (100ms)
-    /// - It's long enough to absorb minor timing jitter during recording
-    /// - It's short enough to not interfere with intentional pauses
-    const MIN_DELAY_MS: u64 = 50;
 
     for (time, mut step) in steps {
         let delay_ms = time.as_millis().saturating_sub(last_time.as_millis()) as u64;

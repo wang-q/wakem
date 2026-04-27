@@ -246,7 +246,8 @@ async fn test_process_injected_event_ignored() {
     let _ = state.load_config(config).await;
 
     // Create an injected event (is_injected = true)
-    let key_event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed).injected();
+    let mut key_event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+    key_event.is_injected = true;
     let event = InputEvent::Key(key_event);
 
     // Process injected event (should be ignored but not panic)

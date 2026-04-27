@@ -34,16 +34,8 @@ impl KeyEvent {
     }
 
     /// Set modifier key state (for building events)
-    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
-        self
-    }
-
-    /// Mark as injected event (for simulated input)
-    #[allow(dead_code)]
-    pub fn injected(mut self) -> Self {
-        self.is_injected = true;
         self
     }
 
@@ -353,14 +345,6 @@ mod tests {
         assert!(event.modifiers.ctrl);
         assert!(event.modifiers.shift);
         assert!(!event.modifiers.alt);
-    }
-
-    /// Test KeyEvent injected
-    #[test]
-    fn test_key_event_injected() {
-        let event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed).injected();
-
-        assert!(event.is_injected);
     }
 
     /// Test InputEvent timestamp

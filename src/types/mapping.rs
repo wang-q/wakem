@@ -42,26 +42,29 @@ pub enum Trigger {
         button: super::MouseButton,
         modifiers: ModifierState,
     },
-    /// Hot string (text expansion)
+    /// Hot string (text expansion) - RESERVED FOR FUTURE USE
     ///
-    /// # Note
-    /// This trigger type is reserved for future text expansion functionality.
-    /// Currently, it will never match any event.
+    /// # Warning
+    /// This trigger type is not yet implemented. Using it will have no effect.
+    /// It is reserved for future text expansion functionality.
     #[doc(alias = "text_expansion")]
+    #[doc(hidden)]
     HotString { trigger: String },
-    /// Chord trigger (multiple keys in sequence)
+    /// Chord trigger (multiple keys in sequence) - RESERVED FOR FUTURE USE
     ///
-    /// # Note
-    /// This trigger type is reserved for future chord/sequence matching functionality.
-    /// Currently, it will never match any event.
+    /// # Warning
+    /// This trigger type is not yet implemented. Using it will have no effect.
+    /// It is reserved for future chord/sequence matching functionality.
     #[doc(alias = "sequence")]
+    #[doc(hidden)]
     Chord(Vec<Trigger>),
-    /// Timer trigger
+    /// Timer trigger - RESERVED FOR FUTURE USE
     ///
-    /// # Note
-    /// This trigger type is reserved for future timer-based automation functionality.
-    /// Currently, it will never match any event.
+    /// # Warning
+    /// This trigger type is not yet implemented. Using it will have no effect.
+    /// It is reserved for future timer-based automation functionality.
     #[doc(alias = "interval")]
+    #[doc(hidden)]
     Timer { interval_ms: u64 },
     /// Always trigger
     Always,
