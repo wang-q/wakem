@@ -14,24 +14,13 @@ pub use mapping::*;
 
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
-// Platform-specific virtual key codes for modifier keys
-// ============================================================================
-
-/// Virtual key codes for modifier keys (Windows VK codes used as cross-platform standard)
-mod modifier_vk {
-    pub const SHIFT: u16 = 0x10;
-    pub const LSHIFT: u16 = 0xA0;
-    pub const RSHIFT: u16 = 0xA1;
-    pub const CONTROL: u16 = 0x11;
-    pub const LCONTROL: u16 = 0xA2;
-    pub const RCONTROL: u16 = 0xA3;
-    pub const ALT: u16 = 0x12;
-    pub const LALT: u16 = 0xA4;
-    pub const RALT: u16 = 0xA5;
-    pub const LMETA: u16 = 0x5B;
-    pub const RMETA: u16 = 0x5C;
-}
+// Re-export modifier key constants from key_codes module for backward compatibility
+pub use key_codes::{
+    VK_ALT, VK_CONTROL, VK_LALT, VK_LCONTROL, VK_LMETA, VK_LSHIFT, VK_RALT, VK_RCONTROL,
+    VK_RMETA, VK_RSHIFT, VK_SHIFT,
+};
+// Note: VK_META is available from key_codes but not re-exported here to avoid unused import warning
+// It can be accessed directly via `wakem::types::VK_META`
 
 /// Device type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,10 +53,10 @@ impl ModifierState {
     /// Apply modifier state from a virtual key event (sets on press, clears on release)
     pub fn apply_from_virtual_key(&mut self, key: u16, pressed: bool) -> bool {
         match key {
-            modifier_vk::SHIFT | modifier_vk::LSHIFT | modifier_vk::RSHIFT => self.shift = pressed,
-            modifier_vk::CONTROL | modifier_vk::LCONTROL | modifier_vk::RCONTROL => self.ctrl = pressed,
-            modifier_vk::ALT | modifier_vk::LALT | modifier_vk::RALT => self.alt = pressed,
-            modifier_vk::LMETA | modifier_vk::RMETA => self.meta = pressed,
+            VK_SHIFT | VK_LSHIFT | VK_RSHIFT => self.shift = pressed,
+            VK_CONTROL | VK_LCONTROL | VK_RCONTROL => self.ctrl = pressed,
+            VK_ALT | VK_LALT | VK_RALT => self.alt = pressed,
+            VK_LMETA | VK_RMETA => self.meta = pressed,
             _ => return false,
         }
         true

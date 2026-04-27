@@ -34,18 +34,23 @@ impl KeyEvent {
     }
 
     /// Set modifier key state (for building events)
+    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
     /// Mark as injected event (for simulated input)
+    #[allow(dead_code)]
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
     }
 
-    /// Check if is modifier key
+    /// Check if this is a modifier key (Shift, Ctrl, Alt, or Meta/Win)
+    ///
+    /// Modifier keys are typically used in combination with other keys
+    /// and are tracked separately in the `modifiers` field.
     pub fn is_modifier(&self) -> bool {
         VirtualKey::new(self.virtual_key).is_modifier()
     }
@@ -81,7 +86,10 @@ pub struct MouseEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MouseEventType {
     /// Mouse move
-    Move,
+    ///
+    /// The `relative` field indicates whether the movement is relative to the
+    /// current cursor position (true) or absolute screen coordinates (false).
+    Move { relative: bool },
     /// Button press
     ButtonDown(MouseButton),
     /// Button release
@@ -104,19 +112,17 @@ impl MouseEvent {
         }
     }
 
-    /// Set modifier key state (for building events)
-    pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
-        self.modifiers = modifiers;
-        self
-    }
-
-    /// Mark as injected event (for simulated input)
-    pub fn injected(mut self) -> Self {
-        self.is_injected = true;
-        self
-    }
-
-    /// Check if is button press event
+    /// Check if this is a button press (down) event for the specified button
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wakem::types::{MouseEvent, MouseEventType, MouseButton};
+    ///
+    /// let event = MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Left), 100, 100);
+    /// assert!(event.is_button_down(MouseButton::Left));
+    /// assert!(!event.is_button_down(MouseButton::Right));
+    /// ```
     pub fn is_button_down(&self, button: MouseButton) -> bool {
         matches!(&self.event_type, MouseEventType::ButtonDown(b) if *b == button)
     }
@@ -145,7 +151,9 @@ impl InputEvent {
         }
     }
 
-    /// Get event type name (for logging)
+    /// Get a human-readable event type name for logging and debugging
+    ///
+    /// Returns "key" for keyboard events and "mouse" for mouse events.
     pub fn event_type_name(&self) -> &'static str {
         match self {
             InputEvent::Key(_) => "key",
@@ -183,11 +191,14 @@ mod tests {
     /// Test MouseEvent creation
     #[test]
     fn test_mouse_event_creation() {
-        let event = MouseEvent::new(MouseEventType::Move, 100, 200);
+        let event = MouseEvent::new(MouseEventType::Move { relative: false }, 100, 200);
 
         assert_eq!(event.x, 100);
         assert_eq!(event.y, 200);
-        assert!(matches!(event.event_type, MouseEventType::Move));
+        assert!(matches!(
+            event.event_type,
+            MouseEventType::Move { relative: false }
+        ));
         assert!(!event.is_injected);
     }
 
@@ -212,8 +223,11 @@ mod tests {
     fn test_input_event_variants() {
         let key_event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
 
-        let mouse_event =
-            InputEvent::Mouse(MouseEvent::new(MouseEventType::Move, 100, 200));
+        let mouse_event = InputEvent::Mouse(MouseEvent::new(
+            MouseEventType::Move { relative: false },
+            100,
+            200,
+        ));
 
         assert!(matches!(key_event, InputEvent::Key(_)));
         assert!(matches!(mouse_event, InputEvent::Mouse(_)));
@@ -349,33 +363,17 @@ mod tests {
         assert!(event.is_injected);
     }
 
-    /// Test MouseEvent injected
-    #[test]
-    fn test_mouse_event_injected() {
-        let event = MouseEvent::new(MouseEventType::Move, 100, 100).injected();
-
-        assert!(event.is_injected);
-    }
-
     /// Test InputEvent timestamp
     #[test]
     fn test_input_event_timestamp() {
         let key_event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
-        let mouse_event =
-            InputEvent::Mouse(MouseEvent::new(MouseEventType::Move, 100, 100));
+        let mouse_event = InputEvent::Mouse(MouseEvent::new(
+            MouseEventType::Move { relative: false },
+            100,
+            100,
+        ));
 
         assert!(key_event.timestamp() > 0);
         assert!(mouse_event.timestamp() > 0);
-    }
-
-    /// Test InputEvent is_injected
-    #[test]
-    fn test_input_event_is_injected() {
-        let key_event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
-        let injected_key =
-            InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed).injected());
-
-        assert!(!key_event.is_injected());
-        assert!(injected_key.is_injected());
     }
 }

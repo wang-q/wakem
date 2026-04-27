@@ -94,6 +94,26 @@ impl LayerStack {
     }
 
     /// Release hold-activated layer
+    ///
+    /// This method removes the layer from the hold list. For layers with
+    /// `LayerMode::Hold`, this also deactivates the layer. For layers with
+    /// `LayerMode::Toggle`, the layer remains active until explicitly toggled
+    /// off or `deactivate_layer` is called.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wakem::types::{Layer, LayerMode, LayerStack};
+    ///
+    /// let mut stack = LayerStack::new();
+    /// let layer = Layer::new("hold_layer", 0x3A, 0x14).with_mode(LayerMode::Hold);
+    /// stack.activate_layer(layer);
+    /// stack.hold_layer("hold_layer");
+    ///
+    /// // Release the hold - Hold mode layer is deactivated
+    /// stack.release_layer("hold_layer");
+    /// assert!(!stack.is_layer_active("hold_layer"));
+    /// ```
     pub fn release_layer(&mut self, name: &str) {
         self.hold_layers.retain(|n| n != name);
         // If Hold mode layer, deactivate on release
@@ -119,7 +139,11 @@ impl LayerStack {
     pub fn get_all_mappings(&self) -> Vec<MappingRule> {
         // Pre-calculate capacity to avoid reallocations
         let total_capacity = self.base_layer.len()
-            + self.active_layers.iter().map(|l| l.mappings.len()).sum::<usize>();
+            + self
+                .active_layers
+                .iter()
+                .map(|l| l.mappings.len())
+                .sum::<usize>();
         let mut result = Vec::with_capacity(total_capacity);
 
         // Add base layer first
@@ -470,5 +494,4 @@ mod tests {
 
         assert_eq!(layer.mappings.len(), 3);
     }
-
 }

@@ -261,7 +261,11 @@ async fn test_process_input_event_mouse_move() {
     let _ = state.load_config(config).await;
 
     // Create mouse move event
-    let mouse_event = wakem::types::MouseEvent::new(MouseEventType::Move, 100, 200);
+    let mouse_event = wakem::types::MouseEvent::new(
+        MouseEventType::Move { relative: false },
+        100,
+        200,
+    );
     let event = InputEvent::Mouse(mouse_event);
 
     // Process event

@@ -288,7 +288,7 @@ fn convert_mouse_move_event(event: *const c_void) -> Option<InputEvent> {
     trace!("Mouse move at ({}, {})", x, y);
 
     Some(InputEvent::Mouse(MouseEvent::new(
-        MouseEventType::Move,
+        MouseEventType::Move { relative: false },
         x,
         y,
     )))

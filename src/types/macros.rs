@@ -192,7 +192,7 @@ fn simplify_delays(steps: Vec<(Duration, MacroStep)>) -> Vec<MacroStep> {
     const MIN_DELAY_MS: u64 = 50;
 
     for (time, mut step) in steps {
-        let delay_ms = time.as_millis() as u64 - last_time.as_millis() as u64;
+        let delay_ms = time.as_millis().saturating_sub(last_time.as_millis()) as u64;
 
         // If delay exceeds threshold, add delay action
         if delay_ms > MIN_DELAY_MS {
@@ -320,7 +320,12 @@ mod tests {
 
         assert_eq!(step.delay_ms, 100);
         assert_eq!(step.timestamp, 1234567890);
-        assert!(!step.modifiers.shift && !step.modifiers.ctrl && !step.modifiers.alt && !step.modifiers.meta);
+        assert!(
+            !step.modifiers.shift
+                && !step.modifiers.ctrl
+                && !step.modifiers.alt
+                && !step.modifiers.meta
+        );
     }
 
     #[test]

@@ -5,17 +5,28 @@ use std::fmt;
 // These are used for cross-platform consistency
 // ============================================================================
 
-const VK_SHIFT: u16 = 0x10;
-const VK_LSHIFT: u16 = 0xA0;
-const VK_RSHIFT: u16 = 0xA1;
-const VK_CONTROL: u16 = 0x11;
-const VK_LCONTROL: u16 = 0xA2;
-const VK_RCONTROL: u16 = 0xA3;
-const VK_ALT: u16 = 0x12;
-const VK_LALT: u16 = 0xA4;
-const VK_RALT: u16 = 0xA5;
-const VK_LMETA: u16 = 0x5B;
-const VK_RMETA: u16 = 0x5C;
+/// Virtual key code for Shift key (VK_SHIFT = 0x10)
+pub const VK_SHIFT: u16 = 0x10;
+/// Virtual key code for Left Shift key (VK_LSHIFT = 0xA0)
+pub const VK_LSHIFT: u16 = 0xA0;
+/// Virtual key code for Right Shift key (VK_RSHIFT = 0xA1)
+pub const VK_RSHIFT: u16 = 0xA1;
+/// Virtual key code for Control key (VK_CONTROL = 0x11)
+pub const VK_CONTROL: u16 = 0x11;
+/// Virtual key code for Left Control key (VK_LCONTROL = 0xA2)
+pub const VK_LCONTROL: u16 = 0xA2;
+/// Virtual key code for Right Control key (VK_RCONTROL = 0xA3)
+pub const VK_RCONTROL: u16 = 0xA3;
+/// Virtual key code for Alt key (VK_ALT = 0x12)
+pub const VK_ALT: u16 = 0x12;
+/// Virtual key code for Left Alt key (VK_LALT = 0xA4)
+pub const VK_LALT: u16 = 0xA4;
+/// Virtual key code for Right Alt key (VK_RALT = 0xA5)
+pub const VK_RALT: u16 = 0xA5;
+/// Virtual key code for Left Meta/Windows key (VK_LMETA = 0x5B)
+pub const VK_LMETA: u16 = 0x5B;
+/// Virtual key code for Right Meta/Windows key (VK_RMETA = 0x5C)
+pub const VK_RMETA: u16 = 0x5C;
 
 /// Virtual key code (Windows VK_* identifier)
 ///
@@ -65,10 +76,17 @@ impl VirtualKey {
     pub fn is_modifier(&self) -> bool {
         matches!(
             self.0,
-            VK_SHIFT | VK_LSHIFT | VK_RSHIFT |
-            VK_CONTROL | VK_LCONTROL | VK_RCONTROL |
-            VK_ALT | VK_LALT | VK_RALT |
-            VK_LMETA | VK_RMETA
+            VK_SHIFT
+                | VK_LSHIFT
+                | VK_RSHIFT
+                | VK_CONTROL
+                | VK_LCONTROL
+                | VK_RCONTROL
+                | VK_ALT
+                | VK_LALT
+                | VK_RALT
+                | VK_LMETA
+                | VK_RMETA
         )
     }
 

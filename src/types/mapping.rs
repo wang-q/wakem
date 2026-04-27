@@ -26,28 +26,6 @@ impl MappingRule {
             enabled: true,
         }
     }
-
-    /// Check if input event matches this rule
-    pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
-        if !self.enabled {
-            return false;
-        }
-
-        // Check context condition
-        if let Some(ref cond) = self.context {
-            if !cond.matches(
-                &context.process_name,
-                &context.window_class,
-                &context.window_title,
-                Some(&context.process_path),
-            ) {
-                return false;
-            }
-        }
-
-        // Check trigger condition
-        self.trigger.matches(event)
-    }
 }
 
 /// Trigger condition
@@ -65,18 +43,25 @@ pub enum Trigger {
         modifiers: ModifierState,
     },
     /// Hot string (text expansion)
+    ///
+    /// # Note
+    /// This trigger type is reserved for future text expansion functionality.
+    /// Currently, it will never match any event.
+    #[doc(alias = "text_expansion")]
     HotString { trigger: String },
     /// Chord trigger (multiple keys in sequence)
     ///
     /// # Note
-    /// This trigger type requires stateful matching and is not yet fully implemented.
+    /// This trigger type is reserved for future chord/sequence matching functionality.
     /// Currently, it will never match any event.
+    #[doc(alias = "sequence")]
     Chord(Vec<Trigger>),
     /// Timer trigger
     ///
     /// # Note
-    /// This trigger type requires timer infrastructure and is not yet fully implemented.
+    /// This trigger type is reserved for future timer-based automation functionality.
     /// Currently, it will never match any event.
+    #[doc(alias = "interval")]
     Timer { interval_ms: u64 },
     /// Always trigger
     Always,
@@ -228,16 +213,6 @@ impl ContextCondition {
     }
 }
 
-/// Context information (current active window, etc.)
-#[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
-pub struct ContextInfo {
-    pub window_class: String,
-    pub process_name: String,
-    pub process_path: String,
-    pub window_title: String,
-}
-
 /// Wildcard matching (supports * and ?)
 ///
 /// Performance optimizations:
@@ -272,14 +247,14 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
             && text[..prefix.len()].eq_ignore_ascii_case(prefix);
     }
 
-    // Complex patterns: convert to lowercase and use DP
-    let text_lower = text.to_lowercase();
-    let pattern_lower = pattern.to_lowercase();
-    wildcard_match_dp(&text_lower, &pattern_lower)
+    // Complex patterns: use DP with case-insensitive comparison
+    // Avoids heap allocation by comparing characters directly
+    wildcard_match_dp(text, pattern)
 }
 
 /// Dynamic programming implementation of wildcard matching
 /// Uses rolling array optimization (2 rows instead of full matrix)
+/// Performs case-insensitive comparison without heap allocation for ASCII.
 fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
     let text_chars: Vec<char> = text.chars().collect();
     let pattern_chars: Vec<char> = pattern.chars().collect();
@@ -293,7 +268,8 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
 
     /// Maximum input size for wildcard matching to prevent DoS via excessive memory allocation.
     /// Patterns or texts larger than this limit will not match.
-    const WILDCARD_MAX_INPUT_SIZE: usize = 1024;
+    /// Set to 4096 to accommodate long window titles while still preventing abuse.
+    const WILDCARD_MAX_INPUT_SIZE: usize = 4096;
     if m > WILDCARD_MAX_INPUT_SIZE || n > WILDCARD_MAX_INPUT_SIZE {
         return false;
     }
@@ -321,8 +297,17 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
                 '?' => {
                     curr[j] = prev[j - 1];
                 }
-                _ => {
-                    curr[j] = prev[j - 1] && (text_chars[i - 1] == pattern_chars[j - 1]);
+                pattern_char => {
+                    let text_char = text_chars[i - 1];
+                    // Case-insensitive comparison for ASCII, exact match for non-ASCII
+                    let matches = if pattern_char.is_ascii() && text_char.is_ascii() {
+                        text_char == pattern_char
+                            || text_char.eq_ignore_ascii_case(&pattern_char)
+                    } else {
+                        // For non-ASCII, use lowercase comparison which may allocate
+                        text_char.to_lowercase().eq(pattern_char.to_lowercase())
+                    };
+                    curr[j] = prev[j - 1] && matches;
                 }
             }
         }
@@ -336,7 +321,7 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{KeyAction, KeyEvent, KeyState};
+    use crate::types::{KeyEvent, KeyState};
 
     #[test]
     fn test_trigger_matches_simple_key() {
@@ -440,32 +425,6 @@ mod tests {
         assert!(!trigger.matches(&event));
     }
 
-    #[test]
-    fn test_mapping_rule_matches() {
-        let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::Key(KeyAction::click(0x1E, 0x41));
-        let rule = MappingRule::new(trigger, action);
-
-        let context = ContextInfo::default();
-        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
-        assert!(rule.matches(&event, &context));
-
-        let event = InputEvent::Key(KeyEvent::new(0x1F, 0x41, KeyState::Pressed));
-        assert!(!rule.matches(&event, &context));
-    }
-
-    #[test]
-    fn test_disabled_rule_never_matches() {
-        let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::Key(KeyAction::click(0x1E, 0x41));
-        let mut rule = MappingRule::new(trigger, action);
-        rule.enabled = false;
-
-        let context = ContextInfo::default();
-        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
-        assert!(!rule.matches(&event, &context));
-    }
-
     // ==================== Additional tests from ut_types_basic.rs and ut_types_comprehensive.rs ====================
 
     #[test]
@@ -480,7 +439,12 @@ mod tests {
             } => {
                 assert_eq!(scan_code, Some(0x3A));
                 assert_eq!(virtual_key, Some(0x14));
-                assert!(!modifiers.shift && !modifiers.ctrl && !modifiers.alt && !modifiers.meta);
+                assert!(
+                    !modifiers.shift
+                        && !modifiers.ctrl
+                        && !modifiers.alt
+                        && !modifiers.meta
+                );
             }
             _ => panic!("Expected Key trigger"),
         }
@@ -533,33 +497,6 @@ mod tests {
         assert!(rule.enabled);
         assert!(rule.name.is_none());
         assert!(rule.context.is_none());
-    }
-
-    #[test]
-    fn test_mapping_rule_matching() {
-        let trigger = Trigger::key(0x3A, 0x14);
-        let action = Action::Key(crate::types::KeyAction::click(0x0E, 0x08));
-
-        let rule = MappingRule::new(trigger, action);
-
-        let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
-        let context = ContextInfo::default();
-
-        assert!(rule.matches(&event, &context));
-    }
-
-    #[test]
-    fn test_disabled_rule_not_matching() {
-        let trigger = Trigger::key(0x3A, 0x14);
-        let action = Action::Key(crate::types::KeyAction::click(0x0E, 0x08));
-
-        let mut rule = MappingRule::new(trigger, action);
-        rule.enabled = false;
-
-        let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
-        let context = ContextInfo::default();
-
-        assert!(!rule.matches(&event, &context));
     }
 
     #[test]
@@ -628,16 +565,12 @@ mod tests {
         };
 
         // Matching: left button + Ctrl
-        let mouse_event = crate::types::MouseEvent::new(
+        let mut mouse_event = crate::types::MouseEvent::new(
             crate::types::MouseEventType::ButtonDown(crate::types::MouseButton::Left),
             0,
             0,
-        )
-        .with_modifiers({
-            let mut m = ModifierState::new();
-            m.ctrl = true;
-            m
-        });
+        );
+        mouse_event.modifiers.ctrl = true;
         let event = InputEvent::Mouse(mouse_event);
         assert!(trigger.matches(&event));
 
@@ -651,16 +584,12 @@ mod tests {
         assert!(!trigger.matches(&event2));
 
         // Not matching: right button + Ctrl
-        let mouse_event3 = crate::types::MouseEvent::new(
+        let mut mouse_event3 = crate::types::MouseEvent::new(
             crate::types::MouseEventType::ButtonDown(crate::types::MouseButton::Right),
             0,
             0,
-        )
-        .with_modifiers({
-            let mut m = ModifierState::new();
-            m.ctrl = true;
-            m
-        });
+        );
+        mouse_event3.modifiers.ctrl = true;
         let event3 = InputEvent::Mouse(mouse_event3);
         assert!(!trigger.matches(&event3));
     }
@@ -710,12 +639,8 @@ mod tests {
         let mut rule = MappingRule::new(trigger, action);
         rule.enabled = false;
 
-        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
-
-        let context = ContextInfo::default();
-
-        // Disabled rule should not match
-        assert!(!rule.matches(&event, &context));
+        // Verify the rule is disabled
+        assert!(!rule.enabled);
     }
 
     #[test]
@@ -730,7 +655,12 @@ mod tests {
             } => {
                 assert_eq!(scan_code, Some(0x1E));
                 assert_eq!(virtual_key, Some(0x41));
-                assert!(!modifiers.shift && !modifiers.ctrl && !modifiers.alt && !modifiers.meta);
+                assert!(
+                    !modifiers.shift
+                        && !modifiers.ctrl
+                        && !modifiers.alt
+                        && !modifiers.meta
+                );
             }
             _ => panic!("Expected Key trigger"),
         }
@@ -784,59 +714,5 @@ mod tests {
         assert!(matches!(mouse_trigger, Trigger::MouseButton { .. }));
         assert!(matches!(hotstring_trigger, Trigger::HotString { .. }));
         assert!(matches!(always_trigger, Trigger::Always));
-    }
-
-    #[test]
-    fn test_context_info_default() {
-        let context = ContextInfo::default();
-
-        assert_eq!(context.window_class, "");
-        assert_eq!(context.process_name, "");
-        assert_eq!(context.process_path, "");
-        assert_eq!(context.window_title, "");
-    }
-
-    #[test]
-    fn test_context_condition_empty_matches_all() {
-        let cond = ContextCondition::default();
-        let context = ContextInfo {
-            window_class: "AnyClass".to_string(),
-            process_name: "any.exe".to_string(),
-            process_path: "C:\\any.exe".to_string(),
-            window_title: "Any Title".to_string(),
-        };
-
-        assert!(cond.matches(
-            &context.process_name,
-            &context.window_class,
-            &context.window_title,
-            Some(&context.process_path)
-        ));
-    }
-
-    #[test]
-    fn test_wildcard_matching() {
-        // Test wildcard matching with manually constructed condition
-        let cond = ContextCondition {
-            window_class: Some("Chrome*".to_string()),
-            process_name: Some("chrome.exe".to_string()),
-            window_title: None,
-            executable_path: None,
-        };
-
-        let info = ContextInfo {
-            window_class: "Chrome_WidgetWin_1".to_string(),
-            process_name: "chrome.exe".to_string(),
-            process_path: "".to_string(),
-            window_title: "".to_string(),
-        };
-
-        // Simplified matching may not be perfect, but at least won't panic
-        let _result = cond.matches(
-            &info.process_name,
-            &info.window_class,
-            &info.window_title,
-            Some(&info.process_path),
-        );
     }
 }

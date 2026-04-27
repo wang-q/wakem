@@ -769,5 +769,4 @@ mod tests {
         assert!(matches!(MouseButton::X1, MouseButton::X1));
         assert!(matches!(MouseButton::X2, MouseButton::X2));
     }
-
 }

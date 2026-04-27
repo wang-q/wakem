@@ -62,6 +62,7 @@ impl KeyAction {
     }
 
     /// Create key combination action
+    #[allow(dead_code)]
     pub fn combo(
         modifiers: super::ModifierState,
         scan_code: u16,
@@ -202,6 +203,7 @@ impl Action {
     }
 
     /// Create mouse action
+    #[allow(dead_code)]
     pub fn mouse(action: MouseAction) -> Self {
         Self::Mouse(action)
     }
@@ -222,6 +224,7 @@ impl Action {
     }
 
     /// Create action sequence
+    #[allow(dead_code)]
     pub fn sequence(actions: Vec<Action>) -> Self {
         Self::Sequence(actions)
     }
@@ -250,10 +253,10 @@ impl Action {
                     super::MouseEventType::ButtonUp(button) => {
                         MouseAction::ButtonUp { button }
                     }
-                    super::MouseEventType::Move => MouseAction::Move {
+                    super::MouseEventType::Move { relative } => MouseAction::Move {
                         x: mouse_event.x,
                         y: mouse_event.y,
-                        relative: false,
+                        relative,
                     },
                     super::MouseEventType::Wheel(delta) => MouseAction::Wheel { delta },
                     super::MouseEventType::HWheel(delta) => {
@@ -659,8 +662,11 @@ mod tests {
 
     #[test]
     fn test_action_from_input_event_mouse_move() {
-        let mouse_event =
-            super::super::MouseEvent::new(super::super::MouseEventType::Move, 100, 200);
+        let mouse_event = super::super::MouseEvent::new(
+            super::super::MouseEventType::Move { relative: false },
+            100,
+            200,
+        );
         let event = super::super::InputEvent::Mouse(mouse_event);
 
         let action = Action::from_input_event(&event);

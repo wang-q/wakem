@@ -213,10 +213,14 @@ mod macos_specific_tests {
 
     #[test]
     fn test_mouse_event_types() {
-        let move_event = MouseEvent::new(MouseEventType::Move, 100, 200);
+        let move_event =
+            MouseEvent::new(MouseEventType::Move { relative: false }, 100, 200);
         assert_eq!(move_event.x, 100);
         assert_eq!(move_event.y, 200);
-        assert!(matches!(move_event.event_type, MouseEventType::Move));
+        assert!(matches!(
+            move_event.event_type,
+            MouseEventType::Move { relative: false }
+        ));
 
         let left_down =
             MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Left), 150, 250);
@@ -235,7 +239,6 @@ mod macos_specific_tests {
         let scroll = MouseEvent::new(MouseEventType::Wheel(120), 500, 600);
         assert!(matches!(scroll.event_type, MouseEventType::Wheel(120)));
     }
-
 }
 
 #[cfg(not(target_os = "macos"))]

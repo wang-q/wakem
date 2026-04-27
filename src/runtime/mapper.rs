@@ -679,8 +679,11 @@ mod tests {
     fn test_mapper_process_mouse_event() {
         let mapper = KeyMapper::new();
 
-        let mouse_event =
-            crate::types::MouseEvent::new(crate::types::MouseEventType::Move, 100, 200);
+        let mouse_event = crate::types::MouseEvent::new(
+            crate::types::MouseEventType::Move { relative: false },
+            100,
+            200,
+        );
         let event = InputEvent::Mouse(mouse_event);
 
         let result = mapper.process_event_with_context(&event, None);

@@ -127,7 +127,7 @@ impl MockInputDevice {
     }
 
     pub fn inject_mouse_move(&self, x: i32, y: i32) {
-        let event = MouseEvent::new(MouseEventType::Move, x, y);
+        let event = MouseEvent::new(MouseEventType::Move { relative: false }, x, y);
         self.state
             .lock()
             .unwrap()
@@ -1033,7 +1033,10 @@ mod tests {
         }
 
         if let InputEvent::Mouse(mouse) = device.poll_event().unwrap() {
-            assert!(matches!(mouse.event_type, MouseEventType::Move));
+            assert!(matches!(
+                mouse.event_type,
+                MouseEventType::Move { relative: false }
+            ));
             assert_eq!(mouse.x, 100);
             assert_eq!(mouse.y, 200);
         } else {
