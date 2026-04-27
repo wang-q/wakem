@@ -163,7 +163,9 @@ fn run_tray_sync(
 
     let tray_result = <CurrentPlatform as TrayLifecycle>::run_tray_message_loop(
         Box::new(move |cmd| {
-            let _ = cmd_tx_for_tray.blocking_send(cmd);
+            if let Err(e) = cmd_tx_for_tray.blocking_send(cmd) {
+                debug!("Failed to send tray command: {}", e);
+            }
         }),
     );
 

@@ -130,7 +130,7 @@ impl DaemonClient {
         )
         .await
         {
-            Ok(result) => result.map_err(|e| anyhow::anyhow!("IPC error: {}", e)),
+            Ok(result) => result.map_err(|e| anyhow::anyhow!("IPC error: {e}")),
             Err(_) => Err(anyhow::anyhow!("Request timeout")),
         }
     }

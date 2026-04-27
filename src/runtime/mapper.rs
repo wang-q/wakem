@@ -3,7 +3,7 @@ use crate::types::{
     MouseEvent,
 };
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::platform::traits::{
     NotificationService, WindowManagerExt, WindowManagerTrait, WindowPresetManagerTrait,
@@ -79,7 +79,7 @@ pub struct KeyMapper {
     rules: Vec<MappingRule>,
     context_rules: Vec<ContextMappingRule>,
     enabled: bool,
-    pub(crate) window_manager: Option<Box<dyn WindowManagerTrait>>,
+    window_manager: Option<Box<dyn WindowManagerTrait>>,
     notification_service: Option<NotificationServiceRef>,
     window_preset_manager: Option<WindowPresetManagerRef>,
 }
@@ -110,6 +110,10 @@ impl KeyMapper {
 
     pub fn set_window_manager(&mut self, wm: Box<dyn WindowManagerTrait>) {
         self.window_manager = Some(wm);
+    }
+
+    pub(crate) fn window_manager(&self) -> Option<&dyn WindowManagerTrait> {
+        self.window_manager.as_deref()
     }
 
     pub fn set_notification_service(&mut self, service: NotificationServiceRef) {
@@ -254,7 +258,11 @@ impl KeyMapper {
                     // implemented for context rules.
                     // TODO: Implement Trigger-based matching for context rules
                     // to support mouse button mappings in context-specific layers.
-                    debug!("Context rule matched but mouse event mapping not yet implemented");
+                    warn!(
+                        "Context rule matched for mouse event but Trigger-based \
+                         matching is not yet implemented; mouse mappings in \
+                         context-specific layers are ignored"
+                    );
                 }
             }
         }
@@ -363,7 +371,13 @@ impl KeyMapper {
             | Action::Launch(_)
             | Action::Sequence(_)
             | Action::Delay { .. }
-            | Action::None => {}
+            | Action::None => {
+                debug!(
+                    "KeyMapper::execute_action only handles Window actions; \
+                     non-Window action {:?} ignored (should be handled elsewhere)",
+                    action
+                );
+            }
         }
 
         Ok(())
@@ -466,7 +480,9 @@ impl KeyMapper {
             WindowAction::ShowNotification { title, message } => {
                 if let Some(ns) = notification_service {
                     let ns = ns.lock();
-                    let _ = ns.show(title, message);
+                    if let Err(e) = ns.show(title, message) {
+                        debug!("Failed to show notification: {}", e);
+                    }
                 }
             }
             WindowAction::SavePreset { name } => {
@@ -480,10 +496,12 @@ impl KeyMapper {
                                 debug!("Saved preset '{}' for current window", name);
                                 if let Some(ns) = notification_service {
                                     let ns = ns.lock();
-                                    let _ = ns.show(
+                                    if let Err(e) = ns.show(
                                         "wakem",
                                         &format!("Preset '{}' saved", name),
-                                    );
+                                    ) {
+                                        debug!("Failed to show preset saved notification: {}", e);
+                                    }
                                 }
                             }
                         }

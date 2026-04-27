@@ -530,7 +530,7 @@ impl NetworkConfig {
             debug!("Authentication key generated for security");
             self.auth_key = Some(key);
         }
-        self.auth_key.as_deref().unwrap()
+        self.auth_key.as_deref().expect("auth_key was just ensured above")
     }
 
     /// Generate random authentication key (32 character hex)
@@ -601,10 +601,8 @@ pub struct WindowPreset {
     pub height: i32,
 }
 
-/// Public wildcard matching function - delegates to types::mapping
-pub fn wildcard_match(text: &str, pattern: &str) -> bool {
-    crate::types::mapping::wildcard_match(text, pattern)
-}
+/// Public wildcard matching function - re-exported from types::mapping
+pub use crate::types::mapping::wildcard_match;
 
 /// Mouse configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -716,7 +714,7 @@ fn apply_modifier_name(name: &str, modifiers: &mut crate::types::ModifierState) 
 }
 
 /// Parse pure modifier key combination (e.g., "Ctrl+Alt+Win")
-fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> {
+pub fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> {
     use crate::types::ModifierState;
 
     let mut modifiers = ModifierState::default();
@@ -734,7 +732,7 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
 /// Create Hyper key action
 /// When the Hyper key (e.g., CapsLock) is held, it simulates holding the modifier keys
 /// This allows using CapsLock+C to trigger Ctrl+Alt+Win+C shortcuts
-fn create_hyper_key_action(
+pub fn create_hyper_key_action(
     modifiers: &crate::types::ModifierState,
 ) -> crate::types::Action {
     use crate::types::{Action, KeyAction};
@@ -945,7 +943,13 @@ pub fn parse_window_action(
                         anyhow::anyhow!("ShowNotification requires a title parameter")
                     })?
                     .to_string();
-                let message = param_list.get(1).unwrap_or(&"").to_string();
+                let message = if params.contains(',') {
+                    params.split_once(',')
+                        .map(|(_, rest)| rest.trim())
+                        .unwrap_or("")
+                } else {
+                    ""
+                }.to_string();
                 Ok(WindowAction::ShowNotification { title, message })
             }
             "SavePreset" => {
@@ -1073,24 +1077,40 @@ impl ConfigPathCache {
         let mut cache = self.cache.lock();
         if let Some((cached, timestamp)) = cache.get(&instance_id) {
             if timestamp.elapsed() < self.ttl {
-                debug!("Config path cache hit for instance {}", instance_id);
-                return cached.clone();
+                if cached.as_ref().is_some_and(|p| p.exists()) {
+                    debug!("Config path cache hit for instance {}", instance_id);
+                    return cached.clone();
+                }
+                debug!(
+                    "Config path cache entry for instance {} no longer exists on disk, re-resolving",
+                    instance_id
+                );
+            } else {
+                debug!(
+                    "Config path cache expired for instance {}, re-resolving",
+                    instance_id
+                );
             }
-            debug!(
-                "Config path cache expired for instance {}, re-resolving",
-                instance_id
-            );
         }
 
         let path = Self::resolve_config_path_internal(instance_id);
+        let result = if path.as_ref().is_some_and(|p| p.exists()) {
+            path.clone()
+        } else {
+            debug!(
+                "Config file for instance {} does not exist at {:?}",
+                instance_id, path
+            );
+            None
+        };
 
-        cache.insert(instance_id, (path.clone(), std::time::Instant::now()));
+        cache.insert(instance_id, (path, std::time::Instant::now()));
 
         debug!(
             "Config path cache miss for instance {}, resolved and cached",
             instance_id
         );
-        path
+        result
     }
 
     fn invalidate(&self, instance_id: u32) {

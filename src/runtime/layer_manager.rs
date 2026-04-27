@@ -137,25 +137,36 @@ impl LayerManager {
     }
 
     /// Create layer from config
+    ///
+    /// Supports key-to-key, key-to-window-action, and key-to-modifier-combo
+    /// mappings, consistent with `config::parse_layer_mappings`.
     pub fn create_layer_from_config(
         name: &str,
         activation_key: &str,
         mode: LayerMode,
         mappings: &[(String, String)],
     ) -> anyhow::Result<Layer> {
-        use crate::config::parse_key;
+        use crate::config::{parse_key, parse_modifier_combo, parse_window_action};
 
         let (scan, vk) = parse_key(activation_key)?;
         let mut layer = Layer::new(name, scan, vk).with_mode(mode);
 
         for (from, to) in mappings {
             let from_key = parse_key(from)?;
-            let to_key = parse_key(to)?;
+            let trigger = Trigger::key(from_key.0, from_key.1);
 
-            layer.add_mapping(
-                Trigger::key(from_key.0, from_key.1),
-                Action::key(KeyAction::click(to_key.0, to_key.1)),
-            );
+            if let Ok(window_action) = parse_window_action(to) {
+                layer.add_mapping(trigger, Action::window(window_action));
+            } else if let Ok(modifiers) = parse_modifier_combo(to) {
+                let action = crate::config::create_hyper_key_action(&modifiers);
+                layer.add_mapping(trigger, action);
+            } else {
+                let to_key = parse_key(to)?;
+                layer.add_mapping(
+                    trigger,
+                    Action::key(KeyAction::click(to_key.0, to_key.1)),
+                );
+            }
         }
 
         Ok(layer)

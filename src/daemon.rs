@@ -223,6 +223,12 @@ impl ServerState {
         // 5. Update config and mark as loaded (single lock acquisition)
         {
             let mut cfg = self.config.write().await;
+            if cfg.config.window.auto_apply_preset && !cfg.loaded {
+                warn!(
+                    "window.auto_apply_preset is enabled but window event forwarding \
+                     is not yet implemented; presets will not be auto-applied"
+                );
+            }
             cfg.config = config;
             cfg.loaded = true;
         }
@@ -537,6 +543,12 @@ impl ServerState {
     }
 
     /// Check if modifier key matches
+    ///
+    /// Note: Right-side modifier variants (RightAlt, RightCtrl, RightShift)
+    /// are currently mapped to their left-side counterparts. This means
+    /// configuring `RightAlt` as a horizontal scroll modifier will also
+    /// trigger on `LeftAlt`, and vice versa. This limitation exists because
+    /// `ModifierState` does not distinguish between left and right modifiers.
     fn check_modifier_match(modifier_str: &str, modifiers: &ModifierState) -> bool {
         match modifier_str.to_lowercase().as_str() {
             "shift" => modifiers.shift,
@@ -695,7 +707,7 @@ impl ServerState {
 
         // Show recording complete notification
         let step_count = macro_def.steps.len();
-        let _ = self
+        if let Err(e) = self
             .show_notification(
                 "wakem - Macro Recording",
                 &format!(
@@ -703,33 +715,37 @@ impl ServerState {
                     macro_def.name, step_count
                 ),
             )
-            .await;
+            .await
+        {
+            debug!("Failed to show macro recording notification: {}", e);
+        }
 
         Ok(macro_def)
     }
 
     /// Save macro to config
     ///
-    /// In-memory state is updated under the write lock, then the lock is
-    /// released before performing file I/O. The file save acquires a read
-    /// lock so that other read operations are not blocked during the
-    /// (potentially slow) disk write.
+    /// In-memory state is updated under the write lock, and a snapshot of the
+    /// config is cloned before releasing the lock. The file save uses the
+    /// snapshot so no lock is held during (potentially slow) disk I/O, and
+    /// the saved content is guaranteed to match the in-memory state at the
+    /// time of the write (no TOCTOU race).
     async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
-        let config_path = {
+        let (config_path, config_snapshot) = {
             let mut config_state = self.config.write().await;
             config_state
                 .config
                 .macros
                 .insert(macro_def.name.clone(), macro_def.steps.clone());
-            crate::config::resolve_config_file_path(
+            let path = crate::config::resolve_config_file_path(
                 None,
                 config_state.config.network.instance_id,
-            )
+            );
+            (path, config_state.config.clone())
         };
 
         if let Some(config_path) = config_path {
-            let config = self.config.read().await;
-            if let Err(e) = config.config.save_to_file(&config_path) {
+            if let Err(e) = config_snapshot.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -791,9 +807,8 @@ impl ServerState {
             };
 
             let wm_ref = window_manager_guard.as_ref().and_then(|wm| {
-                wm.window_manager
-                    .as_ref()
-                    .map(|w| w.as_ref() as &(dyn WindowManagerTrait + Send + Sync))
+                wm.window_manager()
+                    .map(|w| w as &(dyn WindowManagerTrait + Send + Sync))
             });
             let launcher_ref = launcher_guard
                 .as_ref()
@@ -806,12 +821,15 @@ impl ServerState {
             MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
         }
 
-        let _ = self
+        if let Err(e) = self
             .show_notification(
                 "wakem - Macro Playback",
                 &format!("Macro '{}' playback completed", name),
             )
-            .await;
+            .await
+        {
+            debug!("Failed to show macro playback notification: {}", e);
+        }
 
         Ok(())
     }
@@ -824,24 +842,24 @@ impl ServerState {
 
     /// Delete macro
     ///
-    /// In-memory state is updated under the write lock, then the lock is
-    /// released before performing file I/O (see `save_macro` for rationale).
+    /// Uses the same snapshot-based strategy as `save_macro` to avoid TOCTOU
+    /// races: the config is cloned inside the write lock and saved outside it.
     pub async fn delete_macro(&self, name: &str) -> Result<()> {
-        let config_path = {
+        let (config_path, config_snapshot) = {
             let mut config = self.config.write().await;
             if config.config.macros.shift_remove(name).is_none() {
                 return Err(anyhow::anyhow!("Macro '{}' not found", name));
             }
             config.config.macro_bindings.retain(|_, v| v != name);
-            crate::config::resolve_config_file_path(
+            let path = crate::config::resolve_config_file_path(
                 None,
                 config.config.network.instance_id,
-            )
+            );
+            (path, config.config.clone())
         };
 
         if let Some(config_path) = config_path {
-            let config = self.config.read().await;
-            if let Err(e) = config.config.save_to_file(&config_path) {
+            if let Err(e) = config_snapshot.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -852,10 +870,10 @@ impl ServerState {
 
     /// Bind macro to trigger key
     ///
-    /// In-memory state is updated under the write lock, then the lock is
-    /// released before performing file I/O (see `save_macro` for rationale).
+    /// Uses the same snapshot-based strategy as `save_macro` to avoid TOCTOU
+    /// races: the config is cloned inside the write lock and saved outside it.
     pub async fn bind_macro(&self, macro_name: &str, trigger: &str) -> Result<()> {
-        let config_path = {
+        let (config_path, config_snapshot) = {
             let mut config = self.config.write().await;
 
             if !config.config.macros.contains_key(macro_name) {
@@ -866,15 +884,15 @@ impl ServerState {
                 .config
                 .macro_bindings
                 .insert(trigger.to_string(), macro_name.to_string());
-            crate::config::resolve_config_file_path(
+            let path = crate::config::resolve_config_file_path(
                 None,
                 config.config.network.instance_id,
-            )
+            );
+            (path, config.config.clone())
         };
 
         if let Some(config_path) = config_path {
-            let config = self.config.read().await;
-            if let Err(e) = config.config.save_to_file(&config_path) {
+            if let Err(e) = config_snapshot.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
