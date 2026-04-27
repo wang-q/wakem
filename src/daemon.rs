@@ -30,24 +30,33 @@ use crate::runtime::{KeyMapper, LayerManager};
 /// - Group related states to reduce lock count
 /// - Use Arc to share config and rules to avoid repeated cloning
 ///
+/// Combined config state to reduce lock count.
+/// `loaded` flag is kept together with `config` since they are always
+/// accessed together and should be consistent.
+#[derive(Default)]
+struct ConfigState {
+    config: Config,
+    loaded: bool,
+}
+
 /// Lock ordering rules (to prevent deadlocks):
 /// 1. hyper_key_map (read) -> active_hyper_keys (write) - in check_and_update_hyper_key
 /// 2. hyper_key_map (read) -> active_hyper_keys (read) - in merge_virtual_modifiers
 /// 3. config (read) - in process_wheel_enhancement
 /// 4. layer_manager (write) - in process_input_event
 /// 5. mapper (read) - in process_input_event
+/// 6. output_device -> mapper (read) -> launcher - in play_macro
 ///
 /// IMPORTANT: Never hold multiple locks simultaneously except as documented above.
 /// Always acquire locks in the order specified to prevent deadlocks.
 pub struct ServerState {
-    config: Arc<RwLock<Config>>,
+    config: Arc<RwLock<ConfigState>>,
     mapper: Arc<RwLock<KeyMapper>>,
     layer_manager: Arc<RwLock<LayerManager>>,
     output_device: Arc<Mutex<Box<dyn OutputDeviceTrait + Send + Sync>>>,
     launcher: Arc<Mutex<Box<dyn LauncherTrait + Send + Sync>>>,
     window_preset_manager: Arc<RwLock<Box<dyn WindowPresetManagerTrait>>>,
     active: Arc<AtomicBool>,
-    config_loaded: Arc<RwLock<bool>>,
     macro_recorder: Arc<MacroRecorder>,
     notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
     auth_key: Arc<RwLock<String>>,
@@ -81,7 +90,7 @@ impl ServerState {
         let notification_service = CurrentPlatform::create_notification_service();
 
         Self {
-            config: Arc::new(RwLock::new(Config::default())),
+            config: Arc::new(RwLock::new(ConfigState::default())),
             mapper: Arc::new(RwLock::new(mapper)),
             layer_manager: Arc::new(RwLock::new(LayerManager::new())),
             output_device: Arc::new(Mutex::new(Box::new(
@@ -92,7 +101,6 @@ impl ServerState {
                 window_preset_manager,
             ))),
             active: Arc::new(AtomicBool::new(true)),
-            config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             notification_service: Arc::new(Mutex::new(Box::new(notification_service))),
             auth_key: Arc::new(RwLock::new(String::new())),
@@ -114,8 +122,7 @@ impl ServerState {
     pub async fn load_config(&self, config: Config) -> Result<()> {
         // Lock acquisition order (must be consistent to prevent deadlocks):
         // 1. auth_key       2. mapper         3. hyper_key_map
-        // 4. preset_manager 5. layer_manager   6. config
-        // 7. config_loaded
+        // 4. preset_manager 5. layer_manager   6. config (includes loaded flag)
         // IMPORTANT: Always acquire locks in this order. Never acquire an earlier
         // lock while holding a later one, as this could cause deadlocks.
         // Debug: Log config details
@@ -137,6 +144,7 @@ impl ServerState {
         }
 
         // 2. Update base mapping rules and context rules (merged into one write lock)
+        // Compute all_rules once and share between mapper and layer_manager
         let all_rules = config.get_all_rules();
         {
             let mut mapper = self.mapper.write().await;
@@ -169,12 +177,12 @@ impl ServerState {
             );
         }
 
-        // 4. Update layer manager
+        // 4. Update layer manager (reuse all_rules computed above)
         {
             let mut layer_manager = self.layer_manager.write().await;
 
-            // Load base mappings
-            layer_manager.set_base_mappings(all_rules.clone());
+            // Load base mappings (reuse all_rules, avoid recomputing)
+            layer_manager.set_base_mappings(all_rules);
 
             // Load layer configs
             for (name, layer_config) in &config.keyboard.layers {
@@ -205,16 +213,11 @@ impl ServerState {
             }
         }
 
-        // 5. Finally update config (ensure all components are ready)
+        // 5. Update config and mark as loaded (single lock acquisition)
         {
             let mut cfg = self.config.write().await;
-            *cfg = config;
-        }
-
-        // 6. Mark config as loaded
-        {
-            let mut loaded = self.config_loaded.write().await;
-            *loaded = true;
+            cfg.config = config;
+            cfg.loaded = true;
         }
 
         info!("Configuration loaded successfully");
@@ -230,7 +233,7 @@ impl ServerState {
         // Get current instance ID and config file path
         let (_instance_id, config_path) = {
             let config = self.config.read().await;
-            let id = config.network.instance_id;
+            let id = config.config.network.instance_id;
             let path = resolve_config_file_path(None, id);
             (id, path)
         };
@@ -269,7 +272,7 @@ impl ServerState {
         // Get current instance ID and config file path
         let (_instance_id, config_path) = {
             let config = self.config.read().await;
-            let id = config.network.instance_id;
+            let id = config.config.network.instance_id;
             let path = resolve_config_file_path(None, id);
             (id, path)
         };
@@ -285,7 +288,7 @@ impl ServerState {
 
         // Get current config and save
         let config = self.config.read().await;
-        match config.save_to_file(&config_path) {
+        match config.config.save_to_file(&config_path) {
             Ok(_) => {
                 info!("Configuration saved successfully");
                 Ok(())
@@ -412,23 +415,20 @@ impl ServerState {
     /// Returns true if this is a hyper key event
     ///
     /// Lock ordering: hyper_key_map (read) -> active_hyper_keys (write)
-    /// The hyper_key_map lock is explicitly dropped before acquiring active_hyper_keys
     ///
-    /// # Safety
-    /// This function is marked with `#[allow(clippy::await_holding_lock)]` because:
-    /// 1. We acquire `hyper_key_map` read lock and check if the key is a hyper key
-    /// 2. We explicitly `drop(hyper_key_map)` before any await point
-    /// 3. Only then do we acquire `active_hyper_keys` write lock
-    ///
-    /// This ensures no lock is held across await points, preventing deadlocks.
-    #[allow(clippy::await_holding_lock)]
+    /// Locks are acquired and released in separate scopes to avoid holding
+    /// any lock across an await point. The hyper_key_map read lock is
+    /// dropped before active_hyper_keys write lock is acquired.
     async fn check_and_update_hyper_key(&self, event: &InputEvent) -> bool {
         if let InputEvent::Key(key_event) = event {
-            let hyper_key_map = self.hyper_key_map.read().await;
-            if let Some(&modifiers) =
-                hyper_key_map.get(&(key_event.scan_code, key_event.virtual_key))
-            {
-                drop(hyper_key_map);
+            let modifiers = {
+                let hyper_key_map = self.hyper_key_map.read().await;
+                hyper_key_map
+                    .get(&(key_event.scan_code, key_event.virtual_key))
+                    .copied()
+            };
+
+            if let Some(modifiers) = modifiers {
                 let mut active = self.active_hyper_keys.write().await;
                 let key_id = (key_event.scan_code, key_event.virtual_key);
                 match key_event.state {
@@ -460,36 +460,37 @@ impl ServerState {
 
     /// Merge virtual modifiers from active hyper keys into the event
     ///
-    /// Lock ordering: hyper_key_map (read) -> active_hyper_keys (read)
-    /// Both locks are read locks and can be held simultaneously safely
-    ///
-    /// # Safety
-    /// This function is marked with `#[allow(clippy::await_holding_lock)]` because:
-    /// 1. We acquire `hyper_key_map` read lock first
-    /// 2. We explicitly `drop(hyper_key_map)` before acquiring `active_hyper_keys` read lock
-    /// 3. This ensures proper lock ordering and prevents deadlocks
-    ///
-    /// All locks are released before any await point in the calling code.
-    #[allow(clippy::await_holding_lock)]
+    /// Locks are acquired and released in separate scopes to avoid holding
+    /// any lock across an await point. The hyper_key_map read lock is
+    /// dropped before active_hyper_keys read lock is acquired.
     async fn merge_virtual_modifiers(&self, mut event: InputEvent) -> InputEvent {
         if let InputEvent::Key(ref mut key_event) = event {
-            let hyper_key_map = self.hyper_key_map.read().await;
-            if hyper_key_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
-            {
-                drop(hyper_key_map);
+            let is_hyper_key = {
+                let hyper_key_map = self.hyper_key_map.read().await;
+                hyper_key_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
+            };
+
+            if is_hyper_key {
                 return event;
             }
-            drop(hyper_key_map);
 
-            let active = self.active_hyper_keys.read().await;
-            if !active.is_empty() {
-                let mut merged = ModifierState::new();
-                for mods in active.values() {
-                    merged.shift |= mods.shift;
-                    merged.ctrl |= mods.ctrl;
-                    merged.alt |= mods.alt;
-                    merged.meta |= mods.meta;
+            let merged = {
+                let active = self.active_hyper_keys.read().await;
+                if active.is_empty() {
+                    None
+                } else {
+                    let mut merged = ModifierState::new();
+                    for mods in active.values() {
+                        merged.shift |= mods.shift;
+                        merged.ctrl |= mods.ctrl;
+                        merged.alt |= mods.alt;
+                        merged.meta |= mods.meta;
+                    }
+                    Some(merged)
                 }
+            };
+
+            if let Some(merged) = merged {
                 key_event.modifiers.shift |= merged.shift;
                 key_event.modifiers.ctrl |= merged.ctrl;
                 key_event.modifiers.alt |= merged.alt;
@@ -502,7 +503,7 @@ impl ServerState {
     /// Process wheel enhancement
     async fn process_wheel_enhancement(&self, delta: i32) -> Option<Action> {
         let config = self.config.read().await;
-        let wheel_config = &config.mouse.wheel;
+        let wheel_config = &config.config.mouse.wheel;
 
         // Get current modifier state
         let modifiers = get_current_modifier_state();
@@ -716,7 +717,7 @@ impl ServerState {
     pub async fn get_status(&self) -> (bool, bool) {
         (
             self.active.load(Ordering::Acquire),
-            *self.config_loaded.read().await,
+            self.config.read().await.loaded,
         )
     }
 
@@ -746,18 +747,22 @@ impl ServerState {
     }
 
     /// Save macro to config
+    ///
+    /// Both insertion and file save are performed within a single write lock
+    /// to prevent TOCTOU race conditions where another task could modify
+    /// the config between insertion and save.
     async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
-        let config_path = {
-            let mut config = self.config.write().await;
-            config
-                .macros
-                .insert(macro_def.name.clone(), macro_def.steps.clone());
-            crate::config::resolve_config_file_path(None, config.network.instance_id)
-        };
+        let mut config_state = self.config.write().await;
+        config_state
+            .config
+            .macros
+            .insert(macro_def.name.clone(), macro_def.steps.clone());
+
+        let config_path =
+            crate::config::resolve_config_file_path(None, config_state.config.network.instance_id);
 
         if let Some(config_path) = config_path {
-            let config = self.config.read().await;
-            if let Err(e) = config.save_to_file(&config_path) {
+            if let Err(e) = config_state.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -767,9 +772,14 @@ impl ServerState {
     }
 
     /// Play macro
+    ///
+    /// Lock ordering: output_device -> mapper (read) -> launcher
+    /// This order must be consistent across all code paths that acquire
+    /// multiple device locks simultaneously to prevent deadlocks.
     pub async fn play_macro(&self, name: &str) -> Result<()> {
         let config = self.config.read().await;
         let steps = config
+            .config
             .macros
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Macro '{}' not found", name))?
@@ -819,24 +829,23 @@ impl ServerState {
     /// Get macro list
     pub async fn get_macros(&self) -> Vec<String> {
         let config = self.config.read().await;
-        config.macros.keys().cloned().collect()
+        config.config.macros.keys().cloned().collect()
     }
 
     /// Delete macro
     pub async fn delete_macro(&self, name: &str) -> Result<()> {
         let mut config = self.config.write().await;
-        if config.macros.remove(name).is_none() {
+        if config.config.macros.remove(name).is_none() {
             return Err(anyhow::anyhow!("Macro '{}' not found", name));
         }
 
         // Also remove bindings
-        config.macro_bindings.retain(|_, v| v != name);
+        config.config.macro_bindings.retain(|_, v| v != name);
 
-        // Save to file (best effort - don't fail if file operations fail)
         if let Some(config_path) =
-            crate::config::resolve_config_file_path(None, config.network.instance_id)
+            crate::config::resolve_config_file_path(None, config.config.network.instance_id)
         {
-            if let Err(e) = config.save_to_file(&config_path) {
+            if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -849,21 +858,19 @@ impl ServerState {
     pub async fn bind_macro(&self, macro_name: &str, trigger: &str) -> Result<()> {
         let mut config = self.config.write().await;
 
-        // Check if macro exists
-        if !config.macros.contains_key(macro_name) {
+        if !config.config.macros.contains_key(macro_name) {
             return Err(anyhow::anyhow!("Macro '{}' not found", macro_name));
         }
 
-        // Add binding
         config
+            .config
             .macro_bindings
             .insert(trigger.to_string(), macro_name.to_string());
 
-        // Save to file (best effort - don't fail if file operations fail)
         if let Some(config_path) =
-            crate::config::resolve_config_file_path(None, config.network.instance_id)
+            crate::config::resolve_config_file_path(None, config.config.network.instance_id)
         {
-            if let Err(e) = config.save_to_file(&config_path) {
+            if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -889,9 +896,9 @@ impl ServerState {
     }
 
     /// Trigger graceful shutdown
-    pub async fn shutdown(&self) {
+    pub fn shutdown(&self) {
         info!("Triggering graceful shutdown...");
-        self.shutdown_signal.shutdown().await;
+        self.shutdown_signal.shutdown();
     }
 
     /// Subscribe to shutdown signal (for external listeners)
@@ -929,10 +936,9 @@ async fn initialize_server(
     // Set instance ID
     {
         let mut config = state.config.write().await;
-        config.network.instance_id = instance_id;
+        config.config.network.instance_id = instance_id;
     }
 
-    // Load configuration on startup
     load_configuration(&state, instance_id, preloaded_config, config_path).await?;
 
     Ok((state, shutdown))
@@ -947,7 +953,7 @@ async fn load_configuration(
 ) -> Result<()> {
     if let Some(cfg) = preloaded_config {
         let mut config = state.config.write().await;
-        config.network.instance_id = instance_id;
+        config.config.network.instance_id = instance_id;
         drop(config);
         state.load_config(cfg).await?;
         info!("Configuration loaded from preloaded config");
@@ -956,7 +962,7 @@ async fn load_configuration(
         match Config::from_file(&path) {
             Ok(cfg) => {
                 let mut config = state.config.write().await;
-                config.network.instance_id = instance_id;
+                config.config.network.instance_id = instance_id;
                 drop(config);
                 state.load_config(cfg).await?;
                 info!("Configuration loaded successfully from {:?}", path);
@@ -986,8 +992,8 @@ async fn setup_ipc_server(
     let (message_tx, message_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
     let bind_address = {
         let mut config = state.config.write().await;
-        let addr = config.network.get_bind_address();
-        config.network.ensure_auth_key();
+        let addr = config.config.network.get_bind_address();
+        config.config.network.ensure_auth_key();
         addr
     };
 
@@ -1202,6 +1208,12 @@ fn setup_window_event_processing(
 }
 
 /// Run window event bridge thread
+///
+/// TODO: Window event forwarding is not yet fully implemented. Events from the
+/// hook are currently discarded. To complete this feature:
+/// 1. Forward events from `std_rx` to an async channel (e.g., tokio mpsc)
+/// 2. Receive events in `run_window_event_processor`
+/// 3. Call `ServerState::handle_window_event` for each event
 fn run_window_event_bridge(
     shutdown_flag: Arc<AtomicBool>,
     hook_shutdown: Arc<AtomicBool>,
@@ -1346,7 +1358,7 @@ async fn wait_for_shutdown(state: &Arc<ServerState>, shutdown: &Arc<ShutdownSign
         }
     }
 
-    shutdown.shutdown().await;
+    shutdown.shutdown();
 }
 
 /// Cleanup resources and wait for threads to complete
@@ -1416,7 +1428,11 @@ pub async fn run_server_with_config(
     Ok(())
 }
 
-/// Handle window events (Windows only)
+/// Handle window events (currently unused - awaiting event forwarding implementation)
+///
+/// This method implements auto-apply preset logic for window activation events.
+/// It will be called once the window event bridge is updated to forward events
+/// to the async processor. See `run_window_event_bridge` TODO for details.
 #[allow(dead_code)]
 impl ServerState {
     async fn handle_window_event(
@@ -1427,7 +1443,7 @@ impl ServerState {
 
         let auto_apply = {
             let config = self.config.read().await;
-            config.window.auto_apply_preset
+            config.config.window.auto_apply_preset
         };
 
         if !auto_apply {
@@ -1537,7 +1553,7 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
         }
         Message::Shutdown => {
             info!("Shutdown command received, initiating graceful shutdown...");
-            state.shutdown().await;
+            state.shutdown();
             Message::Success
         }
         _ => Message::Error {

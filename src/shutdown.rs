@@ -27,7 +27,9 @@ impl ShutdownSignal {
     }
 
     /// Trigger shutdown signal
-    pub async fn shutdown(&self) {
+    ///
+    /// This is a synchronous operation since `watch::Sender::send` is non-blocking.
+    pub fn shutdown(&self) {
         info!("Initiating graceful shutdown...");
         if self.sender.send(true).is_ok() {
             debug!("Shutdown signal sent to all subscribers");
@@ -54,7 +56,7 @@ mod tests {
         assert!(!*rx.borrow());
 
         // Trigger shutdown
-        shutdown.shutdown().await;
+        shutdown.shutdown();
 
         // Now should be true
         assert!(*rx.borrow());
@@ -66,7 +68,7 @@ mod tests {
         let rx1 = shutdown.subscribe();
         let rx2 = shutdown.subscribe();
 
-        shutdown.shutdown().await;
+        shutdown.shutdown();
 
         // Both receivers should receive signal
         assert!(*rx1.borrow());

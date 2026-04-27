@@ -13,6 +13,11 @@ pub const IPC_MAX_MESSAGE_SIZE: usize = 1024 * 1024;
 /// IPC connection timeout (seconds)
 pub const IPC_CONNECTION_TIMEOUT_SECS: u64 = 5;
 
+/// IPC request/response timeout (seconds)
+/// Separate from connection timeout as request processing may take longer
+/// (e.g., config reload, macro playback)
+pub const IPC_REQUEST_TIMEOUT_SECS: u64 = 10;
+
 /// IPC discovery timeout (milliseconds) - quick scan for active instances
 pub const IPC_DISCOVERY_TIMEOUT_MS: u64 = 100;
 

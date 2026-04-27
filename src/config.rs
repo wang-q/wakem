@@ -6,6 +6,17 @@ use std::path::Path;
 use tracing::debug;
 
 /// Key mapping entry for lookup table
+///
+/// # Scan Code Encoding Convention
+///
+/// Regular keys use their hardware scan code (e.g., `0x1E` for 'A').
+/// Extended keys (right-side modifiers, navigation cluster) encode the
+/// Windows `RI_KEY_E0` prefix as `0xE0XX` where `XX` is the base scan code.
+/// For example, Right Ctrl is stored as `0xE01D` (E0 prefix + 1D base).
+///
+/// This encoding is compatible with the Windows Raw Input API's extended key
+/// flag system. On macOS, scan codes are mapped from CGEvent key codes and
+/// do not use the E0 prefix convention.
 #[derive(Debug, Clone, Copy)]
 struct KeyMapping {
     scan_code: u16,
@@ -1196,18 +1207,30 @@ impl Config {
             }
         }
 
-        // 2. Validate network port range (u16 max is 65535, only need to check minimum)
-        let port = crate::ipc::get_instance_port(self.network.instance_id);
-        if port < 1024 {
-            anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
-        }
-
-        // 3. Validate instance ID range
+        // 2. Validate instance ID range (must be checked before get_instance_port)
         if self.network.instance_id > 255 {
             anyhow::bail!(
                 "Invalid instance_id {}: must be in range 0-255",
                 self.network.instance_id
             );
+        }
+
+        // 3. Validate network port range (u16 max is 65535, only need to check minimum)
+        let port = crate::ipc::get_instance_port(self.network.instance_id);
+        if port < 1024 {
+            anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
+        }
+
+        // 3.5. Validate auth_key is not empty string when explicitly set
+        // An empty auth_key would bypass authentication, allowing any local
+        // process to control the daemon. Use None (auto-generate) instead.
+        if let Some(ref key) = self.network.auth_key {
+            if key.is_empty() {
+                anyhow::bail!(
+                    "Invalid network.auth_key: empty string is not allowed. \
+                     Remove auth_key to auto-generate, or set a non-empty value"
+                );
+            }
         }
 
         // 4. Validate macro bindings reference existing macros
@@ -1255,11 +1278,15 @@ impl Config {
             );
         }
 
-        // 9. Validate icon_path exists if specified (skip in test mode or when WAKEM_SKIP_ICON_VALIDATION is set)
+        // 9. Validate icon_path exists if specified
+        // Icon path validation is a soft check: missing icons are logged as warnings
+        // rather than errors, since a missing icon should not prevent the application
+        // from starting. The WAKEM_SKIP_ICON_VALIDATION env var can be used to
+        // suppress even the warning (primarily for test environments).
         if let Some(ref icon_path) = self.icon_path {
             let skip_validation = std::env::var("WAKEM_SKIP_ICON_VALIDATION").is_ok();
             if !skip_validation && !std::path::Path::new(icon_path).exists() {
-                anyhow::bail!("Icon path '{}' does not exist", icon_path);
+                tracing::warn!("Icon path '{}' does not exist, using default icon", icon_path);
             }
         }
 
@@ -1302,6 +1329,69 @@ impl Config {
                     action,
                     e
                 );
+            }
+        }
+
+        // 13. Validate keyboard.layers mappings are parseable
+        for (layer_name, layer) in &self.keyboard.layers {
+            if let Err(e) = parse_key(&layer.activation_key) {
+                anyhow::bail!(
+                    "Invalid activation_key '{}' in keyboard.layers.{}: {}",
+                    layer.activation_key,
+                    layer_name,
+                    e
+                );
+            }
+            for (from, to) in &layer.mappings {
+                if let Err(e) = parse_key(from) {
+                    anyhow::bail!(
+                        "Invalid key '{}' in keyboard.layers.{}.mappings: {}",
+                        from,
+                        layer_name,
+                        e
+                    );
+                }
+                let is_valid_target = parse_key(to).is_ok()
+                    || parse_window_action(to).is_ok()
+                    || (to.contains('+') && parse_modifier_combo(to).is_ok())
+                    || (to.contains('+') && parse_shortcut_trigger(to).is_ok());
+                if !is_valid_target {
+                    anyhow::bail!(
+                        "Invalid target '{}' in keyboard.layers.{}.mappings for key '{}': must be a valid key, modifier combo, shortcut, or window action",
+                        to, layer_name, from
+                    );
+                }
+            }
+        }
+
+        // 14. Validate launch trigger keys are parseable
+        for trigger in self.launch.keys() {
+            if let Err(e) = parse_shortcut_trigger(trigger) {
+                anyhow::bail!("Invalid trigger '{}' in launch: {}", trigger, e);
+            }
+        }
+
+        // 15. Validate context_mappings are parseable
+        for (idx, ctx_mapping) in self.keyboard.context_mappings.iter().enumerate() {
+            for (from, to) in &ctx_mapping.mappings {
+                if let Err(e) = parse_key(from) {
+                    anyhow::bail!(
+                        "Invalid key '{}' in keyboard.context_mappings[{}].mappings: {}",
+                        from,
+                        idx,
+                        e
+                    );
+                }
+                let is_valid_target = parse_key(to).is_ok()
+                    || parse_window_action(to).is_ok()
+                    || (to.contains('+') && parse_modifier_combo(to).is_ok())
+                    || (to.contains('+') && parse_shortcut_trigger(to).is_ok());
+                if !is_valid_target {
+                    anyhow::bail!(
+                        "Invalid target '{}' in keyboard.context_mappings[{}].mappings for key '{}': must be a valid key, modifier combo, shortcut, or window action",
+                        to, idx, from
+                    );
+                }
             }
         }
 
@@ -2778,5 +2868,191 @@ F5 = "test_macro"
             config.macro_bindings.get("F5"),
             Some(&"test_macro".to_string())
         );
+    }
+
+    #[test]
+    fn test_validate_empty_auth_key_rejected() {
+        let mut config = Config::default();
+        config.network.auth_key = Some(String::new());
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("empty string") || err.contains("auth_key"),
+            "Expected empty auth_key error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_instance_id_out_of_range() {
+        let mut config = Config::default();
+        config.network.instance_id = 256;
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("instance_id") || err.contains("0-255"),
+            "Expected instance_id range error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_invalid_remap_key() {
+        let config_str = r#"
+[keyboard.remap]
+"NonExistentKey123" = "A"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("keyboard.remap") || err.contains("NonExistentKey123"),
+            "Expected invalid key error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_invalid_shortcut_key() {
+        let config_str = r#"
+[window.shortcuts]
+"BogusKey" = "Center"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("window.shortcuts") || err.contains("BogusKey"),
+            "Expected invalid shortcut error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_invalid_shortcut_action() {
+        let config_str = r#"
+[window.shortcuts]
+"Ctrl+Alt+C" = "NonExistentAction"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("window.shortcuts") || err.contains("NonExistentAction"),
+            "Expected invalid action error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_invalid_layer_activation_key() {
+        let config_str = r#"
+[keyboard.layers.bad]
+activation_key = "NotARealKey999"
+mode = "Hold"
+
+[keyboard.layers.bad.mappings]
+H = "Left"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("activation_key") || err.contains("NotARealKey999"),
+            "Expected invalid activation_key error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_invalid_layer_mapping_key() {
+        let config_str = r#"
+[keyboard.layers.bad]
+activation_key = "CapsLock"
+mode = "Hold"
+
+[keyboard.layers.bad.mappings]
+"InvalidKey999" = "Left"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("InvalidKey999"),
+            "Expected invalid layer mapping key error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_invalid_layer_mapping_target() {
+        let config_str = r#"
+[keyboard.layers.bad]
+activation_key = "CapsLock"
+mode = "Hold"
+
+[keyboard.layers.bad.mappings]
+H = "NotAKeyOrAction999"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("NotAKeyOrAction999"),
+            "Expected invalid layer target error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_invalid_launch_trigger() {
+        let config_str = r#"
+[launch]
+"InvalidTrigger999" = "notepad.exe"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        let result = config.validate();
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("launch") || err.contains("InvalidTrigger999"),
+            "Expected invalid launch trigger error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_validate_valid_config_passes() {
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Backspace"
+
+[keyboard.layers.nav]
+activation_key = "RightAlt"
+mode = "Hold"
+
+[keyboard.layers.nav.mappings]
+H = "Left"
+
+[window.shortcuts]
+"Ctrl+Alt+C" = "Center"
+
+[launch]
+F1 = "notepad.exe"
+
+[network]
+instance_id = 0
+auth_key = "valid_key"
+"#;
+        let config: Config = toml::from_str(config_str).unwrap();
+        assert!(config.validate().is_ok());
     }
 }

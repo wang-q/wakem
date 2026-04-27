@@ -563,9 +563,9 @@ mappings.T = "Ctrl+T"
 "Ctrl+Alt+Win+Left" = "LoopWidth(Left)"
 
 [launch]
-terminal = "wt.exe"
-editor = "code.exe"
-browser = "chrome.exe"
+F3 = "wt.exe"
+F4 = "code.exe"
+F5 = "chrome.exe"
 
 [network]
 enabled = true

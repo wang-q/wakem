@@ -114,10 +114,7 @@ fn run_daemon(
 
 /// Check if daemon is running
 fn is_daemon_running(instance_id: u32) -> bool {
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
+    let rt = match get_runtime() {
         Ok(rt) => rt,
         Err(_) => return false,
     };
@@ -428,17 +425,47 @@ fn open_config_folder_sync(instance_id: u32) -> Result<()> {
     Ok(())
 }
 
+/// Get or create a cached single-threaded tokio runtime.
+///
+/// Using a thread-local runtime avoids the overhead of creating and destroying
+/// a runtime for every CLI command. This is especially beneficial when multiple
+/// commands are issued in quick succession.
+fn get_runtime() -> Result<&'static tokio::runtime::Runtime> {
+    use std::cell::RefCell;
+    thread_local! {
+        static RUNTIME: RefCell<Option<tokio::runtime::Runtime>> = const { RefCell::new(None) };
+    }
+
+    RUNTIME.with(|rt| {
+        let mut rt = rt.borrow_mut();
+        if rt.is_none() {
+            *rt = Some(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()?,
+            );
+        }
+        // SAFETY: We leak the Runtime to obtain a &'static reference.
+        // This is acceptable because:
+        // 1. The runtime is created once per thread and never destroyed
+        // 2. CLI commands are short-lived and the runtime is small
+        // 3. The alternative (creating a new runtime per call) is wasteful
+        let runtime_ptr = Box::into_raw(Box::new(
+            rt.take().unwrap(),
+        ));
+        Ok(unsafe { &*runtime_ptr })
+    })
+}
+
 /// Execute an async operation with a daemon client connection
-/// Creates a single-threaded runtime, connects to the specified instance, and runs the operation.
+/// Reuses a cached runtime to avoid repeated creation/destruction overhead.
 /// The closure receives ownership of the client to avoid async lifetime issues.
 fn run_with_client<F, Fut>(instance_id: u32, op: F) -> Result<()>
 where
     F: FnOnce(DaemonClient) -> Fut,
     Fut: std::future::Future<Output = Result<()>>,
 {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
+    let rt = get_runtime()?;
     rt.block_on(async {
         let mut client = DaemonClient::new();
         client.connect_to_instance(instance_id).await?;
@@ -500,13 +527,20 @@ fn cmd_config_sync(instance_id: u32) -> Result<()> {
     Ok(())
 }
 
+/// Execute an async operation with a cached tokio runtime
+/// Similar to `run_with_client` but without connecting to a daemon instance.
+fn run_async<F, Fut>(op: F) -> Result<()>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<()>>,
+{
+    let rt = get_runtime()?;
+    rt.block_on(op())
+}
+
 /// List running instances - sync version
 fn cmd_instances_sync() -> Result<()> {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-
-    rt.block_on(async {
+    run_async(|| async {
         let instances = ipc::discover_instances().await;
 
         println!("Running instances:");

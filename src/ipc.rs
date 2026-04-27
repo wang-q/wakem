@@ -204,13 +204,22 @@ pub struct InstanceInfo {
     pub active: bool,
 }
 
+/// Maximum number of concurrent connection attempts during discovery
+/// Limits resource usage when scanning many instance ports
+const DISCOVERY_MAX_CONCURRENCY: usize = 32;
+
 /// Discover running instances
 /// Scan ports based on MAX_DISCOVERY_INSTANCE_ID
+/// Uses bounded concurrency to avoid overwhelming the system with simultaneous
+/// TCP connection attempts (max 32 concurrent).
 pub async fn discover_instances() -> Vec<InstanceInfo> {
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(DISCOVERY_MAX_CONCURRENCY));
     let mut set = JoinSet::new();
 
     for id in 0..=MAX_DISCOVERY_INSTANCE_ID {
+        let permit = semaphore.clone();
         set.spawn(async move {
+            let _permit = permit.acquire().await.unwrap();
             let address = get_instance_address(id);
 
             let active = match timeout(
@@ -252,7 +261,6 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
 pub enum Message {
     // Client -> Server
     /// Send configuration to server
-    #[allow(clippy::large_enum_variant)]
     SetConfig { config: Box<crate::config::Config> },
     /// Reload configuration
     ReloadConfig,
@@ -331,6 +339,15 @@ impl From<tokio::time::error::Elapsed> for IpcError {
 
 pub type Result<T> = std::result::Result<T, IpcError>;
 
+// ==================== Protocol Version ====================
+
+/// IPC protocol version for compatibility checking between client and server.
+///
+/// Increment this when the message format changes in a breaking way.
+/// The server sends this version during the handshake; the client can
+/// check it to detect version mismatches.
+pub const IPC_PROTOCOL_VERSION: u32 = 1;
+
 // ==================== Instance Address Helpers ====================
 
 /// Base port (re-export from constants)
@@ -341,10 +358,17 @@ pub const BASE_PORT: u16 = IPC_BASE_PORT;
 /// # Panics
 /// Panics if `instance_id` would cause port overflow (instance_id > 8108).
 /// In practice, `Config::validate()` limits instance_id to 0-255.
-pub fn get_instance_port(instance_id: u32) -> u16 {
-    BASE_PORT
-        .checked_add(instance_id as u16)
-        .expect("instance_id overflow: port would exceed u16 range")
+/// Get instance port number
+///
+/// Uses const-compatible checked arithmetic. Panics at compile time
+/// if instance_id would cause port overflow (which shouldn't happen
+/// since instance_id is validated to be 0-255 in Config::validate).
+pub const fn get_instance_port(instance_id: u32) -> u16 {
+    assert!(
+        instance_id <= 255,
+        "instance_id overflow: port would exceed u16 range"
+    );
+    BASE_PORT + instance_id as u16
 }
 
 /// Get instance bind address
@@ -428,6 +452,24 @@ impl IpcClient {
                 return Err(IpcError::ConnectionRefused);
             }
             debug!("Authentication successful");
+
+            // Read and verify protocol version from server
+            let mut version_bytes = [0u8; 4];
+            timeout(
+                TokioDuration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
+                stream.read_exact(&mut version_bytes),
+            )
+            .await
+            .map_err(|_| IpcError::Timeout)??;
+            let server_version = u32::from_le_bytes(version_bytes);
+            if server_version != IPC_PROTOCOL_VERSION {
+                warn!(
+                    "Protocol version mismatch: server={}, client={}",
+                    server_version, IPC_PROTOCOL_VERSION
+                );
+                return Err(IpcError::ConnectionRefused);
+            }
+            debug!("Protocol version {} verified", server_version);
         }
 
         self.stream = Some(stream);
@@ -605,6 +647,14 @@ async fn handle_connection(
                 return Err(IpcError::ConnectionRefused);
             }
             debug!("Authentication successful for {}", addr);
+
+            // Send protocol version after successful authentication
+            let version_bytes = IPC_PROTOCOL_VERSION.to_le_bytes();
+            stream.write_all(&version_bytes).await?;
+            debug!(
+                "Sent protocol version {} to {}",
+                IPC_PROTOCOL_VERSION, addr
+            );
         } else {
             zero_string(&mut key);
         }
