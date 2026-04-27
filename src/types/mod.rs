@@ -1,7 +1,6 @@
 pub mod action;
 pub mod input;
 pub mod key_codes;
-pub mod key_map;
 pub mod layer;
 pub mod macros;
 pub mod mapping;

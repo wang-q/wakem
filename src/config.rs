@@ -1003,9 +1003,9 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 }
 
 /// Parse key name to scan code and virtual key code
-/// Delegates to the keycode-crate-based implementation in types::key_map
+/// Delegates to the keycode-crate-based implementation in types::key_codes
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
-    crate::types::key_map::parse_key(name)
+    crate::types::key_codes::parse_key(name)
 }
 
 /// Config file path cache (reduces repeated file system I/O)
