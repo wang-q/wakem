@@ -104,13 +104,7 @@ impl Config {
             );
         }
 
-        // 3. Validate network port range (u16 max is 65535, only need to check minimum)
-        let port = crate::ipc::get_instance_port(self.network.instance_id);
-        if port < 1024 {
-            anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
-        }
-
-        // 3.5. Validate auth_key is not empty string when explicitly set
+        // 3. Validate auth_key is not empty string when explicitly set
         // An empty auth_key would bypass authentication, allowing any local
         // process to control the daemon. Use None (auto-generate) instead.
         if let Some(ref key) = self.network.auth_key {
@@ -122,7 +116,13 @@ impl Config {
             }
         }
 
-        // 4. Validate macro bindings reference existing macros
+        // 4. Validate network port range (u16 max is 65535, only need to check minimum)
+        let port = crate::ipc::get_instance_port(self.network.instance_id);
+        if port < 1024 {
+            anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
+        }
+
+        // 5. Validate macro bindings reference existing macros
         for (trigger, macro_name) in &self.macro_bindings {
             if !self.macros.contains_key(macro_name) {
                 anyhow::bail!(
@@ -133,7 +133,7 @@ impl Config {
             }
         }
 
-        // 5. Validate macro steps are not empty (warning only)
+        // 6. Validate macro steps are not empty (warning only)
         for (macro_name, steps) in &self.macros {
             if steps.is_empty() {
                 tracing::warn!(
@@ -143,14 +143,14 @@ impl Config {
             }
         }
 
-        // 6. Validate layer activation keys are not empty
+        // 7. Validate layer activation keys are not empty
         for (layer_name, layer) in &self.keyboard.layers {
             if layer.activation_key.is_empty() {
                 anyhow::bail!("Layer '{}' has empty activation_key", layer_name);
             }
         }
 
-        // 7. Validate mouse wheel acceleration_multiplier range
+        // 8. Validate mouse wheel acceleration_multiplier range
         let multiplier = self.mouse.wheel.acceleration_multiplier;
         if !(0.1..=10.0).contains(&multiplier) {
             anyhow::bail!(
@@ -159,7 +159,7 @@ impl Config {
             );
         }
 
-        // 8. Validate wheel speed is positive
+        // 9. Validate wheel speed is positive
         if self.mouse.wheel.speed <= 0 {
             anyhow::bail!(
                 "Invalid mouse.wheel.speed: {}. Must be positive",
@@ -167,7 +167,7 @@ impl Config {
             );
         }
 
-        // 9. Validate icon_path exists if specified
+        // 10. Validate icon_path exists if specified
         // Icon path validation is a soft check: missing icons are logged as warnings
         // rather than errors, since a missing icon should not prevent the application
         // from starting. The WAKEM_SKIP_ICON_VALIDATION env var can be used to
@@ -182,23 +182,19 @@ impl Config {
             }
         }
 
-        // 10. Validate launch program paths are not empty
+        // 11. Validate launch program paths are not empty
         for (trigger, command) in &self.launch {
             if command.trim().is_empty() {
                 anyhow::bail!("Launch command for trigger '{}' is empty", trigger);
             }
         }
 
-        // 11. Validate keyboard.remap keys are valid
+        // 12. Validate keyboard.remap keys are valid
         for (from, to) in &self.keyboard.remap {
             if let Err(e) = parse_key(from) {
                 anyhow::bail!("Invalid key '{}' in keyboard.remap: {}", from, e);
             }
-            // Try to parse as key, window action, or modifier combo (e.g., "Ctrl+Alt+Win" or just "Ctrl")
-            let is_valid_target = parse_key(to).is_ok()
-                || parse_window_action(to).is_ok()
-                || parse_modifier_combo(to).is_ok();
-            if !is_valid_target {
+            if !validate_mapping_target(to, false) {
                 anyhow::bail!(
                     "Invalid target '{}' in keyboard.remap for key '{}': must be a valid key, window action, or modifier combo",
                     to, from
@@ -206,7 +202,7 @@ impl Config {
             }
         }
 
-        // 12. Validate window.shortcuts
+        // 13. Validate window.shortcuts
         for (shortcut, action) in &self.window.shortcuts {
             if let Err(e) = parse_shortcut_trigger(shortcut) {
                 anyhow::bail!(
@@ -224,7 +220,7 @@ impl Config {
             }
         }
 
-        // 13. Validate keyboard.layers mappings are parseable
+        // 14. Validate keyboard.layers mappings are parseable
         for (layer_name, layer) in &self.keyboard.layers {
             if let Err(e) = parse_key(&layer.activation_key) {
                 anyhow::bail!(
@@ -243,11 +239,7 @@ impl Config {
                         e
                     );
                 }
-                let is_valid_target = parse_key(to).is_ok()
-                    || parse_window_action(to).is_ok()
-                    || (to.contains('+') && parse_modifier_combo(to).is_ok())
-                    || (to.contains('+') && parse_shortcut_trigger(to).is_ok());
-                if !is_valid_target {
+                if !validate_mapping_target(to, true) {
                     anyhow::bail!(
                         "Invalid target '{}' in keyboard.layers.{}.mappings for key '{}': must be a valid key, modifier combo, shortcut, or window action",
                         to, layer_name, from
@@ -256,14 +248,14 @@ impl Config {
             }
         }
 
-        // 14. Validate launch trigger keys are parseable
+        // 15. Validate launch trigger keys are parseable
         for trigger in self.launch.keys() {
             if let Err(e) = parse_shortcut_trigger(trigger) {
                 anyhow::bail!("Invalid trigger '{}' in launch: {}", trigger, e);
             }
         }
 
-        // 15. Validate context_mappings are parseable
+        // 16. Validate context_mappings are parseable
         for (idx, ctx_mapping) in self.keyboard.context_mappings.iter().enumerate() {
             for (from, to) in &ctx_mapping.mappings {
                 if let Err(e) = parse_key(from) {
@@ -274,11 +266,7 @@ impl Config {
                         e
                     );
                 }
-                let is_valid_target = parse_key(to).is_ok()
-                    || parse_window_action(to).is_ok()
-                    || (to.contains('+') && parse_modifier_combo(to).is_ok())
-                    || (to.contains('+') && parse_shortcut_trigger(to).is_ok());
-                if !is_valid_target {
+                if !validate_mapping_target(to, true) {
                     anyhow::bail!(
                         "Invalid target '{}' in keyboard.context_mappings[{}].mappings for key '{}': must be a valid key, modifier combo, shortcut, or window action",
                         to, idx, from
@@ -363,21 +351,17 @@ impl Config {
     pub fn get_hyper_key_mappings(
         &self,
     ) -> std::collections::HashMap<(u16, u16), crate::types::ModifierState> {
-        use std::collections::HashMap;
-
         let mut map = HashMap::new();
         for (key_str, target_str) in &self.keyboard.remap {
-            if target_str.contains('+') && !target_str.contains("->") {
-                if let Ok((sc, vk)) = parse_key(key_str) {
-                    if let Ok(modifiers) = parse_modifier_combo(target_str) {
-                        map.insert((sc, vk), modifiers);
-                        debug!(
-                            scan_code = sc,
-                            virtual_key = vk,
-                            ?modifiers,
-                            "Found hyper key mapping"
-                        );
-                    }
+            if let Ok((sc, vk)) = parse_key(key_str) {
+                if let Ok(modifiers) = parse_modifier_combo(target_str) {
+                    map.insert((sc, vk), modifiers);
+                    debug!(
+                        scan_code = sc,
+                        virtual_key = vk,
+                        ?modifiers,
+                        "Found hyper key mapping"
+                    );
                 }
             }
         }
@@ -667,12 +651,7 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
         return Ok(MappingRule::new(trigger, action));
     }
 
-    // Check if target is a shortcut with modifier keys (e.g., "Ctrl+Alt+Win")
-    // This is used for Hyper key mapping (e.g., CapsLock = "Ctrl+Alt+Win")
-    if to.contains('+') && !to.contains("->") {
-        // Parse modifier key combination (e.g., "Ctrl+Alt+Win")
-        let modifiers = parse_modifier_combo(to)?;
-        // Create a special Hyper key action that holds modifiers while key is held
+    if let Ok(modifiers) = parse_modifier_combo(to) {
         let action = create_hyper_key_action(&modifiers);
         return Ok(MappingRule::new(
             Trigger::key(from_key.0, from_key.1),
@@ -1006,6 +985,32 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 /// Delegates to the keycode-crate-based implementation in types::key_codes
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     crate::types::key_codes::parse_key(name)
+}
+
+/// Validate that a mapping target string is parseable as a valid action target.
+///
+/// When `allow_shortcut` is true, shortcut triggers (e.g., "Ctrl+Alt+C") are
+/// accepted in addition to simple keys, window actions, and modifier combos.
+/// This is appropriate for layer and context mappings but not for keyboard.remap
+/// where shortcut triggers as targets would be ambiguous.
+///
+/// Uses direct parsing attempts instead of string-based heuristics (like
+/// `contains('+')`) for robustness — if a key name ever contains '+', the
+/// parsing functions will correctly reject or accept it.
+fn validate_mapping_target(target: &str, allow_shortcut: bool) -> bool {
+    if parse_key(target).is_ok() {
+        return true;
+    }
+    if parse_window_action(target).is_ok() {
+        return true;
+    }
+    if parse_modifier_combo(target).is_ok() {
+        return true;
+    }
+    if allow_shortcut && parse_shortcut_trigger(target).is_ok() {
+        return true;
+    }
+    false
 }
 
 /// Config file path cache (reduces repeated file system I/O)

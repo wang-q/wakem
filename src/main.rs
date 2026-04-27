@@ -430,28 +430,26 @@ fn open_config_folder_sync(instance_id: u32) -> Result<()> {
 /// Using a thread-local runtime avoids the overhead of creating and destroying
 /// a runtime for every CLI command. This is especially beneficial when multiple
 /// commands are issued in quick succession.
+///
+/// Uses `once_cell::unsync::Lazy` to ensure the runtime is created only once
+/// per thread without memory leaks.
 fn get_runtime() -> Result<&'static tokio::runtime::Runtime> {
-    use std::cell::RefCell;
+    use once_cell::unsync::Lazy;
     thread_local! {
-        static RUNTIME: RefCell<Option<tokio::runtime::Runtime>> = const { RefCell::new(None) };
+        static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create tokio runtime")
+        });
     }
 
     RUNTIME.with(|rt| {
-        let mut rt = rt.borrow_mut();
-        if rt.is_none() {
-            *rt = Some(
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()?,
-            );
-        }
-        // SAFETY: We leak the Runtime to obtain a &'static reference.
-        // This is acceptable because:
-        // 1. The runtime is created once per thread and never destroyed
-        // 2. CLI commands are short-lived and the runtime is small
-        // 3. The alternative (creating a new runtime per call) is wasteful
-        let runtime_ptr = Box::into_raw(Box::new(rt.take().unwrap()));
-        Ok(unsafe { &*runtime_ptr })
+        let rt: &tokio::runtime::Runtime = rt;
+        // SAFETY: The Lazy<T> is thread-local and lives for the entire thread.
+        // The reference remains valid as long as the thread is alive, which
+        // is effectively 'static for CLI commands that run to completion.
+        Ok(unsafe { &*(rt as *const _) })
     })
 }
 
@@ -539,7 +537,7 @@ where
 /// List running instances - sync version
 fn cmd_instances_sync() -> Result<()> {
     run_async(|| async {
-        let instances = ipc::discover_instances().await;
+        let instances = ipc::discover_instances(None).await;
 
         println!("Running instances:");
         let mut found = false;

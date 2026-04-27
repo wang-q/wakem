@@ -782,6 +782,15 @@ impl ServerState {
 
     /// Play macro
     ///
+    /// Lock acquisition strategy: only acquire locks for resources actually
+    /// needed by the macro's action types. This reduces lock contention for
+    /// the common case (macros containing only Key/Mouse/Delay actions).
+    ///
+    /// - Key/Mouse/Delay/None actions: output_device only
+    /// - Window actions: output_device + mapper (read)
+    /// - Launch actions: output_device + launcher
+    /// - Window + Launch: output_device + mapper (read) + launcher
+    ///
     /// Lock ordering: output_device -> mapper (read) -> launcher
     /// This order must be consistent across all code paths that acquire
     /// multiple device locks simultaneously to prevent deadlocks.
@@ -801,30 +810,55 @@ impl ServerState {
             description: None,
         };
 
-        drop(config); // Release read lock
+        drop(config);
+
+        let needs_wm = action_needs_window_manager(&macro_def.steps);
+        let needs_launcher = action_needs_launcher(&macro_def.steps);
 
         let output_device = self.output_device.lock().await;
         let output_ref: &(dyn OutputDeviceTrait + Send + Sync) = output_device.as_ref();
 
-        // Create macro context with window manager and launcher
-        let window_manager = self.mapper.read().await;
-        let launcher = self.launcher.lock().await;
+        match (needs_wm, needs_launcher) {
+            (false, false) => {
+                MacroPlayer::play_macro(output_ref, &macro_def, None, None).await?;
+            }
+            (true, false) => {
+                let window_manager = self.mapper.read().await;
+                let wm_ref: Option<&(dyn WindowManagerTrait + Send + Sync)> = window_manager
+                    .window_manager
+                    .as_ref()
+                    .map(|wm| wm.as_ref() as &(dyn WindowManagerTrait + Send + Sync));
+                let context = MacroContext {
+                    window_manager: wm_ref,
+                    launcher: None,
+                };
+                MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
+            }
+            (false, true) => {
+                let launcher = self.launcher.lock().await;
+                let launcher_ref: &(dyn LauncherTrait + Send + Sync) = launcher.as_ref();
+                let context = MacroContext {
+                    window_manager: None,
+                    launcher: Some(launcher_ref),
+                };
+                MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
+            }
+            (true, true) => {
+                let window_manager = self.mapper.read().await;
+                let launcher = self.launcher.lock().await;
+                let wm_ref: Option<&(dyn WindowManagerTrait + Send + Sync)> = window_manager
+                    .window_manager
+                    .as_ref()
+                    .map(|wm| wm.as_ref() as &(dyn WindowManagerTrait + Send + Sync));
+                let launcher_ref: &(dyn LauncherTrait + Send + Sync) = launcher.as_ref();
+                let context = MacroContext {
+                    window_manager: wm_ref,
+                    launcher: Some(launcher_ref),
+                };
+                MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
+            }
+        }
 
-        // Convert Box<dyn Trait> to &dyn Trait with Send + Sync bounds
-        let wm_ref: Option<&(dyn WindowManagerTrait + Send + Sync)> = window_manager
-            .window_manager
-            .as_ref()
-            .map(|wm| wm.as_ref() as &(dyn WindowManagerTrait + Send + Sync));
-        let launcher_ref: &(dyn LauncherTrait + Send + Sync) = launcher.as_ref();
-
-        let context = MacroContext {
-            window_manager: wm_ref,
-            launcher: Some(launcher_ref),
-        };
-
-        MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
-
-        // Show playback complete notification
         let _ = self
             .show_notification(
                 "wakem - Macro Playback",
@@ -921,6 +955,32 @@ impl ServerState {
 impl Default for ServerState {
     fn default() -> Self {
         Self::new(ShutdownSignal::new())
+    }
+}
+
+/// Check if any macro step requires window manager (recursively checks Sequence actions)
+fn action_needs_window_manager(steps: &[crate::types::MacroStep]) -> bool {
+    steps.iter().any(|s| action_contains_window(&s.action))
+}
+
+/// Check if any macro step requires launcher (recursively checks Sequence actions)
+fn action_needs_launcher(steps: &[crate::types::MacroStep]) -> bool {
+    steps.iter().any(|s| action_contains_launch(&s.action))
+}
+
+fn action_contains_window(action: &Action) -> bool {
+    match action {
+        Action::Window(_) => true,
+        Action::Sequence(actions) => actions.iter().any(action_contains_window),
+        _ => false,
+    }
+}
+
+fn action_contains_launch(action: &Action) -> bool {
+    match action {
+        Action::Launch(_) => true,
+        Action::Sequence(actions) => actions.iter().any(action_contains_launch),
+        _ => false,
     }
 }
 
@@ -1142,10 +1202,15 @@ async fn run_input_processor(
                     }
                 }
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
-                    if !event_batch.is_empty() {
+                    if event_batch.is_empty() {
                         break;
                     }
-                    break;
+                    if batch_start.elapsed()
+                        >= Duration::from_micros(batch_timeout_micros)
+                    {
+                        break;
+                    }
+                    tokio::task::yield_now().await;
                 }
                 Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
                     if event_batch.is_empty() {
@@ -1153,10 +1218,6 @@ async fn run_input_processor(
                     }
                     break;
                 }
-            }
-
-            if event_batch.is_empty() {
-                break;
             }
         }
 
@@ -1220,11 +1281,14 @@ fn setup_window_event_processing(
 
 /// Run window event bridge thread
 ///
-/// TODO: Window event forwarding is not yet fully implemented. Events from the
-/// hook are currently discarded. To complete this feature:
+/// TODO(medium-priority): Window event forwarding is not yet fully implemented.
+/// Events from the hook are currently discarded. To complete this feature:
 /// 1. Forward events from `std_rx` to an async channel (e.g., tokio mpsc)
 /// 2. Receive events in `run_window_event_processor`
 /// 3. Call `ServerState::handle_window_event` for each event
+///
+/// This is needed for auto-apply preset on window activation (see
+/// `handle_window_event` and `WINDOW_PRESET_APPLY_DELAY_MS`).
 fn run_window_event_bridge(
     shutdown_flag: Arc<AtomicBool>,
     hook_shutdown: Arc<AtomicBool>,

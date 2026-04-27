@@ -213,11 +213,22 @@ const DISCOVERY_MAX_CONCURRENCY: usize = 32;
 /// Scan ports based on MAX_DISCOVERY_INSTANCE_ID
 /// Uses bounded concurrency to avoid overwhelming the system with simultaneous
 /// TCP connection attempts (max 32 concurrent).
-pub async fn discover_instances() -> Vec<InstanceInfo> {
+/// Discover active wakem instances by scanning ports.
+///
+/// Scans instance IDs from 0 to `max_instance_id` (inclusive), checking each
+/// port for an active listener. Uses bounded concurrency to avoid exhausting
+/// file descriptors.
+///
+/// # Arguments
+/// * `max_instance_id` - Maximum instance ID to scan. Defaults to
+///   `MAX_DISCOVERY_INSTANCE_ID` (255) when `None` is passed. Pass a smaller
+///   value (e.g., `Some(0)`) for a quick single-instance check.
+pub async fn discover_instances(max_instance_id: Option<u32>) -> Vec<InstanceInfo> {
+    let max_id = max_instance_id.unwrap_or(MAX_DISCOVERY_INSTANCE_ID);
     let semaphore = Arc::new(tokio::sync::Semaphore::new(DISCOVERY_MAX_CONCURRENCY));
     let mut set = JoinSet::new();
 
-    for id in 0..=MAX_DISCOVERY_INSTANCE_ID {
+    for id in 0..=max_id {
         let permit = semaphore.clone();
         set.spawn(async move {
             let _permit = permit.acquire().await.unwrap();
@@ -244,7 +255,7 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
         });
     }
 
-    let mut instances = Vec::with_capacity((MAX_DISCOVERY_INSTANCE_ID + 1) as usize);
+    let mut instances = Vec::with_capacity((max_id + 1) as usize);
     while let Some(result) = set.join_next().await {
         if let Ok(info) = result {
             instances.push(info);
@@ -379,7 +390,6 @@ pub fn get_instance_address(instance_id: u32) -> String {
 
 // ==================== Message I/O ====================
 
-/// Read message from TCP stream
 /// Read message from TCP stream with reusable buffer
 ///
 /// The buffer is cleared and reused across calls to avoid repeated heap
@@ -754,14 +764,6 @@ async fn server_perform_authentication(
     Ok(auth_ok)
 }
 
-/// Zero out a String's memory contents using zeroize crate
-///
-/// This is used to clear sensitive data (e.g., authentication keys) from memory
-/// after use, preventing key material from lingering in heap memory where it
-/// could potentially be exposed through memory dumps or core dumps.
-///
-/// Uses the zeroize crate which provides secure memory clearing that is not
-/// optimized away by the compiler.
 // ==================== Tests ====================
 
 #[cfg(test)]
@@ -901,7 +903,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_discover_instances() {
-        let instances = discover_instances().await;
+        let instances = discover_instances(None).await;
         assert_eq!(instances.len(), 256);
         for (i, info) in instances.iter().enumerate() {
             assert_eq!(info.id, i as u32);
