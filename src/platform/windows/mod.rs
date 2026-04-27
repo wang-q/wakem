@@ -320,43 +320,47 @@ impl ApplicationControl for WindowsPlatform {
 }
 
 impl PlatformFactory for WindowsPlatform {
+    type InputDevice = RawInputDevice;
+    type OutputDevice = SendInputDevice;
+    type WindowManager = WindowManager<window_api::RealWindowApi>;
+    type WindowPresetManager = WindowPresetManager;
+    type NotificationService = WindowsNotificationService;
+    type Launcher = Launcher;
+    type WindowEventHook = WindowEventHook;
+
     fn create_input_device(
         _config: InputDeviceConfig,
         sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
-    ) -> anyhow::Result<Box<dyn crate::platform::traits::InputDeviceTrait>> {
-        let device = match sender {
-            Some(tx) => RawInputDevice::with_sender(tx)?,
-            None => RawInputDevice::new(InputDeviceConfig::default())?,
-        };
-        Ok(Box::new(device))
+    ) -> anyhow::Result<Self::InputDevice> {
+        match sender {
+            Some(tx) => RawInputDevice::with_sender(tx),
+            None => RawInputDevice::new(InputDeviceConfig::default()),
+        }
     }
 
-    fn create_output_device(
-    ) -> Box<dyn crate::platform::traits::OutputDeviceTrait + Send + Sync> {
-        Box::new(SendInputDevice::new())
+    fn create_output_device() -> Self::OutputDevice {
+        SendInputDevice::new()
     }
 
-    fn create_window_manager() -> Box<dyn crate::platform::traits::WindowManagerTrait> {
-        Box::new(WindowManager::new())
+    fn create_window_manager() -> Self::WindowManager {
+        WindowManager::new()
     }
 
-    fn create_window_preset_manager(
-    ) -> Box<dyn crate::platform::traits::WindowPresetManagerTrait> {
-        Box::new(WindowPresetManager::new(WindowManager::new()))
+    fn create_window_preset_manager() -> Self::WindowPresetManager {
+        WindowPresetManager::new(WindowManager::new())
     }
 
-    fn create_notification_service(
-    ) -> Box<dyn crate::platform::traits::NotificationService> {
-        Box::new(WindowsNotificationService::new())
+    fn create_notification_service() -> Self::NotificationService {
+        WindowsNotificationService::new()
     }
 
-    fn create_launcher() -> Box<dyn crate::platform::traits::LauncherTrait> {
-        Box::new(Launcher::new())
+    fn create_launcher() -> Self::Launcher {
+        Launcher::new()
     }
 
     fn create_window_event_hook(
         sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
-    ) -> Box<dyn crate::platform::traits::WindowEventHookTrait> {
-        Box::new(WindowEventHook::new(sender))
+    ) -> Self::WindowEventHook {
+        WindowEventHook::new(sender)
     }
 }

@@ -5,8 +5,9 @@
 #![allow(dead_code)]
 
 use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowId, WindowInfo,
-    WindowInfoProvider, WindowManagerTrait,
+    ForegroundWindowOperations, MonitorDirection, MonitorInfo, MonitorOperations,
+    WindowApiBase, WindowFrame, WindowId, WindowInfo, WindowInfoProvider,
+    WindowManagerTrait, WindowOperations, WindowStateQueries,
 };
 use crate::types::{Alignment, Edge};
 use anyhow::Result;
@@ -158,13 +159,8 @@ impl<A: WindowApiBase + 'static> CommonWindowApi for WindowManager<A> {
     }
 }
 
-impl<A: WindowApiBase + Send + Sync + 'static> WindowManagerTrait for WindowManager<A> {
-    fn get_foreground_window(&self) -> Option<WindowId> {
-        self.api
-            .get_foreground_window()
-            .map(|id| A::window_id_to_usize(id))
-    }
-
+// Implement WindowOperations trait
+impl<A: WindowApiBase + Send + Sync + 'static> WindowOperations for WindowManager<A> {
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
         let id = A::usize_to_window_id(window);
         let info = self.api.get_window_info(id)?;
@@ -212,30 +208,10 @@ impl<A: WindowApiBase + Send + Sync + 'static> WindowManagerTrait for WindowMana
         let id = A::usize_to_window_id(window);
         self.api.close_window(id)
     }
+}
 
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
-        let id = A::usize_to_window_id(window);
-        self.api.set_topmost(id, topmost)
-    }
-
-    fn is_topmost(&self, window: WindowId) -> bool {
-        let id = A::usize_to_window_id(window);
-        self.api.is_topmost(id)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        self.api.get_monitors()
-    }
-
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
-        let id = A::usize_to_window_id(window);
-        CommonWindowManager::move_to_monitor(
-            self,
-            id,
-            MonitorDirection::Index(monitor_index as i32),
-        )
-    }
-
+// Implement WindowStateQueries trait
+impl<A: WindowApiBase + Send + Sync + 'static> WindowStateQueries for WindowManager<A> {
     fn is_window_valid(&self, window: WindowId) -> bool {
         let id = A::usize_to_window_id(window);
         self.api.is_window_valid(id)
@@ -250,7 +226,45 @@ impl<A: WindowApiBase + Send + Sync + 'static> WindowManagerTrait for WindowMana
         let id = A::usize_to_window_id(window);
         self.api.is_maximized(id)
     }
+
+    fn is_topmost(&self, window: WindowId) -> bool {
+        let id = A::usize_to_window_id(window);
+        self.api.is_topmost(id)
+    }
 }
+
+// Implement MonitorOperations trait
+impl<A: WindowApiBase + Send + Sync + 'static> MonitorOperations for WindowManager<A> {
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.api.get_monitors()
+    }
+
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        CommonWindowManager::move_to_monitor(
+            self,
+            id,
+            MonitorDirection::Index(monitor_index as i32),
+        )
+    }
+}
+
+// Implement ForegroundWindowOperations trait
+impl<A: WindowApiBase + Send + Sync + 'static> ForegroundWindowOperations for WindowManager<A> {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.api
+            .get_foreground_window()
+            .map(|id| A::window_id_to_usize(id))
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        let id = A::usize_to_window_id(window);
+        self.api.set_topmost(id, topmost)
+    }
+}
+
+// WindowManagerTrait is automatically implemented since all component traits are implemented
+impl<A: WindowApiBase + Send + Sync + 'static> WindowManagerTrait for WindowManager<A> {}
 
 /// Common window manager operations
 ///

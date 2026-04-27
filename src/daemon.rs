@@ -11,8 +11,9 @@ use crate::constants::{
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
-    ContextProvider, InputDeviceConfig, LauncherTrait, NotificationService,
-    OutputDeviceTrait, PlatformFactory, PlatformUtilities, WindowPresetManagerTrait,
+    ContextProvider, InputDeviceConfig, InputDeviceTrait, LauncherTrait,
+    NotificationService, OutputDeviceTrait, PlatformFactory, PlatformUtilities,
+    WindowPresetManagerTrait,
 };
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -50,17 +51,17 @@ impl ServerState {
         use crate::platform::CurrentPlatform;
 
         let mut mapper = KeyMapper::new();
-        mapper.set_window_manager(CurrentPlatform::create_window_manager());
+        mapper.set_window_manager(Box::new(CurrentPlatform::create_window_manager()));
 
         let notification_service = CurrentPlatform::create_notification_service();
         let window_preset_manager = CurrentPlatform::create_window_preset_manager();
 
         let notification_service_arc: Arc<
             parking_lot::Mutex<Box<dyn NotificationService>>,
-        > = Arc::new(parking_lot::Mutex::new(notification_service));
+        > = Arc::new(parking_lot::Mutex::new(Box::new(notification_service)));
         let window_preset_manager_arc: Arc<
             parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>,
-        > = Arc::new(parking_lot::RwLock::new(window_preset_manager));
+        > = Arc::new(parking_lot::RwLock::new(Box::new(window_preset_manager)));
 
         mapper.set_notification_service(notification_service_arc.clone());
         mapper.set_window_preset_manager(window_preset_manager_arc.clone());
@@ -69,17 +70,19 @@ impl ServerState {
             config: Arc::new(RwLock::new(Config::default())),
             mapper: Arc::new(RwLock::new(mapper)),
             layer_manager: Arc::new(RwLock::new(LayerManager::new())),
-            output_device: Arc::new(Mutex::new(CurrentPlatform::create_output_device())),
-            launcher: Arc::new(Mutex::new(CurrentPlatform::create_launcher())),
-            window_preset_manager: Arc::new(tokio::sync::RwLock::new(
+            output_device: Arc::new(Mutex::new(Box::new(
+                CurrentPlatform::create_output_device(),
+            ))),
+            launcher: Arc::new(Mutex::new(Box::new(CurrentPlatform::create_launcher()))),
+            window_preset_manager: Arc::new(tokio::sync::RwLock::new(Box::new(
                 CurrentPlatform::create_window_preset_manager(),
-            )),
+            ))),
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
-            notification_service: Arc::new(Mutex::new(
+            notification_service: Arc::new(Mutex::new(Box::new(
                 CurrentPlatform::create_notification_service(),
-            )),
+            ))),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),

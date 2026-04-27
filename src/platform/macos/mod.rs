@@ -16,17 +16,27 @@ pub mod window_manager;
 pub mod window_preset;
 
 // Re-export common types (aligned with Windows platform)
+// These are public API for users who need platform-specific types
+#[allow(unused_imports)]
 pub use crate::platform::launcher_common::Launcher;
+#[allow(unused_imports)]
 pub use input_device::RawInputDevice;
+#[allow(unused_imports)]
 pub use output_device::SendInputDevice;
+#[allow(unused_imports)]
 pub use tray::TrayIcon;
+#[allow(unused_imports)]
 pub use window_api::RealWindowApi;
 
 #[cfg(test)]
+#[allow(unused_imports)]
 pub use window_api::MockWindowApi;
 
+#[allow(unused_imports)]
 pub use window_event_hook::WindowEventHook;
+#[allow(unused_imports)]
 pub use window_manager::{MonitorDirection, WindowManager};
+#[allow(unused_imports)]
 pub use window_preset::WindowPresetManager;
 
 use crate::platform::traits::{
@@ -186,44 +196,48 @@ impl ApplicationControl for MacosPlatform {
 }
 
 impl PlatformFactory for MacosPlatform {
+    type InputDevice = RawInputDevice;
+    type OutputDevice = SendInputDevice;
+    type WindowManager = WindowManager<window_api::RealWindowApi>;
+    type WindowPresetManager = WindowPresetManager;
+    type NotificationService = MacosNotificationService;
+    type Launcher = Launcher;
+    type WindowEventHook = WindowEventHook;
+
     fn create_input_device(
         _config: InputDeviceConfig,
         sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
-    ) -> anyhow::Result<Box<dyn crate::platform::traits::InputDeviceTrait>> {
-        let device = match sender {
-            Some(tx) => RawInputDevice::with_sender(tx)?,
-            None => RawInputDevice::new(InputDeviceConfig::default())?,
-        };
-        Ok(Box::new(device))
+    ) -> anyhow::Result<Self::InputDevice> {
+        match sender {
+            Some(tx) => RawInputDevice::with_sender(tx),
+            None => RawInputDevice::new(InputDeviceConfig::default()),
+        }
     }
 
-    fn create_output_device(
-    ) -> Box<dyn crate::platform::traits::OutputDeviceTrait + Send + Sync> {
-        Box::new(SendInputDevice::new())
+    fn create_output_device() -> Self::OutputDevice {
+        SendInputDevice::new()
     }
 
-    fn create_window_manager() -> Box<dyn crate::platform::traits::WindowManagerTrait> {
-        Box::new(WindowManager::new())
+    fn create_window_manager() -> Self::WindowManager {
+        WindowManager::new()
     }
 
-    fn create_window_preset_manager(
-    ) -> Box<dyn crate::platform::traits::WindowPresetManagerTrait> {
-        Box::new(WindowPresetManager::new(WindowManager::new()))
+    fn create_window_preset_manager() -> Self::WindowPresetManager {
+        WindowPresetManager::new(WindowManager::new())
     }
 
-    fn create_notification_service(
-    ) -> Box<dyn crate::platform::traits::NotificationService> {
-        Box::new(MacosNotificationService::new())
+    fn create_notification_service() -> Self::NotificationService {
+        MacosNotificationService::new()
     }
 
-    fn create_launcher() -> Box<dyn crate::platform::traits::LauncherTrait> {
-        Box::new(Launcher::new())
+    fn create_launcher() -> Self::Launcher {
+        Launcher::new()
     }
 
     fn create_window_event_hook(
         sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
-    ) -> Box<dyn crate::platform::traits::WindowEventHookTrait> {
-        Box::new(WindowEventHook::new(sender))
+    ) -> Self::WindowEventHook {
+        WindowEventHook::new(sender)
     }
 }
 

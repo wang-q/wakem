@@ -363,9 +363,11 @@ pub trait WindowApiBase {
     }
 }
 
-/// Window manager trait - high-level window operations
-pub trait WindowManagerTrait: Send + Sync {
-    fn get_foreground_window(&self) -> Option<WindowId>;
+/// Basic window operations trait
+///
+/// Defines the fundamental window manipulation operations that work
+/// across all supported platforms.
+pub trait WindowOperations: Send + Sync {
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
     fn set_window_pos(
         &self,
@@ -379,13 +381,47 @@ pub trait WindowManagerTrait: Send + Sync {
     fn maximize_window(&self, window: WindowId) -> Result<()>;
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost(&self, window: WindowId) -> bool;
-    fn get_monitors(&self) -> Vec<MonitorInfo>;
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
+}
+
+/// Window state query operations
+///
+/// Provides methods to query the current state of windows.
+pub trait WindowStateQueries: Send + Sync {
     fn is_window_valid(&self, window: WindowId) -> bool;
     fn is_minimized(&self, window: WindowId) -> bool;
     fn is_maximized(&self, window: WindowId) -> bool;
+    fn is_topmost(&self, window: WindowId) -> bool;
+}
+
+/// Monitor operations trait
+///
+/// Defines operations related to display monitors.
+pub trait MonitorOperations: Send + Sync {
+    fn get_monitors(&self) -> Vec<MonitorInfo>;
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
+}
+
+/// Foreground window operations
+///
+/// Operations related to the currently focused/foreground window.
+pub trait ForegroundWindowOperations: Send + Sync {
+    fn get_foreground_window(&self) -> Option<WindowId>;
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
+}
+
+/// Window manager trait - combines all window-related operations
+///
+/// This is a composite trait that combines all window management
+/// capabilities. Implementors should implement the component traits
+/// and this trait will be automatically satisfied.
+pub trait WindowManagerTrait:
+    WindowOperations
+    + WindowStateQueries
+    + MonitorOperations
+    + ForegroundWindowOperations
+    + Send
+    + Sync
+{
 }
 
 fn find_monitor_for_point(
@@ -399,7 +435,20 @@ fn find_monitor_for_point(
         .or_else(|| monitors.first())
 }
 
-pub trait WindowManagerExt: WindowManagerTrait {
+/// Extension trait providing high-level window management operations
+///
+/// These methods combine basic operations to provide convenient
+/// high-level functionality like centering windows, moving to edges,
+/// and resizing with alignment.
+pub trait WindowManagerExt: WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations {
+    /// Get information about the currently focused window
+    fn get_foreground_window_info(&self) -> Result<WindowInfo> {
+        let window = self.get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window found"))?;
+        self.get_window_info(window)
+    }
+
+    /// Move window to center of its current monitor
     fn move_to_center(&self, window: WindowId) -> Result<()> {
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
@@ -410,6 +459,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
         self.set_window_pos(window, new_x, new_y, info.width, info.height)
     }
 
+    /// Move window to edge of its current monitor
     fn move_to_edge(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
@@ -428,6 +478,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
         self.set_window_pos(window, new_x, new_y, info.width, info.height)
     }
 
+    /// Resize window to half screen on specified edge
     fn set_half_screen(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
@@ -452,6 +503,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
         self.set_window_pos(window, new_x, new_y, new_width, new_height)
     }
 
+    /// Cycle window width through predefined ratios
     fn loop_width(
         &self,
         window: WindowId,
@@ -479,6 +531,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
         self.set_window_pos(window, new_x, info.y, new_width, info.height)
     }
 
+    /// Cycle window height through predefined ratios
     fn loop_height(
         &self,
         window: WindowId,
@@ -506,6 +559,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
         self.set_window_pos(window, info.x, new_y, info.width, new_height)
     }
 
+    /// Set window to fixed aspect ratio with scaling
     fn set_fixed_ratio(&self, window: WindowId, ratio: f32) -> Result<()> {
         const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
         let info = self.get_window_info(window)?;
@@ -532,6 +586,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
         self.set_window_pos(window, new_x, new_y, new_width, new_height)
     }
 
+    /// Set window to native monitor aspect ratio
     fn set_native_ratio(&self, window: WindowId) -> Result<()> {
         let monitors = self.get_monitors();
         let info = self.get_window_info(window)?;
@@ -541,6 +596,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
         self.set_fixed_ratio(window, ratio)
     }
 
+    /// Toggle window topmost state
     fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
         let current = self.is_topmost(window);
         let new_state = !current;
@@ -549,7 +605,7 @@ pub trait WindowManagerExt: WindowManagerTrait {
     }
 }
 
-impl<T: ?Sized + WindowManagerTrait> WindowManagerExt for T {}
+impl<T: ?Sized + WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations> WindowManagerExt for T {}
 
 /// Platform utility functions trait
 ///
@@ -561,11 +617,11 @@ pub trait PlatformUtilities {
 
     /// Get process name by PID
     #[allow(dead_code)]
-    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String>;
+    fn get_process_name_by_pid(pid: u32) -> Result<String>;
 
     /// Get executable path by PID
     #[allow(dead_code)]
-    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String>;
+    fn get_executable_path_by_pid(pid: u32) -> Result<String>;
 }
 
 /// Trait for providing current window context information
@@ -673,25 +729,36 @@ pub trait ApplicationControl {
 ///
 /// Centralizes all platform-specific object creation so that
 /// non-platform code never needs conditional compilation.
+///
+/// Associated types allow compile-time type safety while maintaining
+/// platform abstraction.
 pub trait PlatformFactory {
+    type InputDevice: InputDeviceTrait;
+    type OutputDevice: OutputDeviceTrait + Send + Sync;
+    type WindowManager: WindowManagerTrait;
+    type WindowPresetManager: WindowPresetManagerTrait;
+    type NotificationService: NotificationService;
+    type Launcher: LauncherTrait;
+    type WindowEventHook: WindowEventHookTrait;
+
     fn create_input_device(
         config: InputDeviceConfig,
         sender: Option<std::sync::mpsc::Sender<InputEvent>>,
-    ) -> Result<Box<dyn InputDeviceTrait>>;
+    ) -> Result<Self::InputDevice>;
 
-    fn create_output_device() -> Box<dyn OutputDeviceTrait + Send + Sync>;
+    fn create_output_device() -> Self::OutputDevice;
 
-    fn create_window_manager() -> Box<dyn WindowManagerTrait>;
+    fn create_window_manager() -> Self::WindowManager;
 
-    fn create_window_preset_manager() -> Box<dyn WindowPresetManagerTrait>;
+    fn create_window_preset_manager() -> Self::WindowPresetManager;
 
-    fn create_notification_service() -> Box<dyn NotificationService>;
+    fn create_notification_service() -> Self::NotificationService;
 
-    fn create_launcher() -> Box<dyn LauncherTrait>;
+    fn create_launcher() -> Self::Launcher;
 
     fn create_window_event_hook(
         sender: std::sync::mpsc::Sender<PlatformWindowEvent>,
-    ) -> Box<dyn WindowEventHookTrait>;
+    ) -> Self::WindowEventHook;
 }
 
 /// Window context information (for context-aware mappings)
