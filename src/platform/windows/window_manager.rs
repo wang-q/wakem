@@ -20,6 +20,20 @@ use crate::platform::traits::{
 };
 pub use crate::platform::window_manager_common::WindowManager;
 
+// Re-export window preset manager for Windows
+use crate::platform::window_preset_common::WindowPresetManager as CommonWindowPresetManager;
+
+/// Window preset manager type for Windows platform
+pub type WindowPresetManager = CommonWindowPresetManager<
+    WindowManager<crate::platform::windows::window_api::RealWindowApi>,
+>;
+
+impl Default for WindowPresetManager {
+    fn default() -> Self {
+        Self::new(WindowManager::new())
+    }
+}
+
 /// Type alias for window manager using real Windows API
 pub type RealWindowManager = WindowManager<RealWindowApi>;
 

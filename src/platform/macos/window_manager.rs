@@ -27,6 +27,18 @@ impl Default for RealWindowManager {
     }
 }
 
+// Re-export window preset manager for macOS
+use crate::platform::window_preset_common::WindowPresetManager as CommonWindowPresetManager;
+
+/// Window preset manager type for macOS platform
+pub type WindowPresetManager = CommonWindowPresetManager<WindowManager<RealWindowApi>>;
+
+impl Default for WindowPresetManager {
+    fn default() -> Self {
+        Self::new(WindowManager::new())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::window_api::MockWindowApi;
