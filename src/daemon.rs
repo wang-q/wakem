@@ -314,46 +314,29 @@ impl ServerState {
     /// - Batch read related states
     #[tracing::instrument(skip(self, event), fields(event_type = %event.event_type_name()))]
     pub async fn process_input_event(&self, event: InputEvent) {
-        // Fast path: check if enabled (lightest lock)
         if !self.active.load(Ordering::Acquire) {
             return;
         }
 
-        // If injected event, ignore (to avoid loops)
         if event.is_injected() {
             return;
         }
 
-        // If recording macro, record event (read operation, quick release lock)
         if self.macro_recorder.is_recording().await {
             self.macro_recorder.record_event(&event).await;
         }
 
-        // Process wheel enhancement (read-only config, no state modification)
-        if let InputEvent::Mouse(mouse_event) = &event {
-            if let crate::types::MouseEventType::Wheel(delta) = mouse_event.event_type {
-                debug!(wheel_delta = delta, "Processing wheel enhancement");
-                if let Some(action) = self.process_wheel_enhancement(delta).await {
-                    if let Err(e) = self.execute_action(action).await {
-                        error!(
-                            error = %e,
-                            wheel_delta = delta,
-                            "Failed to execute wheel action"
-                        );
-                    }
-                    return;
-                }
+        if let Some(action) = self.process_wheel_event(&event).await {
+            if let Err(e) = self.execute_action(action).await {
+                error!(error = %e, "Failed to execute wheel action");
             }
+            return;
         }
 
-        // Check if this is CapsLock (Hyper key) and update virtual modifiers directly
-        // This must happen before merge_virtual_modifiers
         let _is_hyper_key = self.check_and_update_hyper_key(&event).await;
 
-        // Merge virtual modifiers into the event for Hyper key support
         let event = self.merge_virtual_modifiers(event).await;
 
-        // Log key event details for debugging
         if let InputEvent::Key(ref key_event) = event {
             debug!(
                 scan_code = key_event.scan_code,
@@ -364,22 +347,10 @@ impl ServerState {
             );
         }
 
-        // Filter out key release events for non-hyper keys
-        // This replaces the old RI_KEY_BREAK filter in input.rs which dropped ALL key-up events.
-        // We need hyper-key releases to pass through (to clear virtual_modifiers),
-        // but must block other releases to prevent double-triggering of shortcut actions.
-        if let InputEvent::Key(ref key_event) = event {
-            if key_event.state == KeyState::Released {
-                let hyper_map = self.hyper_key_map.read().await;
-                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
-                {
-                    debug!("Filtered non-hyper key release event");
-                    return;
-                }
-            }
+        if self.should_filter_key_release(&event).await {
+            return;
         }
 
-        // First try to process through layer manager (optimization: reduce write lock hold time)
         let (handled, action) = {
             let mut layer_manager = self.layer_manager.write().await;
             layer_manager.process_event(&event)
@@ -396,7 +367,6 @@ impl ServerState {
             return;
         }
 
-        // Layer manager didn't handle, use base mapping engine (with context awareness) - use read lock
         let action = {
             let mapper = self.mapper.read().await;
             let context: Option<crate::platform::traits::WindowContext> =
@@ -406,7 +376,6 @@ impl ServerState {
 
         debug!(action = ?action, "Mapper processing result");
 
-        // Execute action (outside lock to avoid long lock hold)
         if let Some(action) = action {
             if let Err(e) = self.execute_action(action).await {
                 error!("Failed to execute action: {}", e);
@@ -414,6 +383,36 @@ impl ServerState {
         } else {
             debug!("No action found for event");
         }
+    }
+
+    /// Process wheel enhancement for mouse wheel events.
+    /// Returns Some(action) if a wheel event was enhanced, None otherwise.
+    async fn process_wheel_event(&self, event: &InputEvent) -> Option<Action> {
+        if let InputEvent::Mouse(mouse_event) = event {
+            if let crate::types::MouseEventType::Wheel(delta) = mouse_event.event_type {
+                debug!(wheel_delta = delta, "Processing wheel enhancement");
+                return self.process_wheel_enhancement(delta).await;
+            }
+        }
+        None
+    }
+
+    /// Check if a key release event should be filtered out.
+    ///
+    /// Hyper key releases must pass through (to clear virtual_modifiers),
+    /// but other releases are blocked to prevent double-triggering of
+    /// shortcut actions.
+    async fn should_filter_key_release(&self, event: &InputEvent) -> bool {
+        if let InputEvent::Key(key_event) = event {
+            if key_event.state == KeyState::Released {
+                let hyper_map = self.hyper_key_map.read().await;
+                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key)) {
+                    debug!("Filtered non-hyper key release event");
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// Check if this is a hyper key and update virtual modifiers
@@ -600,59 +599,8 @@ impl ServerState {
     ///
     /// Note: Nested sequences are flattened iteratively to prevent stack overflow
     async fn execute_action_sequence_optimized(&self, actions: &[Action]) -> Result<()> {
-        // Flatten nested sequences iteratively to prevent stack overflow
-        let flattened = self.flatten_action_sequence(actions)?;
+        let flattened = flatten_action_sequence(actions)?;
         self.execute_flattened_sequence(&flattened).await
-    }
-
-    /// Flatten nested action sequences recursively
-    /// Preserves the correct order of actions when Sequence and non-Sequence
-    /// elements are interleaved (e.g., [A, Sequence([B, C]), D] -> [A, B, C, D]).
-    fn flatten_action_sequence(&self, actions: &[Action]) -> Result<Vec<Action>> {
-        const MAX_SEQUENCE_DEPTH: usize = 10;
-        const MAX_TOTAL_ACTIONS: usize = 1000;
-
-        let mut result = Vec::new();
-        let mut total = 0usize;
-        self.flatten_recursive(actions, 0, &mut result, &mut total, MAX_SEQUENCE_DEPTH, MAX_TOTAL_ACTIONS)?;
-        Ok(result)
-    }
-
-    fn flatten_recursive(
-        &self,
-        actions: &[Action],
-        depth: usize,
-        result: &mut Vec<Action>,
-        total: &mut usize,
-        max_depth: usize,
-        max_total: usize,
-    ) -> Result<()> {
-        if depth > max_depth {
-            return Err(anyhow::anyhow!(
-                "Action sequence nesting exceeds maximum depth of {}",
-                max_depth
-            ));
-        }
-
-        for action in actions {
-            match action {
-                Action::Sequence(nested) => {
-                    self.flatten_recursive(nested, depth + 1, result, total, max_depth, max_total)?;
-                }
-                other => {
-                    *total += 1;
-                    if *total > max_total {
-                        return Err(anyhow::anyhow!(
-                            "Action sequence exceeds maximum total actions of {}",
-                            max_total
-                        ));
-                    }
-                    result.push(other.clone());
-                }
-            }
-        }
-
-        Ok(())
     }
 
     /// Execute a flattened sequence of actions
@@ -761,23 +709,26 @@ impl ServerState {
 
     /// Save macro to config
     ///
-    /// Both insertion and file save are performed within a single write lock
-    /// to prevent TOCTOU race conditions where another task could modify
-    /// the config between insertion and save.
+    /// In-memory state is updated under the write lock, then the lock is
+    /// released before performing file I/O. The file save acquires a read
+    /// lock so that other read operations are not blocked during the
+    /// (potentially slow) disk write.
     async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
-        let mut config_state = self.config.write().await;
-        config_state
-            .config
-            .macros
-            .insert(macro_def.name.clone(), macro_def.steps.clone());
-
-        let config_path = crate::config::resolve_config_file_path(
-            None,
-            config_state.config.network.instance_id,
-        );
+        let config_path = {
+            let mut config_state = self.config.write().await;
+            config_state
+                .config
+                .macros
+                .insert(macro_def.name.clone(), macro_def.steps.clone());
+            crate::config::resolve_config_file_path(
+                None,
+                config_state.config.network.instance_id,
+            )
+        };
 
         if let Some(config_path) = config_path {
-            if let Err(e) = config_state.config.save_to_file(&config_path) {
+            let config = self.config.read().await;
+            if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -824,45 +775,34 @@ impl ServerState {
         let output_device = self.output_device.lock().await;
         let output_ref: &(dyn OutputDeviceTrait + Send + Sync) = output_device.as_ref();
 
-        match (needs_wm, needs_launcher) {
-            (false, false) => {
-                MacroPlayer::play_macro(output_ref, &macro_def, None, None).await?;
-            }
-            (true, false) => {
-                let window_manager = self.mapper.read().await;
-                let wm_ref: Option<&(dyn WindowManagerTrait + Send + Sync)> = window_manager
-                    .window_manager
+        if !needs_wm && !needs_launcher {
+            MacroPlayer::play_macro(output_ref, &macro_def, None, None).await?;
+        } else {
+            let window_manager_guard = if needs_wm {
+                Some(self.mapper.read().await)
+            } else {
+                None
+            };
+            let launcher_guard = if needs_launcher {
+                Some(self.launcher.lock().await)
+            } else {
+                None
+            };
+
+            let wm_ref = window_manager_guard.as_ref().and_then(|wm| {
+                wm.window_manager
                     .as_ref()
-                    .map(|wm| wm.as_ref() as &(dyn WindowManagerTrait + Send + Sync));
-                let context = MacroContext {
-                    window_manager: wm_ref,
-                    launcher: None,
-                };
-                MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
-            }
-            (false, true) => {
-                let launcher = self.launcher.lock().await;
-                let launcher_ref: &(dyn LauncherTrait + Send + Sync) = launcher.as_ref();
-                let context = MacroContext {
-                    window_manager: None,
-                    launcher: Some(launcher_ref),
-                };
-                MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
-            }
-            (true, true) => {
-                let window_manager = self.mapper.read().await;
-                let launcher = self.launcher.lock().await;
-                let wm_ref: Option<&(dyn WindowManagerTrait + Send + Sync)> = window_manager
-                    .window_manager
-                    .as_ref()
-                    .map(|wm| wm.as_ref() as &(dyn WindowManagerTrait + Send + Sync));
-                let launcher_ref: &(dyn LauncherTrait + Send + Sync) = launcher.as_ref();
-                let context = MacroContext {
-                    window_manager: wm_ref,
-                    launcher: Some(launcher_ref),
-                };
-                MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
-            }
+                    .map(|w| w.as_ref() as &(dyn WindowManagerTrait + Send + Sync))
+            });
+            let launcher_ref = launcher_guard
+                .as_ref()
+                .map(|l| l.as_ref() as &(dyn LauncherTrait + Send + Sync));
+
+            let context = MacroContext {
+                window_manager: wm_ref,
+                launcher: launcher_ref,
+            };
+            MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
         }
 
         let _ = self
@@ -882,19 +822,24 @@ impl ServerState {
     }
 
     /// Delete macro
+    ///
+    /// In-memory state is updated under the write lock, then the lock is
+    /// released before performing file I/O (see `save_macro` for rationale).
     pub async fn delete_macro(&self, name: &str) -> Result<()> {
-        let mut config = self.config.write().await;
-        if config.config.macros.remove(name).is_none() {
-            return Err(anyhow::anyhow!("Macro '{}' not found", name));
-        }
+        let config_path = {
+            let mut config = self.config.write().await;
+            if config.config.macros.shift_remove(name).is_none() {
+                return Err(anyhow::anyhow!("Macro '{}' not found", name));
+            }
+            config.config.macro_bindings.retain(|_, v| v != name);
+            crate::config::resolve_config_file_path(
+                None,
+                config.config.network.instance_id,
+            )
+        };
 
-        // Also remove bindings
-        config.config.macro_bindings.retain(|_, v| v != name);
-
-        if let Some(config_path) = crate::config::resolve_config_file_path(
-            None,
-            config.config.network.instance_id,
-        ) {
+        if let Some(config_path) = config_path {
+            let config = self.config.read().await;
             if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
@@ -905,22 +850,29 @@ impl ServerState {
     }
 
     /// Bind macro to trigger key
+    ///
+    /// In-memory state is updated under the write lock, then the lock is
+    /// released before performing file I/O (see `save_macro` for rationale).
     pub async fn bind_macro(&self, macro_name: &str, trigger: &str) -> Result<()> {
-        let mut config = self.config.write().await;
+        let config_path = {
+            let mut config = self.config.write().await;
 
-        if !config.config.macros.contains_key(macro_name) {
-            return Err(anyhow::anyhow!("Macro '{}' not found", macro_name));
-        }
+            if !config.config.macros.contains_key(macro_name) {
+                return Err(anyhow::anyhow!("Macro '{}' not found", macro_name));
+            }
 
-        config
-            .config
-            .macro_bindings
-            .insert(trigger.to_string(), macro_name.to_string());
+            config
+                .config
+                .macro_bindings
+                .insert(trigger.to_string(), macro_name.to_string());
+            crate::config::resolve_config_file_path(
+                None,
+                config.config.network.instance_id,
+            )
+        };
 
-        if let Some(config_path) = crate::config::resolve_config_file_path(
-            None,
-            config.config.network.instance_id,
-        ) {
+        if let Some(config_path) = config_path {
+            let config = self.config.read().await;
             if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
@@ -972,6 +924,56 @@ fn action_needs_window_manager(steps: &[crate::types::MacroStep]) -> bool {
 /// Check if any macro step requires launcher (recursively checks Sequence actions)
 fn action_needs_launcher(steps: &[crate::types::MacroStep]) -> bool {
     steps.iter().any(|s| action_contains_launch(&s.action))
+}
+
+/// Flatten nested action sequences recursively.
+///
+/// Preserves the correct order of actions when Sequence and non-Sequence
+/// elements are interleaved (e.g., [A, Sequence([B, C]), D] -> [A, B, C, D]).
+fn flatten_action_sequence(actions: &[Action]) -> Result<Vec<Action>> {
+    const MAX_SEQUENCE_DEPTH: usize = 10;
+    const MAX_TOTAL_ACTIONS: usize = 1000;
+
+    let mut result = Vec::new();
+    let mut total = 0usize;
+    flatten_recursive(actions, 0, &mut result, &mut total, MAX_SEQUENCE_DEPTH, MAX_TOTAL_ACTIONS)?;
+    Ok(result)
+}
+
+fn flatten_recursive(
+    actions: &[Action],
+    depth: usize,
+    result: &mut Vec<Action>,
+    total: &mut usize,
+    max_depth: usize,
+    max_total: usize,
+) -> Result<()> {
+    if depth > max_depth {
+        return Err(anyhow::anyhow!(
+            "Action sequence nesting exceeds maximum depth of {}",
+            max_depth
+        ));
+    }
+
+    for action in actions {
+        match action {
+            Action::Sequence(nested) => {
+                flatten_recursive(nested, depth + 1, result, total, max_depth, max_total)?;
+            }
+            other => {
+                *total += 1;
+                if *total > max_total {
+                    return Err(anyhow::anyhow!(
+                        "Action sequence exceeds maximum total actions of {}",
+                        max_total
+                    ));
+                }
+                result.push(other.clone());
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn action_contains_window(action: &Action) -> bool {
@@ -1158,7 +1160,7 @@ fn run_input_bridge(
             let _ = raw_input_handle.join();
             break;
         }
-        match std_rx.try_recv() {
+        match std_rx.recv_timeout(std::time::Duration::from_millis(100)) {
             Ok(event) => {
                 if tx.blocking_send(event).is_err() {
                     raw_shutdown_for_bridge.store(true, Ordering::SeqCst);
@@ -1166,10 +1168,8 @@ fn run_input_bridge(
                     break;
                 }
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 raw_shutdown_for_bridge.store(true, Ordering::SeqCst);
                 let _ = raw_input_handle.join();
                 break;
@@ -1322,7 +1322,9 @@ fn run_window_event_bridge(
             break;
         }
         match std_rx.try_recv() {
-            Ok(_) => {}
+            Ok(event) => {
+                debug!(?event, "Window event received (not yet forwarded)");
+            }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
@@ -1709,19 +1711,17 @@ mod tests {
 
     #[test]
     fn test_flatten_action_sequence_simple() {
-        let state = ServerState::new(ShutdownSignal::new());
         let actions = vec![
             Action::Key(KeyAction::click(0x1E, 0x41)),
             Action::Delay { milliseconds: 100 },
             Action::None,
         ];
-        let result = state.flatten_action_sequence(&actions).unwrap();
+        let result = flatten_action_sequence(&actions).unwrap();
         assert_eq!(result.len(), 3);
     }
 
     #[test]
     fn test_flatten_action_sequence_nested() {
-        let state = ServerState::new(ShutdownSignal::new());
         let inner = vec![
             Action::Key(KeyAction::click(0x1F, 0x42)),
             Action::Key(KeyAction::click(0x20, 0x43)),
@@ -1731,7 +1731,7 @@ mod tests {
             Action::Sequence(inner),
             Action::None,
         ];
-        let result = state.flatten_action_sequence(&actions).unwrap();
+        let result = flatten_action_sequence(&actions).unwrap();
         assert_eq!(result.len(), 4);
         assert!(matches!(&result[0], Action::Key(KeyAction::Click { virtual_key: 0x41, .. })));
         assert!(matches!(&result[1], Action::Key(KeyAction::Click { virtual_key: 0x42, .. })));
@@ -1741,7 +1741,6 @@ mod tests {
 
     #[test]
     fn test_flatten_action_sequence_order_preserved() {
-        let state = ServerState::new(ShutdownSignal::new());
         let inner = vec![
             Action::Key(KeyAction::click(0x1F, 0x42)),
             Action::Key(KeyAction::click(0x20, 0x43)),
@@ -1751,7 +1750,7 @@ mod tests {
             Action::Sequence(inner),
             Action::Key(KeyAction::click(0x21, 0x44)),
         ];
-        let result = state.flatten_action_sequence(&actions).unwrap();
+        let result = flatten_action_sequence(&actions).unwrap();
         assert_eq!(result.len(), 4);
         let vk_codes: Vec<u16> = result
             .iter()
@@ -1767,35 +1766,32 @@ mod tests {
 
     #[test]
     fn test_flatten_action_sequence_deeply_nested() {
-        let state = ServerState::new(ShutdownSignal::new());
         let level3 = vec![Action::Key(KeyAction::click(0x1E, 0x41))];
         let level2 = vec![Action::Sequence(level3)];
         let level1 = vec![Action::Sequence(level2)];
         let actions = vec![Action::Sequence(level1)];
-        let result = state.flatten_action_sequence(&actions).unwrap();
+        let result = flatten_action_sequence(&actions).unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[test]
     fn test_flatten_action_sequence_depth_exceeded() {
-        let state = ServerState::new(ShutdownSignal::new());
         let mut actions = vec![Action::Key(KeyAction::click(0x1E, 0x41))];
         for _ in 0..12 {
             let inner = actions.clone();
             actions = vec![Action::Sequence(inner)];
         }
-        let result = state.flatten_action_sequence(&actions);
+        let result = flatten_action_sequence(&actions);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("maximum depth"));
     }
 
     #[test]
     fn test_flatten_action_sequence_total_actions_exceeded() {
-        let state = ServerState::new(ShutdownSignal::new());
         let actions: Vec<Action> = (0..1001)
             .map(|_| Action::Key(KeyAction::click(0x1E, 0x41)))
             .collect();
-        let result = state.flatten_action_sequence(&actions);
+        let result = flatten_action_sequence(&actions);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -1805,17 +1801,15 @@ mod tests {
 
     #[test]
     fn test_flatten_action_sequence_empty() {
-        let state = ServerState::new(ShutdownSignal::new());
         let actions: Vec<Action> = vec![];
-        let result = state.flatten_action_sequence(&actions).unwrap();
+        let result = flatten_action_sequence(&actions).unwrap();
         assert!(result.is_empty());
     }
 
     #[test]
     fn test_flatten_action_sequence_empty_nested() {
-        let state = ServerState::new(ShutdownSignal::new());
         let actions = vec![Action::Sequence(vec![]), Action::None];
-        let result = state.flatten_action_sequence(&actions).unwrap();
+        let result = flatten_action_sequence(&actions).unwrap();
         assert_eq!(result.len(), 1);
     }
 

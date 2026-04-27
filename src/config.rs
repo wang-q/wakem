@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
@@ -38,16 +39,16 @@ pub struct Config {
     pub mouse: MouseConfig,
     /// Launch settings
     #[serde(default)]
-    pub launch: HashMap<String, String>,
+    pub launch: IndexMap<String, String>,
     /// Network communication settings
     #[serde(default)]
     pub network: NetworkConfig,
     /// Macro definitions: macro_name -> [MacroStep, ...]
     #[serde(default)]
-    pub macros: HashMap<String, Vec<MacroStep>>,
+    pub macros: IndexMap<String, Vec<MacroStep>>,
     /// Macro trigger key mappings: trigger -> macro_name
     #[serde(default)]
-    pub macro_bindings: HashMap<String, String>,
+    pub macro_bindings: IndexMap<String, String>,
 }
 
 impl Default for Config {
@@ -60,10 +61,10 @@ impl Default for Config {
             keyboard: KeyboardConfig::default(),
             window: WindowConfig::default(),
             mouse: MouseConfig::default(),
-            launch: HashMap::new(),
+            launch: IndexMap::new(),
             network: NetworkConfig::default(),
-            macros: HashMap::new(),
-            macro_bindings: HashMap::new(),
+            macros: IndexMap::new(),
+            macro_bindings: IndexMap::new(),
         }
     }
 }
@@ -384,7 +385,7 @@ impl Config {
     pub fn get_hyper_key_mappings(
         &self,
     ) -> std::collections::HashMap<(u16, u16), crate::types::ModifierState> {
-        let mut map = HashMap::new();
+        let mut map = std::collections::HashMap::new();
         for (key_str, target_str) in &self.keyboard.remap {
             if let Ok((sc, vk)) = parse_key(key_str) {
                 if let Ok(modifiers) = parse_modifier_combo(target_str) {
@@ -463,10 +464,10 @@ fn default_true() -> bool {
 pub struct KeyboardConfig {
     /// Key remapping (simple mapping)
     #[serde(default)]
-    pub remap: HashMap<String, String>,
+    pub remap: IndexMap<String, String>,
     /// Shortcut layers
     #[serde(default)]
-    pub layers: HashMap<String, LayerConfig>,
+    pub layers: IndexMap<String, LayerConfig>,
     /// Context-aware mappings
     #[serde(default)]
     pub context_mappings: Vec<ContextMapping>,
@@ -478,7 +479,7 @@ pub struct LayerConfig {
     /// Layer activation key
     pub activation_key: String,
     /// Mappings within layer
-    pub mappings: HashMap<String, String>,
+    pub mappings: IndexMap<String, String>,
     /// Layer activation mode
     #[serde(default)]
     pub mode: LayerMode,
@@ -499,7 +500,7 @@ pub struct ContextMapping {
     /// Context condition
     pub context: ContextCondition,
     /// Mapping rules under this context
-    pub mappings: HashMap<String, String>,
+    pub mappings: IndexMap<String, String>,
 }
 
 /// Network communication configuration
@@ -549,10 +550,10 @@ pub struct WindowConfig {
     pub switch: WindowSwitchConfig,
     /// Window position presets (deprecated, kept for backward compatibility)
     #[serde(default)]
-    pub positions: HashMap<String, WindowPosition>,
+    pub positions: IndexMap<String, WindowPosition>,
     /// Window management shortcuts (inspired by mrw)
     #[serde(default)]
-    pub shortcuts: HashMap<String, String>,
+    pub shortcuts: IndexMap<String, String>,
     /// Window preset list
     #[serde(default)]
     pub presets: Vec<WindowPreset>,
@@ -610,7 +611,7 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
 pub struct MouseConfig {
     /// Button remapping
     #[serde(default)]
-    pub button_remap: HashMap<String, String>,
+    pub button_remap: IndexMap<String, String>,
     /// Wheel settings
     #[serde(default)]
     pub wheel: WheelConfig,
@@ -758,7 +759,7 @@ fn create_hyper_key_action(
     }
 
     let mut all_actions = press_actions;
-    all_actions.push(Action::Delay { milliseconds: 10 });
+    all_actions.push(Action::Delay { milliseconds: crate::constants::HYPER_KEY_INJECTION_DELAY_MS });
     all_actions.push(Action::None);
     all_actions.extend(release_actions);
 
@@ -1142,17 +1143,9 @@ pub fn invalidate_config_path_cache(instance_id: u32) {
 fn parse_launch_mapping(trigger: &str, command: &str) -> anyhow::Result<MappingRule> {
     use crate::types::Action;
 
-    // Parse trigger shortcut (supports modifiers like "Ctrl+Alt+Meta+T")
     let trigger_obj = parse_shortcut_trigger(trigger)?;
 
-    // Parse launch command
-    let action = if command.contains(' ') {
-        // Use Launcher::parse_command to parse commands with arguments
-        Action::Launch(Launcher::parse_command(command))
-    } else {
-        // Simple command
-        Action::launch(command)
-    };
+    let action = Action::Launch(Launcher::parse_command(command));
 
     Ok(MappingRule::new(trigger_obj, action))
 }

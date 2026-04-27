@@ -75,6 +75,9 @@ pub const DEFAULT_ACCELERATION_MULTIPLIER: f32 = 2.0;
 /// Default wheel step value
 pub const DEFAULT_WHEEL_STEP: i32 = 1;
 
+/// Delay between hyper key press and modifier injection (milliseconds)
+pub const HYPER_KEY_INJECTION_DELAY_MS: u64 = 10;
+
 // ==================== Retry and Timeout Constants ====================
 
 /// Default retry delay for reconnection attempts (milliseconds)

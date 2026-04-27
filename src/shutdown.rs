@@ -1,5 +1,5 @@
 use tokio::sync::watch;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, warn};
 
 /// Graceful shutdown signal
 ///
@@ -8,17 +8,23 @@ use tracing::{debug, info, trace};
 /// - Based on tokio::watch channel
 /// - Supports multiple receivers listening simultaneously
 /// - Thread-safe broadcast mechanism
+/// - Logs a warning if dropped without triggering shutdown
 #[derive(Clone)]
 pub struct ShutdownSignal {
     sender: watch::Sender<bool>,
     receiver: watch::Receiver<bool>,
+    shutdown_triggered: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl ShutdownSignal {
     /// Create new shutdown signal
     pub fn new() -> Self {
         let (sender, receiver) = watch::channel(false);
-        Self { sender, receiver }
+        Self {
+            sender,
+            receiver,
+            shutdown_triggered: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
     }
 
     /// Get new receiver (for passing to child tasks)
@@ -30,6 +36,7 @@ impl ShutdownSignal {
     ///
     /// This is a synchronous operation since `watch::Sender::send` is non-blocking.
     pub fn shutdown(&self) {
+        self.shutdown_triggered.store(true, std::sync::atomic::Ordering::Release);
         info!("Initiating graceful shutdown...");
         if self.sender.send(true).is_ok() {
             debug!("Shutdown signal sent to all subscribers");
@@ -42,6 +49,14 @@ impl ShutdownSignal {
 impl Default for ShutdownSignal {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for ShutdownSignal {
+    fn drop(&mut self) {
+        if !self.shutdown_triggered.load(std::sync::atomic::Ordering::Acquire) {
+            warn!("ShutdownSignal dropped without triggering shutdown");
+        }
     }
 }
 

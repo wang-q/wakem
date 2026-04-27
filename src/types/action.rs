@@ -195,6 +195,7 @@ impl Action {
     }
 
     /// Create launch program action
+    #[allow(dead_code)]
     pub fn launch(program: impl Into<String>) -> Self {
         Self::Launch(LaunchAction {
             program: program.into(),

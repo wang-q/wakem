@@ -224,11 +224,14 @@ async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u3
 
     let mut client = DaemonClient::new();
     let max_retries = MAX_RECONNECT_RETRIES;
-    let retry_delay = tokio::time::Duration::from_millis(DEFAULT_RETRY_DELAY_MS);
+    let base_delay = tokio::time::Duration::from_millis(DEFAULT_RETRY_DELAY_MS);
+    let max_delay = tokio::time::Duration::from_secs(8);
 
     for attempt in 1..=max_retries {
         if attempt > 1 {
-            tokio::time::sleep(retry_delay).await;
+            let delay = base_delay * 2u32.pow(attempt - 2);
+            let delay = delay.min(max_delay);
+            tokio::time::sleep(delay).await;
         }
         match client.connect_to_instance(instance_id).await {
             Ok(_) => {
