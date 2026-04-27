@@ -61,13 +61,6 @@ fn test_empty_macro_operations() {
     assert_eq!(macro_def.steps.len(), 0);
 }
 
-/// Test Action::None behavior
-#[test]
-fn test_action_none_behavior() {
-    let action = Action::None;
-    assert!(action.is_none());
-}
-
 /// Test nested action sequences
 #[test]
 fn test_nested_action_sequences() {
@@ -95,21 +88,6 @@ fn test_extreme_delay_values() {
     if let Action::Delay { milliseconds } = max_delay {
         assert_eq!(milliseconds, 3600000);
     }
-}
-
-/// Test all modifier combinations
-#[test]
-fn test_all_modifier_combinations() {
-    let mut modifiers = ModifierState::default();
-    assert!(modifiers.is_empty());
-
-    modifiers.shift = true;
-    assert!(!modifiers.is_empty());
-
-    modifiers.ctrl = true;
-    modifiers.alt = true;
-    modifiers.meta = true;
-    assert!(modifiers.shift && modifiers.ctrl && modifiers.alt && modifiers.meta);
 }
 
 /// Test config extreme values

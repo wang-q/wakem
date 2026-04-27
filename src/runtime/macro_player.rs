@@ -622,19 +622,6 @@ mod tests {
     }
 
     #[test]
-    fn test_modifier_state_merge_alt() {
-        let mut state1 = ModifierState::new();
-        state1.ctrl = true;
-        let mut state2 = ModifierState::new();
-        state2.shift = true;
-
-        state1.merge(&state2);
-
-        assert!(state1.ctrl);
-        assert!(state1.shift);
-    }
-
-    #[test]
     fn test_trigger_matching_alt() {
         let trigger = Trigger::key(0x1E, 0x41);
 
@@ -730,17 +717,6 @@ mod tests {
     }
 
     #[test]
-    fn test_context_condition_alt() {
-        let context = ContextCondition::new()
-            .with_process_name("notepad.exe")
-            .with_window_class("NotepadClass");
-
-        assert!(context.process_name.is_some());
-        assert_eq!(context.process_name.unwrap(), "notepad.exe");
-        assert!(context.window_class.is_some());
-    }
-
-    #[test]
     fn test_mapping_rule_enabled() {
         let rule = MappingRule::new(
             Trigger::key(0x1E, 0x41),
@@ -777,13 +753,6 @@ mod tests {
     }
 
     #[test]
-    fn test_action_none() {
-        let none = Action::None;
-        assert!(none.is_none());
-        assert!(matches!(none, Action::None));
-    }
-
-    #[test]
     fn test_key_state_variants() {
         let pressed = KeyState::Pressed;
         assert!(matches!(pressed, KeyState::Pressed));
@@ -801,29 +770,4 @@ mod tests {
         assert!(matches!(MouseButton::X2, MouseButton::X2));
     }
 
-    #[test]
-    fn test_modifier_from_virtual_key_alt() {
-        // VK_SHIFT = 0x10
-        let (state, pressed) = ModifierState::from_virtual_key(0x10, true).unwrap();
-        assert!(state.shift);
-        assert!(pressed);
-
-        // VK_CONTROL = 0x11
-        let (state, pressed) = ModifierState::from_virtual_key(0x11, true).unwrap();
-        assert!(state.ctrl);
-        assert!(pressed);
-
-        // VK_MENU = 0x12 (Alt)
-        let (state, pressed) = ModifierState::from_virtual_key(0x12, true).unwrap();
-        assert!(state.alt);
-        assert!(pressed);
-
-        // VK_LWIN = 0x5B (Meta)
-        let (state, pressed) = ModifierState::from_virtual_key(0x5B, true).unwrap();
-        assert!(state.meta);
-        assert!(pressed);
-
-        // Non-modifier key should return None
-        assert!(ModifierState::from_virtual_key(0x41, true).is_none());
-    }
 }

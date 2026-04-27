@@ -1,23 +1,45 @@
 use std::fmt;
 
+// ============================================================================
+// Virtual key code constants (Windows VK_* values)
+// These are used for cross-platform consistency
+// ============================================================================
+
+const VK_SHIFT: u16 = 0x10;
+const VK_LSHIFT: u16 = 0xA0;
+const VK_RSHIFT: u16 = 0xA1;
+const VK_CONTROL: u16 = 0x11;
+const VK_LCONTROL: u16 = 0xA2;
+const VK_RCONTROL: u16 = 0xA3;
+const VK_ALT: u16 = 0x12;
+const VK_LALT: u16 = 0xA4;
+const VK_RALT: u16 = 0xA5;
+const VK_LMETA: u16 = 0x5B;
+const VK_RMETA: u16 = 0x5C;
+
 /// Virtual key code (Windows VK_* identifier)
 ///
 /// Characteristics:
 /// - 0 means invalid/not specified
 /// - Non-zero values represent valid virtual key codes
 /// - Provides constant definitions for common keys
+///
+/// # Platform Compatibility
+///
+/// This module uses Windows virtual key codes as the internal representation
+/// for cross-platform consistency. Platform-specific code is responsible for
+/// converting native key codes to/from these Windows VK codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct VirtualKey(u16);
 
-// === Modifier Key Scan Codes ===
-
-/// Scan code for Ctrl key
+// Legacy constants for backward compatibility (Windows-specific)
+/// Scan code for Ctrl key (Windows)
 pub const SCAN_CODE_CTRL: u16 = 0x1D;
-/// Scan code for Shift key
+/// Scan code for Shift key (Windows)
 pub const SCAN_CODE_SHIFT: u16 = 0x2A;
-/// Scan code for Alt key
+/// Scan code for Alt key (Windows)
 pub const SCAN_CODE_ALT: u16 = 0x38;
-/// Scan code for Meta/Win key
+/// Scan code for Meta/Win key (Windows)
 pub const SCAN_CODE_META: u16 = 0x5B;
 
 impl VirtualKey {
@@ -43,20 +65,20 @@ impl VirtualKey {
     pub fn is_modifier(&self) -> bool {
         matches!(
             self.0,
-            0x10 | 0xA0 | 0xA1 | // Shift
-            0x11 | 0xA2 | 0xA3 | // Ctrl
-            0x12 | 0xA4 | 0xA5 | // Alt
-            0x5B | 0x5C // Win
+            VK_SHIFT | VK_LSHIFT | VK_RSHIFT |
+            VK_CONTROL | VK_LCONTROL | VK_RCONTROL |
+            VK_ALT | VK_LALT | VK_RALT |
+            VK_LMETA | VK_RMETA
         )
     }
 
     /// Get modifier key name (if it's a modifier key)
     pub fn modifier_name(&self) -> Option<&'static str> {
         match self.0 {
-            0x10 | 0xA0 | 0xA1 => Some("Shift"),
-            0x11 | 0xA2 | 0xA3 => Some("Control"),
-            0x12 | 0xA4 | 0xA5 => Some("Alt"),
-            0x5B | 0x5C => Some("Meta"),
+            VK_SHIFT | VK_LSHIFT | VK_RSHIFT => Some("Shift"),
+            VK_CONTROL | VK_LCONTROL | VK_RCONTROL => Some("Control"),
+            VK_ALT | VK_LALT | VK_RALT => Some("Alt"),
+            VK_LMETA | VK_RMETA => Some("Meta"),
             _ => None,
         }
     }

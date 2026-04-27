@@ -127,18 +127,6 @@ fn test_wildcard_match_real_world_patterns() {
     assert!(!wildcard_match("document.txt", "*.pdf"));
 }
 
-/// Test modifier key state
-#[test]
-fn test_modifier_state_from_virtual_key() {
-    let shift_result = ModifierState::from_virtual_key(0x10, true);
-    assert!(shift_result.is_some());
-    let (state, pressed) = shift_result.unwrap();
-    assert!(state.shift);
-    assert!(pressed);
-
-    assert!(ModifierState::from_virtual_key(0x41, true).is_none());
-}
-
 /// Test action creation from input event
 #[test]
 fn test_action_from_input_event() {

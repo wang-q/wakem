@@ -50,17 +50,6 @@ impl Layer {
     pub fn add_mapping(&mut self, trigger: Trigger, action: Action) {
         self.mappings.push(MappingRule::new(trigger, action));
     }
-
-    /// Check if this is the activation key for this layer
-    ///
-    /// Matches if all specified (non-zero) fields match the input.
-    /// At least one of activation_key or activation_vk must be non-zero.
-    #[allow(dead_code)]
-    pub fn is_activation_key(&self, scan_code: u16, vk: u16) -> bool {
-        let scan_ok = self.activation_key == 0 || self.activation_key == scan_code;
-        let vk_ok = self.activation_vk == 0 || self.activation_vk == vk;
-        (self.activation_key != 0 || self.activation_vk != 0) && scan_ok && vk_ok
-    }
 }
 
 /// Layer stack (manages multiple active layers)
@@ -128,14 +117,17 @@ impl LayerStack {
 
     /// Get all currently available mapping rules (priority: later activated layers first)
     pub fn get_all_mappings(&self) -> Vec<MappingRule> {
-        let mut result = Vec::new();
+        // Pre-calculate capacity to avoid reallocations
+        let total_capacity = self.base_layer.len()
+            + self.active_layers.iter().map(|l| l.mappings.len()).sum::<usize>();
+        let mut result = Vec::with_capacity(total_capacity);
 
         // Add base layer first
-        result.extend(self.base_layer.clone());
+        result.extend_from_slice(&self.base_layer);
 
         // Then add active layers (later layers override earlier ones)
         for layer in &self.active_layers {
-            result.extend(layer.mappings.clone());
+            result.extend_from_slice(&layer.mappings);
         }
 
         result
@@ -385,43 +377,6 @@ mod tests {
     }
 
     #[test]
-    fn test_layer_is_activation_key() {
-        let layer = Layer::new("test", 0x3A, 0x14); // CapsLock
-
-        assert!(layer.is_activation_key(0x3A, 0x14)); // Both match
-        assert!(!layer.is_activation_key(0x3A, 0xFF)); // Scan matches but vk mismatch
-        assert!(!layer.is_activation_key(0xFF, 0x14)); // Vk matches but scan mismatch
-        assert!(!layer.is_activation_key(0x1E, 0x41)); // No match
-        assert!(!layer.is_activation_key(0x1E, 0x14)); // Scan code mismatch
-        assert!(!layer.is_activation_key(0x3A, 0x41)); // Vk mismatch
-    }
-
-    #[test]
-    fn test_layer_is_activation_key_vk_only() {
-        let layer = Layer::new("test", 0, 0x14); // Only vk specified
-
-        assert!(layer.is_activation_key(0xFF, 0x14)); // Vk matches, any scan code
-        assert!(layer.is_activation_key(0x3A, 0x14)); // Both match
-        assert!(!layer.is_activation_key(0xFF, 0x41)); // Vk mismatch
-    }
-
-    #[test]
-    fn test_layer_is_activation_key_scan_only() {
-        let layer = Layer::new("test", 0x3A, 0); // Only scan code specified
-
-        assert!(layer.is_activation_key(0x3A, 0xFF)); // Scan matches, any vk
-        assert!(layer.is_activation_key(0x3A, 0x14)); // Both match
-        assert!(!layer.is_activation_key(0x1E, 0xFF)); // Scan mismatch
-    }
-
-    #[test]
-    fn test_layer_is_activation_key_neither_specified() {
-        let layer = Layer::new("test", 0, 0); // Neither specified
-
-        assert!(!layer.is_activation_key(0x3A, 0x14)); // Should never match
-    }
-
-    #[test]
     fn test_layer_stack_base_layer() {
         let mut stack = LayerStack::new();
 
@@ -516,11 +471,4 @@ mod tests {
         assert_eq!(layer.mappings.len(), 3);
     }
 
-    #[test]
-    fn test_layer_activation_key_check() {
-        let layer = Layer::new("test", 0x3A, 0x14);
-
-        assert!(layer.is_activation_key(0x3A, 0x14)); // Correct scan code and virtual key
-        assert!(!layer.is_activation_key(0x3B, 0x15)); // Different key
-    }
 }

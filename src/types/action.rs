@@ -62,7 +62,6 @@ impl KeyAction {
     }
 
     /// Create key combination action
-    #[allow(dead_code)]
     pub fn combo(
         modifiers: super::ModifierState,
         scan_code: u16,
@@ -203,7 +202,6 @@ impl Action {
     }
 
     /// Create mouse action
-    #[allow(dead_code)]
     pub fn mouse(action: MouseAction) -> Self {
         Self::Mouse(action)
     }
@@ -224,7 +222,6 @@ impl Action {
     }
 
     /// Create action sequence
-    #[allow(dead_code)]
     pub fn sequence(actions: Vec<Action>) -> Self {
         Self::Sequence(actions)
     }
@@ -232,12 +229,6 @@ impl Action {
     /// Create delay action
     pub fn delay(milliseconds: u64) -> Self {
         Self::Delay { milliseconds }
-    }
-
-    /// Check if no operation
-    #[allow(dead_code)]
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
     }
 
     /// Create corresponding Action from input event
@@ -574,15 +565,6 @@ mod tests {
         assert!(matches!(mouse_action, Action::Mouse(_)));
         assert!(matches!(window_action, Action::Window(_)));
         assert!(matches!(launch_action, Action::Launch(_)));
-    }
-
-    #[test]
-    fn test_action_is_none() {
-        let none_action = Action::None;
-        let some_action = Action::key(KeyAction::click(0x1E, 0x41));
-
-        assert!(none_action.is_none());
-        assert!(!some_action.is_none());
     }
 
     #[test]

@@ -34,14 +34,12 @@ impl KeyEvent {
     }
 
     /// Set modifier key state (for building events)
-    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
     /// Mark as injected event (for simulated input)
-    #[allow(dead_code)]
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
@@ -107,14 +105,12 @@ impl MouseEvent {
     }
 
     /// Set modifier key state (for building events)
-    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
     /// Mark as injected event (for simulated input)
-    #[allow(dead_code)]
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
@@ -231,130 +227,6 @@ mod tests {
 
         assert!(matches!(keyboard, DeviceType::Keyboard));
         assert!(matches!(mouse, DeviceType::Mouse));
-    }
-
-    /// Test ModifierState default values
-    #[test]
-    fn test_modifier_state_default() {
-        let state = ModifierState::default();
-
-        assert!(!state.shift);
-        assert!(!state.ctrl);
-        assert!(!state.alt);
-        assert!(!state.meta);
-    }
-
-    /// Test ModifierState from virtual key - Shift
-    #[test]
-    fn test_modifier_state_from_vk_shift() {
-        // VK_SHIFT = 0x10
-        let (state, pressed) = ModifierState::from_virtual_key(0x10, true).unwrap();
-        assert!(state.shift);
-        assert!(!state.ctrl);
-        assert!(!state.alt);
-        assert!(!state.meta);
-        assert!(pressed);
-
-        // VK_LSHIFT = 0xA0
-        let (state, _) = ModifierState::from_virtual_key(0xA0, true).unwrap();
-        assert!(state.shift);
-
-        // VK_RSHIFT = 0xA1
-        let (state, _) = ModifierState::from_virtual_key(0xA1, true).unwrap();
-        assert!(state.shift);
-
-        // Release state
-        let (_, pressed) = ModifierState::from_virtual_key(0x10, false).unwrap();
-        assert!(!pressed);
-    }
-
-    /// Test ModifierState from virtual key - Control
-    #[test]
-    fn test_modifier_state_from_vk_control() {
-        // VK_CONTROL = 0x11
-        let (state, pressed) = ModifierState::from_virtual_key(0x11, true).unwrap();
-        assert!(!state.shift);
-        assert!(state.ctrl);
-        assert!(!state.alt);
-        assert!(!state.meta);
-        assert!(pressed);
-
-        // VK_LCONTROL = 0xA2
-        let (state, _) = ModifierState::from_virtual_key(0xA2, true).unwrap();
-        assert!(state.ctrl);
-
-        // VK_RCONTROL = 0xA3
-        let (state, _) = ModifierState::from_virtual_key(0xA3, true).unwrap();
-        assert!(state.ctrl);
-    }
-
-    /// Test ModifierState from virtual key - Alt
-    #[test]
-    fn test_modifier_state_from_vk_alt() {
-        // VK_MENU = 0x12
-        let (state, pressed) = ModifierState::from_virtual_key(0x12, true).unwrap();
-        assert!(!state.shift);
-        assert!(!state.ctrl);
-        assert!(state.alt);
-        assert!(!state.meta);
-        assert!(pressed);
-
-        // VK_LMENU = 0xA4
-        let (state, _) = ModifierState::from_virtual_key(0xA4, true).unwrap();
-        assert!(state.alt);
-
-        // VK_RMENU = 0xA5
-        let (state, _) = ModifierState::from_virtual_key(0xA5, true).unwrap();
-        assert!(state.alt);
-    }
-
-    /// Test ModifierState from virtual key - Meta/Win
-    #[test]
-    fn test_modifier_state_from_vk_meta() {
-        // VK_LWIN = 0x5B
-        let (state, pressed) = ModifierState::from_virtual_key(0x5B, true).unwrap();
-        assert!(!state.shift);
-        assert!(!state.ctrl);
-        assert!(!state.alt);
-        assert!(state.meta);
-        assert!(pressed);
-
-        // VK_RWIN = 0x5C
-        let (state, _) = ModifierState::from_virtual_key(0x5C, true).unwrap();
-        assert!(state.meta);
-    }
-
-    /// Test ModifierState from virtual key - non-modifier
-    #[test]
-    fn test_modifier_state_from_vk_non_modifier() {
-        // 'A' key = 0x41
-        let result = ModifierState::from_virtual_key(0x41, true);
-        assert!(result.is_none());
-
-        // '1' key = 0x31
-        let result = ModifierState::from_virtual_key(0x31, true);
-        assert!(result.is_none());
-    }
-
-    /// Test ModifierState merge
-    #[test]
-    fn test_modifier_state_merge_multiple() {
-        let mut state1 = ModifierState::new();
-        state1.ctrl = true;
-
-        let mut state2 = ModifierState::new();
-        state2.shift = true;
-
-        let mut state3 = ModifierState::new();
-        state3.alt = true;
-
-        state1.merge(&state2);
-        state1.merge(&state3);
-
-        assert!(state1.ctrl);
-        assert!(state1.shift);
-        assert!(state1.alt);
-        assert!(!state1.meta);
     }
 
     /// Test complex event sequence

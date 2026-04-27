@@ -236,26 +236,6 @@ mod macos_specific_tests {
         assert!(matches!(scroll.event_type, MouseEventType::Wheel(120)));
     }
 
-    #[test]
-    fn test_modifier_state_operations() {
-        let mut state = ModifierState::default();
-        assert!(!state.shift && !state.ctrl && !state.alt && !state.meta);
-
-        state.shift = true;
-        assert!(state.shift);
-
-        let other = ModifierState {
-            ctrl: true,
-            meta: true,
-            ..ModifierState::default()
-        };
-        state.merge(&other);
-
-        assert!(state.shift);
-        assert!(state.ctrl);
-        assert!(!state.alt);
-        assert!(state.meta);
-    }
 }
 
 #[cfg(not(target_os = "macos"))]

@@ -175,9 +175,21 @@ fn simplify_delays(steps: Vec<(Duration, MacroStep)>) -> Vec<MacroStep> {
     }
 
     // Pre-allocate capacity: worst case is each step preceded by a delay action
+    // This is a conservative estimate to avoid reallocations
     let mut result = Vec::with_capacity(steps.len() * 2);
     let mut last_time = Duration::from_millis(0);
-    const MIN_DELAY_MS: u64 = 50; // Minimum delay 50ms
+
+    /// Minimum delay threshold in milliseconds.
+    ///
+    /// Delays shorter than this are considered negligible and are not recorded
+    /// as separate delay actions. This helps reduce macro size and makes
+    /// playback more natural by filtering out tiny timing variations.
+    ///
+    /// The value of 50ms was chosen because:
+    /// - It's below human perception threshold for UI responsiveness (100ms)
+    /// - It's long enough to absorb minor timing jitter during recording
+    /// - It's short enough to not interfere with intentional pauses
+    const MIN_DELAY_MS: u64 = 50;
 
     for (time, mut step) in steps {
         let delay_ms = time.as_millis() as u64 - last_time.as_millis() as u64;
@@ -308,7 +320,7 @@ mod tests {
 
         assert_eq!(step.delay_ms, 100);
         assert_eq!(step.timestamp, 1234567890);
-        assert!(step.modifiers.is_empty());
+        assert!(!step.modifiers.shift && !step.modifiers.ctrl && !step.modifiers.alt && !step.modifiers.meta);
     }
 
     #[test]

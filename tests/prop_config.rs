@@ -109,61 +109,6 @@ proptest! {
     }
 }
 
-// ModifierState merge idempotency
-proptest! {
-    #[test]
-    fn modifier_state_merge_idempotent(
-        shift1 in any::<bool>(),
-        ctrl1 in any::<bool>(),
-        alt1 in any::<bool>(),
-        meta1 in any::<bool>()
-    ) {
-        let state1 = ModifierState {
-            shift: shift1,
-            ctrl: ctrl1,
-            alt: alt1,
-            meta: meta1,
-        };
-
-        let mut merged_once = ModifierState::new();
-        merged_once.merge(&state1);
-
-        let mut merged_twice = ModifierState::new();
-        merged_twice.merge(&state1);
-        merged_twice.merge(&state1);
-
-        prop_assert_eq!(merged_once.shift, merged_twice.shift);
-        prop_assert_eq!(merged_once.ctrl, merged_twice.ctrl);
-        prop_assert_eq!(merged_once.alt, merged_twice.alt);
-        prop_assert_eq!(merged_once.meta, merged_twice.meta);
-    }
-}
-
-// ModifierState merge commutativity
-proptest! {
-    #[test]
-    fn modifier_state_merge_commutative(
-        s1 in any::<bool>(), c1 in any::<bool>(), a1 in any::<bool>(), m1 in any::<bool>(),
-        s2 in any::<bool>(), c2 in any::<bool>(), a2 in any::<bool>(), m2 in any::<bool>()
-    ) {
-        let state_a = ModifierState { shift: s1, ctrl: c1, alt: a1, meta: m1 };
-        let state_b = ModifierState { shift: s2, ctrl: c2, alt: a2, meta: m2 };
-
-        let mut ab = ModifierState::new();
-        ab.merge(&state_a);
-        ab.merge(&state_b);
-
-        let mut ba = ModifierState::new();
-        ba.merge(&state_b);
-        ba.merge(&state_a);
-
-        prop_assert_eq!(ab.shift, ba.shift);
-        prop_assert_eq!(ab.ctrl, ba.ctrl);
-        prop_assert_eq!(ab.alt, ba.alt);
-        prop_assert_eq!(ab.meta, ba.meta);
-    }
-}
-
 // KeyEvent injected flag consistency
 proptest! {
     #[test]

@@ -27,20 +27,7 @@ impl MappingRule {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_context(mut self, context: ContextCondition) -> Self {
-        self.context = Some(context);
-        self
-    }
-
     /// Check if input event matches this rule
-    #[allow(dead_code)]
     pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
         if !self.enabled {
             return false;
@@ -80,8 +67,16 @@ pub enum Trigger {
     /// Hot string (text expansion)
     HotString { trigger: String },
     /// Chord trigger (multiple keys in sequence)
+    ///
+    /// # Note
+    /// This trigger type requires stateful matching and is not yet fully implemented.
+    /// Currently, it will never match any event.
     Chord(Vec<Trigger>),
     /// Timer trigger
+    ///
+    /// # Note
+    /// This trigger type requires timer infrastructure and is not yet fully implemented.
+    /// Currently, it will never match any event.
     Timer { interval_ms: u64 },
     /// Always trigger
     Always,
@@ -89,6 +84,15 @@ pub enum Trigger {
 
 impl Trigger {
     /// Check if input event matches this trigger condition
+    ///
+    /// # Supported Trigger Types
+    ///
+    /// - `Key`: Matches keyboard events with optional scan code, virtual key, and modifier checks
+    /// - `MouseButton`: Matches mouse button down events with optional modifier checks
+    /// - `HotString`: Not yet implemented (always returns false)
+    /// - `Chord`: Not yet implemented (always returns false)
+    /// - `Timer`: Not yet implemented (always returns false)
+    /// - `Always`: Always matches
     pub fn matches(&self, event: &InputEvent) -> bool {
         match (self, event) {
             (
@@ -130,7 +134,15 @@ impl Trigger {
                 }
                 true
             }
-            _ => false,
+            (Trigger::Always, _) => true,
+            // Key trigger doesn't match mouse events
+            (Trigger::Key { .. }, InputEvent::Mouse(_)) => false,
+            // MouseButton trigger doesn't match key events
+            (Trigger::MouseButton { .. }, InputEvent::Key(_)) => false,
+            // These trigger types require stateful matching infrastructure
+            (Trigger::HotString { .. }, _) => false,
+            (Trigger::Chord(_), _) => false,
+            (Trigger::Timer { .. }, _) => false,
         }
     }
 
@@ -175,29 +187,6 @@ pub struct ContextCondition {
 }
 
 impl ContextCondition {
-    #[allow(dead_code)]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    #[allow(dead_code)]
-    pub fn with_window_class(mut self, class: impl Into<String>) -> Self {
-        self.window_class = Some(class.into());
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_process_name(mut self, name: impl Into<String>) -> Self {
-        self.process_name = Some(name.into());
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_window_title(mut self, title: impl Into<String>) -> Self {
-        self.window_title = Some(title.into());
-        self
-    }
-
     /// Check if current context matches
     pub fn matches(
         &self,
@@ -491,7 +480,7 @@ mod tests {
             } => {
                 assert_eq!(scan_code, Some(0x3A));
                 assert_eq!(virtual_key, Some(0x14));
-                assert!(modifiers.is_empty());
+                assert!(!modifiers.shift && !modifiers.ctrl && !modifiers.alt && !modifiers.meta);
             }
             _ => panic!("Expected Key trigger"),
         }
@@ -547,28 +536,6 @@ mod tests {
     }
 
     #[test]
-    fn test_mapping_rule_with_name() {
-        let trigger = Trigger::key(0x3A, 0x14);
-        let action = Action::Key(crate::types::KeyAction::click(0x0E, 0x08));
-
-        let rule = MappingRule::new(trigger, action).with_name("caps_to_backspace");
-
-        assert_eq!(rule.name, Some("caps_to_backspace".to_string()));
-    }
-
-    #[test]
-    fn test_mapping_rule_with_context() {
-        let trigger = Trigger::key(0x3A, 0x14);
-        let action = Action::Key(crate::types::KeyAction::click(0x0E, 0x08));
-
-        let context = ContextCondition::new().with_process_name("notepad.exe");
-
-        let rule = MappingRule::new(trigger, action).with_context(context);
-
-        assert!(rule.context.is_some());
-    }
-
-    #[test]
     fn test_mapping_rule_matching() {
         let trigger = Trigger::key(0x3A, 0x14);
         let action = Action::Key(crate::types::KeyAction::click(0x0E, 0x08));
@@ -593,38 +560,6 @@ mod tests {
         let context = ContextInfo::default();
 
         assert!(!rule.matches(&event, &context));
-    }
-
-    #[test]
-    fn test_context_condition_matching() {
-        let context = ContextCondition::new().with_process_name("notepad.exe");
-
-        let matching_info = ContextInfo {
-            window_class: "Notepad".to_string(),
-            process_name: "notepad.exe".to_string(),
-            process_path: "C:\\Windows\\notepad.exe".to_string(),
-            window_title: "Untitled".to_string(),
-        };
-
-        let non_matching_info = ContextInfo {
-            window_class: "Chrome".to_string(),
-            process_name: "chrome.exe".to_string(),
-            process_path: "C:\\Program Files\\chrome.exe".to_string(),
-            window_title: "Google".to_string(),
-        };
-
-        assert!(context.matches(
-            &matching_info.process_name,
-            &matching_info.window_class,
-            &matching_info.window_title,
-            Some(&matching_info.process_path)
-        ));
-        assert!(!context.matches(
-            &non_matching_info.process_name,
-            &non_matching_info.window_class,
-            &non_matching_info.window_title,
-            Some(&non_matching_info.process_path)
-        ));
     }
 
     #[test]
@@ -756,32 +691,6 @@ mod tests {
     }
 
     #[test]
-    fn test_mapping_rule_with_name_alt() {
-        let rule = MappingRule::new(
-            Trigger::key(0x3A, 0x14),
-            Action::Key(crate::types::KeyAction::click(0x0E, 0x08)),
-        )
-        .with_name("caps_to_esc");
-
-        assert_eq!(rule.name.as_deref().unwrap(), "caps_to_esc");
-    }
-
-    #[test]
-    fn test_mapping_rule_with_context_alt() {
-        let context = ContextCondition::new()
-            .with_process_name("notepad.exe")
-            .with_window_class("Notepad");
-
-        let rule = MappingRule::new(
-            Trigger::key(0x41, 0x41),
-            Action::Key(crate::types::KeyAction::click(0x42, 0x42)),
-        )
-        .with_context(context);
-
-        assert!(rule.context.is_some());
-    }
-
-    #[test]
     fn test_mapping_rule_creation_alt() {
         let trigger = Trigger::key(0x1E, 0x41); // 'A' key
         let action = Action::Window(crate::types::WindowAction::Center);
@@ -791,28 +700,6 @@ mod tests {
         assert!(rule.enabled);
         assert!(rule.name.is_none());
         assert!(rule.context.is_none());
-    }
-
-    #[test]
-    fn test_mapping_rule_with_name_alt2() {
-        let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::Window(crate::types::WindowAction::Center);
-
-        let rule = MappingRule::new(trigger, action).with_name("Center Window");
-
-        assert_eq!(rule.name, Some("Center Window".to_string()));
-    }
-
-    #[test]
-    fn test_mapping_rule_with_context_alt2() {
-        let trigger = Trigger::key(0x1E, 0x41);
-        let action = Action::Window(crate::types::WindowAction::Center);
-
-        let context = ContextCondition::new().with_process_name("notepad.exe");
-
-        let rule = MappingRule::new(trigger, action).with_context(context);
-
-        assert!(rule.context.is_some());
     }
 
     #[test]
@@ -832,40 +719,6 @@ mod tests {
     }
 
     #[test]
-    fn test_complex_context_condition() {
-        let cond = ContextCondition::new()
-            .with_process_name("code.exe")
-            .with_window_class("Chrome_WidgetWin_1");
-
-        let full_match = ContextInfo {
-            window_class: "Chrome_WidgetWin_1".to_string(),
-            process_name: "code.exe".to_string(),
-            process_path: "".to_string(),
-            window_title: "".to_string(),
-        };
-
-        let partial_match = ContextInfo {
-            window_class: "Chrome_WidgetWin_1".to_string(),
-            process_name: "notepad.exe".to_string(),
-            process_path: "".to_string(),
-            window_title: "".to_string(),
-        };
-
-        assert!(cond.matches(
-            &full_match.process_name,
-            &full_match.window_class,
-            &full_match.window_title,
-            Some(&full_match.process_path)
-        ));
-        assert!(!cond.matches(
-            &partial_match.process_name,
-            &partial_match.window_class,
-            &partial_match.window_title,
-            Some(&partial_match.process_path)
-        ));
-    }
-
-    #[test]
     fn test_trigger_key_creation() {
         let trigger = Trigger::key(0x1E, 0x41);
 
@@ -877,7 +730,7 @@ mod tests {
             } => {
                 assert_eq!(scan_code, Some(0x1E));
                 assert_eq!(virtual_key, Some(0x41));
-                assert!(modifiers.is_empty());
+                assert!(!modifiers.shift && !modifiers.ctrl && !modifiers.alt && !modifiers.meta);
             }
             _ => panic!("Expected Key trigger"),
         }
@@ -944,31 +797,8 @@ mod tests {
     }
 
     #[test]
-    fn test_context_condition_creation() {
-        let condition = ContextCondition::new()
-            .with_process_name("chrome.exe")
-            .with_window_class("Chrome_WidgetWin_1")
-            .with_window_title("*Google*");
-
-        assert_eq!(condition.process_name.as_deref().unwrap(), "chrome.exe");
-        assert_eq!(
-            condition.window_class.as_deref().unwrap(),
-            "Chrome_WidgetWin_1"
-        );
-        assert_eq!(condition.window_title.as_deref().unwrap(), "*Google*");
-    }
-
-    #[test]
-    fn test_context_condition_empty() {
-        let condition = ContextCondition::new();
-        assert!(condition.process_name.is_none());
-        assert!(condition.window_class.is_none());
-        assert!(condition.window_title.is_none());
-    }
-
-    #[test]
     fn test_context_condition_empty_matches_all() {
-        let cond = ContextCondition::new();
+        let cond = ContextCondition::default();
         let context = ContextInfo {
             window_class: "AnyClass".to_string(),
             process_name: "any.exe".to_string(),
@@ -985,44 +815,14 @@ mod tests {
     }
 
     #[test]
-    fn test_context_condition_process_match() {
-        let cond = ContextCondition::new().with_process_name("notepad.exe");
-
-        let matching_context = ContextInfo {
-            window_class: "Notepad".to_string(),
-            process_name: "notepad.exe".to_string(),
-            process_path: "C:\\Windows\\notepad.exe".to_string(),
-            window_title: "Untitled".to_string(),
-        };
-
-        let non_matching_context = ContextInfo {
-            window_class: "Chrome".to_string(),
-            process_name: "chrome.exe".to_string(),
-            process_path: "C:\\Program Files\\chrome.exe".to_string(),
-            window_title: "Google".to_string(),
-        };
-
-        assert!(cond.matches(
-            &matching_context.process_name,
-            &matching_context.window_class,
-            &matching_context.window_title,
-            Some(&matching_context.process_path)
-        ));
-        assert!(!cond.matches(
-            &non_matching_context.process_name,
-            &non_matching_context.window_class,
-            &non_matching_context.window_title,
-            Some(&non_matching_context.process_path)
-        ));
-    }
-
-    #[test]
     fn test_wildcard_matching() {
-        // These tests depend on ContextCondition's internal implementation
-        // Here we mainly test that ContextCondition can be created correctly
-        let cond = ContextCondition::new()
-            .with_window_class("Chrome*")
-            .with_process_name("chrome.exe");
+        // Test wildcard matching with manually constructed condition
+        let cond = ContextCondition {
+            window_class: Some("Chrome*".to_string()),
+            process_name: Some("chrome.exe".to_string()),
+            window_title: None,
+            executable_path: None,
+        };
 
         let info = ContextInfo {
             window_class: "Chrome_WidgetWin_1".to_string(),

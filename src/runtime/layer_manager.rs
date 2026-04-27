@@ -467,14 +467,6 @@ mod tests {
     }
 
     #[test]
-    fn test_layer_activation_key_alt() {
-        let layer = Layer::new("test", 0x3A, 0x14);
-
-        assert!(layer.is_activation_key(0x3A, 0x14));
-        assert!(!layer.is_activation_key(0x3B, 0x15));
-    }
-
-    #[test]
     fn test_layer_activation() {
         // Test layer activation and deactivation
         let layer_name = "navigation";

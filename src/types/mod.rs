@@ -14,6 +14,25 @@ pub use mapping::*;
 
 use serde::{Deserialize, Serialize};
 
+// ============================================================================
+// Platform-specific virtual key codes for modifier keys
+// ============================================================================
+
+/// Virtual key codes for modifier keys (Windows VK codes used as cross-platform standard)
+mod modifier_vk {
+    pub const SHIFT: u16 = 0x10;
+    pub const LSHIFT: u16 = 0xA0;
+    pub const RSHIFT: u16 = 0xA1;
+    pub const CONTROL: u16 = 0x11;
+    pub const LCONTROL: u16 = 0xA2;
+    pub const RCONTROL: u16 = 0xA3;
+    pub const ALT: u16 = 0x12;
+    pub const LALT: u16 = 0xA4;
+    pub const RALT: u16 = 0xA5;
+    pub const LMETA: u16 = 0x5B;
+    pub const RMETA: u16 = 0x5C;
+}
+
 /// Device type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeviceType {
@@ -42,47 +61,13 @@ impl ModifierState {
         Self::default()
     }
 
-    /// Check if no modifier keys are pressed
-    #[allow(dead_code)]
-    pub fn is_empty(&self) -> bool {
-        !self.shift && !self.ctrl && !self.alt && !self.meta
-    }
-
-    /// Create modifier key state from virtual key code
-    ///
-    /// Returns `Some((modifier_state, pressed))` if the key is a modifier,
-    /// where `modifier_state` has only the relevant modifier bit set,
-    /// and `pressed` echoes back the input parameter for convenience.
-    /// Returns `None` for non-modifier keys.
-    #[allow(dead_code)]
-    pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)> {
-        let mut state = Self::new();
-        match key {
-            0x10 | 0xA0 | 0xA1 => state.shift = pressed,
-            0x11 | 0xA2 | 0xA3 => state.ctrl = pressed,
-            0x12 | 0xA4 | 0xA5 => state.alt = pressed,
-            0x5B | 0x5C => state.meta = pressed,
-            _ => return None,
-        }
-        Some((state, pressed))
-    }
-
-    /// Merge another modifier key state (OR logic, only sets bits)
-    #[allow(dead_code)]
-    pub fn merge(&mut self, other: &ModifierState) {
-        self.shift |= other.shift;
-        self.ctrl |= other.ctrl;
-        self.alt |= other.alt;
-        self.meta |= other.meta;
-    }
-
     /// Apply modifier state from a virtual key event (sets on press, clears on release)
     pub fn apply_from_virtual_key(&mut self, key: u16, pressed: bool) -> bool {
         match key {
-            0x10 | 0xA0 | 0xA1 => self.shift = pressed,
-            0x11 | 0xA2 | 0xA3 => self.ctrl = pressed,
-            0x12 | 0xA4 | 0xA5 => self.alt = pressed,
-            0x5B | 0x5C => self.meta = pressed,
+            modifier_vk::SHIFT | modifier_vk::LSHIFT | modifier_vk::RSHIFT => self.shift = pressed,
+            modifier_vk::CONTROL | modifier_vk::LCONTROL | modifier_vk::RCONTROL => self.ctrl = pressed,
+            modifier_vk::ALT | modifier_vk::LALT | modifier_vk::RALT => self.alt = pressed,
+            modifier_vk::LMETA | modifier_vk::RMETA => self.meta = pressed,
             _ => return false,
         }
         true
@@ -113,96 +98,6 @@ mod tests {
         assert!(!modifiers.ctrl);
         assert!(!modifiers.alt);
         assert!(!modifiers.meta);
-    }
-
-    /// Test ModifierState::is_empty()
-    #[test]
-    fn test_modifier_state_is_empty_alt() {
-        let mut modifiers = ModifierState::default();
-        assert!(modifiers.is_empty());
-
-        // After setting a modifier, it's no longer empty
-        modifiers.ctrl = true;
-        assert!(!modifiers.is_empty());
-    }
-
-    /// Test ModifierState from virtual key - Shift
-    #[test]
-    fn test_modifier_state_from_vk_shift_alt() {
-        let (state, pressed) = ModifierState::from_virtual_key(0x10, true).unwrap();
-        assert!(state.shift);
-        assert!(pressed);
-
-        let (state, _) = ModifierState::from_virtual_key(0xA0, true).unwrap();
-        assert!(state.shift); // LSHIFT
-
-        let (state, _) = ModifierState::from_virtual_key(0xA1, true).unwrap();
-        assert!(state.shift); // RSHIFT
-
-        // Release state
-        let (_, pressed) = ModifierState::from_virtual_key(0x10, false).unwrap();
-        assert!(!pressed);
-    }
-
-    /// Test ModifierState from virtual key - Control
-    #[test]
-    fn test_modifier_state_from_vk_ctrl_alt() {
-        let (state, _) = ModifierState::from_virtual_key(0x11, true).unwrap();
-        assert!(state.ctrl);
-
-        let (state, _) = ModifierState::from_virtual_key(0xA2, true).unwrap();
-        assert!(state.ctrl); // LCONTROL
-
-        let (state, _) = ModifierState::from_virtual_key(0xA3, true).unwrap();
-        assert!(state.ctrl); // RCONTROL
-    }
-
-    /// Test ModifierState from virtual key - Alt
-    #[test]
-    fn test_modifier_state_from_vk_alt_alt() {
-        let (state, _) = ModifierState::from_virtual_key(0x12, true).unwrap();
-        assert!(state.alt);
-
-        let (state, _) = ModifierState::from_virtual_key(0xA4, true).unwrap();
-        assert!(state.alt); // LMENU
-
-        let (state, _) = ModifierState::from_virtual_key(0xA5, true).unwrap();
-        assert!(state.alt); // RMENU
-    }
-
-    /// Test ModifierState from virtual key - Meta/Win
-    #[test]
-    fn test_modifier_state_from_vk_meta_alt() {
-        let (state, _) = ModifierState::from_virtual_key(0x5B, true).unwrap();
-        assert!(state.meta); // LWIN
-
-        let (state, _) = ModifierState::from_virtual_key(0x5C, true).unwrap();
-        assert!(state.meta); // RWIN
-    }
-
-    /// Test unknown virtual key returns None
-    #[test]
-    fn test_modifier_state_from_vk_unknown_alt() {
-        let result = ModifierState::from_virtual_key(0x41, true); // 'A' key is not a modifier
-        assert!(result.is_none());
-    }
-
-    /// Test ModifierState merge
-    #[test]
-    fn test_modifier_state_merge_alt() {
-        let mut state1 = ModifierState::default();
-        state1.ctrl = true;
-
-        let mut state2 = ModifierState::default();
-        state2.shift = true;
-        state2.alt = true;
-
-        state1.merge(&state2);
-
-        assert!(state1.ctrl);
-        assert!(state1.shift);
-        assert!(state1.alt);
-        assert!(!state1.meta);
     }
 
     /// Test ModifierState apply_from_virtual_key (press and release)
@@ -238,7 +133,6 @@ mod tests {
     #[test]
     fn test_modifier_state_new() {
         let state = ModifierState::new();
-        assert!(state.is_empty());
         assert!(!state.shift);
         assert!(!state.ctrl);
         assert!(!state.alt);
@@ -253,11 +147,11 @@ mod tests {
         full.shift = true;
         full.alt = true;
         full.meta = true;
-        assert!(!full.is_empty());
+        assert!(full.ctrl && full.shift && full.alt && full.meta);
 
         let mut partial = ModifierState::new();
         partial.ctrl = true;
-        assert!(!partial.is_empty());
+        assert!(partial.ctrl);
     }
 
     /// Test timestamp function
