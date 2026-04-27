@@ -85,28 +85,45 @@ impl Config {
 
     /// Validate configuration integrity and business rules
     pub fn validate(&self) -> anyhow::Result<()> {
-        // 1. Validate log level
-        match self.log_level.to_lowercase().as_str() {
-            "trace" | "debug" | "info" | "warn" | "warning" | "error" => {}
-            other => {
-                anyhow::bail!(
-                    "Invalid log_level '{}': must be one of trace, debug, info, warn, error",
-                    other
-                );
-            }
-        }
+        self.validate_log_level()?;
+        self.validate_instance_id()?;
+        self.validate_auth_key()?;
+        self.validate_port_range()?;
+        self.validate_macro_bindings()?;
+        self.validate_macro_steps()?;
+        self.validate_layers_activation_keys()?;
+        self.validate_wheel_config()?;
+        self.validate_icon_path()?;
+        self.validate_launch_commands()?;
+        self.validate_keyboard_remap()?;
+        self.validate_window_shortcuts()?;
+        self.validate_layer_mappings()?;
+        self.validate_launch_triggers()?;
+        self.validate_context_mappings()?;
+        Ok(())
+    }
 
-        // 2. Validate instance ID range (must be checked before get_instance_port)
+    fn validate_log_level(&self) -> anyhow::Result<()> {
+        match self.log_level.to_lowercase().as_str() {
+            "trace" | "debug" | "info" | "warn" | "warning" | "error" => Ok(()),
+            other => anyhow::bail!(
+                "Invalid log_level '{}': must be one of trace, debug, info, warn, error",
+                other
+            ),
+        }
+    }
+
+    fn validate_instance_id(&self) -> anyhow::Result<()> {
         if self.network.instance_id > 255 {
             anyhow::bail!(
                 "Invalid instance_id {}: must be in range 0-255",
                 self.network.instance_id
             );
         }
+        Ok(())
+    }
 
-        // 3. Validate auth_key is not empty string when explicitly set
-        // An empty auth_key would bypass authentication, allowing any local
-        // process to control the daemon. Use None (auto-generate) instead.
+    fn validate_auth_key(&self) -> anyhow::Result<()> {
         if let Some(ref key) = self.network.auth_key {
             if key.is_empty() {
                 anyhow::bail!(
@@ -115,14 +132,18 @@ impl Config {
                 );
             }
         }
+        Ok(())
+    }
 
-        // 4. Validate network port range (u16 max is 65535, only need to check minimum)
+    fn validate_port_range(&self) -> anyhow::Result<()> {
         let port = crate::ipc::get_instance_port(self.network.instance_id);
         if port < 1024 {
             anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
         }
+        Ok(())
+    }
 
-        // 5. Validate macro bindings reference existing macros
+    fn validate_macro_bindings(&self) -> anyhow::Result<()> {
         for (trigger, macro_name) in &self.macro_bindings {
             if !self.macros.contains_key(macro_name) {
                 anyhow::bail!(
@@ -132,8 +153,10 @@ impl Config {
                 );
             }
         }
+        Ok(())
+    }
 
-        // 6. Validate macro steps are not empty (warning only)
+    fn validate_macro_steps(&self) -> anyhow::Result<()> {
         for (macro_name, steps) in &self.macros {
             if steps.is_empty() {
                 tracing::warn!(
@@ -142,15 +165,19 @@ impl Config {
                 );
             }
         }
+        Ok(())
+    }
 
-        // 7. Validate layer activation keys are not empty
+    fn validate_layers_activation_keys(&self) -> anyhow::Result<()> {
         for (layer_name, layer) in &self.keyboard.layers {
             if layer.activation_key.is_empty() {
                 anyhow::bail!("Layer '{}' has empty activation_key", layer_name);
             }
         }
+        Ok(())
+    }
 
-        // 8. Validate mouse wheel acceleration_multiplier range
+    fn validate_wheel_config(&self) -> anyhow::Result<()> {
         let multiplier = self.mouse.wheel.acceleration_multiplier;
         if !(0.1..=10.0).contains(&multiplier) {
             anyhow::bail!(
@@ -158,38 +185,37 @@ impl Config {
                 multiplier
             );
         }
-
-        // 9. Validate wheel speed is positive
         if self.mouse.wheel.speed <= 0 {
             anyhow::bail!(
                 "Invalid mouse.wheel.speed: {}. Must be positive",
                 self.mouse.wheel.speed
             );
         }
+        Ok(())
+    }
 
-        // 10. Validate icon_path exists if specified
-        // Icon path validation is a soft check: missing icons are logged as warnings
-        // rather than errors, since a missing icon should not prevent the application
-        // from starting. The WAKEM_SKIP_ICON_VALIDATION env var can be used to
-        // suppress even the warning (primarily for test environments).
+    fn validate_icon_path(&self) -> anyhow::Result<()> {
         if let Some(ref icon_path) = self.icon_path {
-            let skip_validation = std::env::var("WAKEM_SKIP_ICON_VALIDATION").is_ok();
-            if !skip_validation && !std::path::Path::new(icon_path).exists() {
+            if !std::path::Path::new(icon_path).exists() {
                 tracing::warn!(
                     "Icon path '{}' does not exist, using default icon",
                     icon_path
                 );
             }
         }
+        Ok(())
+    }
 
-        // 11. Validate launch program paths are not empty
+    fn validate_launch_commands(&self) -> anyhow::Result<()> {
         for (trigger, command) in &self.launch {
             if command.trim().is_empty() {
                 anyhow::bail!("Launch command for trigger '{}' is empty", trigger);
             }
         }
+        Ok(())
+    }
 
-        // 12. Validate keyboard.remap keys are valid
+    fn validate_keyboard_remap(&self) -> anyhow::Result<()> {
         for (from, to) in &self.keyboard.remap {
             if let Err(e) = parse_key(from) {
                 anyhow::bail!("Invalid key '{}' in keyboard.remap: {}", from, e);
@@ -201,8 +227,10 @@ impl Config {
                 );
             }
         }
+        Ok(())
+    }
 
-        // 13. Validate window.shortcuts
+    fn validate_window_shortcuts(&self) -> anyhow::Result<()> {
         for (shortcut, action) in &self.window.shortcuts {
             if let Err(e) = parse_shortcut_trigger(shortcut) {
                 anyhow::bail!(
@@ -219,8 +247,10 @@ impl Config {
                 );
             }
         }
+        Ok(())
+    }
 
-        // 14. Validate keyboard.layers mappings are parseable
+    fn validate_layer_mappings(&self) -> anyhow::Result<()> {
         for (layer_name, layer) in &self.keyboard.layers {
             if let Err(e) = parse_key(&layer.activation_key) {
                 anyhow::bail!(
@@ -247,15 +277,19 @@ impl Config {
                 }
             }
         }
+        Ok(())
+    }
 
-        // 15. Validate launch trigger keys are parseable
+    fn validate_launch_triggers(&self) -> anyhow::Result<()> {
         for trigger in self.launch.keys() {
             if let Err(e) = parse_shortcut_trigger(trigger) {
                 anyhow::bail!("Invalid trigger '{}' in launch: {}", trigger, e);
             }
         }
+        Ok(())
+    }
 
-        // 16. Validate context_mappings are parseable
+    fn validate_context_mappings(&self) -> anyhow::Result<()> {
         for (idx, ctx_mapping) in self.keyboard.context_mappings.iter().enumerate() {
             for (from, to) in &ctx_mapping.mappings {
                 if let Err(e) = parse_key(from) {
@@ -274,7 +308,6 @@ impl Config {
                 }
             }
         }
-
         Ok(())
     }
 
@@ -317,28 +350,28 @@ impl Config {
         for (k, v) in &self.keyboard.remap {
             match parse_key_mapping(k, v) {
                 Ok(rule) => rules.push(rule),
-                Err(e) => tracing::warn!("Skipping keyboard.remap '{}': {}", k, e),
+                Err(e) => tracing::debug!("Skipping keyboard.remap '{}': {}", k, e),
             }
         }
 
         for (name, layer) in &self.keyboard.layers {
             match self.parse_layer_mappings(name, layer) {
                 Ok(layer_rules) => rules.extend(layer_rules),
-                Err(e) => tracing::warn!("Skipping keyboard.layers '{}': {}", name, e),
+                Err(e) => tracing::debug!("Skipping keyboard.layers '{}': {}", name, e),
             }
         }
 
         for (k, v) in &self.window.shortcuts {
             match parse_window_shortcut(k, v) {
                 Ok(rule) => rules.push(rule),
-                Err(e) => tracing::warn!("Skipping window.shortcuts '{}': {}", k, e),
+                Err(e) => tracing::debug!("Skipping window.shortcuts '{}': {}", k, e),
             }
         }
 
         for (k, v) in &self.launch {
             match parse_launch_mapping(k, v) {
                 Ok(rule) => rules.push(rule),
-                Err(e) => tracing::warn!("Skipping launch '{}': {}", k, e),
+                Err(e) => tracing::debug!("Skipping launch '{}': {}", k, e),
             }
         }
 
@@ -667,6 +700,20 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
     Ok(MappingRule::new(trigger, action))
 }
 
+/// Try to parse a single modifier key name.
+/// Returns Some(()) if the name is a recognized modifier, None otherwise.
+/// Updates the provided ModifierState accordingly.
+fn apply_modifier_name(name: &str, modifiers: &mut crate::types::ModifierState) -> bool {
+    match name.to_lowercase().as_str() {
+        "ctrl" | "control" => modifiers.ctrl = true,
+        "alt" => modifiers.alt = true,
+        "shift" => modifiers.shift = true,
+        "win" | "meta" | "command" | "cmd" => modifiers.meta = true,
+        _ => return false,
+    }
+    true
+}
+
 /// Parse pure modifier key combination (e.g., "Ctrl+Alt+Win")
 fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> {
     use crate::types::ModifierState;
@@ -675,15 +722,8 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
     let parts: Vec<&str> = s.split('+').map(|p| p.trim()).collect();
 
     for part in parts {
-        match part.to_lowercase().as_str() {
-            "ctrl" | "control" => modifiers.ctrl = true,
-            "alt" => modifiers.alt = true,
-            "shift" => modifiers.shift = true,
-            "win" | "meta" | "command" => modifiers.meta = true,
-            _ => {
-                // If not a known modifier key, return error
-                return Err(anyhow::anyhow!("Unknown modifier: {}", part));
-            }
+        if !apply_modifier_name(part, &mut modifiers) {
+            return Err(anyhow::anyhow!("Unknown modifier: {}", part));
         }
     }
 
@@ -754,12 +794,8 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
     let mut key_name = "";
 
     for part in &parts {
-        match part.to_lowercase().as_str() {
-            "ctrl" | "control" => modifiers.ctrl = true,
-            "alt" => modifiers.alt = true,
-            "shift" => modifiers.shift = true,
-            "win" | "meta" | "command" | "cmd" => modifiers.meta = true,
-            _ => key_name = part,
+        if !apply_modifier_name(part, &mut modifiers) {
+            key_name = part;
         }
     }
 
@@ -1015,37 +1051,49 @@ fn validate_mapping_target(target: &str, allow_shortcut: bool) -> bool {
 
 /// Config file path cache (reduces repeated file system I/O)
 ///
-/// Performance optimization: caches resolved config file paths to avoid checking file existence on every call
+/// Performance optimization: caches resolved config file paths to avoid checking file existence on every call.
+/// Cache entries have a TTL of 60 seconds to handle cases where the config file is moved or deleted.
 struct ConfigPathCache {
-    cache: Mutex<HashMap<u32, Option<std::path::PathBuf>>>,
+    cache: Mutex<HashMap<u32, (Option<std::path::PathBuf>, std::time::Instant)>>,
+    ttl: std::time::Duration,
 }
 
 impl ConfigPathCache {
     fn new() -> Self {
         Self {
             cache: Mutex::new(HashMap::new()),
+            ttl: std::time::Duration::from_secs(60),
         }
     }
 
     fn get_or_resolve(&self, instance_id: u32) -> Option<std::path::PathBuf> {
-        // Check cache first (parking_lot::Mutex::lock() returns MutexGuard directly, not Result)
         let mut cache = self.cache.lock();
-        if let Some(cached) = cache.get(&instance_id) {
-            debug!("Config path cache hit for instance {}", instance_id);
-            return cached.clone();
+        if let Some((cached, timestamp)) = cache.get(&instance_id) {
+            if timestamp.elapsed() < self.ttl {
+                debug!("Config path cache hit for instance {}", instance_id);
+                return cached.clone();
+            }
+            debug!(
+                "Config path cache expired for instance {}, re-resolving",
+                instance_id
+            );
         }
 
-        // Cache miss, resolve path
         let path = Self::resolve_config_path_internal(instance_id);
 
-        // Store in cache
-        cache.insert(instance_id, path.clone());
+        cache.insert(instance_id, (path.clone(), std::time::Instant::now()));
 
         debug!(
             "Config path cache miss for instance {}, resolved and cached",
             instance_id
         );
         path
+    }
+
+    fn invalidate(&self, instance_id: u32) {
+        let mut cache = self.cache.lock();
+        cache.remove(&instance_id);
+        debug!("Config path cache invalidated for instance {}", instance_id);
     }
 
     /// Internal path resolution logic (unified across all platforms)
@@ -1079,6 +1127,11 @@ pub fn resolve_config_file_path(
 
     // Use cached path resolution
     CONFIG_PATH_CACHE.get_or_resolve(instance_id)
+}
+
+/// Invalidate config path cache for a specific instance
+pub fn invalidate_config_path_cache(instance_id: u32) {
+    CONFIG_PATH_CACHE.invalidate(instance_id);
 }
 
 /// Parse launch item mapping

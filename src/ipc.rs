@@ -108,8 +108,11 @@ pub fn is_allowed_ip(ip: IpAddr) -> bool {
 const MAX_TRACKED_IPS: usize = 1000;
 /// Cleanup threshold - when exceeded, remove oldest entries
 const CLEANUP_THRESHOLD: usize = 900;
-/// Maximum instance ID to scan during discovery
-/// Matches Config::validate() which allows instance_id 0-255
+/// Default maximum instance ID to scan during discovery
+/// Most users run a single instance (id=0), so the default scan range is 0-9.
+/// The full range (0-255) can still be accessed by passing max_instance_id explicitly.
+const DEFAULT_DISCOVERY_INSTANCE_ID: u32 = 9;
+/// Absolute maximum instance ID (matches Config::validate() which allows 0-255)
 const MAX_DISCOVERY_INSTANCE_ID: u32 = 255;
 
 /// Connection rate limiter
@@ -224,7 +227,7 @@ const DISCOVERY_MAX_CONCURRENCY: usize = 32;
 ///   `MAX_DISCOVERY_INSTANCE_ID` (255) when `None` is passed. Pass a smaller
 ///   value (e.g., `Some(0)`) for a quick single-instance check.
 pub async fn discover_instances(max_instance_id: Option<u32>) -> Vec<InstanceInfo> {
-    let max_id = max_instance_id.unwrap_or(MAX_DISCOVERY_INSTANCE_ID);
+    let max_id = max_instance_id.unwrap_or(DEFAULT_DISCOVERY_INSTANCE_ID).min(MAX_DISCOVERY_INSTANCE_ID);
     let semaphore = Arc::new(tokio::sync::Semaphore::new(DISCOVERY_MAX_CONCURRENCY));
     let mut set = JoinSet::new();
 
@@ -486,10 +489,18 @@ impl IpcClient {
             .map_err(|_| IpcError::Timeout)??;
             let server_version = u32::from_le_bytes(version_bytes);
             if server_version != IPC_PROTOCOL_VERSION {
-                warn!(
+                let error_msg = format!(
                     "Protocol version mismatch: server={}, client={}",
                     server_version, IPC_PROTOCOL_VERSION
                 );
+                warn!("{}", error_msg);
+                let _ = send_message(
+                    &mut stream,
+                    &Message::Error {
+                        message: error_msg.clone(),
+                    },
+                )
+                .await;
                 return Err(IpcError::ConnectionRefused);
             }
             debug!("Protocol version {} verified", server_version);
@@ -604,49 +615,61 @@ impl IpcServer {
         Ok(())
     }
 
-    /// Run server main loop
-    pub async fn run(&mut self) -> Result<()> {
+    /// Run server main loop with shutdown support
+    pub async fn run(
+        &mut self,
+        mut shutdown: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<()> {
         let listener = self.listener.as_ref().ok_or(IpcError::ConnectionClosed)?;
 
         loop {
-            match listener.accept().await {
-                Ok((stream, addr)) => {
-                    debug!("New connection from {}", addr);
+            tokio::select! {
+                result = listener.accept() => {
+                    match result {
+                        Ok((stream, addr)) => {
+                            debug!("New connection from {}", addr);
 
-                    if !is_allowed_ip(addr.ip()) {
-                        warn!("Rejected connection from external IP: {}", addr);
-                        continue;
-                    }
+                            if !is_allowed_ip(addr.ip()) {
+                                warn!("Rejected connection from external IP: {}", addr);
+                                continue;
+                            }
 
-                    {
-                        let mut limiter = self.rate_limiter.write().await;
-                        if !limiter.check_rate_limit(addr.ip()) {
-                            warn!("Rate limit exceeded for IP: {}", addr);
-                            error!(
-                                "Security alert: Possible brute force attack from {}",
-                                addr
-                            );
-                            continue;
+                            {
+                                let mut limiter = self.rate_limiter.write().await;
+                                if !limiter.check_rate_limit(addr.ip()) {
+                                    warn!("Rate limit exceeded for IP: {}", addr);
+                                    error!(
+                                        "Security alert: Possible brute force attack from {}",
+                                        addr
+                                    );
+                                    continue;
+                                }
+                            }
+
+                            let auth_key = self.auth_key.clone();
+                            let message_tx = self.message_tx.clone();
+
+                            tokio::spawn(async move {
+                                if let Err(e) =
+                                    handle_connection(stream, addr, auth_key, message_tx).await
+                                {
+                                    debug!("Connection handler error: {}", e);
+                                }
+                            });
+                        }
+                        Err(e) => {
+                            error!("Failed to accept connection: {}", e);
+                            tokio::time::sleep(Duration::from_secs(1)).await;
                         }
                     }
-
-                    let auth_key = self.auth_key.clone();
-                    let message_tx = self.message_tx.clone();
-
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            handle_connection(stream, addr, auth_key, message_tx).await
-                        {
-                            debug!("Connection handler error: {}", e);
-                        }
-                    });
                 }
-                Err(e) => {
-                    error!("Failed to accept connection: {}", e);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                _ = shutdown.changed() => {
+                    info!("IPC server received shutdown signal");
+                    break;
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -904,11 +927,17 @@ mod tests {
     #[tokio::test]
     async fn test_discover_instances() {
         let instances = discover_instances(None).await;
-        assert_eq!(instances.len(), 256);
+        assert_eq!(instances.len(), (DEFAULT_DISCOVERY_INSTANCE_ID + 1) as usize);
         for (i, info) in instances.iter().enumerate() {
             assert_eq!(info.id, i as u32);
             assert!(info.address.starts_with("127.0.0.1:"));
         }
+    }
+
+    #[tokio::test]
+    async fn test_discover_instances_full_range() {
+        let instances = discover_instances(Some(255)).await;
+        assert_eq!(instances.len(), 256);
     }
 
     #[tokio::test]

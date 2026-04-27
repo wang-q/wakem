@@ -35,7 +35,8 @@ fn init_logging(cli: &Cli) -> (Option<config::Config>, Option<std::path::PathBuf
         match config::Config::from_file(path) {
             Ok(cfg) => (cfg.log_level.clone(), Some(Ok(cfg))),
             Err(e) => {
-                eprintln!("Debug: Failed to load config for log level: {}", e);
+                // Logging not yet initialized, eprintln is acceptable here
+                eprintln!("Failed to load config for log level: {}", e);
                 ("info".to_string(), Some(Err(e)))
             }
         }
@@ -114,15 +115,13 @@ fn run_daemon(
 
 /// Check if daemon is running
 fn is_daemon_running(instance_id: u32) -> bool {
-    let rt = match get_runtime() {
-        Ok(rt) => rt,
-        Err(_) => return false,
-    };
-
-    rt.block_on(async {
-        let mut client = DaemonClient::new();
-        client.connect_to_instance(instance_id).await.is_ok()
+    with_runtime(|rt| {
+        Ok(rt.block_on(async {
+            let mut client = DaemonClient::new();
+            client.connect_to_instance(instance_id).await.is_ok()
+        }))
     })
+    .unwrap_or(false)
 }
 
 /// Run system tray
@@ -323,21 +322,15 @@ async fn connect_and_handle_tray_commands(
         match cmd {
             AppCommand::ToggleActive => {
                 info!("Toggle active command received");
-                if let Some(ref mut client) = client_option {
-                    match client.get_status().await {
+                if let Some(ref mut c) = client_option {
+                    match c.get_status().await {
                         Ok((current_active, _)) => {
                             let new_active = !current_active;
-                            match client.set_active(new_active).await {
-                                Ok(_) => {
-                                    info!(
-                                        "Daemon active state changed to: {}",
-                                        new_active
-                                    );
-                                }
-                                Err(e) => {
-                                    error!("Failed to set active state: {}", e);
-                                    try_reconnect(&mut client_option, instance_id).await;
-                                }
+                            if let Err(e) = c.set_active(new_active).await {
+                                error!("Failed to set active state: {}", e);
+                                try_reconnect(&mut client_option, instance_id).await;
+                            } else {
+                                info!("Daemon active state changed to: {}", new_active);
                             }
                         }
                         Err(e) => {
@@ -352,15 +345,12 @@ async fn connect_and_handle_tray_commands(
             }
             AppCommand::ReloadConfig => {
                 info!("Reload config command received");
-                if let Some(ref mut client) = client_option {
-                    match client.reload_config().await {
-                        Ok(_) => {
-                            info!("Configuration reloaded successfully");
-                        }
-                        Err(e) => {
-                            error!("Failed to reload config: {}", e);
-                            try_reconnect(&mut client_option, instance_id).await;
-                        }
+                if let Some(ref mut c) = client_option {
+                    if let Err(e) = c.reload_config().await {
+                        error!("Failed to reload config: {}", e);
+                        try_reconnect(&mut client_option, instance_id).await;
+                    } else {
+                        info!("Configuration reloaded successfully");
                     }
                 } else {
                     error!("{}", ERR_NOT_CONNECTED);
@@ -425,32 +415,28 @@ fn open_config_folder_sync(instance_id: u32) -> Result<()> {
     Ok(())
 }
 
-/// Get or create a cached single-threaded tokio runtime.
+/// Execute a closure with a cached single-threaded tokio runtime.
 ///
 /// Using a thread-local runtime avoids the overhead of creating and destroying
 /// a runtime for every CLI command. This is especially beneficial when multiple
 /// commands are issued in quick succession.
 ///
-/// Uses `once_cell::unsync::Lazy` to ensure the runtime is created only once
-/// per thread without memory leaks.
-fn get_runtime() -> Result<&'static tokio::runtime::Runtime> {
-    use once_cell::unsync::Lazy;
+/// The runtime reference is only valid within the closure, avoiding the need
+/// for unsafe lifetime extension.
+fn with_runtime<F, R>(f: F) -> Result<R>
+where
+    F: FnOnce(&tokio::runtime::Runtime) -> Result<R>,
+{
     thread_local! {
-        static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+        static RUNTIME: tokio::runtime::Runtime = {
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("Failed to create tokio runtime")
-        });
+        };
     }
 
-    RUNTIME.with(|rt| {
-        let rt: &tokio::runtime::Runtime = rt;
-        // SAFETY: The Lazy<T> is thread-local and lives for the entire thread.
-        // The reference remains valid as long as the thread is alive, which
-        // is effectively 'static for CLI commands that run to completion.
-        Ok(unsafe { &*(rt as *const _) })
-    })
+    RUNTIME.with(f)
 }
 
 /// Execute an async operation with a daemon client connection
@@ -461,11 +447,12 @@ where
     F: FnOnce(DaemonClient) -> Fut,
     Fut: std::future::Future<Output = Result<()>>,
 {
-    let rt = get_runtime()?;
-    rt.block_on(async {
-        let mut client = DaemonClient::new();
-        client.connect_to_instance(instance_id).await?;
-        op(client).await
+    with_runtime(|rt| {
+        rt.block_on(async {
+            let mut client = DaemonClient::new();
+            client.connect_to_instance(instance_id).await?;
+            op(client).await
+        })
     })
 }
 
@@ -530,8 +517,7 @@ where
     F: FnOnce() -> Fut,
     Fut: std::future::Future<Output = Result<()>>,
 {
-    let rt = get_runtime()?;
-    rt.block_on(op())
+    with_runtime(|rt| rt.block_on(op()))
 }
 
 /// List running instances - sync version

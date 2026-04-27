@@ -19,7 +19,20 @@ impl DaemonClient {
     /// Connect to specified instance
     pub async fn connect_to_instance(&mut self, instance_id: u32) -> Result<()> {
         let address = get_instance_address(instance_id);
-        self.connect(&address, None).await
+        let auth_key = Self::resolve_auth_key(instance_id)?;
+        self.connect(&address, auth_key).await
+    }
+
+    /// Resolve authentication key from config file for the given instance
+    fn resolve_auth_key(instance_id: u32) -> Result<Option<String>> {
+        let config_path = crate::config::resolve_config_file_path(None, instance_id);
+        if let Some(path) = config_path {
+            if path.exists() {
+                let config = crate::config::Config::from_file(&path)?;
+                return Ok(config.network.auth_key);
+            }
+        }
+        Ok(None)
     }
 
     /// Connect to specified address

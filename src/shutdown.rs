@@ -1,5 +1,5 @@
 use tokio::sync::watch;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
 /// Graceful shutdown signal
 ///
@@ -33,6 +33,8 @@ impl ShutdownSignal {
         info!("Initiating graceful shutdown...");
         if self.sender.send(true).is_ok() {
             debug!("Shutdown signal sent to all subscribers");
+        } else {
+            trace!("No active subscribers for shutdown signal (all tasks already completed)");
         }
     }
 }

@@ -237,7 +237,6 @@ impl ServerState {
 
         info!("Reloading configuration from file...");
 
-        // Get current instance ID and config file path
         let (_instance_id, config_path) = {
             let config = self.config.read().await;
             let id = config.config.network.instance_id;
@@ -254,7 +253,6 @@ impl ServerState {
 
         info!("Loading config from: {:?}", config_path);
 
-        // Try to load new config
         let new_config = match Config::from_file(&config_path) {
             Ok(config) => config,
             Err(e) => {
@@ -263,8 +261,9 @@ impl ServerState {
             }
         };
 
-        // Apply new config
         self.load_config(new_config).await?;
+
+        crate::config::invalidate_config_path_cache(_instance_id);
 
         info!("Configuration reloaded successfully");
         Ok(())
@@ -606,47 +605,54 @@ impl ServerState {
         self.execute_flattened_sequence(&flattened).await
     }
 
-    /// Flatten nested action sequences iteratively
-    /// This prevents stack overflow from deeply nested recursive sequences
+    /// Flatten nested action sequences recursively
+    /// Preserves the correct order of actions when Sequence and non-Sequence
+    /// elements are interleaved (e.g., [A, Sequence([B, C]), D] -> [A, B, C, D]).
     fn flatten_action_sequence(&self, actions: &[Action]) -> Result<Vec<Action>> {
         const MAX_SEQUENCE_DEPTH: usize = 10;
         const MAX_TOTAL_ACTIONS: usize = 1000;
 
         let mut result = Vec::new();
-        let mut stack: Vec<(Vec<Action>, usize)> = vec![(actions.to_vec(), 0)];
+        let mut total = 0usize;
+        self.flatten_recursive(actions, 0, &mut result, &mut total, MAX_SEQUENCE_DEPTH, MAX_TOTAL_ACTIONS)?;
+        Ok(result)
+    }
 
-        while let Some((current_actions, depth)) = stack.pop() {
-            if depth > MAX_SEQUENCE_DEPTH {
-                return Err(anyhow::anyhow!(
-                    "Action sequence nesting exceeds maximum depth of {}",
-                    MAX_SEQUENCE_DEPTH
-                ));
-            }
+    fn flatten_recursive(
+        &self,
+        actions: &[Action],
+        depth: usize,
+        result: &mut Vec<Action>,
+        total: &mut usize,
+        max_depth: usize,
+        max_total: usize,
+    ) -> Result<()> {
+        if depth > max_depth {
+            return Err(anyhow::anyhow!(
+                "Action sequence nesting exceeds maximum depth of {}",
+                max_depth
+            ));
+        }
 
-            // Process actions in reverse order (since we're using a stack)
-            for action in current_actions.into_iter().rev() {
-                match action {
-                    Action::Sequence(nested) => {
-                        // Push nested sequence onto stack for later processing
-                        stack.push((nested, depth + 1));
-                    }
-                    other => {
-                        result.push(other);
-                    }
+        for action in actions {
+            match action {
+                Action::Sequence(nested) => {
+                    self.flatten_recursive(nested, depth + 1, result, total, max_depth, max_total)?;
                 }
-
-                if result.len() > MAX_TOTAL_ACTIONS {
-                    return Err(anyhow::anyhow!(
-                        "Action sequence exceeds maximum total actions of {}",
-                        MAX_TOTAL_ACTIONS
-                    ));
+                other => {
+                    *total += 1;
+                    if *total > max_total {
+                        return Err(anyhow::anyhow!(
+                            "Action sequence exceeds maximum total actions of {}",
+                            max_total
+                        ));
+                    }
+                    result.push(other.clone());
                 }
             }
         }
 
-        // Reverse to restore original order
-        result.reverse();
-        Ok(result)
+        Ok(())
     }
 
     /// Execute a flattened sequence of actions
@@ -1360,21 +1366,10 @@ fn spawn_ipc_server_task(ipc_server: IpcServer, shutdown: &Arc<ShutdownSignal>) 
 /// Run IPC server loop
 async fn run_ipc_server(
     mut ipc_server: IpcServer,
-    mut shutdown: tokio::sync::watch::Receiver<bool>,
+    shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
-    loop {
-        tokio::select! {
-            result = ipc_server.run() => {
-                if let Err(e) = result {
-                    error!("IPC server error: {}", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                }
-            }
-            _ = shutdown.changed() => {
-                info!("IPC server received shutdown signal");
-                break;
-            }
-        }
+    if let Err(e) = ipc_server.run(shutdown).await {
+        error!("IPC server error: {}", e);
     }
     info!("IPC server task stopped");
 }
@@ -1728,8 +1723,8 @@ mod tests {
     fn test_flatten_action_sequence_nested() {
         let state = ServerState::new(ShutdownSignal::new());
         let inner = vec![
-            Action::Key(KeyAction::click(0x1E, 0x41)),
             Action::Key(KeyAction::click(0x1F, 0x42)),
+            Action::Key(KeyAction::click(0x20, 0x43)),
         ];
         let actions = vec![
             Action::Key(KeyAction::click(0x1E, 0x41)),
@@ -1738,6 +1733,36 @@ mod tests {
         ];
         let result = state.flatten_action_sequence(&actions).unwrap();
         assert_eq!(result.len(), 4);
+        assert!(matches!(&result[0], Action::Key(KeyAction::Click { virtual_key: 0x41, .. })));
+        assert!(matches!(&result[1], Action::Key(KeyAction::Click { virtual_key: 0x42, .. })));
+        assert!(matches!(&result[2], Action::Key(KeyAction::Click { virtual_key: 0x43, .. })));
+        assert!(matches!(&result[3], Action::None));
+    }
+
+    #[test]
+    fn test_flatten_action_sequence_order_preserved() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let inner = vec![
+            Action::Key(KeyAction::click(0x1F, 0x42)),
+            Action::Key(KeyAction::click(0x20, 0x43)),
+        ];
+        let actions = vec![
+            Action::Key(KeyAction::click(0x1E, 0x41)),
+            Action::Sequence(inner),
+            Action::Key(KeyAction::click(0x21, 0x44)),
+        ];
+        let result = state.flatten_action_sequence(&actions).unwrap();
+        assert_eq!(result.len(), 4);
+        let vk_codes: Vec<u16> = result
+            .iter()
+            .filter_map(|a| match a {
+                Action::Key(KeyAction::Click { virtual_key, .. }) => Some(*virtual_key),
+                Action::Key(KeyAction::Press { virtual_key, .. }) => Some(*virtual_key),
+                Action::Key(KeyAction::Release { virtual_key, .. }) => Some(*virtual_key),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(vk_codes, vec![0x41, 0x42, 0x43, 0x44]);
     }
 
     #[test]
