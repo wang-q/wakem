@@ -11,7 +11,6 @@ pub mod native_api;
 pub mod output_device;
 pub mod tray;
 pub mod window_api;
-pub mod window_event_hook;
 pub mod window_manager;
 
 // Re-export common types (aligned with Windows platform)
@@ -25,14 +24,12 @@ pub use output_device::SendInputDevice;
 #[allow(unused_imports)]
 pub use tray::TrayIcon;
 #[allow(unused_imports)]
-pub use window_api::RealWindowApi;
+pub use window_api::{RealWindowApi, WindowEventHook};
 
 #[cfg(test)]
 #[allow(unused_imports)]
 pub use window_api::MockWindowApi;
 
-#[allow(unused_imports)]
-pub use window_event_hook::WindowEventHook;
 #[allow(unused_imports)]
 pub use window_manager::{MonitorDirection, WindowManager, WindowPresetManager};
 

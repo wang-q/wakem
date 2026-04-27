@@ -6,15 +6,13 @@ pub mod input_device;
 pub mod output_device;
 pub mod tray;
 pub mod window_api;
-pub mod window_event_hook;
 pub mod window_manager;
 
 pub use crate::platform::launcher_common::Launcher;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
 pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
-pub use window_api::RealWindowApi;
-pub use window_event_hook::WindowEventHook;
+pub use window_api::{RealWindowApi, WindowEventHook};
 pub use window_manager::{MonitorDirection, WindowManager, WindowPresetManager};
 
 #[cfg(test)]
