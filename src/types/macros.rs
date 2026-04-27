@@ -20,7 +20,7 @@ use crate::types::{Action, InputEvent, KeyState, ModifierState, Timestamp};
 const MIN_DELAY_MS: u64 = 50;
 
 /// Macro step (includes full context)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MacroStep {
     /// Delay (milliseconds)
     pub delay_ms: u64,
@@ -50,7 +50,7 @@ impl MacroStep {
 }
 
 /// Macro definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Macro {
     pub name: String,
     /// Step list

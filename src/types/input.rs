@@ -2,7 +2,7 @@ use super::{now, DeviceType, KeyState, ModifierState, Timestamp, VirtualKey};
 use serde::{Deserialize, Serialize};
 
 /// Keyboard event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct KeyEvent {
     /// Scan code (hardware related)
     pub scan_code: u16,
@@ -53,7 +53,7 @@ pub enum MouseButton {
 }
 
 /// Mouse event
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MouseEvent {
     /// Event type
     pub event_type: MouseEventType,
@@ -69,7 +69,7 @@ pub struct MouseEvent {
     pub is_injected: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MouseEventType {
     /// Mouse move
     ///
@@ -115,7 +115,7 @@ impl MouseEvent {
 }
 
 /// Input event (keyboard or mouse)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InputEvent {
     Key(KeyEvent),
     Mouse(MouseEvent),

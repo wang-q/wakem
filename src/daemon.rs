@@ -406,7 +406,8 @@ impl ServerState {
         if let InputEvent::Key(key_event) = event {
             if key_event.state == KeyState::Released {
                 let hyper_map = self.hyper_key_map.read().await;
-                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key)) {
+                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
+                {
                     debug!("Filtered non-hyper key release event");
                     return true;
                 }
@@ -936,7 +937,14 @@ fn flatten_action_sequence(actions: &[Action]) -> Result<Vec<Action>> {
 
     let mut result = Vec::new();
     let mut total = 0usize;
-    flatten_recursive(actions, 0, &mut result, &mut total, MAX_SEQUENCE_DEPTH, MAX_TOTAL_ACTIONS)?;
+    flatten_recursive(
+        actions,
+        0,
+        &mut result,
+        &mut total,
+        MAX_SEQUENCE_DEPTH,
+        MAX_TOTAL_ACTIONS,
+    )?;
     Ok(result)
 }
 
@@ -958,7 +966,14 @@ fn flatten_recursive(
     for action in actions {
         match action {
             Action::Sequence(nested) => {
-                flatten_recursive(nested, depth + 1, result, total, max_depth, max_total)?;
+                flatten_recursive(
+                    nested,
+                    depth + 1,
+                    result,
+                    total,
+                    max_depth,
+                    max_total,
+                )?;
             }
             other => {
                 *total += 1;
@@ -1691,9 +1706,27 @@ mod tests {
         ];
         let result = flatten_action_sequence(&actions).unwrap();
         assert_eq!(result.len(), 4);
-        assert!(matches!(&result[0], Action::Key(KeyAction::Click { virtual_key: 0x41, .. })));
-        assert!(matches!(&result[1], Action::Key(KeyAction::Click { virtual_key: 0x42, .. })));
-        assert!(matches!(&result[2], Action::Key(KeyAction::Click { virtual_key: 0x43, .. })));
+        assert!(matches!(
+            &result[0],
+            Action::Key(KeyAction::Click {
+                virtual_key: 0x41,
+                ..
+            })
+        ));
+        assert!(matches!(
+            &result[1],
+            Action::Key(KeyAction::Click {
+                virtual_key: 0x42,
+                ..
+            })
+        ));
+        assert!(matches!(
+            &result[2],
+            Action::Key(KeyAction::Click {
+                virtual_key: 0x43,
+                ..
+            })
+        ));
         assert!(matches!(&result[3], Action::None));
     }
 
@@ -1715,7 +1748,9 @@ mod tests {
             .filter_map(|a| match a {
                 Action::Key(KeyAction::Click { virtual_key, .. }) => Some(*virtual_key),
                 Action::Key(KeyAction::Press { virtual_key, .. }) => Some(*virtual_key),
-                Action::Key(KeyAction::Release { virtual_key, .. }) => Some(*virtual_key),
+                Action::Key(KeyAction::Release { virtual_key, .. }) => {
+                    Some(*virtual_key)
+                }
                 _ => None,
             })
             .collect();

@@ -1,7 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+/// Key definition with scan code and virtual key code
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyDef {
+    pub scan_code: u16,
+    pub virtual_key: u16,
+}
+
 /// Key action
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum KeyAction {
     /// Press key
     Press { scan_code: u16, virtual_key: u16 },
@@ -14,9 +21,9 @@ pub enum KeyAction {
     /// Key combination (e.g., Ctrl+C)
     Combo {
         modifiers: super::ModifierState,
-        key: (u16, u16), // (scan_code, virtual_key)
+        key: KeyDef,
     },
-    /// No operation
+    /// No operation (no key action will be performed)
     None,
 }
 
@@ -63,7 +70,7 @@ impl KeyAction {
 }
 
 /// Mouse action
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MouseAction {
     /// Move mouse
     Move { x: i32, y: i32, relative: bool },
@@ -77,12 +84,12 @@ pub enum MouseAction {
     Wheel { delta: i32 },
     /// Horizontal scroll
     HWheel { delta: i32 },
-    /// No operation
+    /// No operation (no mouse action will be performed)
     None,
 }
 
 /// Edge enum (for window management)
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Edge {
     Left,
     Right,
@@ -91,7 +98,7 @@ pub enum Edge {
 }
 
 /// Alignment enum
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Alignment {
     Left,
     Right,
@@ -101,7 +108,7 @@ pub enum Alignment {
 }
 
 /// Monitor direction enum
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MonitorDirection {
     Next,
     Prev,
@@ -109,7 +116,7 @@ pub enum MonitorDirection {
 }
 
 /// Window action (inspired by mrw project)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum WindowAction {
     /// Center window
     Center,
@@ -153,12 +160,12 @@ pub enum WindowAction {
     LoadPreset { name: String },
     /// Apply matching preset to current window
     ApplyPreset,
-    /// No operation
+    /// No operation (no window action will be performed)
     None,
 }
 
 /// Launch program action
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LaunchAction {
     pub program: String,
     pub args: Vec<String>,
@@ -167,7 +174,7 @@ pub struct LaunchAction {
 }
 
 /// All possible action types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Action {
     Key(KeyAction),
     Mouse(MouseAction),
@@ -179,7 +186,7 @@ pub enum Action {
     Delay {
         milliseconds: u64,
     },
-    /// No operation
+    /// No operation (the top-level no-op; prefer this over sub-type None variants)
     None,
 }
 
@@ -237,6 +244,9 @@ impl Action {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{
+        InputEvent, KeyEvent, KeyState, MouseButton, MouseEvent, MouseEventType,
+    };
 
     // ==================== KeyAction Tests ====================
 
@@ -304,8 +314,7 @@ mod tests {
 
     #[test]
     fn test_key_action_from_event() {
-        let event =
-            super::super::KeyEvent::new(0x1E, 0x41, super::super::KeyState::Pressed);
+        let event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
         let press_action = KeyAction::press_from_event(&event);
         if let KeyAction::Press {
             scan_code,
@@ -342,7 +351,7 @@ mod tests {
             relative: false,
         };
         let button_down = MouseAction::ButtonDown {
-            button: super::super::MouseButton::Left,
+            button: MouseButton::Left,
         };
         let wheel = MouseAction::Wheel { delta: 120 };
         let h_wheel = MouseAction::HWheel { delta: -120 };
@@ -374,16 +383,16 @@ mod tests {
                 relative: false,
             },
             MouseAction::ButtonClick {
-                button: super::super::MouseButton::Left,
+                button: MouseButton::Left,
             },
             MouseAction::ButtonClick {
-                button: super::super::MouseButton::Right,
+                button: MouseButton::Right,
             },
             MouseAction::ButtonDown {
-                button: super::super::MouseButton::Left,
+                button: MouseButton::Left,
             },
             MouseAction::ButtonUp {
-                button: super::super::MouseButton::Left,
+                button: MouseButton::Left,
             },
             MouseAction::Wheel { delta: 120 },
             MouseAction::Wheel { delta: -120 },
@@ -515,7 +524,7 @@ mod tests {
     fn test_action_wrapper() {
         let key_action = Action::Key(KeyAction::click(0x1E, 0x41));
         let mouse_action = Action::Mouse(MouseAction::ButtonClick {
-            button: super::super::MouseButton::Left,
+            button: MouseButton::Left,
         });
         let window_action = Action::Window(WindowAction::Center);
         let launch_action = Action::Launch(super::LaunchAction {
@@ -586,9 +595,8 @@ mod tests {
 
     #[test]
     fn test_action_from_input_event_key_pressed() {
-        let key_event =
-            super::super::KeyEvent::new(0x1E, 0x41, super::super::KeyState::Pressed);
-        let event = super::super::InputEvent::Key(key_event);
+        let key_event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+        let event = InputEvent::Key(key_event);
 
         let action = Action::from_input_event(&event);
         assert!(action.is_some());
@@ -607,9 +615,8 @@ mod tests {
 
     #[test]
     fn test_action_from_input_event_key_released() {
-        let key_event =
-            super::super::KeyEvent::new(0x1E, 0x41, super::super::KeyState::Released);
-        let event = super::super::InputEvent::Key(key_event);
+        let key_event = KeyEvent::new(0x1E, 0x41, KeyState::Released);
+        let event = InputEvent::Key(key_event);
 
         let action = Action::from_input_event(&event);
         assert!(action.is_some());
@@ -628,12 +635,9 @@ mod tests {
 
     #[test]
     fn test_action_from_input_event_mouse_move() {
-        let mouse_event = super::super::MouseEvent::new(
-            super::super::MouseEventType::Move { relative: false },
-            100,
-            200,
-        );
-        let event = super::super::InputEvent::Mouse(mouse_event);
+        let mouse_event =
+            MouseEvent::new(MouseEventType::Move { relative: false }, 100, 200);
+        let event = InputEvent::Mouse(mouse_event);
 
         let action = Action::from_input_event(&event);
         assert!(action.is_some());
@@ -649,18 +653,15 @@ mod tests {
 
     #[test]
     fn test_action_from_input_event_mouse_button_down() {
-        let mouse_event = super::super::MouseEvent::new(
-            super::super::MouseEventType::ButtonDown(super::super::MouseButton::Left),
-            0,
-            0,
-        );
-        let event = super::super::InputEvent::Mouse(mouse_event);
+        let mouse_event =
+            MouseEvent::new(MouseEventType::ButtonDown(MouseButton::Left), 0, 0);
+        let event = InputEvent::Mouse(mouse_event);
 
         let action = Action::from_input_event(&event);
         assert!(action.is_some());
 
         if let Some(Action::Mouse(MouseAction::ButtonDown { button })) = action {
-            assert_eq!(button, super::super::MouseButton::Left);
+            assert_eq!(button, MouseButton::Left);
         } else {
             panic!("Expected Mouse ButtonDown action");
         }
@@ -668,18 +669,15 @@ mod tests {
 
     #[test]
     fn test_action_from_input_event_mouse_button_up() {
-        let mouse_event = super::super::MouseEvent::new(
-            super::super::MouseEventType::ButtonUp(super::super::MouseButton::Right),
-            0,
-            0,
-        );
-        let event = super::super::InputEvent::Mouse(mouse_event);
+        let mouse_event =
+            MouseEvent::new(MouseEventType::ButtonUp(MouseButton::Right), 0, 0);
+        let event = InputEvent::Mouse(mouse_event);
 
         let action = Action::from_input_event(&event);
         assert!(action.is_some());
 
         if let Some(Action::Mouse(MouseAction::ButtonUp { button })) = action {
-            assert_eq!(button, super::super::MouseButton::Right);
+            assert_eq!(button, MouseButton::Right);
         } else {
             panic!("Expected Mouse ButtonUp action");
         }
@@ -687,12 +685,8 @@ mod tests {
 
     #[test]
     fn test_action_from_input_event_mouse_wheel() {
-        let mouse_event = super::super::MouseEvent::new(
-            super::super::MouseEventType::Wheel(120),
-            0,
-            0,
-        );
-        let event = super::super::InputEvent::Mouse(mouse_event);
+        let mouse_event = MouseEvent::new(MouseEventType::Wheel(120), 0, 0);
+        let event = InputEvent::Mouse(mouse_event);
 
         let action = Action::from_input_event(&event);
         assert!(action.is_some());

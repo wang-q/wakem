@@ -2,7 +2,7 @@ use super::{Action, InputEvent, ModifierState};
 use serde::{Deserialize, Serialize};
 
 /// Mapping rule
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MappingRule {
     /// Rule name (optional)
     pub name: Option<String>,
@@ -29,7 +29,7 @@ impl MappingRule {
 }
 
 /// Trigger condition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Trigger {
     /// Keyboard key
     Key {
@@ -37,7 +37,7 @@ pub enum Trigger {
         virtual_key: Option<u16>,
         modifiers: ModifierState,
     },
-    /// Mouse button
+    /// Mouse button trigger (only matches ButtonDown events)
     MouseButton {
         button: super::MouseButton,
         modifiers: ModifierState,
@@ -158,7 +158,7 @@ impl Trigger {
 }
 
 /// Context condition
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct ContextCondition {
     /// Window class name matching (supports wildcards)
     #[serde(default)]

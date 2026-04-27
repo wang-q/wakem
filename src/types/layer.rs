@@ -13,7 +13,7 @@ pub enum LayerMode {
 }
 
 /// Layer definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Layer {
     /// Layer name
     pub name: String,

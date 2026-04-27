@@ -83,8 +83,6 @@ impl ConnectionLimiter {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;

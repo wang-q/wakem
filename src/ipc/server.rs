@@ -15,7 +15,9 @@ use crate::constants::{
 use super::auth::server_perform_authentication;
 use super::rate_limiter::ConnectionLimiter;
 use super::security::is_allowed_ip;
-use super::{read_message, send_message, IpcError, Message, Result, IPC_PROTOCOL_VERSION};
+use super::{
+    read_message, send_message, IpcError, Message, Result, IPC_PROTOCOL_VERSION,
+};
 
 /// IPC server (based on TCP)
 ///
@@ -195,7 +197,8 @@ mod tests {
     async fn test_server_start() {
         let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
         let auth_key = Arc::new(RwLock::new(Zeroizing::new("test-key".to_string())));
-        let mut server = IpcServer::new_with_dynamic_key("127.0.0.1:57428", auth_key, tx);
+        let mut server =
+            IpcServer::new_with_dynamic_key("127.0.0.1:57428", auth_key, tx);
         server.start().await.unwrap();
     }
 
@@ -206,7 +209,8 @@ mod tests {
     async fn test_server_start_with_dynamic_key() {
         let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
         let auth_key = Arc::new(RwLock::new(Zeroizing::new("test-key".to_string())));
-        let mut server = IpcServer::new_with_dynamic_key("127.0.0.1:57429", auth_key, tx);
+        let mut server =
+            IpcServer::new_with_dynamic_key("127.0.0.1:57429", auth_key, tx);
         server.start().await.unwrap();
     }
 }

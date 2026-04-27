@@ -1,5 +1,6 @@
 use keycode::{KeyMap, KeyMappingCode};
 use once_cell::sync::Lazy;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -268,6 +269,7 @@ static ALIAS_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     m.insert("leftshift", "ShiftLeft");
     m.insert("rshift", "ShiftRight");
     m.insert("rightshift", "ShiftRight");
+    m.insert("shift", "ShiftLeft");
     m.insert("lctrl", "ControlLeft");
     m.insert("lcontrol", "ControlLeft");
     m.insert("leftctrl", "ControlLeft");
@@ -276,10 +278,13 @@ static ALIAS_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     m.insert("rcontrol", "ControlRight");
     m.insert("rightctrl", "ControlRight");
     m.insert("rightcontrol", "ControlRight");
+    m.insert("ctrl", "ControlLeft");
+    m.insert("control", "ControlLeft");
     m.insert("lalt", "AltLeft");
     m.insert("leftalt", "AltLeft");
     m.insert("ralt", "AltRight");
     m.insert("rightalt", "AltRight");
+    m.insert("alt", "AltLeft");
     m.insert("lwin", "MetaLeft");
     m.insert("lmeta", "MetaLeft");
     m.insert("leftwin", "MetaLeft");
@@ -288,6 +293,10 @@ static ALIAS_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     m.insert("rmeta", "MetaRight");
     m.insert("rightwin", "MetaRight");
     m.insert("rightmeta", "MetaRight");
+    m.insert("win", "MetaLeft");
+    m.insert("meta", "MetaLeft");
+    m.insert("command", "MetaLeft");
+    m.insert("cmd", "MetaLeft");
 
     m.insert("comma", "Comma");
     m.insert("period", "Period");
@@ -367,54 +376,6 @@ static ALIAS_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
 
 static CHAR_TO_W3: Lazy<HashMap<char, &'static str>> = Lazy::new(|| {
     let mut m = HashMap::new();
-    for c in 'a'..='z' {
-        let name = match c {
-            'a' => "KeyA",
-            'b' => "KeyB",
-            'c' => "KeyC",
-            'd' => "KeyD",
-            'e' => "KeyE",
-            'f' => "KeyF",
-            'g' => "KeyG",
-            'h' => "KeyH",
-            'i' => "KeyI",
-            'j' => "KeyJ",
-            'k' => "KeyK",
-            'l' => "KeyL",
-            'm' => "KeyM",
-            'n' => "KeyN",
-            'o' => "KeyO",
-            'p' => "KeyP",
-            'q' => "KeyQ",
-            'r' => "KeyR",
-            's' => "KeyS",
-            't' => "KeyT",
-            'u' => "KeyU",
-            'v' => "KeyV",
-            'w' => "KeyW",
-            'x' => "KeyX",
-            'y' => "KeyY",
-            'z' => "KeyZ",
-            _ => unreachable!(),
-        };
-        m.insert(c, name);
-    }
-    for d in '0'..='9' {
-        let name = match d {
-            '0' => "Digit0",
-            '1' => "Digit1",
-            '2' => "Digit2",
-            '3' => "Digit3",
-            '4' => "Digit4",
-            '5' => "Digit5",
-            '6' => "Digit6",
-            '7' => "Digit7",
-            '8' => "Digit8",
-            '9' => "Digit9",
-            _ => unreachable!(),
-        };
-        m.insert(d, name);
-    }
     m.insert(',', "Comma");
     m.insert('.', "Period");
     m.insert(';', "Semicolon");
@@ -428,6 +389,16 @@ static CHAR_TO_W3: Lazy<HashMap<char, &'static str>> = Lazy::new(|| {
     m.insert('`', "Backquote");
     m
 });
+
+fn char_to_w3_name(c: char) -> Option<Cow<'static, str>> {
+    if c.is_ascii_lowercase() {
+        Some(Cow::Owned(format!("Key{}", c.to_ascii_uppercase())))
+    } else if c.is_ascii_digit() {
+        Some(Cow::Owned(format!("Digit{}", c)))
+    } else {
+        CHAR_TO_W3.get(&c).map(|s| Cow::Borrowed(*s))
+    }
+}
 
 fn code_to_vk(code: KeyMappingCode) -> u16 {
     match code {
@@ -551,21 +522,20 @@ fn code_to_vk(code: KeyMappingCode) -> u16 {
     }
 }
 
-fn resolve_to_w3_name(input: &str) -> Option<&'static str> {
+fn resolve_to_w3_name(input: &str) -> Option<Cow<'static, str>> {
     if let Some(w3_name) = ALIAS_MAP.get(input) {
-        return Some(*w3_name);
+        return Some(Cow::Borrowed(*w3_name));
     }
 
     if input.len() == 1 {
         let c = input.chars().next().unwrap();
-        if let Some(w3_name) = CHAR_TO_W3.get(&c) {
-            return Some(*w3_name);
+        if let Some(w3_name) = char_to_w3_name(c) {
+            return Some(w3_name);
         }
     }
 
     if input.parse::<KeyMappingCode>().is_ok() {
-        let owned = input.to_owned();
-        return Some(Box::leak(owned.into_boxed_str()));
+        return Some(Cow::Owned(input.to_owned()));
     }
 
     None
@@ -576,13 +546,12 @@ fn w3_name_to_key_map(w3_name: &str) -> Option<KeyMap> {
     Some(KeyMap::from(code))
 }
 
-/// Parse key name to (scan_code, virtual_key)
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     let lower = name.to_lowercase();
     let w3_name = resolve_to_w3_name(&lower)
         .ok_or_else(|| anyhow::anyhow!("Unknown key name: {}", name))?;
 
-    let key_map = w3_name_to_key_map(w3_name)
+    let key_map = w3_name_to_key_map(&w3_name)
         .ok_or_else(|| anyhow::anyhow!("No key mapping found for: {}", name))?;
 
     let scan_code = key_map.win as u16;

@@ -29,9 +29,7 @@ pub use server::IpcServer;
 pub enum Message {
     // Client -> Server
     /// Send configuration to server
-    SetConfig {
-        config: Box<crate::config::Config>,
-    },
+    SetConfig { config: Box<crate::config::Config> },
     /// Reload configuration
     ReloadConfig,
     /// Save current configuration to file
@@ -39,68 +37,41 @@ pub enum Message {
     /// Get current status
     GetStatus,
     /// Enable/disable mapping
-    SetActive {
-        active: bool,
-    },
+    SetActive { active: bool },
     /// Get next key info (for debugging)
     GetNextKeyInfo,
     /// Start macro recording
-    StartMacroRecording {
-        name: String,
-    },
+    StartMacroRecording { name: String },
     /// Stop macro recording
     StopMacroRecording,
     /// Play macro
-    PlayMacro {
-        name: String,
-    },
+    PlayMacro { name: String },
     /// Get macro list
     GetMacros,
     /// Delete macro
-    DeleteMacro {
-        name: String,
-    },
+    DeleteMacro { name: String },
     /// Bind macro to trigger key
-    BindMacro {
-        macro_name: String,
-        trigger: String,
-    },
+    BindMacro { macro_name: String, trigger: String },
     /// Initialize platform-specific services (e.g., notification service)
-    InitializePlatform {
-        native_handle: Option<usize>,
-    },
+    InitializePlatform { native_handle: Option<usize> },
     /// Shutdown the daemon
     Shutdown,
 
     // Server -> Client
     /// Status response
-    StatusResponse {
-        active: bool,
-        config_loaded: bool,
-    },
+    StatusResponse { active: bool, config_loaded: bool },
     /// Configuration loaded
     ConfigLoaded,
     /// Configuration load error
-    ConfigError {
-        error: String,
-    },
+    ConfigError { error: String },
     /// Next key info (debug)
-    NextKeyInfo {
-        info: String,
-    },
+    NextKeyInfo { info: String },
     /// Error response
-    Error {
-        message: String,
-    },
+    Error { message: String },
     /// Macro recording result
-    MacroRecordingResult {
-        name: String,
-        action_count: usize,
-    },
+    MacroRecordingResult { name: String, action_count: usize },
     /// Macro list response
-    MacrosList {
-        macros: Vec<String>,
-    },
+    MacrosList { macros: Vec<String> },
     /// Success response
     Success,
 

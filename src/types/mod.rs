@@ -37,7 +37,7 @@ pub enum KeyState {
 }
 
 /// Modifier key state
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModifierState {
     pub shift: bool,
     pub ctrl: bool,

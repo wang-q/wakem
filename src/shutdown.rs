@@ -24,7 +24,9 @@ impl ShutdownSignal {
         Self {
             sender,
             receiver,
-            shutdown_triggered: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            shutdown_triggered: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+                false,
+            )),
         }
     }
 
@@ -37,7 +39,8 @@ impl ShutdownSignal {
     ///
     /// This is a synchronous operation since `watch::Sender::send` is non-blocking.
     pub fn shutdown(&self) {
-        self.shutdown_triggered.store(true, std::sync::atomic::Ordering::Release);
+        self.shutdown_triggered
+            .store(true, std::sync::atomic::Ordering::Release);
         info!("Initiating graceful shutdown...");
         if self.sender.send(true).is_ok() {
             debug!("Shutdown signal sent to all subscribers");
@@ -47,11 +50,12 @@ impl ShutdownSignal {
     }
 }
 
-
-
 impl Drop for ShutdownSignal {
     fn drop(&mut self) {
-        if !self.shutdown_triggered.load(std::sync::atomic::Ordering::Acquire) {
+        if !self
+            .shutdown_triggered
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
             warn!("ShutdownSignal dropped without triggering shutdown");
         }
     }

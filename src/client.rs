@@ -226,8 +226,6 @@ impl DaemonClient {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;

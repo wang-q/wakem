@@ -61,7 +61,7 @@ pub trait OutputDeviceTrait: Send {
             }
             KeyAction::TypeText(text) => self.send_text(text),
             KeyAction::Combo { modifiers, key } => {
-                self.send_combo(modifiers, key.0, key.1)
+                self.send_combo(modifiers, key.scan_code, key.virtual_key)
             }
             KeyAction::None => Ok(()),
         }

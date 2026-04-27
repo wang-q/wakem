@@ -6,7 +6,9 @@ use tracing::{debug, warn};
 use crate::constants::{IPC_CONNECTION_TIMEOUT_SECS, IPC_REQUEST_TIMEOUT_SECS};
 
 use super::auth::client_perform_authentication;
-use super::{read_message, send_message, IpcError, Message, Result, IPC_PROTOCOL_VERSION};
+use super::{
+    read_message, send_message, IpcError, Message, Result, IPC_PROTOCOL_VERSION,
+};
 
 /// IPC client (based on TCP)
 pub struct IpcClient {
@@ -105,5 +107,3 @@ impl IpcClient {
         .await?
     }
 }
-
-

@@ -1,7 +1,7 @@
+use indexmap::IndexMap;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
@@ -759,7 +759,9 @@ fn create_hyper_key_action(
     }
 
     let mut all_actions = press_actions;
-    all_actions.push(Action::Delay { milliseconds: crate::constants::HYPER_KEY_INJECTION_DELAY_MS });
+    all_actions.push(Action::Delay {
+        milliseconds: crate::constants::HYPER_KEY_INJECTION_DELAY_MS,
+    });
     all_actions.push(Action::None);
     all_actions.extend(release_actions);
 
