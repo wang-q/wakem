@@ -206,12 +206,12 @@ fn test_parse_special_keys() {
         ("escape", (0x01, 0x1B)),
         ("space", (0x39, 0x20)),
         ("tab", (0x0F, 0x09)),
-        ("delete", (0x53, 0x2E)),
-        ("insert", (0x52, 0x2D)),
-        ("home", (0x47, 0x24)),
-        ("end", (0x4F, 0x23)),
-        ("pageup", (0x49, 0x21)),
-        ("pagedown", (0x51, 0x22)),
+        ("delete", (0xE053, 0x2E)),
+        ("insert", (0xE052, 0x2D)),
+        ("home", (0xE047, 0x24)),
+        ("end", (0xE04F, 0x23)),
+        ("pageup", (0xE049, 0x21)),
+        ("pagedown", (0xE051, 0x22)),
     ];
 
     for (name, expected) in special_keys {
@@ -226,10 +226,10 @@ fn test_parse_navigation_keys() {
     use wakem::config::parse_key;
 
     let nav_keys = vec![
-        ("left", (0x4B, 0x25)),
-        ("right", (0x4D, 0x27)),
-        ("up", (0x48, 0x26)),
-        ("down", (0x50, 0x28)),
+        ("left", (0xE04B, 0x25)),
+        ("right", (0xE04D, 0x27)),
+        ("up", (0xE048, 0x26)),
+        ("down", (0xE050, 0x28)),
     ];
 
     for (name, expected) in nav_keys {

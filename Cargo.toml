@@ -52,7 +52,9 @@ zeroize = { version = "1.7", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Keyboard code mapping (cross-platform)
-keyboard-codes = { version = "0.3", features = ["serde", "phf"] }
+keyboard-codes = { version = "0.3", features = ["serde"] }
+
+keycode = "1.0"
 
 # Async trait
 async-trait = "0.1"

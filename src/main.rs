@@ -450,9 +450,7 @@ fn get_runtime() -> Result<&'static tokio::runtime::Runtime> {
         // 1. The runtime is created once per thread and never destroyed
         // 2. CLI commands are short-lived and the runtime is small
         // 3. The alternative (creating a new runtime per call) is wasteful
-        let runtime_ptr = Box::into_raw(Box::new(
-            rt.take().unwrap(),
-        ));
+        let runtime_ptr = Box::into_raw(Box::new(rt.take().unwrap()));
         Ok(unsafe { &*runtime_ptr })
     })
 }

@@ -1,8 +1,8 @@
 use crate::constants::{
     AUTH_OPERATION_TIMEOUT_SECS, IPC_BASE_PORT, IPC_CHANNEL_CAPACITY,
     IPC_CONNECTION_TIMEOUT_SECS, IPC_DISCOVERY_TIMEOUT_MS, IPC_IDLE_TIMEOUT_LONG_SECS,
-    IPC_IDLE_TIMEOUT_SHORT_SECS,
-    IPC_MAX_MESSAGE_SIZE, RATE_LIMIT_MAX_ATTEMPTS, RATE_LIMIT_WINDOW_SECS,
+    IPC_IDLE_TIMEOUT_SHORT_SECS, IPC_MAX_MESSAGE_SIZE, RATE_LIMIT_MAX_ATTEMPTS,
+    RATE_LIMIT_WINDOW_SECS,
 };
 use hmac::{Hmac, Mac};
 use rand::RngCore;
@@ -385,7 +385,10 @@ pub fn get_instance_address(instance_id: u32) -> String {
 /// The buffer is cleared and reused across calls to avoid repeated heap
 /// allocations. This is especially beneficial for high-frequency IPC
 /// communication where many messages are exchanged on a single connection.
-pub async fn read_message(stream: &mut TcpStream, buffer: &mut Vec<u8>) -> Result<Message> {
+pub async fn read_message(
+    stream: &mut TcpStream,
+    buffer: &mut Vec<u8>,
+) -> Result<Message> {
     let mut len_bytes = [0u8; 4];
     stream.read_exact(&mut len_bytes).await?;
     let len = u32::from_be_bytes(len_bytes) as usize;
@@ -660,10 +663,7 @@ async fn handle_connection(
             // Send protocol version after successful authentication
             let version_bytes = IPC_PROTOCOL_VERSION.to_le_bytes();
             stream.write_all(&version_bytes).await?;
-            debug!(
-                "Sent protocol version {} to {}",
-                IPC_PROTOCOL_VERSION, addr
-            );
+            debug!("Sent protocol version {} to {}", IPC_PROTOCOL_VERSION, addr);
         } else {
             // Zeroizing<String> automatically zeroes on drop
         }

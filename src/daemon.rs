@@ -765,8 +765,10 @@ impl ServerState {
             .macros
             .insert(macro_def.name.clone(), macro_def.steps.clone());
 
-        let config_path =
-            crate::config::resolve_config_file_path(None, config_state.config.network.instance_id);
+        let config_path = crate::config::resolve_config_file_path(
+            None,
+            config_state.config.network.instance_id,
+        );
 
         if let Some(config_path) = config_path {
             if let Err(e) = config_state.config.save_to_file(&config_path) {
@@ -849,9 +851,10 @@ impl ServerState {
         // Also remove bindings
         config.config.macro_bindings.retain(|_, v| v != name);
 
-        if let Some(config_path) =
-            crate::config::resolve_config_file_path(None, config.config.network.instance_id)
-        {
+        if let Some(config_path) = crate::config::resolve_config_file_path(
+            None,
+            config.config.network.instance_id,
+        ) {
             if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
@@ -874,9 +877,10 @@ impl ServerState {
             .macro_bindings
             .insert(trigger.to_string(), macro_name.to_string());
 
-        if let Some(config_path) =
-            crate::config::resolve_config_file_path(None, config.config.network.instance_id)
-        {
+        if let Some(config_path) = crate::config::resolve_config_file_path(
+            None,
+            config.config.network.instance_id,
+        ) {
             if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
@@ -1704,7 +1708,10 @@ mod tests {
             .collect();
         let result = state.flatten_action_sequence(&actions);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("maximum total actions"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("maximum total actions"));
     }
 
     #[test]
@@ -1747,18 +1754,24 @@ mod tests {
     async fn test_multiple_config_loads() {
         let state = ServerState::new(ShutdownSignal::new());
 
-        let config1: Config = toml::from_str(r#"
+        let config1: Config = toml::from_str(
+            r#"
 [keyboard.remap]
 CapsLock = "Backspace"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         state.load_config(config1).await.unwrap();
         let (_, loaded) = state.get_status().await;
         assert!(loaded);
 
-        let config2: Config = toml::from_str(r#"
+        let config2: Config = toml::from_str(
+            r#"
 [keyboard.remap]
 A = "B"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         state.load_config(config2).await.unwrap();
         let (_, loaded) = state.get_status().await;
         assert!(loaded);
@@ -1768,10 +1781,13 @@ A = "B"
     async fn test_load_config_with_auth_key() {
         let state = ServerState::new(ShutdownSignal::new());
 
-        let config: Config = toml::from_str(r#"
+        let config: Config = toml::from_str(
+            r#"
 [network]
 auth_key = "my-secret-key"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let result = state.load_config(config).await;
         assert!(result.is_ok());
 
@@ -1795,26 +1811,23 @@ auth_key = "my-secret-key"
     async fn test_hyper_key_processing() {
         let state = ServerState::new(ShutdownSignal::new());
 
-        let config: Config = toml::from_str(r#"
+        let config: Config = toml::from_str(
+            r#"
 [keyboard.remap]
 CapsLock = "Ctrl+Alt+Meta"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         state.load_config(config).await.unwrap();
 
         let (caps_sc, caps_vk) = crate::config::parse_key("CapsLock").unwrap();
 
-        let press_event = InputEvent::Key(KeyEvent::new(
-            caps_sc,
-            caps_vk,
-            KeyState::Pressed,
-        ));
+        let press_event =
+            InputEvent::Key(KeyEvent::new(caps_sc, caps_vk, KeyState::Pressed));
         state.process_input_event(press_event).await;
 
-        let release_event = InputEvent::Key(KeyEvent::new(
-            caps_sc,
-            caps_vk,
-            KeyState::Released,
-        ));
+        let release_event =
+            InputEvent::Key(KeyEvent::new(caps_sc, caps_vk, KeyState::Released));
         state.process_input_event(release_event).await;
     }
 
@@ -1822,14 +1835,18 @@ CapsLock = "Ctrl+Alt+Meta"
     async fn test_wheel_enhancement_with_acceleration() {
         let state = ServerState::new(ShutdownSignal::new());
 
-        let config: Config = toml::from_str(r#"
+        let config: Config = toml::from_str(
+            r#"
 [mouse.wheel]
 acceleration = true
 acceleration_multiplier = 3
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         state.load_config(config).await.unwrap();
 
-        let mouse_event = crate::types::MouseEvent::new(MouseEventType::Wheel(120), 0, 0);
+        let mouse_event =
+            crate::types::MouseEvent::new(MouseEventType::Wheel(120), 0, 0);
         let event = InputEvent::Mouse(mouse_event);
         state.process_input_event(event).await;
     }
@@ -1838,14 +1855,18 @@ acceleration_multiplier = 3
     async fn test_wheel_enhancement_horizontal_scroll() {
         let state = ServerState::new(ShutdownSignal::new());
 
-        let config: Config = toml::from_str(r#"
+        let config: Config = toml::from_str(
+            r#"
 [mouse.wheel.horizontal_scroll]
 modifier = "Shift"
 step = 3
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         state.load_config(config).await.unwrap();
 
-        let mouse_event = crate::types::MouseEvent::new(MouseEventType::Wheel(120), 0, 0);
+        let mouse_event =
+            crate::types::MouseEvent::new(MouseEventType::Wheel(120), 0, 0);
         let event = InputEvent::Mouse(mouse_event);
         state.process_input_event(event).await;
     }
