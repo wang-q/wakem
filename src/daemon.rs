@@ -1500,48 +1500,6 @@ pub async fn run_server_with_config(
     Ok(())
 }
 
-/// Handle window events (currently unused - awaiting event forwarding implementation)
-///
-/// This method implements auto-apply preset logic for window activation events.
-/// It will be called once the window event bridge is updated to forward events
-/// to the async processor. See `run_window_event_bridge` TODO for details.
-#[allow(dead_code)]
-impl ServerState {
-    async fn handle_window_event(
-        &self,
-        event: crate::platform::traits::PlatformWindowEvent,
-    ) {
-        use crate::platform::traits::PlatformWindowEvent;
-
-        let auto_apply = {
-            let config = self.config.read().await;
-            config.config.window.auto_apply_preset
-        };
-
-        if !auto_apply {
-            return;
-        }
-
-        if let PlatformWindowEvent::WindowActivated { window_id, .. } = event {
-            tokio::time::sleep(tokio::time::Duration::from_millis(
-                crate::constants::WINDOW_PRESET_APPLY_DELAY_MS,
-            ))
-            .await;
-
-            let preset_manager = self.window_preset_manager.read().await;
-            match preset_manager.apply_preset_for_window_by_id(window_id) {
-                Ok(true) => {
-                    debug!("Auto-applied preset to window {}", window_id);
-                }
-                Ok(false) => {}
-                Err(e) => {
-                    debug!("Failed to auto-apply preset: {}", e);
-                }
-            }
-        }
-    }
-}
-
 /// Handle IPC messages
 async fn handle_message(message: Message, state: &ServerState) -> Message {
     match message {

@@ -83,11 +83,7 @@ impl ConnectionLimiter {
     }
 }
 
-impl Default for ConnectionLimiter {
-    fn default() -> Self {
-        Self::with_defaults()
-    }
-}
+
 
 #[cfg(test)]
 mod tests {
@@ -135,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let limiter = ConnectionLimiter::default();
+        let limiter = ConnectionLimiter::with_defaults();
         assert_eq!(limiter.max_attempts, RATE_LIMIT_MAX_ATTEMPTS);
         assert_eq!(limiter.window_seconds, RATE_LIMIT_WINDOW_SECS);
     }

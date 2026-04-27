@@ -12,6 +12,7 @@ pub struct DaemonClient {
 
 impl DaemonClient {
     /// Create new client (not connected)
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self { client: None }
     }
@@ -225,11 +226,7 @@ impl DaemonClient {
     }
 }
 
-impl Default for DaemonClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 
 #[cfg(test)]
 mod tests {

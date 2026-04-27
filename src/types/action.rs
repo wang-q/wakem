@@ -194,17 +194,6 @@ impl Action {
         Self::Window(action)
     }
 
-    /// Create launch program action
-    #[allow(dead_code)]
-    pub fn launch(program: impl Into<String>) -> Self {
-        Self::Launch(LaunchAction {
-            program: program.into(),
-            args: Vec::new(),
-            working_dir: None,
-            env_vars: Vec::new(),
-        })
-    }
-
     /// Create delay action
     pub fn delay(milliseconds: u64) -> Self {
         Self::Delay { milliseconds }
@@ -573,7 +562,12 @@ mod tests {
         assert!(matches!(action, Action::Window(_)));
 
         // launch
-        let action = Action::launch("notepad.exe");
+        let action = Action::Launch(LaunchAction {
+            program: "notepad.exe".to_string(),
+            args: Vec::new(),
+            working_dir: None,
+            env_vars: Vec::new(),
+        });
         assert!(matches!(action, Action::Launch(cmd) if cmd.program == "notepad.exe"));
 
         // sequence

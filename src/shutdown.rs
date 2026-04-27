@@ -18,6 +18,7 @@ pub struct ShutdownSignal {
 
 impl ShutdownSignal {
     /// Create new shutdown signal
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let (sender, receiver) = watch::channel(false);
         Self {
@@ -46,11 +47,7 @@ impl ShutdownSignal {
     }
 }
 
-impl Default for ShutdownSignal {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 
 impl Drop for ShutdownSignal {
     fn drop(&mut self) {

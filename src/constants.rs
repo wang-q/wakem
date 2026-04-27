@@ -48,9 +48,6 @@ pub const INPUT_BATCH_SIZE_LIMIT: usize = 50;
 /// Delay to wait for tasks to complete during shutdown (milliseconds)
 pub const SHUTDOWN_WAIT_DELAY_MS: u64 = 500;
 
-/// Delay before auto-applying window preset after window activation (milliseconds)
-pub const WINDOW_PRESET_APPLY_DELAY_MS: u64 = 100;
-
 // ==================== Authentication Related Constants ====================
 
 /// Authentication operation timeout (seconds)

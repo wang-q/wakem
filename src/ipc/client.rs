@@ -106,8 +106,4 @@ impl IpcClient {
     }
 }
 
-impl Default for IpcClient {
-    fn default() -> Self {
-        Self::new("127.0.0.1:57427")
-    }
-}
+
