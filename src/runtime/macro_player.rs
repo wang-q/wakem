@@ -304,8 +304,6 @@ mod tests {
         };
 
         assert_eq!(macro_def.steps.len(), 6);
-        assert_eq!(macro_def.step_count(), 6);
-        assert_eq!(macro_def.total_delay(), 350); // 0+0+50+0+100+200(delay action)
     }
 
     #[test]
@@ -343,8 +341,7 @@ mod tests {
             description: None,
         };
 
-        assert_eq!(macro_def.step_count(), 0);
-        assert_eq!(macro_def.total_delay(), 0);
+        assert_eq!(macro_def.steps.len(), 0);
     }
 
     #[test]
@@ -363,8 +360,7 @@ mod tests {
             description: Some("Single step macro".to_string()),
         };
 
-        assert_eq!(macro_def.step_count(), 1);
-        assert_eq!(macro_def.total_delay(), 0);
+        assert_eq!(macro_def.steps.len(), 1);
         assert_eq!(macro_def.name, "single");
         assert!(macro_def.created_at.is_some());
         assert!(macro_def.description.is_some());
@@ -406,8 +402,7 @@ mod tests {
             description: None,
         };
 
-        assert_eq!(macro_def.step_count(), 4);
-        assert_eq!(macro_def.total_delay(), 350); // max timestamp
+        assert_eq!(macro_def.steps.len(), 4);
     }
 
     #[test]
@@ -484,7 +479,7 @@ mod tests {
             description: None,
         };
 
-        assert_eq!(macro_def.step_count(), 6);
+        assert_eq!(macro_def.steps.len(), 6);
     }
 
     #[test]
@@ -520,10 +515,7 @@ mod tests {
             description: None,
         };
 
-        assert_eq!(macro_def.step_count(), 100);
-        // total_delay() is sum of all step delay_ms: 0 + 10 + 20 + ... + 990
-        // This is arithmetic series sum: (first + last) * count / 2 = (0 + 990) * 100 / 2 = 49500
-        assert_eq!(macro_def.total_delay(), 49500);
+        assert_eq!(macro_def.steps.len(), 100);
     }
 
     // ==================== Additional tests from ut_runtime_mapper.rs ====================

@@ -58,8 +58,7 @@ fn test_empty_macro_operations() {
         created_at: None,
         description: None,
     };
-    assert_eq!(macro_def.step_count(), 0);
-    assert_eq!(macro_def.total_delay(), 0);
+    assert_eq!(macro_def.steps.len(), 0);
 }
 
 /// Test Action::None behavior

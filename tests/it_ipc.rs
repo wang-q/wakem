@@ -88,8 +88,7 @@ fn test_macro_creation_and_properties() {
     };
 
     assert_eq!(macro_def.name, "test_macro");
-    assert_eq!(macro_def.step_count(), 2);
-    assert_eq!(macro_def.total_delay(), 50);
+    assert_eq!(macro_def.steps.len(), 2);
 }
 
 /// Test multi-layer workflow

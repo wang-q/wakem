@@ -1,59 +1,4 @@
 use std::fmt;
-use std::num::NonZeroU16;
-
-/// Scan code (hardware-related keyboard identifier)
-///
-/// Using newtype wrapper to ensure type safety:
-/// - Distinguish between "has value" and "no value" (0 means invalid)
-/// - Prevent confusion with other u16 types
-/// - Provide semantic construction methods
-///
-/// Note: This type is currently used primarily in tests and for type safety documentation.
-/// The actual input handling code uses raw u16 values for performance reasons.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub struct ScanCode(NonZeroU16);
-
-impl ScanCode {
-    /// Create a new scan code
-    ///
-    /// # Parameters
-    /// * `code` - Scan code value (must be > 0)
-    ///
-    /// # Returns
-    /// * `Some(ScanCode)` - If code > 0
-    /// * `None` - If code == 0 (invalid)
-    #[allow(dead_code)]
-    pub fn new(code: u16) -> Option<Self> {
-        NonZeroU16::new(code).map(ScanCode)
-    }
-
-    /// Create scan code, 0 value is treated as None
-    ///
-    /// This is the most commonly used construction method for handling inputs that may be 0
-    #[allow(dead_code)]
-    pub fn from_option(code: u16) -> Option<Self> {
-        Self::new(code)
-    }
-
-    /// Get raw value
-    #[allow(dead_code)]
-    pub fn value(&self) -> u16 {
-        self.0.get()
-    }
-
-    /// Check if valid (always returns true since 0 cannot be created)
-    #[allow(dead_code)]
-    pub fn is_valid(&self) -> bool {
-        true // NonZeroU16 guarantees non-zero
-    }
-}
-
-impl fmt::Display for ScanCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{:04X}", self.value())
-    }
-}
 
 /// Virtual key code (Windows VK_* identifier)
 ///
@@ -225,19 +170,6 @@ impl From<VirtualKey> for u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_scan_code_creation() {
-        assert!(ScanCode::new(0).is_none());
-        assert!(ScanCode::new(1).is_some());
-        assert_eq!(ScanCode::new(0x3A).unwrap().value(), 0x3A);
-    }
-
-    #[test]
-    fn test_scan_code_display() {
-        let sc = ScanCode::new(0x3A).unwrap();
-        assert_eq!(format!("{}", sc), "0x003A");
-    }
 
     #[test]
     fn test_virtual_key_validity() {
