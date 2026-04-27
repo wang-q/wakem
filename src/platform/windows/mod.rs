@@ -132,12 +132,10 @@ impl ContextProvider for WindowsPlatform {
 ///
 /// Wraps the tray icon notification functionality to implement
 /// the cross-platform [NotificationService] trait.
-#[allow(dead_code)]
 pub struct WindowsNotificationService {
     message_window_hwnd: std::sync::RwLock<Option<isize>>,
 }
 
-#[allow(dead_code)]
 impl WindowsNotificationService {
     pub fn new() -> Self {
         Self {

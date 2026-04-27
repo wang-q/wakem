@@ -10,8 +10,6 @@
 use crate::platform::macos::window_api::RealWindowApi;
 pub use crate::platform::traits::MonitorDirection;
 pub use crate::platform::window_manager_common::WindowManager;
-use anyhow::Result;
-use tracing::debug;
 
 /// Type alias for the real window manager using native macOS APIs
 pub type RealWindowManager = WindowManager<RealWindowApi>;
@@ -20,27 +18,6 @@ impl WindowManager<RealWindowApi> {
     /// Create a new window manager with the real macOS API
     pub fn new() -> Self {
         Self::with_api(RealWindowApi::new())
-    }
-
-    #[allow(dead_code)]
-    pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
-        use crate::platform::macos::output_device::SendInputDevice;
-        use crate::platform::traits::OutputDeviceTrait;
-        use crate::types::ModifierState;
-
-        let output = SendInputDevice::new();
-
-        // Simulate Command+` to switch to next window of same app
-        // Use send_combo with Command modifier and backtick key
-        let modifiers = ModifierState {
-            meta: true,
-            ..Default::default()
-        };
-        // 0x29 is scan code for backtick/grave, 0xC0 is VK_OEM_3 (backtick)
-        output.send_combo(&modifiers, 0x29, 0xC0)?;
-
-        debug!("Switched to next window of same process via Command+`");
-        Ok(())
     }
 }
 

@@ -48,11 +48,6 @@ impl ShutdownSignal {
         self.receiver.clone()
     }
 
-    /// Check if shutdown signal has been received (non-blocking, no allocation)
-    pub fn is_shutdown(&self) -> bool {
-        *self.receiver.borrow()
-    }
-
     /// Trigger shutdown signal
     pub async fn shutdown(&self) {
         info!("Initiating graceful shutdown...");

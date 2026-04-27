@@ -127,26 +127,6 @@ mod macos_integration_tests {
 
         teardown();
     }
-
-    #[test]
-    #[ignore = "Operates on real windows - run manually"]
-    fn test_switch_to_next_window_of_same_process() {
-        setup();
-
-        let _ = Command::new("open").args(["-a", "Terminal"]).output();
-        thread::sleep(Duration::from_secs(2));
-
-        let wm = RealWindowManager::new();
-        let window_id = match get_foreground_window_id(&wm) {
-            Some(id) => id,
-            None => panic!("No foreground window found"),
-        };
-
-        let result = wm.switch_to_next_window_of_same_process();
-        assert!(result.is_ok());
-
-        teardown();
-    }
 }
 
 #[cfg(not(target_os = "macos"))]

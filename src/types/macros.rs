@@ -1,7 +1,6 @@
 //! Macro recording and playback support
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
@@ -69,7 +68,6 @@ impl Macro {
 }
 
 /// Macro recorder
-#[allow(dead_code)]
 #[derive(Default)]
 pub struct MacroRecorder {
     recording: RwLock<Option<MacroRecording>>,
@@ -225,55 +223,6 @@ fn simplify_delays(steps: Vec<(Duration, MacroStep)>) -> Vec<MacroStep> {
     }
 
     result
-}
-
-/// Macro manager (for loading and managing saved macros)
-#[allow(dead_code)]
-#[derive(Default)]
-pub struct MacroManager {
-    macros: HashMap<String, Macro>,
-}
-
-#[allow(dead_code)]
-impl MacroManager {
-    pub fn new() -> Self {
-        Self {
-            macros: HashMap::new(),
-        }
-    }
-
-    /// Add macro
-    pub fn add_macro(&mut self, macro_def: Macro) {
-        self.macros.insert(macro_def.name.clone(), macro_def);
-    }
-
-    /// Get macro
-    pub fn get_macro(&self, name: &str) -> Option<&Macro> {
-        self.macros.get(name)
-    }
-
-    /// Remove macro
-    pub fn remove_macro(&mut self, name: &str) -> Option<Macro> {
-        self.macros.remove(name)
-    }
-
-    /// Get all macro names
-    pub fn get_macro_names(&self) -> Vec<String> {
-        self.macros.keys().cloned().collect()
-    }
-
-    /// Load macros from config (new format)
-    pub fn load_from_config(&mut self, macros: &HashMap<String, Vec<MacroStep>>) {
-        for (name, steps) in macros {
-            let macro_def = Macro {
-                name: name.clone(),
-                steps: steps.clone(),
-                created_at: None,
-                description: None,
-            };
-            self.add_macro(macro_def);
-        }
-    }
 }
 
 #[cfg(test)]

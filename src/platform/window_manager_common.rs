@@ -2,6 +2,7 @@
 //!
 //! This module provides platform-agnostic window management operations
 //! that can be used by any platform-specific window manager.
+#![allow(dead_code)]
 
 use crate::platform::traits::{
     MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowId, WindowInfo,
@@ -50,17 +51,6 @@ impl<A: WindowApiBase> WindowManager<A> {
     #[allow(dead_code)]
     pub fn get_window_info(&self, window: A::WindowId) -> Result<WindowInfo> {
         self.api.get_window_info(window)
-    }
-
-    /// Get debug info string
-    #[allow(dead_code)]
-    pub fn get_debug_info(&self) -> Result<String> {
-        let info = self.get_foreground_window_info()?;
-
-        Ok(format!(
-            "Window: {}\nID: {}\nPosition: [{}, {}]\nSize: {} x {}",
-            info.title, info.id, info.x, info.y, info.width, info.height,
-        ))
     }
 
     /// Set window position and size
@@ -281,7 +271,6 @@ fn find_monitor_for_point(
 }
 
 /// Trait for window API operations needed by common window manager
-#[allow(dead_code)]
 pub trait CommonWindowApi {
     type WindowId: Copy;
     type WindowInfo: WindowInfoProvider;

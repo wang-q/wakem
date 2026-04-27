@@ -9,12 +9,6 @@ pub fn windows_to_cg(y: f64, screen_height: f64) -> f64 {
     screen_height - y
 }
 
-/// Convert Y-coordinate from CG-style (bottom-left) to Windows-style (top-left)
-#[allow(dead_code)]
-pub fn cg_to_windows(y: f64, screen_height: f64) -> f64 {
-    screen_height - y
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -26,10 +20,5 @@ mod tests {
         assert_eq!(windows_to_cg(0.0, screen_height), 1080.0);
         assert_eq!(windows_to_cg(1080.0, screen_height), 0.0);
         assert_eq!(windows_to_cg(540.0, screen_height), 540.0);
-
-        let original = 100.0;
-        let converted =
-            cg_to_windows(windows_to_cg(original, screen_height), screen_height);
-        assert!((converted - original).abs() < 0.001);
     }
 }

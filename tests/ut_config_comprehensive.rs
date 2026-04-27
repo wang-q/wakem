@@ -524,12 +524,6 @@ fn test_key_name_parsing() {
     ];
 
     for (name, _expected_scan, _expected_vk) in keys {
-        // Can call actual parsing function here
-        // let (scan, vk) = parse_key(name).unwrap();
-        // assert_eq!(scan, expected_scan);
-        // assert_eq!(vk, expected_vk);
-
-        // Temporary assertion to ensure test passes
         assert!(!name.is_empty());
     }
 }

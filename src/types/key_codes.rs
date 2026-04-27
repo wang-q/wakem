@@ -8,7 +8,6 @@ use std::num::NonZeroU16;
 /// - Prevent confusion with other u16 types
 /// - Provide semantic construction methods
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub struct ScanCode(NonZeroU16);
 
 impl ScanCode {

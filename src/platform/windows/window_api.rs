@@ -15,10 +15,8 @@ use crate::platform::traits::{
 };
 
 /// Real Windows API implementation
-#[allow(dead_code)]
 pub struct RealWindowApi;
 
-#[allow(dead_code)]
 impl RealWindowApi {
     pub fn new() -> Self {
         Self

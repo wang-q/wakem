@@ -633,6 +633,12 @@ impl ServerState {
         self.macro_recorder.start_recording(name).await
     }
 
+    /// Check if recording macro
+    #[allow(dead_code)]
+    pub async fn is_recording_macro(&self) -> bool {
+        self.macro_recorder.is_recording().await
+    }
+
     /// Stop macro recording
     pub async fn stop_macro_recording(&self) -> Result<Macro> {
         let macro_def = self.macro_recorder.stop_recording().await?;
@@ -763,12 +769,6 @@ impl ServerState {
         Ok(())
     }
 
-    /// Check if recording macro
-    #[allow(dead_code)]
-    pub async fn is_recording_macro(&self) -> bool {
-        self.macro_recorder.is_recording().await
-    }
-
     /// Initialize platform-specific services (e.g., notification service)
     pub async fn init_notification_service(
         &self,
@@ -785,12 +785,6 @@ impl ServerState {
         service.show(title, message)
     }
 
-    /// Get current auth key (for IPC authentication)
-    #[allow(dead_code)]
-    pub async fn get_auth_key(&self) -> String {
-        self.auth_key.read().await.clone()
-    }
-
     /// Trigger graceful shutdown
     pub async fn shutdown(&self) {
         info!("Triggering graceful shutdown...");
@@ -800,12 +794,6 @@ impl ServerState {
     /// Subscribe to shutdown signal (for external listeners)
     pub fn subscribe_shutdown(&self) -> tokio::sync::watch::Receiver<bool> {
         self.shutdown_signal.subscribe()
-    }
-
-    /// Check if shutdown has been requested
-    #[allow(dead_code)]
-    pub fn is_shutdown_requested(&self) -> bool {
-        self.shutdown_signal.is_shutdown()
     }
 }
 
@@ -822,17 +810,6 @@ fn get_current_modifier_state() -> ModifierState {
 
 fn get_current_window_context() -> Option<crate::platform::traits::WindowContext> {
     <crate::platform::CurrentPlatform as ContextProvider>::get_current_context()
-}
-
-/// Run server (legacy entry point, uses default config path)
-///
-/// Improvement: integrated graceful shutdown mechanism, supports safe exit of all background tasks
-#[allow(dead_code)]
-pub async fn run_server(
-    instance_id: u32,
-    preloaded_config: Option<Config>,
-) -> Result<()> {
-    run_server_with_config(instance_id, preloaded_config, None).await
 }
 
 /// Run server with optional config path
@@ -1387,77 +1364,5 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
         _ => Message::Error {
             message: "Unknown message".to_string(),
         },
-    }
-}
-
-/// Handle tray command
-/// This is called synchronously from the menu callback on the main thread
-#[allow(dead_code)]
-fn handle_tray_command(
-    cmd: crate::platform::traits::AppCommand,
-    state: Arc<ServerState>,
-) {
-    use crate::platform::traits::ApplicationControl;
-    use crate::platform::CurrentPlatform;
-    use tokio::runtime::Handle;
-
-    let handle = Handle::current();
-
-    match cmd {
-        crate::platform::traits::AppCommand::ToggleActive => {
-            info!("Tray: Toggle active command received");
-            handle.spawn(async move {
-                let current = state.active.load(Ordering::Acquire);
-                let new_state = !current;
-                state.set_active(new_state).await;
-                info!("Tray: Toggled active state to {}", new_state);
-            });
-        }
-        crate::platform::traits::AppCommand::ReloadConfig => {
-            info!("Tray: Reload config command received");
-            handle.spawn(async move {
-                if let Err(e) = state.reload_config_from_file().await {
-                    error!("Tray: Failed to reload config: {}", e);
-                    let _ = state
-                        .show_notification(
-                            "wakem",
-                            &format!("Failed to reload config: {}", e),
-                        )
-                        .await;
-                } else {
-                    info!("Tray: Config reloaded successfully");
-                    let _ = state
-                        .show_notification("wakem", "Config reloaded successfully")
-                        .await;
-                }
-            });
-        }
-        crate::platform::traits::AppCommand::OpenConfigFolder => {
-            info!("Tray: Open config folder command received");
-            let config_path = state.config.try_read().ok().and_then(|config| {
-                crate::config::resolve_config_file_path(None, config.network.instance_id)
-            });
-
-            if let Some(path) = config_path {
-                let folder = if path.is_file() {
-                    path.parent().map(|p| p.to_path_buf()).unwrap_or(path)
-                } else {
-                    path
-                };
-
-                if let Err(e) =
-                    <CurrentPlatform as ApplicationControl>::open_folder(&folder)
-                {
-                    error!("Tray: Failed to open config folder: {}", e);
-                } else {
-                    info!("Tray: Opened config folder: {:?}", folder);
-                }
-            } else {
-                warn!("Tray: Config path not found");
-            }
-        }
-        crate::platform::traits::AppCommand::Exit => {
-            info!("Tray: Exit command received");
-        }
     }
 }

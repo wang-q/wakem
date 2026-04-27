@@ -86,42 +86,6 @@ impl LauncherTrait for Launcher {
     fn launch(&self, action: &LaunchAction) -> Result<()> {
         self.launch(action)
     }
-
-    fn open(&self, path: &str) -> Result<()> {
-        #[cfg(target_os = "windows")]
-        {
-            Command::new("explorer").arg(path).spawn()?;
-            Ok(())
-        }
-        #[cfg(target_os = "macos")]
-        {
-            self.open(path)
-        }
-    }
-}
-
-/// Platform-specific extensions for macOS
-#[cfg(target_os = "macos")]
-impl Launcher {
-    #[allow(dead_code)]
-    pub fn open(&self, path: &str) -> Result<()> {
-        info!("Opening path: {}", path);
-
-        let mut cmd = Command::new("open");
-        cmd.arg(path);
-
-        match cmd.spawn() {
-            Ok(child) => {
-                info!(
-                    "Open command launched successfully for: {} (pid: {:?})",
-                    path,
-                    child.id()
-                );
-                Ok(())
-            }
-            Err(e) => Err(anyhow::anyhow!("Failed to open path {}: {}", path, e)),
-        }
-    }
 }
 
 #[cfg(test)]

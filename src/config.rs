@@ -394,12 +394,6 @@ pub struct NetworkConfig {
 }
 
 impl NetworkConfig {
-    /// Get instance communication port
-    #[allow(dead_code)]
-    pub fn get_port(&self) -> u16 {
-        crate::ipc::get_instance_port(self.instance_id)
-    }
-
     /// Get bind address
     pub fn get_bind_address(&self) -> String {
         crate::ipc::get_instance_address(self.instance_id)
@@ -1036,22 +1030,6 @@ impl ConfigPathCache {
         path
     }
 
-    /// Invalidate cache for specified instance
-    #[allow(dead_code)]
-    fn invalidate(&self, instance_id: u32) {
-        let mut cache = self.cache.lock();
-        cache.remove(&instance_id);
-        debug!("Invalidated config path cache for instance {}", instance_id);
-    }
-
-    /// Clear all cache
-    #[allow(dead_code)]
-    fn clear(&self) {
-        let mut cache = self.cache.lock();
-        cache.clear();
-        debug!("Cleared all config path cache");
-    }
-
     /// Internal path resolution logic (unified across all platforms)
     fn resolve_config_path_internal(instance_id: u32) -> Option<std::path::PathBuf> {
         let config_dir = dirs::config_dir()?;
@@ -1083,20 +1061,6 @@ pub fn resolve_config_file_path(
 
     // Use cached path resolution
     CONFIG_PATH_CACHE.get_or_resolve(instance_id)
-}
-
-/// Invalidate config file path cache
-///
-/// Call this function after config file is moved, renamed, or deleted
-#[allow(dead_code)]
-pub fn invalidate_config_path_cache(instance_id: u32) {
-    CONFIG_PATH_CACHE.invalidate(instance_id);
-}
-
-/// Clear all config file path cache
-#[allow(dead_code)]
-pub fn clear_config_path_cache() {
-    CONFIG_PATH_CACHE.clear();
 }
 
 #[cfg(test)]

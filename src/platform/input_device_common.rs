@@ -108,11 +108,6 @@ impl<T> InputDevice<T> {
     }
 
     #[allow(dead_code)]
-    pub fn get_sender(&self) -> Sender<InputEvent> {
-        self.base.sender()
-    }
-
-    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         self.base.is_running()
     }

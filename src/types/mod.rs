@@ -7,7 +7,6 @@ pub mod mapping;
 
 pub use action::*;
 pub use input::*;
-#[allow(unused_imports)]
 pub use key_codes::*;
 pub use layer::*;
 pub use macros::*;
@@ -66,23 +65,6 @@ impl ModifierState {
             _ => return None,
         }
         Some((state, pressed))
-    }
-
-    /// Check if a virtual key code is a modifier key and return which modifier
-    ///
-    /// Returns `Some(Self)` with the relevant modifier bit set to true,
-    /// or `None` for non-modifier keys.
-    #[allow(dead_code)]
-    pub fn from_virtual_key_only(key: u16) -> Option<Self> {
-        let mut state = Self::new();
-        match key {
-            0x10 | 0xA0 | 0xA1 => state.shift = true,
-            0x11 | 0xA2 | 0xA3 => state.ctrl = true,
-            0x12 | 0xA4 | 0xA5 => state.alt = true,
-            0x5B | 0x5C => state.meta = true,
-            _ => return None,
-        }
-        Some(state)
     }
 
     /// Merge another modifier key state (OR logic, only sets bits)

@@ -198,12 +198,6 @@ impl ContextCondition {
         self
     }
 
-    #[allow(dead_code)]
-    pub fn with_executable_path(mut self, path: impl Into<String>) -> Self {
-        self.executable_path = Some(path.into());
-        self
-    }
-
     /// Check if current context matches
     pub fn matches(
         &self,
@@ -247,7 +241,6 @@ impl ContextCondition {
 
 /// Context information (current active window, etc.)
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 pub struct ContextInfo {
     pub window_class: String,
     pub process_name: String,

@@ -28,13 +28,11 @@ thread_local! {
 }
 
 /// Raw Input device manager
-#[allow(dead_code)]
 pub struct RawInputDevice {
     hwnd: HWND,
     running: bool,
 }
 
-#[allow(dead_code)]
 impl RawInputDevice {
     pub fn new(event_sender: Sender<InputEvent>) -> Result<Self> {
         CURRENT_SENDER.with(|s| {

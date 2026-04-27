@@ -9,7 +9,6 @@
 use crate::platform::traits::OutputDeviceTrait;
 use crate::types::MouseButton;
 use anyhow::Result;
-#[allow(unused_imports)]
 use tracing::debug;
 
 /// macOS output device using CGEvent (aligned with Windows SendInputDevice)

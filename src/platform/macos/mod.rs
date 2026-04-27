@@ -2,6 +2,7 @@
 //!
 //! This module provides macOS-specific implementations of the platform traits
 //! using Core Graphics, Cocoa, and Accessibility APIs.
+#![allow(dead_code)]
 
 pub mod context;
 pub mod input;
@@ -18,8 +19,7 @@ pub mod window_preset;
 pub use crate::platform::launcher_common::Launcher;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
-#[allow(unused_imports)]
-pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
+pub use tray::TrayIcon;
 pub use window_api::RealWindowApi;
 
 #[cfg(test)]
@@ -228,7 +228,6 @@ impl PlatformFactory for MacosPlatform {
 }
 
 /// Get full executable path for a process using proc_pidpath (internal helper)
-#[allow(dead_code)]
 fn get_process_path(pid: u32) -> anyhow::Result<String> {
     use libc::proc_pidpath;
     use std::ffi::CStr;

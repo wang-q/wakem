@@ -179,21 +179,9 @@ impl ConnectionLimiter {
     }
 
     /// Reset limit count for specified IP
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn reset(&mut self, ip: &IpAddr) {
         self.attempts.remove(ip);
-    }
-
-    /// Clear all records
-    #[allow(dead_code)]
-    pub fn clear(&mut self) {
-        self.attempts.clear();
-    }
-
-    /// Get current number of tracked IPs
-    #[allow(dead_code)]
-    pub fn tracked_count(&self) -> usize {
-        self.attempts.len()
     }
 }
 
@@ -543,22 +531,6 @@ impl IpcServer {
         }
     }
 
-    /// Create new server (static key, backward compatible)
-    #[allow(dead_code)]
-    pub fn new(
-        bind_address: impl Into<String>,
-        auth_key: Option<String>,
-        message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
-    ) -> Self {
-        Self {
-            listener: None,
-            bind_address: bind_address.into(),
-            auth_key: auth_key.map(|k| Arc::new(RwLock::new(k))),
-            message_tx,
-            rate_limiter: Arc::new(RwLock::new(ConnectionLimiter::with_defaults())),
-        }
-    }
-
     /// Start server
     pub async fn start(&mut self) -> Result<()> {
         let listener = TcpListener::bind(&self.bind_address).await?;
@@ -898,7 +870,9 @@ mod tests {
     #[ignore]
     async fn test_server_start() {
         let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
-        let mut server = IpcServer::new("127.0.0.1:57428", None, tx);
+        let auth_key = Arc::new(RwLock::new("test-key".to_string()));
+        let mut server =
+            IpcServer::new_with_dynamic_key("127.0.0.1:57428", auth_key, tx);
         server.start().await.unwrap();
     }
 

@@ -8,6 +8,7 @@
 
 // Allow deprecated cocoa APIs - migration to objc2 is planned for future
 #![allow(deprecated)]
+#![allow(dead_code)]
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -392,7 +393,6 @@ where
 
 /// Stop the tray message loop
 /// On macOS, this posts a stop request to the NSApplication
-#[allow(dead_code)]
 pub fn stop_tray() {
     unsafe {
         use cocoa::base::id;
@@ -409,12 +409,10 @@ pub fn stop_tray() {
 
 /// TrayIcon for macOS (aligned with Windows API)
 /// On macOS, this wraps RealTrayApi for API compatibility
-#[allow(dead_code)]
 pub struct TrayIcon {
     inner: RealTrayApi,
 }
 
-#[allow(dead_code)]
 impl TrayIcon {
     /// Create new tray icon
     pub fn new() -> Self {
@@ -457,7 +455,7 @@ impl Drop for TrayIcon {
 }
 
 // Re-export shared tray types from tray_common (aligned with Windows)
-#[allow(unused_imports)]
+#[cfg(test)]
 pub use crate::platform::tray_common::TrayManager;
 
 #[cfg(test)]

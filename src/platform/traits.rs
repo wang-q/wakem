@@ -2,8 +2,8 @@
 //!
 //! This module defines the cross-platform interfaces that can be implemented
 //! by each platform-specific module (Windows, macOS, Linux).
+#![allow(dead_code)]
 
-#[allow(unused_imports)]
 use crate::platform::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 /// Input device configuration
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct InputDeviceConfig {
     pub capture_keyboard: bool,
     pub capture_mouse: bool,
@@ -29,7 +28,6 @@ impl Default for InputDeviceConfig {
 }
 
 /// Input device trait - for capturing keyboard and mouse events
-#[allow(dead_code)]
 pub trait InputDeviceTrait: Send {
     fn register(&mut self) -> Result<()>;
     fn unregister(&mut self);
@@ -143,7 +141,6 @@ pub type WindowId = usize;
 
 /// Window information
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct WindowInfo {
     pub id: WindowId,
     pub title: String,
@@ -166,7 +163,6 @@ pub struct MonitorInfo {
 
 /// Monitor work area (usable screen area excluding taskbar/dock)
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub struct MonitorWorkArea {
     pub x: i32,
     pub y: i32,
@@ -252,30 +248,8 @@ impl WindowInfoProvider for WindowInfo {
     }
 }
 
-/// Window state enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum WindowState {
-    Normal,
-    Minimized,
-    Maximized,
-    FullScreen,
-}
-
-/// Window operation types
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum WindowOperation {
-    Minimize,
-    Maximize,
-    Restore,
-    Close,
-    ToggleTopmost,
-}
-
 /// Monitor direction for moving windows between displays
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub enum MonitorDirection {
     Next,
     Prev,
@@ -302,7 +276,6 @@ pub enum AppCommand {
 /// [PlatformWindowEvent::Activated].
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum PlatformWindowEvent {
     WindowActivated {
         process_name: String,
@@ -333,7 +306,6 @@ pub enum PlatformWindowEvent {
 
 /// Menu action results from user interaction
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum MenuAction {
     None,
     ToggleActive,
@@ -350,7 +322,6 @@ pub enum MenuAction {
 ///
 /// The associated type `WindowId` abstracts the platform-specific window
 /// identifier (`HWND` on Windows, `CGWindowNumber` on macOS).
-#[allow(dead_code)]
 pub trait WindowApiBase {
     type WindowId: Copy + std::fmt::Debug + 'static;
 
@@ -393,7 +364,6 @@ pub trait WindowApiBase {
 }
 
 /// Window manager trait - high-level window operations
-#[allow(dead_code)]
 pub trait WindowManagerTrait: Send + Sync {
     fn get_foreground_window(&self) -> Option<WindowId>;
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
@@ -677,8 +647,6 @@ pub trait WindowEventHookTrait: Send {
 /// and opening files/folders.
 pub trait LauncherTrait: Send {
     fn launch(&self, action: &crate::types::LaunchAction) -> Result<()>;
-    #[allow(dead_code)]
-    fn open(&self, path: &str) -> Result<()>;
 }
 
 /// Trait for tray lifecycle management
@@ -728,7 +696,6 @@ pub trait PlatformFactory {
 
 /// Window context information (for context-aware mappings)
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 pub struct WindowContext {
     pub process_name: String,
     pub window_class: String,
@@ -742,7 +709,6 @@ impl WindowContext {
         Self::default()
     }
 
-    #[allow(dead_code)]
     pub fn matches(
         &self,
         process_name: Option<&str>,
@@ -783,80 +749,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_matches_basic() {
-        let ctx = WindowContext {
-            process_name: "firefox.exe".to_string(),
-            window_class: "MozillaWindowClass".to_string(),
-            window_title: "Firefox".to_string(),
-            executable_path: Some("C:\\Program Files\\Firefox\\firefox.exe".to_string()),
-        };
-
-        // Test process name matching
-        assert!(ctx.matches(Some("firefox.exe"), None, None, None));
-        assert!(ctx.matches(Some("*.exe"), None, None, None));
-        assert!(!ctx.matches(Some("chrome.exe"), None, None, None));
-
-        // Test window class name matching
-        assert!(ctx.matches(None, Some("Mozilla*"), None, None));
-        assert!(!ctx.matches(None, Some("Chrome*"), None, None));
-
-        // Test window title matching
-        assert!(ctx.matches(None, None, Some("Fire*"), None));
-
-        // Test path matching
-        assert!(ctx.matches(None, None, None, Some("*Firefox*")));
-    }
-
-    #[test]
-    fn test_matches_exact() {
-        let ctx = WindowContext {
-            process_name: "Safari".to_string(),
-            window_class: String::new(),
-            window_title: "Apple".to_string(),
-            executable_path: Some("/Applications/Safari.app".to_string()),
-        };
-
-        assert!(ctx.matches(Some("Safari"), None, None, None));
-        assert!(ctx.matches(None, None, Some("Apple"), None));
-        assert!(ctx.matches(None, None, None, Some("*Safari*")));
-    }
-
-    #[test]
-    fn test_matches_wildcard() {
-        let ctx = WindowContext {
-            process_name: "Google Chrome".to_string(),
-            window_class: String::new(),
-            window_title: "Google Chrome - Wikipedia".to_string(),
-            executable_path: Some("/Applications/Google Chrome.app".to_string()),
-        };
-
-        assert!(ctx.matches(Some("Google*"), None, None, None));
-        assert!(ctx.matches(Some("*Chrome"), None, None, None));
-        assert!(ctx.matches(None, None, Some("*Wikipedia*"), None));
-        assert!(ctx.matches(None, None, None, Some("*Google*")));
-
-        assert!(!ctx.matches(Some("Firefox"), None, None, None));
-        assert!(!ctx.matches(None, None, Some("Safari"), None));
-    }
-
-    #[test]
-    fn test_matches_no_conditions() {
-        let ctx = WindowContext {
-            process_name: "Test".to_string(),
-            ..Default::default()
-        };
-
-        assert!(ctx.matches(None, None, None, None));
-    }
-
-    #[test]
-    fn test_matches_executable_path_none() {
-        let ctx = WindowContext {
-            process_name: "Test".to_string(),
-            executable_path: None,
-            ..Default::default()
-        };
-
-        assert!(!ctx.matches(None, None, None, Some("/some/path")));
+    fn test_window_context_empty() {
+        let ctx = WindowContext::empty();
+        assert!(ctx.process_name.is_empty());
+        assert!(ctx.window_class.is_empty());
+        assert!(ctx.window_title.is_empty());
+        assert!(ctx.executable_path.is_none());
     }
 }

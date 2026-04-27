@@ -121,20 +121,6 @@ impl KeyMapper {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn with_window_manager<T: WindowManagerTrait + 'static>(
-        window_manager: T,
-    ) -> Self {
-        Self {
-            rules: Vec::new(),
-            context_rules: Vec::new(),
-            enabled: true,
-            window_manager: Some(Box::new(window_manager)),
-            notification_service: None,
-            window_preset_manager: None,
-        }
-    }
-
     pub fn set_window_manager(&mut self, wm: Box<dyn WindowManagerTrait>) {
         self.window_manager = Some(wm);
     }

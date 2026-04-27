@@ -25,7 +25,6 @@ pub mod windows;
 pub mod macos;
 
 #[cfg(target_os = "windows")]
-#[allow(unused_imports)]
 pub use windows::{
     Launcher, MonitorDirection, RawInputDevice, RealWindowApi, SendInputDevice,
     TrayIcon, WindowEventHook, WindowManager, WindowPresetManager,

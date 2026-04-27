@@ -4,6 +4,7 @@
 //! implementing the [WindowPresetApi] trait. Eliminates duplicated preset
 //! logic previously found in both `windows/window_preset.rs` and
 //! `macos/window_preset.rs`.
+#![allow(dead_code)]
 
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;
@@ -20,7 +21,6 @@ use tracing::{debug, info};
 /// Each platform implements this trait to provide window query and
 /// manipulation primitives. The common manager then builds all
 /// higher-level preset operations on top of these primitives.
-#[allow(dead_code)]
 pub trait WindowPresetApi {
     type WindowId: Copy;
 
@@ -75,14 +75,12 @@ impl<A: WindowApiBase + 'static> WindowPresetApi for WindowManager<A> {
 /// Manages a collection of [WindowPreset] definitions and saved presets,
 /// providing save/load/apply operations that work identically on all
 /// platforms through the [WindowPresetApi] trait.
-#[allow(dead_code)]
 pub struct WindowPresetManager<A: WindowPresetApi> {
     api: A,
     presets: Vec<WindowPreset>,
     saved_presets: HashMap<String, (i32, i32, i32, i32)>,
 }
 
-#[allow(dead_code)]
 impl<A: WindowPresetApi> WindowPresetManager<A> {
     pub fn new(api: A) -> Self {
         Self {
@@ -204,30 +202,6 @@ impl<A: WindowPresetApi> WindowPresetManager<A> {
 
         Ok(false)
     }
-
-    pub fn apply_matching_presets(&self) -> Result<bool> {
-        self.apply_preset_for_window()
-    }
-
-    pub fn preset_count(&self) -> usize {
-        self.presets.len()
-    }
-
-    pub fn saved_count(&self) -> usize {
-        self.saved_presets.len()
-    }
-
-    pub fn remove_saved_preset(&mut self, name: &str) -> bool {
-        self.saved_presets.remove(name).is_some()
-    }
-
-    pub fn clear_presets(&mut self) {
-        self.presets.clear();
-    }
-
-    pub fn clear_saved(&mut self) {
-        self.saved_presets.clear();
-    }
 }
 
 impl<A: WindowApiBase + Send + Sync + 'static> WindowPresetManagerTrait
@@ -328,8 +302,7 @@ mod tests {
     #[test]
     fn test_preset_manager_creation() {
         let mgr = WindowPresetManager::new(MockApi::new());
-        assert_eq!(mgr.preset_count(), 0);
-        assert_eq!(mgr.saved_count(), 0);
+        assert!(mgr.get_foreground_window_info().is_some());
     }
 
     #[test]
@@ -357,14 +330,14 @@ mod tests {
                 height: 1080,
             },
         ]);
-        assert_eq!(mgr.preset_count(), 2);
+        let result = mgr.apply_preset_for_window().unwrap();
+        assert!(result);
     }
 
     #[test]
     fn test_save_and_load_preset() {
         let mut mgr = WindowPresetManager::new(MockApi::new());
         mgr.save_preset("My Layout".to_string()).unwrap();
-        assert_eq!(mgr.saved_count(), 1);
         mgr.load_preset("My Layout").unwrap();
     }
 
@@ -417,35 +390,6 @@ mod tests {
         }]);
         let result = mgr.apply_preset_for_window().unwrap();
         assert!(result);
-    }
-
-    #[test]
-    fn test_remove_saved_preset() {
-        let mut mgr = WindowPresetManager::new(MockApi::new());
-        mgr.save_preset("Layout1".to_string()).unwrap();
-        mgr.save_preset("Layout2".to_string()).unwrap();
-        assert_eq!(mgr.saved_count(), 2);
-        assert!(mgr.remove_saved_preset("Layout1"));
-        assert_eq!(mgr.saved_count(), 1);
-        assert!(!mgr.remove_saved_preset("NonExistent"));
-    }
-
-    #[test]
-    fn test_clear_presets() {
-        let mut mgr = WindowPresetManager::new(MockApi::new());
-        mgr.load_presets(vec![WindowPreset {
-            name: "Test".to_string(),
-            process_name: Some("*".to_string()),
-            executable_path: None,
-            title_pattern: None,
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 600,
-        }]);
-        assert_eq!(mgr.preset_count(), 1);
-        mgr.clear_presets();
-        assert_eq!(mgr.preset_count(), 0);
     }
 
     #[test]
