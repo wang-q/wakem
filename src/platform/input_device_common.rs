@@ -15,9 +15,6 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 ///
 /// Encapsulates the common fields and logic shared across all platform
 /// input devices: modifier state tracking, event channel, and running flag.
-///
-/// Note: These fields are used by macOS implementation. Windows uses
-/// a different approach with RawInputDevice directly.
 pub struct InputDeviceBase {
     pub modifier_state: ModifierState,
     pub running: bool,
@@ -89,8 +86,6 @@ impl Default for InputDeviceBase {
 ///
 /// This struct combines [InputDeviceBase] with a platform-specific inner device
 /// to provide a unified input device interface.
-///
-/// Note: Used by macOS implementation. Windows uses RawInputDevice directly.
 pub struct InputDevice<T> {
     pub base: InputDeviceBase,
     pub inner: Option<T>,
@@ -127,6 +122,10 @@ pub trait PlatformInputDevice: Sized + Send {
     /// Create the platform-specific device with a sender
     fn create(sender: Sender<InputEvent>) -> Result<Self>;
 
+    /// Register/start the device
+    /// This is called when the input device is registered
+    fn register(&mut self) -> Result<()>;
+
     /// Run one iteration of the input processing loop
     /// Returns Ok(true) if should continue, Ok(false) if shutdown requested
     fn run_once(&mut self) -> Result<bool>;
@@ -144,6 +143,17 @@ impl<T: PlatformInputDevice> InputDevice<T> {
             std::thread::sleep(std::time::Duration::from_millis(1));
             Ok(true)
         }
+    }
+
+    /// Register the input device
+    /// This creates the inner device and starts it
+    pub fn register_inner(&mut self) -> Result<()> {
+        let sender = self.base.sender();
+        let mut inner = T::create(sender)?;
+        inner.register()?;
+        self.inner = Some(inner);
+        self.base.running = true;
+        Ok(())
     }
 
     #[allow(dead_code)]

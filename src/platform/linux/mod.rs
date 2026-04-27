@@ -73,7 +73,12 @@ impl InputDeviceTrait for LinuxInputDevice {
 }
 
 impl OutputDeviceTrait for LinuxOutputDevice {
-    fn send_key(&self, _scan_code: u16, _virtual_key: u16, _release: bool) -> Result<()> {
+    fn send_key(
+        &self,
+        _scan_code: u16,
+        _virtual_key: u16,
+        _release: bool,
+    ) -> Result<()> {
         Err(anyhow::anyhow!(
             "Linux output device not yet implemented. Wayland virtual input required."
         ))
@@ -85,7 +90,11 @@ impl OutputDeviceTrait for LinuxOutputDevice {
         ))
     }
 
-    fn send_mouse_button(&self, _button: crate::types::MouseButton, _release: bool) -> Result<()> {
+    fn send_mouse_button(
+        &self,
+        _button: crate::types::MouseButton,
+        _release: bool,
+    ) -> Result<()> {
         Err(anyhow::anyhow!(
             "Linux output device not yet implemented. Wayland virtual input required."
         ))
@@ -101,7 +110,10 @@ impl OutputDeviceTrait for LinuxOutputDevice {
 impl WindowManagerTrait for LinuxWindowManager {}
 
 impl crate::platform::traits::WindowOperations for LinuxWindowManager {
-    fn get_window_info(&self, _window: crate::platform::traits::WindowId) -> Result<crate::platform::traits::WindowInfo> {
+    fn get_window_info(
+        &self,
+        _window: crate::platform::traits::WindowId,
+    ) -> Result<crate::platform::traits::WindowInfo> {
         Err(anyhow::anyhow!(
             "Linux window manager not yet implemented. Wayland toplevel management required."
         ))
@@ -199,14 +211,20 @@ impl WindowPresetManagerTrait for LinuxWindowPresetManager {
     fn load_presets(&mut self, _presets: Vec<crate::config::WindowPreset>) {}
 
     fn save_preset(&mut self, _name: String) -> Result<()> {
-        Err(anyhow::anyhow!("Linux window preset manager not yet implemented"))
+        Err(anyhow::anyhow!(
+            "Linux window preset manager not yet implemented"
+        ))
     }
 
     fn load_preset(&self, _name: &str) -> Result<()> {
-        Err(anyhow::anyhow!("Linux window preset manager not yet implemented"))
+        Err(anyhow::anyhow!(
+            "Linux window preset manager not yet implemented"
+        ))
     }
 
-    fn get_foreground_window_info(&self) -> Option<Result<crate::platform::traits::WindowInfo>> {
+    fn get_foreground_window_info(
+        &self,
+    ) -> Option<Result<crate::platform::traits::WindowInfo>> {
         None
     }
 
@@ -307,11 +325,15 @@ impl crate::platform::traits::PlatformUtilities for LinuxUtilities {
     }
 
     fn get_process_name_by_pid(_pid: u32) -> anyhow::Result<String> {
-        Err(anyhow::anyhow!("Linux process name lookup not yet implemented"))
+        Err(anyhow::anyhow!(
+            "Linux process name lookup not yet implemented"
+        ))
     }
 
     fn get_executable_path_by_pid(_pid: u32) -> anyhow::Result<String> {
-        Err(anyhow::anyhow!("Linux executable path lookup not yet implemented"))
+        Err(anyhow::anyhow!(
+            "Linux executable path lookup not yet implemented"
+        ))
     }
 }
 

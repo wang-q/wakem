@@ -26,6 +26,12 @@ impl PlatformInputDevice for RawInputInner {
         Ok(Self { inner })
     }
 
+    fn register(&mut self) -> Result<()> {
+        // Windows Raw Input device is already registered in ::new()
+        // Just mark as running
+        Ok(())
+    }
+
     fn run_once(&mut self) -> Result<bool> {
         self.inner.run_once()
     }
@@ -39,61 +45,27 @@ impl PlatformInputDevice for RawInputInner {
 // However, the device is only used on the thread that created it.
 unsafe impl Send for RawInputInner {}
 
-impl InputDevice<RawInputInner> {
-    /// Run one iteration of the input processing loop
-    /// Returns Ok(true) if should continue, Ok(false) if shutdown requested
-    pub fn run_once(&mut self) -> Result<bool> {
-        if let Some(ref mut inner) = self.inner {
-            inner.run_once()
-        } else {
-            // If not registered, just sleep briefly to avoid busy loop
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            Ok(true)
-        }
-    }
-}
-
 impl InputDeviceTrait for InputDevice<RawInputInner> {
     fn register(&mut self) -> Result<()> {
         debug!("Registering Raw Input device");
-
-        let sender = self.base.sender();
-        let inner = RawInputInner::create(sender)?;
-        self.inner = Some(inner);
-
-        self.base.running = true;
-        Ok(())
+        self.register_inner()
     }
 
     fn unregister(&mut self) {
         debug!("Unregistering Raw Input device");
-        self.base.running = false;
-        if let Some(mut inner) = self.inner.take() {
-            inner.stop();
-        }
+        self.unregister_inner();
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
-        if !self.base.running {
-            return None;
-        }
-
-        if let Some(ref mut inner) = self.inner {
-            let _ = inner.run_once();
-        }
-
-        self.base.try_recv_event()
+        self.poll_event_inner()
     }
 
     fn is_running(&self) -> bool {
-        self.base.is_running()
+        self.is_running_inner()
     }
 
     fn stop(&mut self) {
-        self.base.stop();
-        if let Some(mut inner) = self.inner.take() {
-            inner.stop();
-        }
+        self.stop_inner();
     }
 }
 
@@ -101,6 +73,7 @@ impl InputDeviceTrait for InputDevice<RawInputInner> {
 mod tests {
     use super::*;
     use crate::platform::traits::InputDeviceConfig;
+    use crate::platform::traits::InputDeviceTrait;
 
     #[test]
     fn test_raw_input_device_creation() {

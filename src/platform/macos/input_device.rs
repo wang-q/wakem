@@ -25,6 +25,10 @@ impl PlatformInputDevice for CGEventTapInner {
         Ok(Self { tap })
     }
 
+    fn register(&mut self) -> Result<()> {
+        self.tap.run()
+    }
+
     fn run_once(&mut self) -> Result<bool> {
         Ok(true)
     }
@@ -42,11 +46,7 @@ impl InputDeviceTrait for InputDevice<CGEventTapInner> {
 
         #[cfg(not(test))]
         if crate::platform::macos::input::check_accessibility_permissions() {
-            let sender = self.base.sender();
-            let mut inner = CGEventTapInner::create(sender)?;
-            inner.tap.run()?;
-            self.inner = Some(inner);
-            self.base.running = true;
+            self.register_inner()?;
             debug!("CGEventTap started");
         } else {
             debug!("Accessibility permissions not granted, using passive mode");

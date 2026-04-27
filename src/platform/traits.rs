@@ -440,10 +440,13 @@ fn find_monitor_for_point(
 /// These methods combine basic operations to provide convenient
 /// high-level functionality like centering windows, moving to edges,
 /// and resizing with alignment.
-pub trait WindowManagerExt: WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations {
+pub trait WindowManagerExt:
+    WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations
+{
     /// Get information about the currently focused window
     fn get_foreground_window_info(&self) -> Result<WindowInfo> {
-        let window = self.get_foreground_window()
+        let window = self
+            .get_foreground_window()
             .ok_or_else(|| anyhow::anyhow!("No foreground window found"))?;
         self.get_window_info(window)
     }
@@ -605,7 +608,15 @@ pub trait WindowManagerExt: WindowOperations + WindowStateQueries + MonitorOpera
     }
 }
 
-impl<T: ?Sized + WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations> WindowManagerExt for T {}
+impl<
+        T: ?Sized
+            + WindowOperations
+            + WindowStateQueries
+            + MonitorOperations
+            + ForegroundWindowOperations,
+    > WindowManagerExt for T
+{
+}
 
 /// Platform utility functions trait
 ///

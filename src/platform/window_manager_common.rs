@@ -250,7 +250,9 @@ impl<A: WindowApiBase + Send + Sync + 'static> MonitorOperations for WindowManag
 }
 
 // Implement ForegroundWindowOperations trait
-impl<A: WindowApiBase + Send + Sync + 'static> ForegroundWindowOperations for WindowManager<A> {
+impl<A: WindowApiBase + Send + Sync + 'static> ForegroundWindowOperations
+    for WindowManager<A>
+{
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api
             .get_foreground_window()

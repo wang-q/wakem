@@ -380,7 +380,7 @@ unsafe impl Send for CGEventTapDevice {}
 unsafe impl Sync for CGEventTapDevice {}
 
 impl CGEventTapDevice {
-    /// Create a new CGEventTap device
+    /// Create a new CGEventTap device (without starting it)
     ///
     /// # Arguments
     /// * `sender` - Channel sender for delivering captured events
@@ -393,6 +393,19 @@ impl CGEventTapDevice {
             run_loop_source: std::sync::Mutex::new(None),
             created_on_thread: std::sync::Mutex::new(None),
         }
+    }
+
+    /// Create and register a new CGEventTap device
+    ///
+    /// This is a convenience method that creates the device and immediately
+    /// starts it. Used by PlatformInputDevice::register.
+    ///
+    /// # Arguments
+    /// * `sender` - Channel sender for delivering captured events
+    pub fn create_and_run(sender: Sender<InputEvent>) -> Result<Self> {
+        let mut device = Self::new(sender);
+        device.run()?;
+        Ok(device)
     }
 
     pub fn with_config(sender: Sender<InputEvent>, config: InputDeviceConfig) -> Self {
