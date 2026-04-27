@@ -521,11 +521,9 @@ mod tests {
         let trigger = Trigger::key_with_modifiers(0x1E, 0x41, modifiers);
 
         // Event with Ctrl - should match
-        let mut event_modifiers = ModifierState::default();
-        event_modifiers.ctrl = true;
-        let event = InputEvent::Key(
-            KeyEvent::new(0x1E, 0x41, KeyState::Pressed).with_modifiers(event_modifiers),
-        );
+        let mut event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+        event.modifiers.ctrl = true;
+        let event = InputEvent::Key(event);
         assert!(trigger.matches(&event));
 
         // Event without modifiers - shouldn't match

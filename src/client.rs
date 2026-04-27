@@ -52,12 +52,6 @@ impl DaemonClient {
         }
     }
 
-    /// Check if connected
-    #[allow(dead_code)]
-    pub fn is_connected(&self) -> bool {
-        self.client.is_some()
-    }
-
     /// Get server status
     pub async fn get_status(&mut self) -> Result<(bool, bool)> {
         let response = self.send_receive(&Message::GetStatus).await?;
@@ -240,23 +234,6 @@ mod tests {
     use crate::ipc::{get_instance_address, get_instance_port, Message};
 
     // ==================== DaemonClient initialization ====================
-
-    /// Test client initialization (disconnected state)
-    #[test]
-    fn test_client_new() {
-        let client = DaemonClient::new();
-        assert!(
-            !client.is_connected(),
-            "Newly created client should not be in connected state"
-        );
-    }
-
-    /// Test Default trait implementation
-    #[test]
-    fn test_client_default() {
-        let client = DaemonClient::default();
-        assert!(!client.is_connected());
-    }
 
     // ==================== Error handling in disconnected state ====================
 

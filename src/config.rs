@@ -412,7 +412,7 @@ impl NetworkConfig {
     /// Generate random authentication key (32 character hex)
     fn generate_random_key() -> String {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rngs::OsRng;
         let bytes: [u8; 16] = rng.gen();
         bytes.iter().map(|b| format!("{:02x}", b)).collect()
     }
@@ -868,131 +868,198 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 }
 
 /// Parse key name to scan code and virtual key code
-/// Uses match expression for O(1) lookup without heap allocation
+/// Uses case-insensitive comparison without heap allocation
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
-    let name_lower = name.to_lowercase();
+    // Use a helper macro for case-insensitive string comparison
+    macro_rules! eq_ignore_case {
+        ($s:expr, $pat:expr) => {
+            $s.eq_ignore_ascii_case($pat)
+        };
+    }
 
     // Try hardcoded mappings first (Windows-specific scan codes)
     // These provide consistent scan codes across all platforms
-    match name_lower.as_str() {
-        // Special keys
-        "capslock" | "caps" => Ok((0x3A, 0x14)),
-        "backspace" => Ok((0x0E, 0x08)),
-        "enter" | "return" => Ok((0x1C, 0x0D)),
-        "escape" | "esc" => Ok((0x01, 0x1B)),
-        "space" => Ok((0x39, 0x20)),
-        "tab" => Ok((0x0F, 0x09)),
-        "grave" | "backtick" => Ok((0x29, 0xC0)),
-
-        // Arrow keys
-        "left" => Ok((0x4B, 0x25)),
-        "up" => Ok((0x48, 0x26)),
-        "right" => Ok((0x4D, 0x27)),
-        "down" => Ok((0x50, 0x28)),
-
-        // Editing keys
-        "home" => Ok((0x47, 0x24)),
-        "end" => Ok((0x4F, 0x23)),
-        "pageup" => Ok((0x49, 0x21)),
-        "pagedown" => Ok((0x51, 0x22)),
-        "delete" | "del" | "forwarddelete" | "forwarddel" => Ok((0x53, 0x2E)),
-        "insert" | "ins" => Ok((0x52, 0x2D)),
-
-        // Modifier keys
-        "lshift" | "leftshift" => Ok((0x2A, 0xA0)),
-        "rshift" | "rightshift" => Ok((0x36, 0xA1)),
-        "lctrl" | "lcontrol" | "leftctrl" | "leftcontrol" => Ok((0x1D, 0xA2)),
-        "rctrl" | "rcontrol" | "rightctrl" | "rightcontrol" => Ok((0xE01D, 0xA3)),
-        "lalt" | "leftalt" => Ok((0x38, 0xA4)),
-        "ralt" | "rightalt" => Ok((0xE038, 0xA5)),
-        "lwin" | "lmeta" | "leftwin" | "leftmeta" => Ok((0xE05B, 0x5B)),
-        "rwin" | "rmeta" | "rightwin" | "rightmeta" => Ok((0xE05C, 0x5C)),
-
-        // Letter keys a-z
-        "a" => Ok((0x1E, 0x41)),
-        "b" => Ok((0x30, 0x42)),
-        "c" => Ok((0x2E, 0x43)),
-        "d" => Ok((0x20, 0x44)),
-        "e" => Ok((0x12, 0x45)),
-        "f" => Ok((0x21, 0x46)),
-        "g" => Ok((0x22, 0x47)),
-        "h" => Ok((0x23, 0x48)),
-        "i" => Ok((0x17, 0x49)),
-        "j" => Ok((0x24, 0x4A)),
-        "k" => Ok((0x25, 0x4B)),
-        "l" => Ok((0x26, 0x4C)),
-        "m" => Ok((0x32, 0x4D)),
-        "n" => Ok((0x31, 0x4E)),
-        "o" => Ok((0x18, 0x4F)),
-        "p" => Ok((0x19, 0x50)),
-        "q" => Ok((0x10, 0x51)),
-        "r" => Ok((0x13, 0x52)),
-        "s" => Ok((0x1F, 0x53)),
-        "t" => Ok((0x14, 0x54)),
-        "u" => Ok((0x16, 0x55)),
-        "v" => Ok((0x2F, 0x56)),
-        "w" => Ok((0x11, 0x57)),
-        "x" => Ok((0x2D, 0x58)),
-        "y" => Ok((0x15, 0x59)),
-        "z" => Ok((0x2C, 0x5A)),
-
-        // Number keys 0-9
-        "0" => Ok((0x0B, 0x30)),
-        "1" => Ok((0x02, 0x31)),
-        "2" => Ok((0x03, 0x32)),
-        "3" => Ok((0x04, 0x33)),
-        "4" => Ok((0x05, 0x34)),
-        "5" => Ok((0x06, 0x35)),
-        "6" => Ok((0x07, 0x36)),
-        "7" => Ok((0x08, 0x37)),
-        "8" => Ok((0x09, 0x38)),
-        "9" => Ok((0x0A, 0x39)),
-
-        // Function keys F1-F12
-        "f1" => Ok((0x3B, 0x70)),
-        "f2" => Ok((0x3C, 0x71)),
-        "f3" => Ok((0x3D, 0x72)),
-        "f4" => Ok((0x3E, 0x73)),
-        "f5" => Ok((0x3F, 0x74)),
-        "f6" => Ok((0x40, 0x75)),
-        "f7" => Ok((0x41, 0x76)),
-        "f8" => Ok((0x42, 0x77)),
-        "f9" => Ok((0x43, 0x78)),
-        "f10" => Ok((0x44, 0x79)),
-        "f11" => Ok((0x57, 0x7A)),
-        "f12" => Ok((0x58, 0x7B)),
-
-        // Punctuation keys (US layout)
-        "comma" | "," => Ok((0x33, 0xBC)), // VK_OEM_COMMA
-        "period" | "." => Ok((0x34, 0xBE)), // VK_OEM_PERIOD
-        "semicolon" | ";" => Ok((0x27, 0xBA)), // VK_OEM_1
-        "quote" | "'" | "apostrophe" => Ok((0x28, 0xDE)), // VK_OEM_7
-        "bracketleft" | "[" => Ok((0x1A, 0xDB)), // VK_OEM_4
-        "bracketright" | "]" => Ok((0x1B, 0xDD)), // VK_OEM_6
-        "backslash" | "\\" => Ok((0x2B, 0xDC)), // VK_OEM_5
-        "minus" | "-" => Ok((0x0C, 0xBD)), // VK_OEM_MINUS
-        "equal" | "=" => Ok((0x0D, 0xBB)), // VK_OEM_PLUS
-
-        // Numpad keys
-        "numpad0" | "num0" => Ok((0x52, 0x60)),
-        "numpad1" | "num1" => Ok((0x4F, 0x61)),
-        "numpad2" | "num2" => Ok((0x50, 0x62)),
-        "numpad3" | "num3" => Ok((0x51, 0x63)),
-        "numpad4" | "num4" => Ok((0x4B, 0x64)),
-        "numpad5" | "num5" => Ok((0x4C, 0x65)),
-        "numpad6" | "num6" => Ok((0x4D, 0x66)),
-        "numpad7" | "num7" => Ok((0x47, 0x67)),
-        "numpad8" | "num8" => Ok((0x48, 0x68)),
-        "numpad9" | "num9" => Ok((0x49, 0x69)),
-        "numpaddot" | "numdot" | "numpaddecimal" => Ok((0x53, 0x6E)),
-        "numpadenter" | "numenter" => Ok((0x1C, 0x0C)),
-        "numpadadd" | "numplus" => Ok((0x4E, 0x6B)),
-        "numpadsub" | "numminus" => Ok((0x4A, 0x6D)),
-        "numpadmul" | "nummul" | "numpadmultiply" => Ok((0x37, 0x6A)),
-        "numpaddiv" | "numslash" | "numpaddivide" => Ok((0x35, 0x6F)),
-
-        _ => Err(anyhow::anyhow!("Unknown key name: {}", name)),
+    
+    // Special keys
+    if eq_ignore_case!(name, "capslock") || eq_ignore_case!(name, "caps") {
+        return Ok((0x3A, 0x14));
     }
+    if eq_ignore_case!(name, "backspace") {
+        return Ok((0x0E, 0x08));
+    }
+    if eq_ignore_case!(name, "enter") || eq_ignore_case!(name, "return") {
+        return Ok((0x1C, 0x0D));
+    }
+    if eq_ignore_case!(name, "escape") || eq_ignore_case!(name, "esc") {
+        return Ok((0x01, 0x1B));
+    }
+    if eq_ignore_case!(name, "space") {
+        return Ok((0x39, 0x20));
+    }
+    if eq_ignore_case!(name, "tab") {
+        return Ok((0x0F, 0x09));
+    }
+    if eq_ignore_case!(name, "grave") || eq_ignore_case!(name, "backtick") {
+        return Ok((0x29, 0xC0));
+    }
+
+    // Arrow keys
+    if eq_ignore_case!(name, "left") {
+        return Ok((0x4B, 0x25));
+    }
+    if eq_ignore_case!(name, "up") {
+        return Ok((0x48, 0x26));
+    }
+    if eq_ignore_case!(name, "right") {
+        return Ok((0x4D, 0x27));
+    }
+    if eq_ignore_case!(name, "down") {
+        return Ok((0x50, 0x28));
+    }
+
+    // Editing keys
+    if eq_ignore_case!(name, "home") {
+        return Ok((0x47, 0x24));
+    }
+    if eq_ignore_case!(name, "end") {
+        return Ok((0x4F, 0x23));
+    }
+    if eq_ignore_case!(name, "pageup") {
+        return Ok((0x49, 0x21));
+    }
+    if eq_ignore_case!(name, "pagedown") {
+        return Ok((0x51, 0x22));
+    }
+    if eq_ignore_case!(name, "delete") || eq_ignore_case!(name, "del") || eq_ignore_case!(name, "forwarddelete") || eq_ignore_case!(name, "forwarddel") {
+        return Ok((0x53, 0x2E));
+    }
+    if eq_ignore_case!(name, "insert") || eq_ignore_case!(name, "ins") {
+        return Ok((0x52, 0x2D));
+    }
+
+    // Modifier keys
+    if eq_ignore_case!(name, "lshift") || eq_ignore_case!(name, "leftshift") {
+        return Ok((0x2A, 0xA0));
+    }
+    if eq_ignore_case!(name, "rshift") || eq_ignore_case!(name, "rightshift") {
+        return Ok((0x36, 0xA1));
+    }
+    if eq_ignore_case!(name, "lctrl") || eq_ignore_case!(name, "lcontrol") || eq_ignore_case!(name, "leftctrl") || eq_ignore_case!(name, "leftcontrol") {
+        return Ok((0x1D, 0xA2));
+    }
+    if eq_ignore_case!(name, "rctrl") || eq_ignore_case!(name, "rcontrol") || eq_ignore_case!(name, "rightctrl") || eq_ignore_case!(name, "rightcontrol") {
+        return Ok((0xE01D, 0xA3));
+    }
+    if eq_ignore_case!(name, "lalt") || eq_ignore_case!(name, "leftalt") {
+        return Ok((0x38, 0xA4));
+    }
+    if eq_ignore_case!(name, "ralt") || eq_ignore_case!(name, "rightalt") {
+        return Ok((0xE038, 0xA5));
+    }
+    if eq_ignore_case!(name, "lwin") || eq_ignore_case!(name, "lmeta") || eq_ignore_case!(name, "leftwin") || eq_ignore_case!(name, "leftmeta") {
+        return Ok((0xE05B, 0x5B));
+    }
+    if eq_ignore_case!(name, "rwin") || eq_ignore_case!(name, "rmeta") || eq_ignore_case!(name, "rightwin") || eq_ignore_case!(name, "rightmeta") {
+        return Ok((0xE05C, 0x5C));
+    }
+
+    // Letter keys a-z (single character optimization)
+    if name.len() == 1 {
+        let c = name.as_bytes()[0];
+        match c {
+            b'a' | b'A' => return Ok((0x1E, 0x41)),
+            b'b' | b'B' => return Ok((0x30, 0x42)),
+            b'c' | b'C' => return Ok((0x2E, 0x43)),
+            b'd' | b'D' => return Ok((0x20, 0x44)),
+            b'e' | b'E' => return Ok((0x12, 0x45)),
+            b'f' | b'F' => return Ok((0x21, 0x46)),
+            b'g' | b'G' => return Ok((0x22, 0x47)),
+            b'h' | b'H' => return Ok((0x23, 0x48)),
+            b'i' | b'I' => return Ok((0x17, 0x49)),
+            b'j' | b'J' => return Ok((0x24, 0x4A)),
+            b'k' | b'K' => return Ok((0x25, 0x4B)),
+            b'l' | b'L' => return Ok((0x26, 0x4C)),
+            b'm' | b'M' => return Ok((0x32, 0x4D)),
+            b'n' | b'N' => return Ok((0x31, 0x4E)),
+            b'o' | b'O' => return Ok((0x18, 0x4F)),
+            b'p' | b'P' => return Ok((0x19, 0x50)),
+            b'q' | b'Q' => return Ok((0x10, 0x51)),
+            b'r' | b'R' => return Ok((0x13, 0x52)),
+            b's' | b'S' => return Ok((0x1F, 0x53)),
+            b't' | b'T' => return Ok((0x14, 0x54)),
+            b'u' | b'U' => return Ok((0x16, 0x55)),
+            b'v' | b'V' => return Ok((0x2F, 0x56)),
+            b'w' | b'W' => return Ok((0x11, 0x57)),
+            b'x' | b'X' => return Ok((0x2D, 0x58)),
+            b'y' | b'Y' => return Ok((0x15, 0x59)),
+            b'z' | b'Z' => return Ok((0x2C, 0x5A)),
+            b'0' => return Ok((0x0B, 0x30)),
+            b'1' => return Ok((0x02, 0x31)),
+            b'2' => return Ok((0x03, 0x32)),
+            b'3' => return Ok((0x04, 0x33)),
+            b'4' => return Ok((0x05, 0x34)),
+            b'5' => return Ok((0x06, 0x35)),
+            b'6' => return Ok((0x07, 0x36)),
+            b'7' => return Ok((0x08, 0x37)),
+            b'8' => return Ok((0x09, 0x38)),
+            b'9' => return Ok((0x0A, 0x39)),
+            b',' => return Ok((0x33, 0xBC)), // VK_OEM_COMMA
+            b'.' => return Ok((0x34, 0xBE)), // VK_OEM_PERIOD
+            b';' => return Ok((0x27, 0xBA)), // VK_OEM_1
+            b'\'' => return Ok((0x28, 0xDE)), // VK_OEM_7
+            b'[' => return Ok((0x1A, 0xDB)), // VK_OEM_4
+            b']' => return Ok((0x1B, 0xDD)), // VK_OEM_6
+            b'\\' => return Ok((0x2B, 0xDC)), // VK_OEM_5
+            b'-' => return Ok((0x0C, 0xBD)), // VK_OEM_MINUS
+            b'=' => return Ok((0x0D, 0xBB)), // VK_OEM_PLUS
+            _ => {}
+        }
+    }
+
+    // Function keys F1-F12
+    if eq_ignore_case!(name, "f1") { return Ok((0x3B, 0x70)); }
+    if eq_ignore_case!(name, "f2") { return Ok((0x3C, 0x71)); }
+    if eq_ignore_case!(name, "f3") { return Ok((0x3D, 0x72)); }
+    if eq_ignore_case!(name, "f4") { return Ok((0x3E, 0x73)); }
+    if eq_ignore_case!(name, "f5") { return Ok((0x3F, 0x74)); }
+    if eq_ignore_case!(name, "f6") { return Ok((0x40, 0x75)); }
+    if eq_ignore_case!(name, "f7") { return Ok((0x41, 0x76)); }
+    if eq_ignore_case!(name, "f8") { return Ok((0x42, 0x77)); }
+    if eq_ignore_case!(name, "f9") { return Ok((0x43, 0x78)); }
+    if eq_ignore_case!(name, "f10") { return Ok((0x44, 0x79)); }
+    if eq_ignore_case!(name, "f11") { return Ok((0x57, 0x7A)); }
+    if eq_ignore_case!(name, "f12") { return Ok((0x58, 0x7B)); }
+
+    // Punctuation keys (named variants)
+    if eq_ignore_case!(name, "comma") { return Ok((0x33, 0xBC)); }
+    if eq_ignore_case!(name, "period") { return Ok((0x34, 0xBE)); }
+    if eq_ignore_case!(name, "semicolon") { return Ok((0x27, 0xBA)); }
+    if eq_ignore_case!(name, "quote") || eq_ignore_case!(name, "apostrophe") { return Ok((0x28, 0xDE)); }
+    if eq_ignore_case!(name, "bracketleft") { return Ok((0x1A, 0xDB)); }
+    if eq_ignore_case!(name, "bracketright") { return Ok((0x1B, 0xDD)); }
+    if eq_ignore_case!(name, "backslash") { return Ok((0x2B, 0xDC)); }
+    if eq_ignore_case!(name, "minus") { return Ok((0x0C, 0xBD)); }
+    if eq_ignore_case!(name, "equal") { return Ok((0x0D, 0xBB)); }
+
+    // Numpad keys
+    if eq_ignore_case!(name, "numpad0") || eq_ignore_case!(name, "num0") { return Ok((0x52, 0x60)); }
+    if eq_ignore_case!(name, "numpad1") || eq_ignore_case!(name, "num1") { return Ok((0x4F, 0x61)); }
+    if eq_ignore_case!(name, "numpad2") || eq_ignore_case!(name, "num2") { return Ok((0x50, 0x62)); }
+    if eq_ignore_case!(name, "numpad3") || eq_ignore_case!(name, "num3") { return Ok((0x51, 0x63)); }
+    if eq_ignore_case!(name, "numpad4") || eq_ignore_case!(name, "num4") { return Ok((0x4B, 0x64)); }
+    if eq_ignore_case!(name, "numpad5") || eq_ignore_case!(name, "num5") { return Ok((0x4C, 0x65)); }
+    if eq_ignore_case!(name, "numpad6") || eq_ignore_case!(name, "num6") { return Ok((0x4D, 0x66)); }
+    if eq_ignore_case!(name, "numpad7") || eq_ignore_case!(name, "num7") { return Ok((0x47, 0x67)); }
+    if eq_ignore_case!(name, "numpad8") || eq_ignore_case!(name, "num8") { return Ok((0x48, 0x68)); }
+    if eq_ignore_case!(name, "numpad9") || eq_ignore_case!(name, "num9") { return Ok((0x49, 0x69)); }
+    if eq_ignore_case!(name, "numpaddot") || eq_ignore_case!(name, "numdot") || eq_ignore_case!(name, "numpaddecimal") { return Ok((0x53, 0x6E)); }
+    if eq_ignore_case!(name, "numpadenter") || eq_ignore_case!(name, "numenter") { return Ok((0x1C, 0x0C)); }
+    if eq_ignore_case!(name, "numpadadd") || eq_ignore_case!(name, "numplus") { return Ok((0x4E, 0x6B)); }
+    if eq_ignore_case!(name, "numpadsub") || eq_ignore_case!(name, "numminus") { return Ok((0x4A, 0x6D)); }
+    if eq_ignore_case!(name, "numpadmul") || eq_ignore_case!(name, "nummul") || eq_ignore_case!(name, "numpadmultiply") { return Ok((0x37, 0x6A)); }
+    if eq_ignore_case!(name, "numpaddiv") || eq_ignore_case!(name, "numslash") || eq_ignore_case!(name, "numpaddivide") { return Ok((0x35, 0x6F)); }
+
+    Err(anyhow::anyhow!("Unknown key name: {}", name))
 }
 
 /// Config file path cache (reduces repeated file system I/O)

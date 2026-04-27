@@ -189,11 +189,6 @@ impl Action {
         Self::Key(action)
     }
 
-    /// Create mouse action
-    pub fn mouse(action: MouseAction) -> Self {
-        Self::Mouse(action)
-    }
-
     /// Create window action
     pub fn window(action: WindowAction) -> Self {
         Self::Window(action)
@@ -207,11 +202,6 @@ impl Action {
             working_dir: None,
             env_vars: Vec::new(),
         })
-    }
-
-    /// Create action sequence
-    pub fn sequence(actions: Vec<Action>) -> Self {
-        Self::Sequence(actions)
     }
 
     /// Create delay action
@@ -412,7 +402,7 @@ mod tests {
         ];
 
         for action in actions {
-            let wrapped = Action::mouse(action);
+            let wrapped = Action::Mouse(action);
             assert!(matches!(wrapped, Action::Mouse(_)));
         }
     }
@@ -533,12 +523,17 @@ mod tests {
 
     #[test]
     fn test_action_wrapper() {
-        let key_action = Action::key(KeyAction::click(0x1E, 0x41));
-        let mouse_action = Action::mouse(MouseAction::ButtonClick {
+        let key_action = Action::Key(KeyAction::click(0x1E, 0x41));
+        let mouse_action = Action::Mouse(MouseAction::ButtonClick {
             button: super::super::MouseButton::Left,
         });
-        let window_action = Action::window(WindowAction::Center);
-        let launch_action = Action::launch("notepad.exe");
+        let window_action = Action::Window(WindowAction::Center);
+        let launch_action = Action::Launch(super::LaunchAction {
+            program: "notepad.exe".to_string(),
+            args: vec![],
+            working_dir: None,
+            env_vars: vec![],
+        });
 
         assert!(matches!(key_action, Action::Key(_)));
         assert!(matches!(mouse_action, Action::Mouse(_)));
@@ -548,10 +543,10 @@ mod tests {
 
     #[test]
     fn test_action_sequence() {
-        let sequence = Action::sequence(vec![
-            Action::key(KeyAction::click(0x1E, 0x41)),
-            Action::key(KeyAction::click(0x30, 0x42)),
-            Action::window(WindowAction::Center),
+        let sequence = Action::Sequence(vec![
+            Action::Key(KeyAction::click(0x1E, 0x41)),
+            Action::Key(KeyAction::click(0x30, 0x42)),
+            Action::Window(WindowAction::Center),
         ]);
 
         match sequence {
@@ -569,11 +564,11 @@ mod tests {
         assert!(matches!(action, Action::Key(_)));
 
         // mouse
-        let action = Action::mouse(MouseAction::Wheel { delta: 120 });
+        let action = Action::Mouse(MouseAction::Wheel { delta: 120 });
         assert!(matches!(action, Action::Mouse(_)));
 
         // window
-        let action = Action::window(WindowAction::Center);
+        let action = Action::Window(WindowAction::Center);
         assert!(matches!(action, Action::Window(_)));
 
         // launch
@@ -581,9 +576,9 @@ mod tests {
         assert!(matches!(action, Action::Launch(cmd) if cmd.program == "notepad.exe"));
 
         // sequence
-        let action = Action::sequence(vec![
-            Action::key(KeyAction::click(0x01, 0x1B)),
-            Action::key(KeyAction::click(0x0E, 0x08)),
+        let action = Action::Sequence(vec![
+            Action::Key(KeyAction::click(0x01, 0x1B)),
+            Action::Key(KeyAction::click(0x0E, 0x08)),
         ]);
         assert!(matches!(action, Action::Sequence(seq) if seq.len() == 2));
 

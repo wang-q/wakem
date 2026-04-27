@@ -64,12 +64,12 @@ fn test_empty_macro_operations() {
 /// Test nested action sequences
 #[test]
 fn test_nested_action_sequences() {
-    let inner_seq = Action::sequence(vec![
-        Action::key(KeyAction::click(0x01, 0x1B)),
-        Action::key(KeyAction::click(0x0E, 0x08)),
+    let inner_seq = Action::Sequence(vec![
+        Action::Key(KeyAction::click(0x01, 0x1B)),
+        Action::Key(KeyAction::click(0x0E, 0x08)),
     ]);
 
-    let outer_seq = Action::sequence(vec![inner_seq, Action::delay(100)]);
+    let outer_seq = Action::Sequence(vec![inner_seq, Action::Delay { milliseconds: 100 }]);
 
     if let Action::Sequence(actions) = outer_seq {
         assert_eq!(actions.len(), 2);

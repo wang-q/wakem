@@ -807,11 +807,9 @@ mod tests {
         let rule = MappingRule::new(trigger, Action::key(KeyAction::click(0x1F, 0x42)));
 
         // Create event with Ctrl modifier
-        let mut event_modifiers = ModifierState::new();
-        event_modifiers.ctrl = true;
-        let event = InputEvent::Key(
-            KeyEvent::new(0x1E, 0x41, KeyState::Pressed).with_modifiers(event_modifiers),
-        );
+        let mut event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+        event.modifiers.ctrl = true;
+        let event = InputEvent::Key(event);
 
         assert!(rule.trigger.matches(&event));
     }

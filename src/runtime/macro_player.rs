@@ -373,7 +373,7 @@ mod tests {
             ),
             MacroStep::new(
                 50,
-                Action::mouse(MouseAction::ButtonDown {
+                Action::Mouse(MouseAction::ButtonDown {
                     button: MouseButton::Left,
                 }),
                 ModifierState::default(),
@@ -381,7 +381,7 @@ mod tests {
             ),
             MacroStep::new(
                 0,
-                Action::mouse(MouseAction::ButtonUp {
+                Action::Mouse(MouseAction::ButtonUp {
                     button: MouseButton::Left,
                 }),
                 ModifierState::default(),
@@ -489,7 +489,7 @@ mod tests {
             ),
             MacroStep::new(
                 200,
-                Action::mouse(MouseAction::Wheel { delta: 120 }),
+                Action::Mouse(MouseAction::Wheel { delta: 120 }),
                 ModifierState::default(),
                 350,
             ),
@@ -541,7 +541,7 @@ mod tests {
             // Mouse action
             MacroStep::new(
                 10,
-                Action::mouse(MouseAction::Move {
+                Action::Mouse(MouseAction::Move {
                     x: 100,
                     y: 200,
                     relative: false,
@@ -552,18 +552,18 @@ mod tests {
             // Window action
             MacroStep::new(
                 20,
-                Action::window(WindowAction::Center),
+                Action::Window(WindowAction::Center),
                 ModifierState::default(),
                 20,
             ),
             // Delay action
-            MacroStep::new(30, Action::delay(500), ModifierState::default(), 30),
+            MacroStep::new(30, Action::Delay { milliseconds: 500 }, ModifierState::default(), 30),
             // Sequence action
             MacroStep::new(
                 40,
-                Action::sequence(vec![
-                    Action::key(KeyAction::click(0x01, 0x1B)),
-                    Action::key(KeyAction::click(0x0E, 0x08)),
+                Action::Sequence(vec![
+                    Action::Key(KeyAction::click(0x01, 0x1B)),
+                    Action::Key(KeyAction::click(0x0E, 0x08)),
                 ]),
                 ModifierState::default(),
                 40,

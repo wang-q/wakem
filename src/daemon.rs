@@ -53,18 +53,22 @@ impl ServerState {
         let mut mapper = KeyMapper::new();
         mapper.set_window_manager(Box::new(CurrentPlatform::create_window_manager()));
 
-        let notification_service = CurrentPlatform::create_notification_service();
+        // Create services for KeyMapper (using parking_lot for sync access)
+        let notification_service_for_mapper =
+            Arc::new(parking_lot::Mutex::new(Box::new(
+                CurrentPlatform::create_notification_service(),
+            ) as Box<dyn NotificationService>));
+        let window_preset_manager_for_mapper =
+            Arc::new(parking_lot::RwLock::new(Box::new(
+                CurrentPlatform::create_window_preset_manager(),
+            ) as Box<dyn WindowPresetManagerTrait>));
+
+        mapper.set_notification_service(notification_service_for_mapper);
+        mapper.set_window_preset_manager(window_preset_manager_for_mapper);
+
+        // Create separate services for ServerState async operations (using tokio::sync)
         let window_preset_manager = CurrentPlatform::create_window_preset_manager();
-
-        let notification_service_arc: Arc<
-            parking_lot::Mutex<Box<dyn NotificationService>>,
-        > = Arc::new(parking_lot::Mutex::new(Box::new(notification_service)));
-        let window_preset_manager_arc: Arc<
-            parking_lot::RwLock<Box<dyn WindowPresetManagerTrait>>,
-        > = Arc::new(parking_lot::RwLock::new(Box::new(window_preset_manager)));
-
-        mapper.set_notification_service(notification_service_arc.clone());
-        mapper.set_window_preset_manager(window_preset_manager_arc.clone());
+        let notification_service = CurrentPlatform::create_notification_service();
 
         Self {
             config: Arc::new(RwLock::new(Config::default())),
@@ -74,15 +78,11 @@ impl ServerState {
                 CurrentPlatform::create_output_device(),
             ))),
             launcher: Arc::new(Mutex::new(Box::new(CurrentPlatform::create_launcher()))),
-            window_preset_manager: Arc::new(tokio::sync::RwLock::new(Box::new(
-                CurrentPlatform::create_window_preset_manager(),
-            ))),
+            window_preset_manager: Arc::new(RwLock::new(Box::new(window_preset_manager))),
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
-            notification_service: Arc::new(Mutex::new(Box::new(
-                CurrentPlatform::create_notification_service(),
-            ))),
+            notification_service: Arc::new(Mutex::new(Box::new(notification_service))),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -634,12 +634,6 @@ impl ServerState {
     /// Start macro recording
     pub async fn start_macro_recording(&self, name: &str) -> Result<()> {
         self.macro_recorder.start_recording(name).await
-    }
-
-    /// Check if recording macro
-    #[allow(dead_code)]
-    pub async fn is_recording_macro(&self) -> bool {
-        self.macro_recorder.is_recording().await
     }
 
     /// Stop macro recording

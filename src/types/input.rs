@@ -33,12 +33,6 @@ impl KeyEvent {
         }
     }
 
-    /// Set modifier key state (for building events)
-    pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
-        self.modifiers = modifiers;
-        self
-    }
-
     /// Check if this is a modifier key (Shift, Ctrl, Alt, or Meta/Win)
     ///
     /// Modifier keys are typically used in combination with other keys
@@ -238,32 +232,19 @@ mod tests {
     /// Test complex event sequence
     #[test]
     fn test_event_sequence() {
+        let mut ctrl_press = KeyEvent::new(0x1D, 0x11, KeyState::Pressed);
+        ctrl_press.modifiers.ctrl = true;
+        let mut a_press = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+        a_press.modifiers.ctrl = true;
+        let mut a_release = KeyEvent::new(0x1E, 0x41, KeyState::Released);
+        a_release.modifiers.ctrl = true;
+        let ctrl_release = KeyEvent::new(0x1D, 0x11, KeyState::Released);
+
         let events = vec![
-            InputEvent::Key(
-                KeyEvent::new(0x1D, 0x11, KeyState::Pressed).with_modifiers(
-                    ModifierState {
-                        ctrl: true,
-                        ..Default::default()
-                    },
-                ),
-            ), // Ctrl
-            InputEvent::Key(
-                KeyEvent::new(0x1E, 0x41, KeyState::Pressed).with_modifiers(
-                    ModifierState {
-                        ctrl: true,
-                        ..Default::default()
-                    },
-                ),
-            ), // 'A'
-            InputEvent::Key(
-                KeyEvent::new(0x1E, 0x41, KeyState::Released).with_modifiers(
-                    ModifierState {
-                        ctrl: true,
-                        ..Default::default()
-                    },
-                ),
-            ), // 'A' release
-            InputEvent::Key(KeyEvent::new(0x1D, 0x11, KeyState::Released)), // Ctrl release
+            InputEvent::Key(ctrl_press),    // Ctrl
+            InputEvent::Key(a_press),       // 'A'
+            InputEvent::Key(a_release),     // 'A' release
+            InputEvent::Key(ctrl_release),  // Ctrl release
         ];
 
         assert_eq!(events.len(), 4);
@@ -335,12 +316,9 @@ mod tests {
     /// Test KeyEvent with_modifiers
     #[test]
     fn test_key_event_with_modifiers() {
-        let mut modifiers = ModifierState::new();
-        modifiers.ctrl = true;
-        modifiers.shift = true;
-
-        let event =
-            KeyEvent::new(0x1E, 0x41, KeyState::Pressed).with_modifiers(modifiers);
+        let mut event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+        event.modifiers.ctrl = true;
+        event.modifiers.shift = true;
 
         assert!(event.modifiers.ctrl);
         assert!(event.modifiers.shift);

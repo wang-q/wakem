@@ -303,21 +303,9 @@ async fn test_start_stop_macro_recording() {
     let result = state.start_macro_recording("test_macro").await;
     assert!(result.is_ok(), "Start recording should succeed");
 
-    // Verify recording is active
-    assert!(
-        state.is_recording_macro().await,
-        "Should be in recording state"
-    );
-
     // Stop recording
     let result = state.stop_macro_recording().await;
     assert!(result.is_ok(), "Stop recording should succeed");
-
-    // Verify no longer recording
-    assert!(
-        !state.is_recording_macro().await,
-        "Should not be in recording state"
-    );
 }
 
 /// Test play macro
