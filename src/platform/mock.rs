@@ -346,14 +346,6 @@ impl PlatformUtilities for MockPlatform {
     fn get_modifier_state() -> ModifierState {
         ModifierState::default()
     }
-
-    fn get_process_name_by_pid(_pid: u32) -> anyhow::Result<String> {
-        Ok("mock_process".to_string())
-    }
-
-    fn get_executable_path_by_pid(_pid: u32) -> anyhow::Result<String> {
-        Ok("/mock/path/mock_process".to_string())
-    }
 }
 
 impl ContextProvider for MockPlatform {

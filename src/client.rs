@@ -124,7 +124,11 @@ impl DaemonClient {
     fn expect_success(response: Message, context: &str) -> Result<()> {
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
+            Message::Error { message } => Err(anyhow::anyhow!(
+                "{} failed: {}",
+                context,
+                message
+            )),
             other => Err(anyhow::anyhow!(
                 "Unexpected response for {}: expected Success or Error, got {:?}",
                 context,
@@ -201,18 +205,6 @@ impl DaemonClient {
             })
             .await?;
         Self::expect_success(response, "BindMacro")
-    }
-
-    /// Initialize platform-specific services
-    #[allow(dead_code)]
-    pub async fn initialize_platform(
-        &mut self,
-        native_handle: Option<usize>,
-    ) -> Result<()> {
-        let response = self
-            .send_receive(&Message::InitializePlatform { native_handle })
-            .await?;
-        Self::expect_success(response, "InitializePlatform")
     }
 
     /// Shutdown the daemon
@@ -344,17 +336,6 @@ mod tests {
         assert!(
             result.is_err(),
             "bind_macro should return error when not connected"
-        );
-    }
-
-    /// Test initialize_platform should return error when not connected
-    #[tokio::test]
-    async fn test_initialize_platform_not_connected() {
-        let mut client = DaemonClient::new();
-        let result = client.initialize_platform(Some(12345)).await;
-        assert!(
-            result.is_err(),
-            "initialize_platform should return error when not connected"
         );
     }
 

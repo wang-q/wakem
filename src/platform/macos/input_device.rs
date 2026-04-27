@@ -64,7 +64,10 @@ impl InputDeviceTrait for InputDevice<CGEventTapInner> {
 
     fn unregister(&mut self) {
         debug!("Unregistering CGEventTap device");
-        self.unregister_inner();
+        self.base.running = false;
+        if let Some(mut inner) = self.inner.take() {
+            inner.stop();
+        }
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
@@ -72,7 +75,7 @@ impl InputDeviceTrait for InputDevice<CGEventTapInner> {
     }
 
     fn is_running(&self) -> bool {
-        self.is_running_inner()
+        self.base.is_running()
     }
 
     fn stop(&mut self) {

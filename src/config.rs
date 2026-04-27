@@ -5,6 +5,200 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
 
+/// Key mapping entry for lookup table
+#[derive(Debug, Clone, Copy)]
+struct KeyMapping {
+    scan_code: u16,
+    virtual_key: u16,
+}
+
+/// Static lookup table for key name to scan code and virtual key code mapping
+/// This provides O(1) lookup performance and better maintainability compared to if-else chains
+static KEY_LOOKUP_TABLE: Lazy<HashMap<&'static str, KeyMapping>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+    
+    // Special keys
+    map.insert("capslock", KeyMapping { scan_code: 0x3A, virtual_key: 0x14 });
+    map.insert("caps", KeyMapping { scan_code: 0x3A, virtual_key: 0x14 });
+    map.insert("backspace", KeyMapping { scan_code: 0x0E, virtual_key: 0x08 });
+    map.insert("enter", KeyMapping { scan_code: 0x1C, virtual_key: 0x0D });
+    map.insert("return", KeyMapping { scan_code: 0x1C, virtual_key: 0x0D });
+    map.insert("escape", KeyMapping { scan_code: 0x01, virtual_key: 0x1B });
+    map.insert("esc", KeyMapping { scan_code: 0x01, virtual_key: 0x1B });
+    map.insert("space", KeyMapping { scan_code: 0x39, virtual_key: 0x20 });
+    map.insert("tab", KeyMapping { scan_code: 0x0F, virtual_key: 0x09 });
+    map.insert("grave", KeyMapping { scan_code: 0x29, virtual_key: 0xC0 });
+    map.insert("backtick", KeyMapping { scan_code: 0x29, virtual_key: 0xC0 });
+    
+    // Arrow keys
+    map.insert("left", KeyMapping { scan_code: 0x4B, virtual_key: 0x25 });
+    map.insert("up", KeyMapping { scan_code: 0x48, virtual_key: 0x26 });
+    map.insert("right", KeyMapping { scan_code: 0x4D, virtual_key: 0x27 });
+    map.insert("down", KeyMapping { scan_code: 0x50, virtual_key: 0x28 });
+    
+    // Editing keys
+    map.insert("home", KeyMapping { scan_code: 0x47, virtual_key: 0x24 });
+    map.insert("end", KeyMapping { scan_code: 0x4F, virtual_key: 0x23 });
+    map.insert("pageup", KeyMapping { scan_code: 0x49, virtual_key: 0x21 });
+    map.insert("pagedown", KeyMapping { scan_code: 0x51, virtual_key: 0x22 });
+    map.insert("delete", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
+    map.insert("del", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
+    map.insert("forwarddelete", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
+    map.insert("forwarddel", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
+    map.insert("insert", KeyMapping { scan_code: 0x52, virtual_key: 0x2D });
+    map.insert("ins", KeyMapping { scan_code: 0x52, virtual_key: 0x2D });
+    
+    // Modifier keys
+    map.insert("lshift", KeyMapping { scan_code: 0x2A, virtual_key: 0xA0 });
+    map.insert("leftshift", KeyMapping { scan_code: 0x2A, virtual_key: 0xA0 });
+    map.insert("rshift", KeyMapping { scan_code: 0x36, virtual_key: 0xA1 });
+    map.insert("rightshift", KeyMapping { scan_code: 0x36, virtual_key: 0xA1 });
+    map.insert("lctrl", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
+    map.insert("lcontrol", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
+    map.insert("leftctrl", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
+    map.insert("leftcontrol", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
+    map.insert("rctrl", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
+    map.insert("rcontrol", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
+    map.insert("rightctrl", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
+    map.insert("rightcontrol", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
+    map.insert("lalt", KeyMapping { scan_code: 0x38, virtual_key: 0xA4 });
+    map.insert("leftalt", KeyMapping { scan_code: 0x38, virtual_key: 0xA4 });
+    map.insert("ralt", KeyMapping { scan_code: 0xE038, virtual_key: 0xA5 });
+    map.insert("rightalt", KeyMapping { scan_code: 0xE038, virtual_key: 0xA5 });
+    map.insert("lwin", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
+    map.insert("lmeta", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
+    map.insert("leftwin", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
+    map.insert("leftmeta", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
+    map.insert("rwin", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
+    map.insert("rmeta", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
+    map.insert("rightwin", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
+    map.insert("rightmeta", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
+    
+    // Function keys F1-F12
+    map.insert("f1", KeyMapping { scan_code: 0x3B, virtual_key: 0x70 });
+    map.insert("f2", KeyMapping { scan_code: 0x3C, virtual_key: 0x71 });
+    map.insert("f3", KeyMapping { scan_code: 0x3D, virtual_key: 0x72 });
+    map.insert("f4", KeyMapping { scan_code: 0x3E, virtual_key: 0x73 });
+    map.insert("f5", KeyMapping { scan_code: 0x3F, virtual_key: 0x74 });
+    map.insert("f6", KeyMapping { scan_code: 0x40, virtual_key: 0x75 });
+    map.insert("f7", KeyMapping { scan_code: 0x41, virtual_key: 0x76 });
+    map.insert("f8", KeyMapping { scan_code: 0x42, virtual_key: 0x77 });
+    map.insert("f9", KeyMapping { scan_code: 0x43, virtual_key: 0x78 });
+    map.insert("f10", KeyMapping { scan_code: 0x44, virtual_key: 0x79 });
+    map.insert("f11", KeyMapping { scan_code: 0x57, virtual_key: 0x7A });
+    map.insert("f12", KeyMapping { scan_code: 0x58, virtual_key: 0x7B });
+    
+    // Punctuation keys (named variants)
+    map.insert("comma", KeyMapping { scan_code: 0x33, virtual_key: 0xBC });
+    map.insert("period", KeyMapping { scan_code: 0x34, virtual_key: 0xBE });
+    map.insert("semicolon", KeyMapping { scan_code: 0x27, virtual_key: 0xBA });
+    map.insert("quote", KeyMapping { scan_code: 0x28, virtual_key: 0xDE });
+    map.insert("apostrophe", KeyMapping { scan_code: 0x28, virtual_key: 0xDE });
+    map.insert("bracketleft", KeyMapping { scan_code: 0x1A, virtual_key: 0xDB });
+    map.insert("bracketright", KeyMapping { scan_code: 0x1B, virtual_key: 0xDD });
+    map.insert("backslash", KeyMapping { scan_code: 0x2B, virtual_key: 0xDC });
+    map.insert("minus", KeyMapping { scan_code: 0x0C, virtual_key: 0xBD });
+    map.insert("equal", KeyMapping { scan_code: 0x0D, virtual_key: 0xBB });
+    
+    // Numpad keys
+    map.insert("numpad0", KeyMapping { scan_code: 0x52, virtual_key: 0x60 });
+    map.insert("num0", KeyMapping { scan_code: 0x52, virtual_key: 0x60 });
+    map.insert("numpad1", KeyMapping { scan_code: 0x4F, virtual_key: 0x61 });
+    map.insert("num1", KeyMapping { scan_code: 0x4F, virtual_key: 0x61 });
+    map.insert("numpad2", KeyMapping { scan_code: 0x50, virtual_key: 0x62 });
+    map.insert("num2", KeyMapping { scan_code: 0x50, virtual_key: 0x62 });
+    map.insert("numpad3", KeyMapping { scan_code: 0x51, virtual_key: 0x63 });
+    map.insert("num3", KeyMapping { scan_code: 0x51, virtual_key: 0x63 });
+    map.insert("numpad4", KeyMapping { scan_code: 0x4B, virtual_key: 0x64 });
+    map.insert("num4", KeyMapping { scan_code: 0x4B, virtual_key: 0x64 });
+    map.insert("numpad5", KeyMapping { scan_code: 0x4C, virtual_key: 0x65 });
+    map.insert("num5", KeyMapping { scan_code: 0x4C, virtual_key: 0x65 });
+    map.insert("numpad6", KeyMapping { scan_code: 0x4D, virtual_key: 0x66 });
+    map.insert("num6", KeyMapping { scan_code: 0x4D, virtual_key: 0x66 });
+    map.insert("numpad7", KeyMapping { scan_code: 0x47, virtual_key: 0x67 });
+    map.insert("num7", KeyMapping { scan_code: 0x47, virtual_key: 0x67 });
+    map.insert("numpad8", KeyMapping { scan_code: 0x48, virtual_key: 0x68 });
+    map.insert("num8", KeyMapping { scan_code: 0x48, virtual_key: 0x68 });
+    map.insert("numpad9", KeyMapping { scan_code: 0x49, virtual_key: 0x69 });
+    map.insert("num9", KeyMapping { scan_code: 0x49, virtual_key: 0x69 });
+    map.insert("numpaddot", KeyMapping { scan_code: 0x53, virtual_key: 0x6E });
+    map.insert("numdot", KeyMapping { scan_code: 0x53, virtual_key: 0x6E });
+    map.insert("numpaddecimal", KeyMapping { scan_code: 0x53, virtual_key: 0x6E });
+    map.insert("numpadenter", KeyMapping { scan_code: 0x1C, virtual_key: 0x0C });
+    map.insert("numenter", KeyMapping { scan_code: 0x1C, virtual_key: 0x0C });
+    map.insert("numpadadd", KeyMapping { scan_code: 0x4E, virtual_key: 0x6B });
+    map.insert("numplus", KeyMapping { scan_code: 0x4E, virtual_key: 0x6B });
+    map.insert("numpadsub", KeyMapping { scan_code: 0x4A, virtual_key: 0x6D });
+    map.insert("numminus", KeyMapping { scan_code: 0x4A, virtual_key: 0x6D });
+    map.insert("numpadmul", KeyMapping { scan_code: 0x37, virtual_key: 0x6A });
+    map.insert("nummul", KeyMapping { scan_code: 0x37, virtual_key: 0x6A });
+    map.insert("numpadmultiply", KeyMapping { scan_code: 0x37, virtual_key: 0x6A });
+    map.insert("numpaddiv", KeyMapping { scan_code: 0x35, virtual_key: 0x6F });
+    map.insert("numslash", KeyMapping { scan_code: 0x35, virtual_key: 0x6F });
+    map.insert("numpaddivide", KeyMapping { scan_code: 0x35, virtual_key: 0x6F });
+    
+    map
+});
+
+/// Static lookup table for single-character keys (a-z, 0-9, punctuation)
+/// These are stored separately for O(1) direct indexing
+static CHAR_KEY_TABLE: Lazy<HashMap<char, KeyMapping>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+    
+    // Letter keys a-z
+    map.insert('a', KeyMapping { scan_code: 0x1E, virtual_key: 0x41 });
+    map.insert('b', KeyMapping { scan_code: 0x30, virtual_key: 0x42 });
+    map.insert('c', KeyMapping { scan_code: 0x2E, virtual_key: 0x43 });
+    map.insert('d', KeyMapping { scan_code: 0x20, virtual_key: 0x44 });
+    map.insert('e', KeyMapping { scan_code: 0x12, virtual_key: 0x45 });
+    map.insert('f', KeyMapping { scan_code: 0x21, virtual_key: 0x46 });
+    map.insert('g', KeyMapping { scan_code: 0x22, virtual_key: 0x47 });
+    map.insert('h', KeyMapping { scan_code: 0x23, virtual_key: 0x48 });
+    map.insert('i', KeyMapping { scan_code: 0x17, virtual_key: 0x49 });
+    map.insert('j', KeyMapping { scan_code: 0x24, virtual_key: 0x4A });
+    map.insert('k', KeyMapping { scan_code: 0x25, virtual_key: 0x4B });
+    map.insert('l', KeyMapping { scan_code: 0x26, virtual_key: 0x4C });
+    map.insert('m', KeyMapping { scan_code: 0x32, virtual_key: 0x4D });
+    map.insert('n', KeyMapping { scan_code: 0x31, virtual_key: 0x4E });
+    map.insert('o', KeyMapping { scan_code: 0x18, virtual_key: 0x4F });
+    map.insert('p', KeyMapping { scan_code: 0x19, virtual_key: 0x50 });
+    map.insert('q', KeyMapping { scan_code: 0x10, virtual_key: 0x51 });
+    map.insert('r', KeyMapping { scan_code: 0x13, virtual_key: 0x52 });
+    map.insert('s', KeyMapping { scan_code: 0x1F, virtual_key: 0x53 });
+    map.insert('t', KeyMapping { scan_code: 0x14, virtual_key: 0x54 });
+    map.insert('u', KeyMapping { scan_code: 0x16, virtual_key: 0x55 });
+    map.insert('v', KeyMapping { scan_code: 0x2F, virtual_key: 0x56 });
+    map.insert('w', KeyMapping { scan_code: 0x11, virtual_key: 0x57 });
+    map.insert('x', KeyMapping { scan_code: 0x2D, virtual_key: 0x58 });
+    map.insert('y', KeyMapping { scan_code: 0x15, virtual_key: 0x59 });
+    map.insert('z', KeyMapping { scan_code: 0x2C, virtual_key: 0x5A });
+    
+    // Number keys 0-9
+    map.insert('0', KeyMapping { scan_code: 0x0B, virtual_key: 0x30 });
+    map.insert('1', KeyMapping { scan_code: 0x02, virtual_key: 0x31 });
+    map.insert('2', KeyMapping { scan_code: 0x03, virtual_key: 0x32 });
+    map.insert('3', KeyMapping { scan_code: 0x04, virtual_key: 0x33 });
+    map.insert('4', KeyMapping { scan_code: 0x05, virtual_key: 0x34 });
+    map.insert('5', KeyMapping { scan_code: 0x06, virtual_key: 0x35 });
+    map.insert('6', KeyMapping { scan_code: 0x07, virtual_key: 0x36 });
+    map.insert('7', KeyMapping { scan_code: 0x08, virtual_key: 0x37 });
+    map.insert('8', KeyMapping { scan_code: 0x09, virtual_key: 0x38 });
+    map.insert('9', KeyMapping { scan_code: 0x0A, virtual_key: 0x39 });
+    
+    // Punctuation keys
+    map.insert(',', KeyMapping { scan_code: 0x33, virtual_key: 0xBC }); // VK_OEM_COMMA
+    map.insert('.', KeyMapping { scan_code: 0x34, virtual_key: 0xBE }); // VK_OEM_PERIOD
+    map.insert(';', KeyMapping { scan_code: 0x27, virtual_key: 0xBA }); // VK_OEM_1
+    map.insert('\'', KeyMapping { scan_code: 0x28, virtual_key: 0xDE }); // VK_OEM_7
+    map.insert('[', KeyMapping { scan_code: 0x1A, virtual_key: 0xDB }); // VK_OEM_4
+    map.insert(']', KeyMapping { scan_code: 0x1B, virtual_key: 0xDD }); // VK_OEM_6
+    map.insert('\\', KeyMapping { scan_code: 0x2B, virtual_key: 0xDC }); // VK_OEM_5
+    map.insert('-', KeyMapping { scan_code: 0x0C, virtual_key: 0xBD }); // VK_OEM_MINUS
+    map.insert('=', KeyMapping { scan_code: 0x0D, virtual_key: 0xBB }); // VK_OEM_PLUS
+    
+    map
+});
+
 use crate::constants::{
     DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
 };
@@ -209,7 +403,6 @@ impl Config {
     }
 
     /// Save configuration to file
-    #[allow(dead_code)]
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
@@ -477,47 +670,7 @@ pub struct WindowPreset {
     pub height: i32,
 }
 
-impl WindowPreset {
-    #[allow(dead_code)]
-    pub fn matches(
-        &self,
-        process_name: &str,
-        executable_path: Option<&str>,
-        title: &str,
-    ) -> bool {
-        // Check process name match
-        if let Some(ref pattern) = self.process_name {
-            if !Self::wildcard_match(process_name, pattern) {
-                return false;
-            }
-        }
 
-        // Check executable path match
-        if let Some(ref pattern) = self.executable_path {
-            let path = executable_path.unwrap_or("");
-            if !Self::wildcard_match(path, pattern) {
-                return false;
-            }
-        }
-
-        // Check window title match
-        if let Some(ref pattern) = self.title_pattern {
-            if !Self::wildcard_match(title, pattern) {
-                return false;
-            }
-        }
-
-        // At least one matching condition is required
-        self.process_name.is_some()
-            || self.executable_path.is_some()
-            || self.title_pattern.is_some()
-    }
-
-    #[allow(dead_code)]
-    fn wildcard_match(text: &str, pattern: &str) -> bool {
-        wildcard_match(text, pattern)
-    }
-}
 
 /// Public wildcard matching function - delegates to types::mapping
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
@@ -761,56 +914,112 @@ pub fn parse_window_action(
 
         match name.trim() {
             "MoveToEdge" => {
-                let edge = parse_edge(param_list.first().unwrap_or(&""))?;
+                let edge_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("MoveToEdge requires an edge parameter (Left, Right, Top, Bottom)"))?;
+                if edge_str.is_empty() {
+                    return Err(anyhow::anyhow!("MoveToEdge edge parameter cannot be empty"));
+                }
+                let edge = parse_edge(edge_str)?;
                 Ok(WindowAction::MoveToEdge(edge))
             }
             "HalfScreen" => {
-                let edge = parse_edge(param_list.first().unwrap_or(&""))?;
+                let edge_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("HalfScreen requires an edge parameter (Left, Right, Top, Bottom)"))?;
+                if edge_str.is_empty() {
+                    return Err(anyhow::anyhow!("HalfScreen edge parameter cannot be empty"));
+                }
+                let edge = parse_edge(edge_str)?;
                 Ok(WindowAction::HalfScreen(edge))
             }
             "LoopWidth" => {
-                let align = parse_alignment(param_list.first().unwrap_or(&""))?;
+                let align_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("LoopWidth requires an alignment parameter (Left, Right, Center)"))?;
+                if align_str.is_empty() {
+                    return Err(anyhow::anyhow!("LoopWidth alignment parameter cannot be empty"));
+                }
+                let align = parse_alignment(align_str)?;
                 Ok(WindowAction::LoopWidth(align))
             }
             "LoopHeight" => {
-                let align = parse_alignment(param_list.first().unwrap_or(&""))?;
+                let align_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("LoopHeight requires an alignment parameter (Top, Bottom, Center)"))?;
+                if align_str.is_empty() {
+                    return Err(anyhow::anyhow!("LoopHeight alignment parameter cannot be empty"));
+                }
+                let align = parse_alignment(align_str)?;
                 Ok(WindowAction::LoopHeight(align))
             }
             "FixedRatio" => {
-                let ratio = param_list.first().unwrap_or(&"1.333").parse::<f32>()?;
+                let ratio_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("FixedRatio requires a ratio parameter (e.g., 1.333)"))?;
+                let ratio = ratio_str.parse::<f32>()?;
                 let scale_index = param_list.get(1).unwrap_or(&"0").parse::<usize>()?;
                 Ok(WindowAction::FixedRatio { ratio, scale_index })
             }
             "NativeRatio" => {
-                let scale_index = param_list.first().unwrap_or(&"0").parse::<usize>()?;
+                let scale_index = param_list
+                    .first()
+                    .unwrap_or(&"0")
+                    .parse::<usize>()?;
                 Ok(WindowAction::NativeRatio { scale_index })
             }
             "MoveToMonitor" => {
-                let direction =
-                    parse_monitor_direction(param_list.first().unwrap_or(&""))?;
+                let direction_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("MoveToMonitor requires a direction parameter (Next, Prev, or index)"))?;
+                if direction_str.is_empty() {
+                    return Err(anyhow::anyhow!("MoveToMonitor direction parameter cannot be empty"));
+                }
+                let direction = parse_monitor_direction(direction_str)?;
                 Ok(WindowAction::MoveToMonitor(direction))
             }
             "Move" => {
-                let x = param_list.first().unwrap_or(&"0").parse::<i32>()?;
-                let y = param_list.get(1).unwrap_or(&"0").parse::<i32>()?;
+                let x_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("Move requires x and y parameters"))?;
+                let y_str = param_list
+                    .get(1)
+                    .ok_or_else(|| anyhow::anyhow!("Move requires y parameter"))?;
+                let x = x_str.parse::<i32>()?;
+                let y = y_str.parse::<i32>()?;
                 Ok(WindowAction::Move { x, y })
             }
             "Resize" => {
-                let width = param_list.first().unwrap_or(&"800").parse::<i32>()?;
-                let height = param_list.get(1).unwrap_or(&"600").parse::<i32>()?;
+                let width_str = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("Resize requires width and height parameters"))?;
+                let height_str = param_list
+                    .get(1)
+                    .ok_or_else(|| anyhow::anyhow!("Resize requires height parameter"))?;
+                let width = width_str.parse::<i32>()?;
+                let height = height_str.parse::<i32>()?;
                 Ok(WindowAction::Resize { width, height })
             }
             "ShowNotification" => {
-                let title = param_list.first().unwrap_or(&"wakem").to_string();
+                let title = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("ShowNotification requires a title parameter"))?
+                    .to_string();
                 let message = param_list.get(1).unwrap_or(&"").to_string();
                 Ok(WindowAction::ShowNotification { title, message })
             }
             "SavePreset" => {
-                let name = param_list.first().unwrap_or(&"default").to_string();
+                let name = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("SavePreset requires a name parameter"))?
+                    .to_string();
                 Ok(WindowAction::SavePreset { name })
             }
             "LoadPreset" => {
-                let name = param_list.first().unwrap_or(&"default").to_string();
+                let name = param_list
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("LoadPreset requires a name parameter"))?
+                    .to_string();
                 Ok(WindowAction::LoadPreset { name })
             }
             _ => Err(anyhow::anyhow!("Unknown window action: {}", name)),
@@ -868,196 +1077,21 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 }
 
 /// Parse key name to scan code and virtual key code
-/// Uses case-insensitive comparison without heap allocation
+/// Uses static lookup tables for O(1) performance and better maintainability
 pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
-    // Use a helper macro for case-insensitive string comparison
-    macro_rules! eq_ignore_case {
-        ($s:expr, $pat:expr) => {
-            $s.eq_ignore_ascii_case($pat)
-        };
+    // First, try the named key lookup table (case-insensitive)
+    let lower_name = name.to_lowercase();
+    if let Some(mapping) = KEY_LOOKUP_TABLE.get(lower_name.as_str()) {
+        return Ok((mapping.scan_code, mapping.virtual_key));
     }
-
-    // Try hardcoded mappings first (Windows-specific scan codes)
-    // These provide consistent scan codes across all platforms
     
-    // Special keys
-    if eq_ignore_case!(name, "capslock") || eq_ignore_case!(name, "caps") {
-        return Ok((0x3A, 0x14));
-    }
-    if eq_ignore_case!(name, "backspace") {
-        return Ok((0x0E, 0x08));
-    }
-    if eq_ignore_case!(name, "enter") || eq_ignore_case!(name, "return") {
-        return Ok((0x1C, 0x0D));
-    }
-    if eq_ignore_case!(name, "escape") || eq_ignore_case!(name, "esc") {
-        return Ok((0x01, 0x1B));
-    }
-    if eq_ignore_case!(name, "space") {
-        return Ok((0x39, 0x20));
-    }
-    if eq_ignore_case!(name, "tab") {
-        return Ok((0x0F, 0x09));
-    }
-    if eq_ignore_case!(name, "grave") || eq_ignore_case!(name, "backtick") {
-        return Ok((0x29, 0xC0));
-    }
-
-    // Arrow keys
-    if eq_ignore_case!(name, "left") {
-        return Ok((0x4B, 0x25));
-    }
-    if eq_ignore_case!(name, "up") {
-        return Ok((0x48, 0x26));
-    }
-    if eq_ignore_case!(name, "right") {
-        return Ok((0x4D, 0x27));
-    }
-    if eq_ignore_case!(name, "down") {
-        return Ok((0x50, 0x28));
-    }
-
-    // Editing keys
-    if eq_ignore_case!(name, "home") {
-        return Ok((0x47, 0x24));
-    }
-    if eq_ignore_case!(name, "end") {
-        return Ok((0x4F, 0x23));
-    }
-    if eq_ignore_case!(name, "pageup") {
-        return Ok((0x49, 0x21));
-    }
-    if eq_ignore_case!(name, "pagedown") {
-        return Ok((0x51, 0x22));
-    }
-    if eq_ignore_case!(name, "delete") || eq_ignore_case!(name, "del") || eq_ignore_case!(name, "forwarddelete") || eq_ignore_case!(name, "forwarddel") {
-        return Ok((0x53, 0x2E));
-    }
-    if eq_ignore_case!(name, "insert") || eq_ignore_case!(name, "ins") {
-        return Ok((0x52, 0x2D));
-    }
-
-    // Modifier keys
-    if eq_ignore_case!(name, "lshift") || eq_ignore_case!(name, "leftshift") {
-        return Ok((0x2A, 0xA0));
-    }
-    if eq_ignore_case!(name, "rshift") || eq_ignore_case!(name, "rightshift") {
-        return Ok((0x36, 0xA1));
-    }
-    if eq_ignore_case!(name, "lctrl") || eq_ignore_case!(name, "lcontrol") || eq_ignore_case!(name, "leftctrl") || eq_ignore_case!(name, "leftcontrol") {
-        return Ok((0x1D, 0xA2));
-    }
-    if eq_ignore_case!(name, "rctrl") || eq_ignore_case!(name, "rcontrol") || eq_ignore_case!(name, "rightctrl") || eq_ignore_case!(name, "rightcontrol") {
-        return Ok((0xE01D, 0xA3));
-    }
-    if eq_ignore_case!(name, "lalt") || eq_ignore_case!(name, "leftalt") {
-        return Ok((0x38, 0xA4));
-    }
-    if eq_ignore_case!(name, "ralt") || eq_ignore_case!(name, "rightalt") {
-        return Ok((0xE038, 0xA5));
-    }
-    if eq_ignore_case!(name, "lwin") || eq_ignore_case!(name, "lmeta") || eq_ignore_case!(name, "leftwin") || eq_ignore_case!(name, "leftmeta") {
-        return Ok((0xE05B, 0x5B));
-    }
-    if eq_ignore_case!(name, "rwin") || eq_ignore_case!(name, "rmeta") || eq_ignore_case!(name, "rightwin") || eq_ignore_case!(name, "rightmeta") {
-        return Ok((0xE05C, 0x5C));
-    }
-
-    // Letter keys a-z (single character optimization)
+    // For single-character keys, use the char lookup table
     if name.len() == 1 {
-        let c = name.as_bytes()[0];
-        match c {
-            b'a' | b'A' => return Ok((0x1E, 0x41)),
-            b'b' | b'B' => return Ok((0x30, 0x42)),
-            b'c' | b'C' => return Ok((0x2E, 0x43)),
-            b'd' | b'D' => return Ok((0x20, 0x44)),
-            b'e' | b'E' => return Ok((0x12, 0x45)),
-            b'f' | b'F' => return Ok((0x21, 0x46)),
-            b'g' | b'G' => return Ok((0x22, 0x47)),
-            b'h' | b'H' => return Ok((0x23, 0x48)),
-            b'i' | b'I' => return Ok((0x17, 0x49)),
-            b'j' | b'J' => return Ok((0x24, 0x4A)),
-            b'k' | b'K' => return Ok((0x25, 0x4B)),
-            b'l' | b'L' => return Ok((0x26, 0x4C)),
-            b'm' | b'M' => return Ok((0x32, 0x4D)),
-            b'n' | b'N' => return Ok((0x31, 0x4E)),
-            b'o' | b'O' => return Ok((0x18, 0x4F)),
-            b'p' | b'P' => return Ok((0x19, 0x50)),
-            b'q' | b'Q' => return Ok((0x10, 0x51)),
-            b'r' | b'R' => return Ok((0x13, 0x52)),
-            b's' | b'S' => return Ok((0x1F, 0x53)),
-            b't' | b'T' => return Ok((0x14, 0x54)),
-            b'u' | b'U' => return Ok((0x16, 0x55)),
-            b'v' | b'V' => return Ok((0x2F, 0x56)),
-            b'w' | b'W' => return Ok((0x11, 0x57)),
-            b'x' | b'X' => return Ok((0x2D, 0x58)),
-            b'y' | b'Y' => return Ok((0x15, 0x59)),
-            b'z' | b'Z' => return Ok((0x2C, 0x5A)),
-            b'0' => return Ok((0x0B, 0x30)),
-            b'1' => return Ok((0x02, 0x31)),
-            b'2' => return Ok((0x03, 0x32)),
-            b'3' => return Ok((0x04, 0x33)),
-            b'4' => return Ok((0x05, 0x34)),
-            b'5' => return Ok((0x06, 0x35)),
-            b'6' => return Ok((0x07, 0x36)),
-            b'7' => return Ok((0x08, 0x37)),
-            b'8' => return Ok((0x09, 0x38)),
-            b'9' => return Ok((0x0A, 0x39)),
-            b',' => return Ok((0x33, 0xBC)), // VK_OEM_COMMA
-            b'.' => return Ok((0x34, 0xBE)), // VK_OEM_PERIOD
-            b';' => return Ok((0x27, 0xBA)), // VK_OEM_1
-            b'\'' => return Ok((0x28, 0xDE)), // VK_OEM_7
-            b'[' => return Ok((0x1A, 0xDB)), // VK_OEM_4
-            b']' => return Ok((0x1B, 0xDD)), // VK_OEM_6
-            b'\\' => return Ok((0x2B, 0xDC)), // VK_OEM_5
-            b'-' => return Ok((0x0C, 0xBD)), // VK_OEM_MINUS
-            b'=' => return Ok((0x0D, 0xBB)), // VK_OEM_PLUS
-            _ => {}
+        let c = name.chars().next().unwrap().to_ascii_lowercase();
+        if let Some(mapping) = CHAR_KEY_TABLE.get(&c) {
+            return Ok((mapping.scan_code, mapping.virtual_key));
         }
     }
-
-    // Function keys F1-F12
-    if eq_ignore_case!(name, "f1") { return Ok((0x3B, 0x70)); }
-    if eq_ignore_case!(name, "f2") { return Ok((0x3C, 0x71)); }
-    if eq_ignore_case!(name, "f3") { return Ok((0x3D, 0x72)); }
-    if eq_ignore_case!(name, "f4") { return Ok((0x3E, 0x73)); }
-    if eq_ignore_case!(name, "f5") { return Ok((0x3F, 0x74)); }
-    if eq_ignore_case!(name, "f6") { return Ok((0x40, 0x75)); }
-    if eq_ignore_case!(name, "f7") { return Ok((0x41, 0x76)); }
-    if eq_ignore_case!(name, "f8") { return Ok((0x42, 0x77)); }
-    if eq_ignore_case!(name, "f9") { return Ok((0x43, 0x78)); }
-    if eq_ignore_case!(name, "f10") { return Ok((0x44, 0x79)); }
-    if eq_ignore_case!(name, "f11") { return Ok((0x57, 0x7A)); }
-    if eq_ignore_case!(name, "f12") { return Ok((0x58, 0x7B)); }
-
-    // Punctuation keys (named variants)
-    if eq_ignore_case!(name, "comma") { return Ok((0x33, 0xBC)); }
-    if eq_ignore_case!(name, "period") { return Ok((0x34, 0xBE)); }
-    if eq_ignore_case!(name, "semicolon") { return Ok((0x27, 0xBA)); }
-    if eq_ignore_case!(name, "quote") || eq_ignore_case!(name, "apostrophe") { return Ok((0x28, 0xDE)); }
-    if eq_ignore_case!(name, "bracketleft") { return Ok((0x1A, 0xDB)); }
-    if eq_ignore_case!(name, "bracketright") { return Ok((0x1B, 0xDD)); }
-    if eq_ignore_case!(name, "backslash") { return Ok((0x2B, 0xDC)); }
-    if eq_ignore_case!(name, "minus") { return Ok((0x0C, 0xBD)); }
-    if eq_ignore_case!(name, "equal") { return Ok((0x0D, 0xBB)); }
-
-    // Numpad keys
-    if eq_ignore_case!(name, "numpad0") || eq_ignore_case!(name, "num0") { return Ok((0x52, 0x60)); }
-    if eq_ignore_case!(name, "numpad1") || eq_ignore_case!(name, "num1") { return Ok((0x4F, 0x61)); }
-    if eq_ignore_case!(name, "numpad2") || eq_ignore_case!(name, "num2") { return Ok((0x50, 0x62)); }
-    if eq_ignore_case!(name, "numpad3") || eq_ignore_case!(name, "num3") { return Ok((0x51, 0x63)); }
-    if eq_ignore_case!(name, "numpad4") || eq_ignore_case!(name, "num4") { return Ok((0x4B, 0x64)); }
-    if eq_ignore_case!(name, "numpad5") || eq_ignore_case!(name, "num5") { return Ok((0x4C, 0x65)); }
-    if eq_ignore_case!(name, "numpad6") || eq_ignore_case!(name, "num6") { return Ok((0x4D, 0x66)); }
-    if eq_ignore_case!(name, "numpad7") || eq_ignore_case!(name, "num7") { return Ok((0x47, 0x67)); }
-    if eq_ignore_case!(name, "numpad8") || eq_ignore_case!(name, "num8") { return Ok((0x48, 0x68)); }
-    if eq_ignore_case!(name, "numpad9") || eq_ignore_case!(name, "num9") { return Ok((0x49, 0x69)); }
-    if eq_ignore_case!(name, "numpaddot") || eq_ignore_case!(name, "numdot") || eq_ignore_case!(name, "numpaddecimal") { return Ok((0x53, 0x6E)); }
-    if eq_ignore_case!(name, "numpadenter") || eq_ignore_case!(name, "numenter") { return Ok((0x1C, 0x0C)); }
-    if eq_ignore_case!(name, "numpadadd") || eq_ignore_case!(name, "numplus") { return Ok((0x4E, 0x6B)); }
-    if eq_ignore_case!(name, "numpadsub") || eq_ignore_case!(name, "numminus") { return Ok((0x4A, 0x6D)); }
-    if eq_ignore_case!(name, "numpadmul") || eq_ignore_case!(name, "nummul") || eq_ignore_case!(name, "numpadmultiply") { return Ok((0x37, 0x6A)); }
-    if eq_ignore_case!(name, "numpaddiv") || eq_ignore_case!(name, "numslash") || eq_ignore_case!(name, "numpaddivide") { return Ok((0x35, 0x6F)); }
 
     Err(anyhow::anyhow!("Unknown key name: {}", name))
 }
@@ -1532,34 +1566,6 @@ test_macro = []
             ..Default::default()
         };
         assert_eq!(config.get_bind_address(), "127.0.0.1:57432");
-    }
-
-    #[test]
-    fn test_window_preset_matches() {
-        let preset = WindowPreset {
-            name: "test".to_string(),
-            process_name: Some("chrome.exe".to_string()),
-            executable_path: None,
-            title_pattern: None,
-            x: 100,
-            y: 100,
-            width: 800,
-            height: 600,
-        };
-
-        assert!(preset.matches("chrome.exe", None, "Google Chrome"));
-        assert!(!preset.matches("firefox.exe", None, "Firefox"));
-    }
-
-    #[test]
-    fn test_window_preset_wildcard_match() {
-        // Test wildcard matching
-        assert!(WindowPreset::wildcard_match("chrome.exe", "*.exe"));
-        assert!(WindowPreset::wildcard_match("test.txt", "*.txt"));
-        assert!(WindowPreset::wildcard_match("abc", "a*c"));
-        assert!(WindowPreset::wildcard_match("abc", "a?c"));
-        assert!(!WindowPreset::wildcard_match("abc", "a?d"));
-        assert!(WindowPreset::wildcard_match("ABC", "abc")); // case insensitive
     }
 
     #[test]

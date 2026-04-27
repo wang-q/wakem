@@ -227,10 +227,6 @@ impl<A: WindowApiBase + Send + Sync + 'static> WindowPresetManagerTrait
         let id = A::usize_to_window_id(window_id);
         self.apply_preset_for_window_by_id(id)
     }
-
-    fn apply_preset_for_window(&self) -> Result<bool> {
-        self.apply_preset_for_window()
-    }
 }
 
 #[cfg(test)]

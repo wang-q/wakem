@@ -73,21 +73,6 @@ impl PlatformUtilities for MacosPlatform {
 
         modifiers
     }
-
-    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
-        let path = get_process_path(pid)?;
-        let process_name = path.split('/').next_back().unwrap_or("").to_string();
-
-        if process_name.is_empty() {
-            return Err(anyhow::anyhow!("Failed to extract process name from path"));
-        }
-
-        Ok(process_name)
-    }
-
-    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
-        get_process_path(pid)
-    }
 }
 
 impl ContextProvider for MacosPlatform {

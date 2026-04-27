@@ -66,7 +66,6 @@ impl InputDeviceBase {
         self.event_sender.clone()
     }
 
-    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         self.running
     }
@@ -101,24 +100,12 @@ impl<T> InputDevice<T> {
         let base = InputDeviceBase::with_sender(event_sender);
         Ok(Self { base, inner: None })
     }
-
-    #[allow(dead_code)]
-    pub fn is_running(&self) -> bool {
-        self.base.is_running()
-    }
-
-    #[allow(dead_code)]
-    pub fn stop(&mut self) {
-        self.base.stop();
-        self.inner = None;
-    }
 }
 
 /// Trait for platform-specific input device operations.
 ///
 /// Implement this trait for platform-specific inner device types
 /// to enable the generic [InputDevice] to work with them.
-#[allow(unused)]
 pub trait PlatformInputDevice: Sized + Send {
     /// Create the platform-specific device with a sender
     fn create(sender: Sender<InputEvent>) -> Result<Self>;
@@ -136,16 +123,6 @@ pub trait PlatformInputDevice: Sized + Send {
 }
 
 impl<T: PlatformInputDevice> InputDevice<T> {
-    #[allow(dead_code)]
-    pub fn run_once(&mut self) -> Result<bool> {
-        if let Some(ref mut inner) = self.inner {
-            inner.run_once()
-        } else {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            Ok(true)
-        }
-    }
-
     /// Register the input device
     /// This creates the inner device and starts it
     pub fn register_inner(&mut self) -> Result<()> {
@@ -155,14 +132,6 @@ impl<T: PlatformInputDevice> InputDevice<T> {
         self.inner = Some(inner);
         self.base.running = true;
         Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub fn unregister_inner(&mut self) {
-        self.base.running = false;
-        if let Some(mut inner) = self.inner.take() {
-            inner.stop();
-        }
     }
 
     pub fn poll_event_inner(&mut self) -> Option<InputEvent> {
@@ -175,11 +144,6 @@ impl<T: PlatformInputDevice> InputDevice<T> {
         }
 
         self.base.try_recv_event()
-    }
-
-    #[allow(dead_code)]
-    pub fn is_running_inner(&self) -> bool {
-        self.base.is_running()
     }
 
     pub fn stop_inner(&mut self) {

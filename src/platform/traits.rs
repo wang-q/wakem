@@ -170,17 +170,7 @@ pub struct MonitorWorkArea {
     pub height: i32,
 }
 
-impl MonitorWorkArea {
-    #[allow(dead_code)]
-    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-}
+
 
 /// Trait for window information needed by common operations
 pub trait WindowInfoProvider {
@@ -209,7 +199,6 @@ impl WindowFrame {
         }
     }
 
-    #[allow(dead_code)]
     pub fn aspect_ratio(&self) -> f64 {
         if self.height > 0 {
             self.width as f64 / self.height as f64
@@ -218,7 +207,6 @@ impl WindowFrame {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_valid(&self) -> bool {
         self.width > 0 && self.height > 0
     }
@@ -625,14 +613,6 @@ impl<
 pub trait PlatformUtilities {
     /// Get current modifier state
     fn get_modifier_state() -> ModifierState;
-
-    /// Get process name by PID
-    #[allow(dead_code)]
-    fn get_process_name_by_pid(pid: u32) -> Result<String>;
-
-    /// Get executable path by PID
-    #[allow(dead_code)]
-    fn get_executable_path_by_pid(pid: u32) -> Result<String>;
 }
 
 /// Trait for providing current window context information
@@ -676,7 +656,6 @@ pub trait NotificationService: Send + Sync {
 /// window or message handle (e.g., HWND on Windows) as an opaque integer;
 /// non-Windows platforms typically receive `None`.
 pub struct NotificationInitContext {
-    #[allow(dead_code)]
     pub native_handle: Option<usize>,
 }
 
@@ -690,8 +669,6 @@ pub trait WindowPresetManagerTrait: Send + Sync {
     fn load_preset(&self, name: &str) -> Result<()>;
     fn get_foreground_window_info(&self) -> Option<Result<WindowInfo>>;
     fn apply_preset_for_window_by_id(&self, window_id: WindowId) -> Result<bool>;
-    #[allow(dead_code)]
-    fn apply_preset_for_window(&self) -> Result<bool>;
 }
 
 /// Trait for window event hook
@@ -782,7 +759,6 @@ pub struct WindowContext {
 }
 
 impl WindowContext {
-    #[allow(dead_code)]
     pub fn empty() -> Self {
         Self::default()
     }

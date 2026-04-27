@@ -519,6 +519,9 @@ fn cmd_instances_sync() -> Result<()> {
 
 /// Record macro - sync version
 fn cmd_record_sync(instance_id: u32, name: &str) -> Result<()> {
+    // Validate macro name
+    validate_macro_name(name)?;
+    
     let name_owned = name.to_string();
     run_with_client(instance_id, move |mut client| async move {
         client.start_macro_recording(&name_owned).await?;
@@ -526,6 +529,28 @@ fn cmd_record_sync(instance_id: u32, name: &str) -> Result<()> {
         println!("Press Ctrl+Shift+Esc to stop recording");
         Ok(())
     })
+}
+
+/// Validate macro name
+/// Rules:
+/// - Length: 1-50 characters
+/// - Allowed characters: alphanumeric, underscore, hyphen
+fn validate_macro_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        return Err(anyhow::anyhow!("Macro name cannot be empty"));
+    }
+    
+    if name.len() > 50 {
+        return Err(anyhow::anyhow!("Macro name too long (max 50 characters)"));
+    }
+    
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        return Err(anyhow::anyhow!(
+            "Macro name contains invalid characters. Only alphanumeric, underscore, and hyphen are allowed"
+        ));
+    }
+    
+    Ok(())
 }
 
 /// Stop recording macro - sync version
