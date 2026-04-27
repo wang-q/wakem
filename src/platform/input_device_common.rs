@@ -6,6 +6,8 @@
 //!
 //! Also provides [InputDevice] generic struct for platform-specific implementations.
 
+#![allow(dead_code)]
+
 use crate::platform::traits::InputDeviceConfig;
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;

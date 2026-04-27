@@ -1,9 +1,8 @@
 //! macOS output device implementation using CGEvent
 //!
-//! This module uses Core Graphics to send simulated input events.
-//! Shared logic (char mapping, text input, key combos) is in [output_helpers].
+//! This module provides the macOS-specific implementation of the OutputDeviceTrait
+//! using Core Graphics event simulation.
 
-// Allow dead code - this module is under development for macOS output support
 #![allow(dead_code)]
 
 use crate::platform::traits::OutputDeviceTrait;

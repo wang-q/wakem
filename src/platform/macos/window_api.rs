@@ -3,12 +3,13 @@
 //! Provides high-performance window operations on macOS using:
 //! - Core Graphics: CGDisplay for monitor info
 //! - Accessibility (AXUIElement): Window manipulation
+
+#![allow(dead_code)]
 //! - Cocoa (NSWorkspace): Application queries
 //!
 //! Performance: All operations complete in < 10ms (typically < 5ms)
 
 // Allow dead code - some trait methods are under development
-#![allow(dead_code)]
 
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
 use crate::platform::traits::{

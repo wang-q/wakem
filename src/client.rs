@@ -124,11 +124,9 @@ impl DaemonClient {
     fn expect_success(response: Message, context: &str) -> Result<()> {
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!(
-                "{} failed: {}",
-                context,
-                message
-            )),
+            Message::Error { message } => {
+                Err(anyhow::anyhow!("{} failed: {}", context, message))
+            }
             other => Err(anyhow::anyhow!(
                 "Unexpected response for {}: expected Success or Error, got {:?}",
                 context,

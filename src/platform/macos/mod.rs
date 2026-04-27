@@ -1,7 +1,7 @@
 //! macOS platform implementation
 //!
-//! This module provides macOS-specific implementations of the platform traits
-//! using Core Graphics, Cocoa, and Accessibility APIs.
+//! This module provides the macOS-specific implementations of all platform traits.
+
 #![allow(dead_code)]
 
 pub mod context;
@@ -21,8 +21,6 @@ pub use crate::platform::launcher_common::Launcher;
 pub use input_device::RawInputDevice;
 #[allow(unused_imports)]
 pub use output_device::SendInputDevice;
-#[allow(unused_imports)]
-pub use tray::TrayIcon;
 #[allow(unused_imports)]
 pub use window_api::{RealWindowApi, WindowEventHook};
 
@@ -218,25 +216,4 @@ impl PlatformFactory for MacosPlatform {
     ) -> Self::WindowEventHook {
         WindowEventHook::new(sender)
     }
-}
-
-/// Get full executable path for a process using proc_pidpath (internal helper)
-fn get_process_path(pid: u32) -> anyhow::Result<String> {
-    use libc::proc_pidpath;
-    use std::ffi::CStr;
-
-    let mut path_buf = [0u8; 4096];
-    let path_len =
-        unsafe { proc_pidpath(pid as i32, path_buf.as_mut_ptr() as *mut _, 4096) };
-
-    if path_len <= 0 {
-        return Err(anyhow::anyhow!(
-            "Failed to get process path for pid {}",
-            pid
-        ));
-    }
-
-    Ok(unsafe { CStr::from_ptr(path_buf.as_ptr() as *const _) }
-        .to_string_lossy()
-        .to_string())
 }

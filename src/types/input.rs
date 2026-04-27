@@ -241,10 +241,10 @@ mod tests {
         let ctrl_release = KeyEvent::new(0x1D, 0x11, KeyState::Released);
 
         let events = vec![
-            InputEvent::Key(ctrl_press),    // Ctrl
-            InputEvent::Key(a_press),       // 'A'
-            InputEvent::Key(a_release),     // 'A' release
-            InputEvent::Key(ctrl_release),  // Ctrl release
+            InputEvent::Key(ctrl_press),   // Ctrl
+            InputEvent::Key(a_press),      // 'A'
+            InputEvent::Key(a_release),    // 'A' release
+            InputEvent::Key(ctrl_release), // Ctrl release
         ];
 
         assert_eq!(events.len(), 4);

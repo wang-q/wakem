@@ -2,6 +2,7 @@
 //!
 //! This module provides a platform-agnostic tray API trait and manager
 //! that works across Windows and macOS platforms.
+
 #![allow(dead_code)]
 
 use crate::platform::traits::{AppCommand, MenuAction};
@@ -355,10 +356,12 @@ impl<T: TrayApi> TrayIconWrapper<T> {
 /// Replaces platform-specific `MockTrayApi` definitions that were previously
 /// duplicated across `macos/tray.rs` and `windows/tray.rs`.
 /// Uses `std::sync::Mutex` for synchronous locking compatible with both platforms.
+#[cfg(test)]
 pub struct MockTrayApi {
     state: std::sync::Mutex<MockTrayState>,
 }
 
+#[cfg(test)]
 #[derive(Default)]
 struct MockTrayState {
     registered: bool,
@@ -372,12 +375,14 @@ struct MockTrayState {
     menu_actions: std::collections::VecDeque<MenuAction>,
 }
 
+#[cfg(test)]
 impl Default for MockTrayApi {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(test)]
 impl MockTrayApi {
     pub fn new() -> Self {
         Self {
@@ -408,6 +413,7 @@ impl MockTrayApi {
     }
 }
 
+#[cfg(test)]
 #[async_trait::async_trait]
 impl TrayApi for MockTrayApi {
     async fn register(&self, hwnd: Option<isize>) -> Result<()> {

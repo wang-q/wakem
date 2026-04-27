@@ -19,6 +19,9 @@ use cli::{Cli, Commands};
 use client::DaemonClient;
 use platform::traits::{AppCommand, ApplicationControl, TrayLifecycle};
 
+/// Error message for when the client is not connected to daemon
+const ERR_NOT_CONNECTED: &str = "Not connected to daemon, attempting reconnection...";
+
 /// Initialize logging system with support for reading log level from config file
 /// Returns the parsed Config if successfully loaded, so it can be reused by the daemon
 fn init_logging(cli: &Cli) -> (Option<config::Config>, Option<std::path::PathBuf>) {
@@ -175,10 +178,16 @@ fn run_tray_sync(
 
     if let Some(handle) = daemon_handle {
         info!("Waiting for daemon to shutdown...");
-        match wait_for_daemon_shutdown(handle, std::time::Duration::from_secs(10)) {
+        match wait_for_daemon_shutdown(
+            handle,
+            std::time::Duration::from_secs(constants::DAEMON_SHUTDOWN_TIMEOUT_SECS),
+        ) {
             Ok(_) => info!("Daemon shutdown successfully"),
             Err(_) => {
-                error!("Daemon shutdown timed out after 10 seconds, forcing exit...");
+                error!(
+                    "Daemon shutdown timed out after {} seconds, forcing exit...",
+                    constants::DAEMON_SHUTDOWN_TIMEOUT_SECS
+                );
                 let _ = <CurrentPlatform as ApplicationControl>::force_kill_instance(
                     instance_id,
                 );
@@ -340,7 +349,7 @@ async fn connect_and_handle_tray_commands(
                         }
                     }
                 } else {
-                    error!("Not connected to daemon, attempting reconnection...");
+                    error!("{}", ERR_NOT_CONNECTED);
                     try_reconnect(&mut client_option, instance_id).await;
                 }
             }
@@ -357,7 +366,7 @@ async fn connect_and_handle_tray_commands(
                         }
                     }
                 } else {
-                    error!("Not connected to daemon, attempting reconnection...");
+                    error!("{}", ERR_NOT_CONNECTED);
                     try_reconnect(&mut client_option, instance_id).await;
                 }
             }
@@ -520,8 +529,8 @@ fn cmd_instances_sync() -> Result<()> {
 /// Record macro - sync version
 fn cmd_record_sync(instance_id: u32, name: &str) -> Result<()> {
     // Validate macro name
-    validate_macro_name(name)?;
-    
+    config::Config::validate_macro_name(name)?;
+
     let name_owned = name.to_string();
     run_with_client(instance_id, move |mut client| async move {
         client.start_macro_recording(&name_owned).await?;
@@ -529,28 +538,6 @@ fn cmd_record_sync(instance_id: u32, name: &str) -> Result<()> {
         println!("Press Ctrl+Shift+Esc to stop recording");
         Ok(())
     })
-}
-
-/// Validate macro name
-/// Rules:
-/// - Length: 1-50 characters
-/// - Allowed characters: alphanumeric, underscore, hyphen
-fn validate_macro_name(name: &str) -> Result<()> {
-    if name.is_empty() {
-        return Err(anyhow::anyhow!("Macro name cannot be empty"));
-    }
-    
-    if name.len() > 50 {
-        return Err(anyhow::anyhow!("Macro name too long (max 50 characters)"));
-    }
-    
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
-        return Err(anyhow::anyhow!(
-            "Macro name contains invalid characters. Only alphanumeric, underscore, and hyphen are allowed"
-        ));
-    }
-    
-    Ok(())
 }
 
 /// Stop recording macro - sync version

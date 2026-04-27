@@ -167,5 +167,3 @@ impl Default for LayerManager {
         Self::new()
     }
 }
-
-

@@ -64,14 +64,14 @@ impl ServerState {
         mapper.set_window_manager(Box::new(CurrentPlatform::create_window_manager()));
 
         // Create services for KeyMapper (using parking_lot for sync access)
-        let notification_service_for_mapper =
-            Arc::new(parking_lot::Mutex::new(Box::new(
-                CurrentPlatform::create_notification_service(),
-            ) as Box<dyn NotificationService>));
-        let window_preset_manager_for_mapper =
-            Arc::new(parking_lot::RwLock::new(Box::new(
-                CurrentPlatform::create_window_preset_manager(),
-            ) as Box<dyn WindowPresetManagerTrait>));
+        let notification_service_for_mapper = Arc::new(parking_lot::Mutex::new(
+            Box::new(CurrentPlatform::create_notification_service())
+                as Box<dyn NotificationService>,
+        ));
+        let window_preset_manager_for_mapper = Arc::new(parking_lot::RwLock::new(
+            Box::new(CurrentPlatform::create_window_preset_manager())
+                as Box<dyn WindowPresetManagerTrait>,
+        ));
 
         mapper.set_notification_service(notification_service_for_mapper);
         mapper.set_window_preset_manager(window_preset_manager_for_mapper);
@@ -88,7 +88,9 @@ impl ServerState {
                 CurrentPlatform::create_output_device(),
             ))),
             launcher: Arc::new(Mutex::new(Box::new(CurrentPlatform::create_launcher()))),
-            window_preset_manager: Arc::new(RwLock::new(Box::new(window_preset_manager))),
+            window_preset_manager: Arc::new(RwLock::new(Box::new(
+                window_preset_manager,
+            ))),
             active: Arc::new(AtomicBool::new(true)),
             config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
@@ -411,6 +413,14 @@ impl ServerState {
     ///
     /// Lock ordering: hyper_key_map (read) -> active_hyper_keys (write)
     /// The hyper_key_map lock is explicitly dropped before acquiring active_hyper_keys
+    ///
+    /// # Safety
+    /// This function is marked with `#[allow(clippy::await_holding_lock)]` because:
+    /// 1. We acquire `hyper_key_map` read lock and check if the key is a hyper key
+    /// 2. We explicitly `drop(hyper_key_map)` before any await point
+    /// 3. Only then do we acquire `active_hyper_keys` write lock
+    ///
+    /// This ensures no lock is held across await points, preventing deadlocks.
     #[allow(clippy::await_holding_lock)]
     async fn check_and_update_hyper_key(&self, event: &InputEvent) -> bool {
         if let InputEvent::Key(key_event) = event {
@@ -452,6 +462,14 @@ impl ServerState {
     ///
     /// Lock ordering: hyper_key_map (read) -> active_hyper_keys (read)
     /// Both locks are read locks and can be held simultaneously safely
+    ///
+    /// # Safety
+    /// This function is marked with `#[allow(clippy::await_holding_lock)]` because:
+    /// 1. We acquire `hyper_key_map` read lock first
+    /// 2. We explicitly `drop(hyper_key_map)` before acquiring `active_hyper_keys` read lock
+    /// 3. This ensures proper lock ordering and prevents deadlocks
+    ///
+    /// All locks are released before any await point in the calling code.
     #[allow(clippy::await_holding_lock)]
     async fn merge_virtual_modifiers(&self, mut event: InputEvent) -> InputEvent {
         if let InputEvent::Key(ref mut key_event) = event {
@@ -991,7 +1009,8 @@ fn setup_input_processing(
     state: &Arc<ServerState>,
     shutdown: &Arc<ShutdownSignal>,
 ) -> (Arc<AtomicBool>, std::thread::JoinHandle<()>) {
-    let (input_tx, input_rx) = tokio::sync::mpsc::channel::<InputEvent>(INPUT_CHANNEL_CAPACITY);
+    let (input_tx, input_rx) =
+        tokio::sync::mpsc::channel::<InputEvent>(INPUT_CHANNEL_CAPACITY);
     let input_shutdown_flag = Arc::new(AtomicBool::new(false));
     let raw_input_shutdown_flag = Arc::new(AtomicBool::new(false));
 
@@ -1099,7 +1118,9 @@ async fn run_input_processor(
                     if event_batch.len() >= batch_size_limit {
                         break;
                     }
-                    if batch_start.elapsed() >= Duration::from_micros(batch_timeout_micros) {
+                    if batch_start.elapsed()
+                        >= Duration::from_micros(batch_timeout_micros)
+                    {
                         break;
                     }
                 }
@@ -1185,9 +1206,8 @@ fn run_window_event_bridge(
     shutdown_flag: Arc<AtomicBool>,
     hook_shutdown: Arc<AtomicBool>,
 ) {
-    let (std_tx, std_rx) = std::sync::mpsc::channel::<
-        crate::platform::traits::PlatformWindowEvent,
-    >();
+    let (std_tx, std_rx) =
+        std::sync::mpsc::channel::<crate::platform::traits::PlatformWindowEvent>();
 
     let hook_shutdown_inner = hook_shutdown.clone();
     let hook_handle = std::thread::spawn(move || {
@@ -1225,8 +1245,11 @@ fn run_window_event_bridge(
 }
 
 /// Run async window event processor
+///
+/// Note: `_state` parameter is currently unused but kept for future use
+/// when window event handling is fully implemented.
 async fn run_window_event_processor(
-    state: Arc<ServerState>,
+    _state: Arc<ServerState>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     // Window event processor - waits for window events and handles them
@@ -1236,16 +1259,11 @@ async fn run_window_event_processor(
             info!("Window event handling task received shutdown signal");
         }
     }
-    // Prevent unused parameter warning while keeping the parameter for future use
-    let _ = state;
     info!("Window event handling task stopped");
 }
 
 /// Start IPC server task
-fn spawn_ipc_server_task(
-    ipc_server: IpcServer,
-    shutdown: &Arc<ShutdownSignal>,
-) {
+fn spawn_ipc_server_task(ipc_server: IpcServer, shutdown: &Arc<ShutdownSignal>) {
     let ipc_shutdown = shutdown.subscribe();
     tokio::spawn(async move {
         run_ipc_server(ipc_server, ipc_shutdown).await;
@@ -1316,10 +1334,7 @@ async fn run_message_handler(
 }
 
 /// Wait for shutdown signal
-async fn wait_for_shutdown(
-    state: &Arc<ServerState>,
-    shutdown: &Arc<ShutdownSignal>,
-) {
+async fn wait_for_shutdown(state: &Arc<ServerState>, shutdown: &Arc<ShutdownSignal>) {
     let mut state_shutdown_rx = state.subscribe_shutdown();
 
     tokio::select! {
@@ -1369,23 +1384,22 @@ pub async fn run_server_with_config(
     config_path: Option<std::path::PathBuf>,
 ) -> Result<()> {
     // Initialize server
-    let (state, shutdown) = initialize_server(instance_id, preloaded_config, config_path).await?;
+    let (state, shutdown) =
+        initialize_server(instance_id, preloaded_config, config_path).await?;
 
     // Setup IPC server
     let (ipc_server, message_rx) = setup_ipc_server(&state).await?;
 
     // Setup input processing
-    let (input_shutdown_flag, input_handle) =
-        setup_input_processing(&state, &shutdown);
+    let (input_shutdown_flag, input_handle) = setup_input_processing(&state, &shutdown);
 
     // Setup window event processing
-    let (window_shutdown_flag, window_handle) = setup_window_event_processing(&state, &shutdown);
+    let (window_shutdown_flag, window_handle) =
+        setup_window_event_processing(&state, &shutdown);
 
     // Collect thread handles
-    let thread_handles: Vec<std::thread::JoinHandle<()>> = vec![
-        input_handle,
-        window_handle,
-    ];
+    let thread_handles: Vec<std::thread::JoinHandle<()>> =
+        vec![input_handle, window_handle];
 
     // Start IPC tasks
     spawn_ipc_server_task(ipc_server, &shutdown);

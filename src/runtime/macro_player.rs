@@ -557,7 +557,12 @@ mod tests {
                 20,
             ),
             // Delay action
-            MacroStep::new(30, Action::Delay { milliseconds: 500 }, ModifierState::default(), 30),
+            MacroStep::new(
+                30,
+                Action::Delay { milliseconds: 500 },
+                ModifierState::default(),
+                30,
+            ),
             // Sequence action
             MacroStep::new(
                 40,

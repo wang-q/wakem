@@ -72,5 +72,4 @@ mod tests {
         assert!(*rx1.borrow());
         assert!(*rx2.borrow());
     }
-
 }

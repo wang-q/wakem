@@ -859,15 +859,19 @@ mod tests {
         assert_eq!(get_instance_address(1), "127.0.0.1:57428");
     }
 
+    /// Ignored: This test requires a running server on port 57427.
+    /// Run manually with: `cargo test test_client_connect -- --ignored`
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires running server on port 57427"]
     async fn test_client_connect() {
         let mut client = IpcClient::new("127.0.0.1:57427");
         let _ = client.connect().await;
     }
 
+    /// Ignored: This test binds to a real port and may conflict with running instances.
+    /// Run manually with: `cargo test test_server_start -- --ignored`
     #[tokio::test]
-    #[ignore]
+    #[ignore = "binds to real port, may conflict with running instances"]
     async fn test_server_start() {
         let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
         let auth_key = Arc::new(RwLock::new("test-key".to_string()));
@@ -876,8 +880,10 @@ mod tests {
         server.start().await.unwrap();
     }
 
+    /// Ignored: This test binds to a real port and may conflict with running instances.
+    /// Run manually with: `cargo test test_server_start_with_dynamic_key -- --ignored`
     #[tokio::test]
-    #[ignore]
+    #[ignore = "binds to real port, may conflict with running instances"]
     async fn test_server_start_with_dynamic_key() {
         let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
         let auth_key = Arc::new(RwLock::new("test-key".to_string()));

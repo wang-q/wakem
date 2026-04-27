@@ -2,6 +2,10 @@
 //!
 //! This module defines the cross-platform interfaces that can be implemented
 //! by each platform-specific module (Windows, macOS, Linux).
+//!
+//! Note: Some trait methods and struct fields may appear unused on certain
+//! platforms but are required for cross-platform API completeness.
+
 #![allow(dead_code)]
 
 use crate::platform::output_helpers::char_to_vk;
@@ -169,8 +173,6 @@ pub struct MonitorWorkArea {
     pub width: i32,
     pub height: i32,
 }
-
-
 
 /// Trait for window information needed by common operations
 pub trait WindowInfoProvider {

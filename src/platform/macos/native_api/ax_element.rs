@@ -2,6 +2,8 @@
 //!
 //! Direct access to window properties via Accessibility API.
 //! Requires Accessibility permission (System Settings > Privacy & Security > Accessibility).
+
+#![allow(dead_code)]
 //!
 //! Performance: < 10ms for most operations (vs 134-160ms with AppleScript)
 //!
@@ -15,7 +17,6 @@
 //! - Query window state (minimized, focused, title)
 
 // Allow dead code - this module is under development for macOS accessibility support
-#![allow(dead_code)]
 
 use anyhow::{bail, Result};
 use std::ffi::{c_void, CStr, CString};
@@ -45,11 +46,6 @@ impl AXElement {
     /// Check if element is valid (non-null)
     pub fn is_valid(&self) -> bool {
         !self.0.is_null()
-    }
-
-    /// Create null/invalid element
-    pub fn null() -> Self {
-        AXElement(std::ptr::null())
     }
 }
 
@@ -115,10 +111,6 @@ extern "C" {
     // AXUIElement functions - Action Execution
     fn AXUIElementPerformAction(element: *const c_void, action: *const c_void) -> i32; // Returns AXError
 
-    // AXUIElement functions - Permission Check
-    fn AXIsProcessTrusted() -> bool;
-    fn AXAPIEnabled() -> bool;
-
     // Core Foundation - Boolean creation (for setting attributes)
     fn kCFBooleanTrue() -> *const c_void;
     fn kCFBooleanFalse() -> *const c_void;
@@ -153,23 +145,6 @@ fn check_ax_error(error: i32, context: &str) -> Result<()> {
         -25209 => bail!("{}: Duplicate child", context),
         other => bail!("{}: Unknown error ({})", context, other),
     }
-}
-
-/// Check if current process has Accessibility permission
-pub fn check_accessibility_permission() -> Result<()> {
-    if unsafe { AXIsProcessTrusted() } {
-        Ok(())
-    } else {
-        bail!(
-            "Accessibility permission not granted. \
-             Please enable in System Settings > Privacy & Security > Accessibility"
-        )
-    }
-}
-
-/// Check if Accessibility API is enabled on system
-pub fn is_api_enabled() -> bool {
-    unsafe { AXAPIEnabled() }
 }
 
 // ============================================================================
@@ -216,24 +191,6 @@ unsafe fn dealloc_cgsize(ptr: *const c_void) {
     if !ptr.is_null() {
         let _ = Box::from_raw(ptr as *mut CGSize);
     }
-}
-
-/// Parse CGPoint from raw pointer
-unsafe fn parse_cgpoint(ptr: *const c_void) -> Result<(f64, f64)> {
-    if ptr.is_null() {
-        bail!("Null CGPoint pointer");
-    }
-    let point = &*(ptr as *const CGPoint);
-    Ok((point.x, point.y))
-}
-
-/// Parse CGSize from raw pointer
-unsafe fn parse_cgsize(ptr: *const c_void) -> Result<(f64, f64)> {
-    if ptr.is_null() {
-        bail!("Null CGSize pointer");
-    }
-    let size = &*(ptr as *const CGSize);
-    Ok((size.width, size.height))
 }
 
 /// Get boolean attribute value
@@ -346,29 +303,6 @@ pub fn get_main_window(app_element: &AXElement) -> Result<AXElement> {
     Ok(AXElement(window_ptr))
 }
 
-/// Get focused window's AXUIElement (alternative to main window)
-///
-/// Queries `kAXFocusedWindow` attribute of the application element.
-pub fn get_focused_window(app_element: &AXElement) -> Result<AXElement> {
-    trace!("Getting focused window for app {:?}", app_element);
-
-    let mut window_ptr: *const c_void = std::ptr::null();
-    let attr = unsafe { create_cf_string("AXFocusedWindow") };
-
-    let error =
-        unsafe { AXUIElementCopyAttributeValue(app_element.0, attr, &mut window_ptr) };
-    unsafe { cf_release(attr) };
-
-    check_ax_error(error, "get_focused_window")?;
-
-    if window_ptr.is_null() {
-        bail!("No focused window found for application");
-    }
-
-    debug!("Got focused window {:?}", window_ptr);
-    Ok(AXElement(window_ptr))
-}
-
 // ============================================================================
 // Core Operations - Window Position and Size
 // ============================================================================
@@ -431,40 +365,6 @@ pub fn set_window_frame(
 
     debug!("Successfully set window frame");
     Ok(())
-}
-
-/// Get window position and size
-///
-/// Returns `(x, y, width, height)` in **Cocoa coordinates** (bottom-left origin).
-///
-/// # Performance
-/// ~2-4ms (two syscalls + IPC roundtrip)
-pub fn get_window_frame(window_element: &AXElement) -> Result<(f64, f64, f64, f64)> {
-    let mut pos_ptr: *const c_void = std::ptr::null();
-    let mut size_ptr: *const c_void = std::ptr::null();
-
-    let pos_attr = unsafe { create_cf_string("AXPosition") };
-    let size_attr = unsafe { create_cf_string("AXSize") };
-
-    // Get position
-    let error = unsafe {
-        AXUIElementCopyAttributeValue(window_element.0, pos_attr, &mut pos_ptr)
-    };
-    unsafe { cf_release(pos_attr) };
-    check_ax_error(error, "get_position")?;
-
-    // Get size
-    let error = unsafe {
-        AXUIElementCopyAttributeValue(window_element.0, size_attr, &mut size_ptr)
-    };
-    unsafe { cf_release(size_attr) };
-    check_ax_error(error, "get_size")?;
-
-    // Parse CGPoint and CGSize from raw pointers
-    let (x, y) = unsafe { parse_cgpoint(pos_ptr)? };
-    let (w, h) = unsafe { parse_cgsize(size_ptr)? };
-
-    Ok((x, y, w, h))
 }
 
 // ============================================================================
@@ -589,42 +489,11 @@ fn set_minimized_attribute(window_element: &AXElement, minimized: bool) -> Resul
     check_ax_error(error, "set_minimized")
 }
 
-/// Check if window is focused
-///
-/// Queries `kAXFocusedAttribute`.
-pub fn is_focused(window_element: &AXElement) -> Result<bool> {
-    get_boolean_attribute(window_element, "AXFocused")
-}
-
-/// Get window title
-///
-/// Queries `kAXTitleAttribute`.
-pub fn get_window_title(window_element: &AXElement) -> Result<String> {
-    get_string_attribute(window_element, "AXTitle")
-}
-
 /// Get window role (should be "AXWindow" for windows)
 ///
 /// Queries `kAXRoleAttribute`.
 pub fn get_role(element: &AXElement) -> Result<String> {
     get_string_attribute(element, "AXRole")
-}
-
-// ============================================================================
-// Advanced Operations (Optional Features)
-// ============================================================================
-
-/// Ensure window is restored (not minimized or maximized)
-///
-/// Checks if window is minimized and restores it if so.
-///
-/// # Performance
-/// ~3-7ms (is_minimized + optional restore)
-pub fn ensure_window_restored(window_element: &AXElement) -> Result<()> {
-    if is_minimized(window_element)? {
-        restore_window(window_element)?;
-    }
-    Ok(())
 }
 
 // ============================================================================
@@ -635,21 +504,6 @@ pub fn ensure_window_restored(window_element: &AXElement) -> Result<()> {
 mod tests {
     use super::*;
     use tracing::debug;
-
-    #[test]
-    fn test_check_accessibility_permission() {
-        let result = check_accessibility_permission();
-        match result {
-            Ok(()) => debug!("Accessibility permission granted"),
-            Err(e) => debug!("Accessibility permission check: {}", e),
-        }
-    }
-
-    #[test]
-    fn test_is_api_enabled() {
-        let enabled = is_api_enabled();
-        debug!("Accessibility API enabled: {}", enabled);
-    }
 
     #[test]
     fn test_create_app_element_for_frontmost() {
@@ -706,39 +560,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_focused_window_for_current_app() {
-        use crate::platform::macos::native_api::ns_workspace::get_frontmost_app_pid;
-
-        let pid = match get_frontmost_app_pid() {
-            Some(p) => p,
-            None => {
-                debug!("Skipping: No frontmost app (may be headless)");
-                return;
-            }
-        };
-
-        let app_elem = match create_app_element(pid) {
-            Ok(elem) => elem,
-            Err(e) => {
-                debug!("Failed to create app element: {}", e);
-                return;
-            }
-        };
-
-        let win_elem = get_focused_window(&app_elem);
-
-        match win_elem {
-            Ok(win) => {
-                assert!(win.is_valid(), "Focused window should be valid");
-                debug!("Got focused window: {:?}", win.0);
-            }
-            Err(e) => {
-                debug!("No focused window: {} (may be normal for some apps)", e);
-            }
-        }
-    }
-
-    #[test]
     fn test_is_minimized_false_by_default() {
         use crate::platform::macos::native_api::ns_workspace::get_frontmost_app_pid;
 
@@ -767,38 +588,6 @@ mod tests {
             }
             Err(e) => {
                 debug!("Failed to check minimized state: {}", e);
-            }
-        }
-    }
-
-    #[test]
-    fn test_get_window_title_not_empty() {
-        use crate::platform::macos::native_api::ns_workspace::get_frontmost_app_pid;
-
-        let pid = match get_frontmost_app_pid() {
-            Some(p) => p,
-            None => {
-                debug!("Skipping: No frontmost app (may be headless)");
-                return;
-            }
-        };
-
-        let app_elem = match create_app_element(pid) {
-            Ok(elem) => elem,
-            Err(_) => return,
-        };
-
-        let win_elem = match get_main_window(&app_elem) {
-            Ok(win) => win,
-            Err(_) => return,
-        };
-
-        match get_window_title(&win_elem) {
-            Ok(title) => {
-                debug!("Window title: '{}'", title);
-            }
-            Err(e) => {
-                debug!("Failed to get window title: {}", e);
             }
         }
     }
@@ -837,43 +626,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_window_frame_returns_valid_values() {
-        use crate::platform::macos::native_api::ns_workspace::get_frontmost_app_pid;
-
-        let pid = match get_frontmost_app_pid() {
-            Some(p) => p,
-            None => {
-                debug!("Skipping: No frontmost app (may be headless)");
-                return;
-            }
-        };
-
-        let app_elem = match create_app_element(pid) {
-            Ok(elem) => elem,
-            Err(_) => return,
-        };
-
-        let win_elem = match get_main_window(&app_elem) {
-            Ok(win) => win,
-            Err(_) => return,
-        };
-
-        match get_window_frame(&win_elem) {
-            Ok((x, y, w, h)) => {
-                debug!(
-                    "Window frame: position=({:.1}, {:.1}) size={:.1}x{:.1}",
-                    x, y, w, h
-                );
-                assert!(w > 0.0, "Width should be positive");
-                assert!(h > 0.0, "Height should be positive");
-            }
-            Err(e) => {
-                debug!("Failed to get window frame: {}", e);
-            }
-        }
-    }
-
-    #[test]
     fn test_bring_to_front() {
         use crate::platform::macos::native_api::ns_workspace::get_frontmost_app_pid;
 
@@ -893,48 +645,6 @@ mod tests {
         match bring_to_front(&app_elem) {
             Ok(()) => debug!("Successfully brought app to front"),
             Err(e) => debug!("Failed to bring to front: {}", e),
-        }
-    }
-
-    #[test]
-    fn test_error_handling_invalid_element() {
-        let invalid = AXElement::null();
-        assert!(!invalid.is_valid());
-
-        let result = get_main_window(&invalid);
-        assert!(result.is_err(), "Should fail with invalid element");
-
-        match result {
-            Err(e) => debug!("Correctly returned error for invalid element: {}", e),
-            Ok(_) => panic!("Should have failed!"),
-        }
-    }
-
-    #[test]
-    fn test_ensure_window_restored_already_normal() {
-        use crate::platform::macos::native_api::ns_workspace::get_frontmost_app_pid;
-
-        let pid = match get_frontmost_app_pid() {
-            Some(p) => p,
-            None => {
-                debug!("Skipping: No frontmost app (may be headless)");
-                return;
-            }
-        };
-
-        let app_elem = match create_app_element(pid) {
-            Ok(elem) => elem,
-            Err(_) => return,
-        };
-
-        let win_elem = match get_main_window(&app_elem) {
-            Ok(win) => win,
-            Err(_) => return,
-        };
-
-        match ensure_window_restored(&win_elem) {
-            Ok(()) => debug!("ensure_window_restored succeeded"),
-            Err(e) => debug!("ensure_window_restored failed: {}", e),
         }
     }
 }

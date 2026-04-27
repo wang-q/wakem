@@ -9,6 +9,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
 };
 
+#[cfg(test)]
 use crate::platform::mock::WindowApiCall;
 use crate::platform::traits::{
     MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowInfo,

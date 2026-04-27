@@ -42,7 +42,6 @@ pub mod cg_event_types {
     pub const RIGHT_MOUSE_UP: u32 = 4;
     pub const MOUSE_MOVED: u32 = 5;
     pub const LEFT_MOUSE_DRAGGED: u32 = 6;
-    pub const RIGHT_MOUSE_DRAGGED: u32 = 7;
     pub const SCROLL_WHEEL: u32 = 22;
 }
 
@@ -398,27 +397,6 @@ impl CGEventTapDevice {
     /// Create and register a new CGEventTap device
     ///
     /// This is a convenience method that creates the device and immediately
-    /// starts it. Used by PlatformInputDevice::register.
-    ///
-    /// # Arguments
-    /// * `sender` - Channel sender for delivering captured events
-    pub fn create_and_run(sender: Sender<InputEvent>) -> Result<Self> {
-        let mut device = Self::new(sender);
-        device.run()?;
-        Ok(device)
-    }
-
-    pub fn with_config(sender: Sender<InputEvent>, config: InputDeviceConfig) -> Self {
-        Self {
-            config,
-            event_sender: sender,
-            running: std::sync::atomic::AtomicBool::new(false),
-            tap_port: std::sync::Mutex::new(None),
-            run_loop_source: std::sync::Mutex::new(None),
-            created_on_thread: std::sync::Mutex::new(None),
-        }
-    }
-
     /// Start the event tap and begin capturing events
     ///
     /// This method is **non-blocking**: it creates the event tap and adds it to

@@ -16,127 +16,763 @@ struct KeyMapping {
 /// This provides O(1) lookup performance and better maintainability compared to if-else chains
 static KEY_LOOKUP_TABLE: Lazy<HashMap<&'static str, KeyMapping>> = Lazy::new(|| {
     let mut map = HashMap::new();
-    
+
     // Special keys
-    map.insert("capslock", KeyMapping { scan_code: 0x3A, virtual_key: 0x14 });
-    map.insert("caps", KeyMapping { scan_code: 0x3A, virtual_key: 0x14 });
-    map.insert("backspace", KeyMapping { scan_code: 0x0E, virtual_key: 0x08 });
-    map.insert("enter", KeyMapping { scan_code: 0x1C, virtual_key: 0x0D });
-    map.insert("return", KeyMapping { scan_code: 0x1C, virtual_key: 0x0D });
-    map.insert("escape", KeyMapping { scan_code: 0x01, virtual_key: 0x1B });
-    map.insert("esc", KeyMapping { scan_code: 0x01, virtual_key: 0x1B });
-    map.insert("space", KeyMapping { scan_code: 0x39, virtual_key: 0x20 });
-    map.insert("tab", KeyMapping { scan_code: 0x0F, virtual_key: 0x09 });
-    map.insert("grave", KeyMapping { scan_code: 0x29, virtual_key: 0xC0 });
-    map.insert("backtick", KeyMapping { scan_code: 0x29, virtual_key: 0xC0 });
-    
+    map.insert(
+        "capslock",
+        KeyMapping {
+            scan_code: 0x3A,
+            virtual_key: 0x14,
+        },
+    );
+    map.insert(
+        "caps",
+        KeyMapping {
+            scan_code: 0x3A,
+            virtual_key: 0x14,
+        },
+    );
+    map.insert(
+        "backspace",
+        KeyMapping {
+            scan_code: 0x0E,
+            virtual_key: 0x08,
+        },
+    );
+    map.insert(
+        "enter",
+        KeyMapping {
+            scan_code: 0x1C,
+            virtual_key: 0x0D,
+        },
+    );
+    map.insert(
+        "return",
+        KeyMapping {
+            scan_code: 0x1C,
+            virtual_key: 0x0D,
+        },
+    );
+    map.insert(
+        "escape",
+        KeyMapping {
+            scan_code: 0x01,
+            virtual_key: 0x1B,
+        },
+    );
+    map.insert(
+        "esc",
+        KeyMapping {
+            scan_code: 0x01,
+            virtual_key: 0x1B,
+        },
+    );
+    map.insert(
+        "space",
+        KeyMapping {
+            scan_code: 0x39,
+            virtual_key: 0x20,
+        },
+    );
+    map.insert(
+        "tab",
+        KeyMapping {
+            scan_code: 0x0F,
+            virtual_key: 0x09,
+        },
+    );
+    map.insert(
+        "grave",
+        KeyMapping {
+            scan_code: 0x29,
+            virtual_key: 0xC0,
+        },
+    );
+    map.insert(
+        "backtick",
+        KeyMapping {
+            scan_code: 0x29,
+            virtual_key: 0xC0,
+        },
+    );
+
     // Arrow keys
-    map.insert("left", KeyMapping { scan_code: 0x4B, virtual_key: 0x25 });
-    map.insert("up", KeyMapping { scan_code: 0x48, virtual_key: 0x26 });
-    map.insert("right", KeyMapping { scan_code: 0x4D, virtual_key: 0x27 });
-    map.insert("down", KeyMapping { scan_code: 0x50, virtual_key: 0x28 });
-    
+    map.insert(
+        "left",
+        KeyMapping {
+            scan_code: 0x4B,
+            virtual_key: 0x25,
+        },
+    );
+    map.insert(
+        "up",
+        KeyMapping {
+            scan_code: 0x48,
+            virtual_key: 0x26,
+        },
+    );
+    map.insert(
+        "right",
+        KeyMapping {
+            scan_code: 0x4D,
+            virtual_key: 0x27,
+        },
+    );
+    map.insert(
+        "down",
+        KeyMapping {
+            scan_code: 0x50,
+            virtual_key: 0x28,
+        },
+    );
+
     // Editing keys
-    map.insert("home", KeyMapping { scan_code: 0x47, virtual_key: 0x24 });
-    map.insert("end", KeyMapping { scan_code: 0x4F, virtual_key: 0x23 });
-    map.insert("pageup", KeyMapping { scan_code: 0x49, virtual_key: 0x21 });
-    map.insert("pagedown", KeyMapping { scan_code: 0x51, virtual_key: 0x22 });
-    map.insert("delete", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
-    map.insert("del", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
-    map.insert("forwarddelete", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
-    map.insert("forwarddel", KeyMapping { scan_code: 0x53, virtual_key: 0x2E });
-    map.insert("insert", KeyMapping { scan_code: 0x52, virtual_key: 0x2D });
-    map.insert("ins", KeyMapping { scan_code: 0x52, virtual_key: 0x2D });
-    
+    map.insert(
+        "home",
+        KeyMapping {
+            scan_code: 0x47,
+            virtual_key: 0x24,
+        },
+    );
+    map.insert(
+        "end",
+        KeyMapping {
+            scan_code: 0x4F,
+            virtual_key: 0x23,
+        },
+    );
+    map.insert(
+        "pageup",
+        KeyMapping {
+            scan_code: 0x49,
+            virtual_key: 0x21,
+        },
+    );
+    map.insert(
+        "pagedown",
+        KeyMapping {
+            scan_code: 0x51,
+            virtual_key: 0x22,
+        },
+    );
+    map.insert(
+        "delete",
+        KeyMapping {
+            scan_code: 0x53,
+            virtual_key: 0x2E,
+        },
+    );
+    map.insert(
+        "del",
+        KeyMapping {
+            scan_code: 0x53,
+            virtual_key: 0x2E,
+        },
+    );
+    map.insert(
+        "forwarddelete",
+        KeyMapping {
+            scan_code: 0x53,
+            virtual_key: 0x2E,
+        },
+    );
+    map.insert(
+        "forwarddel",
+        KeyMapping {
+            scan_code: 0x53,
+            virtual_key: 0x2E,
+        },
+    );
+    map.insert(
+        "insert",
+        KeyMapping {
+            scan_code: 0x52,
+            virtual_key: 0x2D,
+        },
+    );
+    map.insert(
+        "ins",
+        KeyMapping {
+            scan_code: 0x52,
+            virtual_key: 0x2D,
+        },
+    );
+
     // Modifier keys
-    map.insert("lshift", KeyMapping { scan_code: 0x2A, virtual_key: 0xA0 });
-    map.insert("leftshift", KeyMapping { scan_code: 0x2A, virtual_key: 0xA0 });
-    map.insert("rshift", KeyMapping { scan_code: 0x36, virtual_key: 0xA1 });
-    map.insert("rightshift", KeyMapping { scan_code: 0x36, virtual_key: 0xA1 });
-    map.insert("lctrl", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
-    map.insert("lcontrol", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
-    map.insert("leftctrl", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
-    map.insert("leftcontrol", KeyMapping { scan_code: 0x1D, virtual_key: 0xA2 });
-    map.insert("rctrl", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
-    map.insert("rcontrol", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
-    map.insert("rightctrl", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
-    map.insert("rightcontrol", KeyMapping { scan_code: 0xE01D, virtual_key: 0xA3 });
-    map.insert("lalt", KeyMapping { scan_code: 0x38, virtual_key: 0xA4 });
-    map.insert("leftalt", KeyMapping { scan_code: 0x38, virtual_key: 0xA4 });
-    map.insert("ralt", KeyMapping { scan_code: 0xE038, virtual_key: 0xA5 });
-    map.insert("rightalt", KeyMapping { scan_code: 0xE038, virtual_key: 0xA5 });
-    map.insert("lwin", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
-    map.insert("lmeta", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
-    map.insert("leftwin", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
-    map.insert("leftmeta", KeyMapping { scan_code: 0xE05B, virtual_key: 0x5B });
-    map.insert("rwin", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
-    map.insert("rmeta", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
-    map.insert("rightwin", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
-    map.insert("rightmeta", KeyMapping { scan_code: 0xE05C, virtual_key: 0x5C });
-    
+    map.insert(
+        "lshift",
+        KeyMapping {
+            scan_code: 0x2A,
+            virtual_key: 0xA0,
+        },
+    );
+    map.insert(
+        "leftshift",
+        KeyMapping {
+            scan_code: 0x2A,
+            virtual_key: 0xA0,
+        },
+    );
+    map.insert(
+        "rshift",
+        KeyMapping {
+            scan_code: 0x36,
+            virtual_key: 0xA1,
+        },
+    );
+    map.insert(
+        "rightshift",
+        KeyMapping {
+            scan_code: 0x36,
+            virtual_key: 0xA1,
+        },
+    );
+    map.insert(
+        "lctrl",
+        KeyMapping {
+            scan_code: 0x1D,
+            virtual_key: 0xA2,
+        },
+    );
+    map.insert(
+        "lcontrol",
+        KeyMapping {
+            scan_code: 0x1D,
+            virtual_key: 0xA2,
+        },
+    );
+    map.insert(
+        "leftctrl",
+        KeyMapping {
+            scan_code: 0x1D,
+            virtual_key: 0xA2,
+        },
+    );
+    map.insert(
+        "leftcontrol",
+        KeyMapping {
+            scan_code: 0x1D,
+            virtual_key: 0xA2,
+        },
+    );
+    map.insert(
+        "rctrl",
+        KeyMapping {
+            scan_code: 0xE01D,
+            virtual_key: 0xA3,
+        },
+    );
+    map.insert(
+        "rcontrol",
+        KeyMapping {
+            scan_code: 0xE01D,
+            virtual_key: 0xA3,
+        },
+    );
+    map.insert(
+        "rightctrl",
+        KeyMapping {
+            scan_code: 0xE01D,
+            virtual_key: 0xA3,
+        },
+    );
+    map.insert(
+        "rightcontrol",
+        KeyMapping {
+            scan_code: 0xE01D,
+            virtual_key: 0xA3,
+        },
+    );
+    map.insert(
+        "lalt",
+        KeyMapping {
+            scan_code: 0x38,
+            virtual_key: 0xA4,
+        },
+    );
+    map.insert(
+        "leftalt",
+        KeyMapping {
+            scan_code: 0x38,
+            virtual_key: 0xA4,
+        },
+    );
+    map.insert(
+        "ralt",
+        KeyMapping {
+            scan_code: 0xE038,
+            virtual_key: 0xA5,
+        },
+    );
+    map.insert(
+        "rightalt",
+        KeyMapping {
+            scan_code: 0xE038,
+            virtual_key: 0xA5,
+        },
+    );
+    map.insert(
+        "lwin",
+        KeyMapping {
+            scan_code: 0xE05B,
+            virtual_key: 0x5B,
+        },
+    );
+    map.insert(
+        "lmeta",
+        KeyMapping {
+            scan_code: 0xE05B,
+            virtual_key: 0x5B,
+        },
+    );
+    map.insert(
+        "leftwin",
+        KeyMapping {
+            scan_code: 0xE05B,
+            virtual_key: 0x5B,
+        },
+    );
+    map.insert(
+        "leftmeta",
+        KeyMapping {
+            scan_code: 0xE05B,
+            virtual_key: 0x5B,
+        },
+    );
+    map.insert(
+        "rwin",
+        KeyMapping {
+            scan_code: 0xE05C,
+            virtual_key: 0x5C,
+        },
+    );
+    map.insert(
+        "rmeta",
+        KeyMapping {
+            scan_code: 0xE05C,
+            virtual_key: 0x5C,
+        },
+    );
+    map.insert(
+        "rightwin",
+        KeyMapping {
+            scan_code: 0xE05C,
+            virtual_key: 0x5C,
+        },
+    );
+    map.insert(
+        "rightmeta",
+        KeyMapping {
+            scan_code: 0xE05C,
+            virtual_key: 0x5C,
+        },
+    );
+
     // Function keys F1-F12
-    map.insert("f1", KeyMapping { scan_code: 0x3B, virtual_key: 0x70 });
-    map.insert("f2", KeyMapping { scan_code: 0x3C, virtual_key: 0x71 });
-    map.insert("f3", KeyMapping { scan_code: 0x3D, virtual_key: 0x72 });
-    map.insert("f4", KeyMapping { scan_code: 0x3E, virtual_key: 0x73 });
-    map.insert("f5", KeyMapping { scan_code: 0x3F, virtual_key: 0x74 });
-    map.insert("f6", KeyMapping { scan_code: 0x40, virtual_key: 0x75 });
-    map.insert("f7", KeyMapping { scan_code: 0x41, virtual_key: 0x76 });
-    map.insert("f8", KeyMapping { scan_code: 0x42, virtual_key: 0x77 });
-    map.insert("f9", KeyMapping { scan_code: 0x43, virtual_key: 0x78 });
-    map.insert("f10", KeyMapping { scan_code: 0x44, virtual_key: 0x79 });
-    map.insert("f11", KeyMapping { scan_code: 0x57, virtual_key: 0x7A });
-    map.insert("f12", KeyMapping { scan_code: 0x58, virtual_key: 0x7B });
-    
+    map.insert(
+        "f1",
+        KeyMapping {
+            scan_code: 0x3B,
+            virtual_key: 0x70,
+        },
+    );
+    map.insert(
+        "f2",
+        KeyMapping {
+            scan_code: 0x3C,
+            virtual_key: 0x71,
+        },
+    );
+    map.insert(
+        "f3",
+        KeyMapping {
+            scan_code: 0x3D,
+            virtual_key: 0x72,
+        },
+    );
+    map.insert(
+        "f4",
+        KeyMapping {
+            scan_code: 0x3E,
+            virtual_key: 0x73,
+        },
+    );
+    map.insert(
+        "f5",
+        KeyMapping {
+            scan_code: 0x3F,
+            virtual_key: 0x74,
+        },
+    );
+    map.insert(
+        "f6",
+        KeyMapping {
+            scan_code: 0x40,
+            virtual_key: 0x75,
+        },
+    );
+    map.insert(
+        "f7",
+        KeyMapping {
+            scan_code: 0x41,
+            virtual_key: 0x76,
+        },
+    );
+    map.insert(
+        "f8",
+        KeyMapping {
+            scan_code: 0x42,
+            virtual_key: 0x77,
+        },
+    );
+    map.insert(
+        "f9",
+        KeyMapping {
+            scan_code: 0x43,
+            virtual_key: 0x78,
+        },
+    );
+    map.insert(
+        "f10",
+        KeyMapping {
+            scan_code: 0x44,
+            virtual_key: 0x79,
+        },
+    );
+    map.insert(
+        "f11",
+        KeyMapping {
+            scan_code: 0x57,
+            virtual_key: 0x7A,
+        },
+    );
+    map.insert(
+        "f12",
+        KeyMapping {
+            scan_code: 0x58,
+            virtual_key: 0x7B,
+        },
+    );
+
     // Punctuation keys (named variants)
-    map.insert("comma", KeyMapping { scan_code: 0x33, virtual_key: 0xBC });
-    map.insert("period", KeyMapping { scan_code: 0x34, virtual_key: 0xBE });
-    map.insert("semicolon", KeyMapping { scan_code: 0x27, virtual_key: 0xBA });
-    map.insert("quote", KeyMapping { scan_code: 0x28, virtual_key: 0xDE });
-    map.insert("apostrophe", KeyMapping { scan_code: 0x28, virtual_key: 0xDE });
-    map.insert("bracketleft", KeyMapping { scan_code: 0x1A, virtual_key: 0xDB });
-    map.insert("bracketright", KeyMapping { scan_code: 0x1B, virtual_key: 0xDD });
-    map.insert("backslash", KeyMapping { scan_code: 0x2B, virtual_key: 0xDC });
-    map.insert("minus", KeyMapping { scan_code: 0x0C, virtual_key: 0xBD });
-    map.insert("equal", KeyMapping { scan_code: 0x0D, virtual_key: 0xBB });
-    
+    map.insert(
+        "comma",
+        KeyMapping {
+            scan_code: 0x33,
+            virtual_key: 0xBC,
+        },
+    );
+    map.insert(
+        "period",
+        KeyMapping {
+            scan_code: 0x34,
+            virtual_key: 0xBE,
+        },
+    );
+    map.insert(
+        "semicolon",
+        KeyMapping {
+            scan_code: 0x27,
+            virtual_key: 0xBA,
+        },
+    );
+    map.insert(
+        "quote",
+        KeyMapping {
+            scan_code: 0x28,
+            virtual_key: 0xDE,
+        },
+    );
+    map.insert(
+        "apostrophe",
+        KeyMapping {
+            scan_code: 0x28,
+            virtual_key: 0xDE,
+        },
+    );
+    map.insert(
+        "bracketleft",
+        KeyMapping {
+            scan_code: 0x1A,
+            virtual_key: 0xDB,
+        },
+    );
+    map.insert(
+        "bracketright",
+        KeyMapping {
+            scan_code: 0x1B,
+            virtual_key: 0xDD,
+        },
+    );
+    map.insert(
+        "backslash",
+        KeyMapping {
+            scan_code: 0x2B,
+            virtual_key: 0xDC,
+        },
+    );
+    map.insert(
+        "minus",
+        KeyMapping {
+            scan_code: 0x0C,
+            virtual_key: 0xBD,
+        },
+    );
+    map.insert(
+        "equal",
+        KeyMapping {
+            scan_code: 0x0D,
+            virtual_key: 0xBB,
+        },
+    );
+
     // Numpad keys
-    map.insert("numpad0", KeyMapping { scan_code: 0x52, virtual_key: 0x60 });
-    map.insert("num0", KeyMapping { scan_code: 0x52, virtual_key: 0x60 });
-    map.insert("numpad1", KeyMapping { scan_code: 0x4F, virtual_key: 0x61 });
-    map.insert("num1", KeyMapping { scan_code: 0x4F, virtual_key: 0x61 });
-    map.insert("numpad2", KeyMapping { scan_code: 0x50, virtual_key: 0x62 });
-    map.insert("num2", KeyMapping { scan_code: 0x50, virtual_key: 0x62 });
-    map.insert("numpad3", KeyMapping { scan_code: 0x51, virtual_key: 0x63 });
-    map.insert("num3", KeyMapping { scan_code: 0x51, virtual_key: 0x63 });
-    map.insert("numpad4", KeyMapping { scan_code: 0x4B, virtual_key: 0x64 });
-    map.insert("num4", KeyMapping { scan_code: 0x4B, virtual_key: 0x64 });
-    map.insert("numpad5", KeyMapping { scan_code: 0x4C, virtual_key: 0x65 });
-    map.insert("num5", KeyMapping { scan_code: 0x4C, virtual_key: 0x65 });
-    map.insert("numpad6", KeyMapping { scan_code: 0x4D, virtual_key: 0x66 });
-    map.insert("num6", KeyMapping { scan_code: 0x4D, virtual_key: 0x66 });
-    map.insert("numpad7", KeyMapping { scan_code: 0x47, virtual_key: 0x67 });
-    map.insert("num7", KeyMapping { scan_code: 0x47, virtual_key: 0x67 });
-    map.insert("numpad8", KeyMapping { scan_code: 0x48, virtual_key: 0x68 });
-    map.insert("num8", KeyMapping { scan_code: 0x48, virtual_key: 0x68 });
-    map.insert("numpad9", KeyMapping { scan_code: 0x49, virtual_key: 0x69 });
-    map.insert("num9", KeyMapping { scan_code: 0x49, virtual_key: 0x69 });
-    map.insert("numpaddot", KeyMapping { scan_code: 0x53, virtual_key: 0x6E });
-    map.insert("numdot", KeyMapping { scan_code: 0x53, virtual_key: 0x6E });
-    map.insert("numpaddecimal", KeyMapping { scan_code: 0x53, virtual_key: 0x6E });
-    map.insert("numpadenter", KeyMapping { scan_code: 0x1C, virtual_key: 0x0C });
-    map.insert("numenter", KeyMapping { scan_code: 0x1C, virtual_key: 0x0C });
-    map.insert("numpadadd", KeyMapping { scan_code: 0x4E, virtual_key: 0x6B });
-    map.insert("numplus", KeyMapping { scan_code: 0x4E, virtual_key: 0x6B });
-    map.insert("numpadsub", KeyMapping { scan_code: 0x4A, virtual_key: 0x6D });
-    map.insert("numminus", KeyMapping { scan_code: 0x4A, virtual_key: 0x6D });
-    map.insert("numpadmul", KeyMapping { scan_code: 0x37, virtual_key: 0x6A });
-    map.insert("nummul", KeyMapping { scan_code: 0x37, virtual_key: 0x6A });
-    map.insert("numpadmultiply", KeyMapping { scan_code: 0x37, virtual_key: 0x6A });
-    map.insert("numpaddiv", KeyMapping { scan_code: 0x35, virtual_key: 0x6F });
-    map.insert("numslash", KeyMapping { scan_code: 0x35, virtual_key: 0x6F });
-    map.insert("numpaddivide", KeyMapping { scan_code: 0x35, virtual_key: 0x6F });
-    
+    map.insert(
+        "numpad0",
+        KeyMapping {
+            scan_code: 0x52,
+            virtual_key: 0x60,
+        },
+    );
+    map.insert(
+        "num0",
+        KeyMapping {
+            scan_code: 0x52,
+            virtual_key: 0x60,
+        },
+    );
+    map.insert(
+        "numpad1",
+        KeyMapping {
+            scan_code: 0x4F,
+            virtual_key: 0x61,
+        },
+    );
+    map.insert(
+        "num1",
+        KeyMapping {
+            scan_code: 0x4F,
+            virtual_key: 0x61,
+        },
+    );
+    map.insert(
+        "numpad2",
+        KeyMapping {
+            scan_code: 0x50,
+            virtual_key: 0x62,
+        },
+    );
+    map.insert(
+        "num2",
+        KeyMapping {
+            scan_code: 0x50,
+            virtual_key: 0x62,
+        },
+    );
+    map.insert(
+        "numpad3",
+        KeyMapping {
+            scan_code: 0x51,
+            virtual_key: 0x63,
+        },
+    );
+    map.insert(
+        "num3",
+        KeyMapping {
+            scan_code: 0x51,
+            virtual_key: 0x63,
+        },
+    );
+    map.insert(
+        "numpad4",
+        KeyMapping {
+            scan_code: 0x4B,
+            virtual_key: 0x64,
+        },
+    );
+    map.insert(
+        "num4",
+        KeyMapping {
+            scan_code: 0x4B,
+            virtual_key: 0x64,
+        },
+    );
+    map.insert(
+        "numpad5",
+        KeyMapping {
+            scan_code: 0x4C,
+            virtual_key: 0x65,
+        },
+    );
+    map.insert(
+        "num5",
+        KeyMapping {
+            scan_code: 0x4C,
+            virtual_key: 0x65,
+        },
+    );
+    map.insert(
+        "numpad6",
+        KeyMapping {
+            scan_code: 0x4D,
+            virtual_key: 0x66,
+        },
+    );
+    map.insert(
+        "num6",
+        KeyMapping {
+            scan_code: 0x4D,
+            virtual_key: 0x66,
+        },
+    );
+    map.insert(
+        "numpad7",
+        KeyMapping {
+            scan_code: 0x47,
+            virtual_key: 0x67,
+        },
+    );
+    map.insert(
+        "num7",
+        KeyMapping {
+            scan_code: 0x47,
+            virtual_key: 0x67,
+        },
+    );
+    map.insert(
+        "numpad8",
+        KeyMapping {
+            scan_code: 0x48,
+            virtual_key: 0x68,
+        },
+    );
+    map.insert(
+        "num8",
+        KeyMapping {
+            scan_code: 0x48,
+            virtual_key: 0x68,
+        },
+    );
+    map.insert(
+        "numpad9",
+        KeyMapping {
+            scan_code: 0x49,
+            virtual_key: 0x69,
+        },
+    );
+    map.insert(
+        "num9",
+        KeyMapping {
+            scan_code: 0x49,
+            virtual_key: 0x69,
+        },
+    );
+    map.insert(
+        "numpaddot",
+        KeyMapping {
+            scan_code: 0x53,
+            virtual_key: 0x6E,
+        },
+    );
+    map.insert(
+        "numdot",
+        KeyMapping {
+            scan_code: 0x53,
+            virtual_key: 0x6E,
+        },
+    );
+    map.insert(
+        "numpaddecimal",
+        KeyMapping {
+            scan_code: 0x53,
+            virtual_key: 0x6E,
+        },
+    );
+    map.insert(
+        "numpadenter",
+        KeyMapping {
+            scan_code: 0x1C,
+            virtual_key: 0x0C,
+        },
+    );
+    map.insert(
+        "numenter",
+        KeyMapping {
+            scan_code: 0x1C,
+            virtual_key: 0x0C,
+        },
+    );
+    map.insert(
+        "numpadadd",
+        KeyMapping {
+            scan_code: 0x4E,
+            virtual_key: 0x6B,
+        },
+    );
+    map.insert(
+        "numplus",
+        KeyMapping {
+            scan_code: 0x4E,
+            virtual_key: 0x6B,
+        },
+    );
+    map.insert(
+        "numpadsub",
+        KeyMapping {
+            scan_code: 0x4A,
+            virtual_key: 0x6D,
+        },
+    );
+    map.insert(
+        "numminus",
+        KeyMapping {
+            scan_code: 0x4A,
+            virtual_key: 0x6D,
+        },
+    );
+    map.insert(
+        "numpadmul",
+        KeyMapping {
+            scan_code: 0x37,
+            virtual_key: 0x6A,
+        },
+    );
+    map.insert(
+        "nummul",
+        KeyMapping {
+            scan_code: 0x37,
+            virtual_key: 0x6A,
+        },
+    );
+    map.insert(
+        "numpadmultiply",
+        KeyMapping {
+            scan_code: 0x37,
+            virtual_key: 0x6A,
+        },
+    );
+    map.insert(
+        "numpaddiv",
+        KeyMapping {
+            scan_code: 0x35,
+            virtual_key: 0x6F,
+        },
+    );
+    map.insert(
+        "numslash",
+        KeyMapping {
+            scan_code: 0x35,
+            virtual_key: 0x6F,
+        },
+    );
+    map.insert(
+        "numpaddivide",
+        KeyMapping {
+            scan_code: 0x35,
+            virtual_key: 0x6F,
+        },
+    );
+
     map
 });
 
@@ -144,58 +780,328 @@ static KEY_LOOKUP_TABLE: Lazy<HashMap<&'static str, KeyMapping>> = Lazy::new(|| 
 /// These are stored separately for O(1) direct indexing
 static CHAR_KEY_TABLE: Lazy<HashMap<char, KeyMapping>> = Lazy::new(|| {
     let mut map = HashMap::new();
-    
+
     // Letter keys a-z
-    map.insert('a', KeyMapping { scan_code: 0x1E, virtual_key: 0x41 });
-    map.insert('b', KeyMapping { scan_code: 0x30, virtual_key: 0x42 });
-    map.insert('c', KeyMapping { scan_code: 0x2E, virtual_key: 0x43 });
-    map.insert('d', KeyMapping { scan_code: 0x20, virtual_key: 0x44 });
-    map.insert('e', KeyMapping { scan_code: 0x12, virtual_key: 0x45 });
-    map.insert('f', KeyMapping { scan_code: 0x21, virtual_key: 0x46 });
-    map.insert('g', KeyMapping { scan_code: 0x22, virtual_key: 0x47 });
-    map.insert('h', KeyMapping { scan_code: 0x23, virtual_key: 0x48 });
-    map.insert('i', KeyMapping { scan_code: 0x17, virtual_key: 0x49 });
-    map.insert('j', KeyMapping { scan_code: 0x24, virtual_key: 0x4A });
-    map.insert('k', KeyMapping { scan_code: 0x25, virtual_key: 0x4B });
-    map.insert('l', KeyMapping { scan_code: 0x26, virtual_key: 0x4C });
-    map.insert('m', KeyMapping { scan_code: 0x32, virtual_key: 0x4D });
-    map.insert('n', KeyMapping { scan_code: 0x31, virtual_key: 0x4E });
-    map.insert('o', KeyMapping { scan_code: 0x18, virtual_key: 0x4F });
-    map.insert('p', KeyMapping { scan_code: 0x19, virtual_key: 0x50 });
-    map.insert('q', KeyMapping { scan_code: 0x10, virtual_key: 0x51 });
-    map.insert('r', KeyMapping { scan_code: 0x13, virtual_key: 0x52 });
-    map.insert('s', KeyMapping { scan_code: 0x1F, virtual_key: 0x53 });
-    map.insert('t', KeyMapping { scan_code: 0x14, virtual_key: 0x54 });
-    map.insert('u', KeyMapping { scan_code: 0x16, virtual_key: 0x55 });
-    map.insert('v', KeyMapping { scan_code: 0x2F, virtual_key: 0x56 });
-    map.insert('w', KeyMapping { scan_code: 0x11, virtual_key: 0x57 });
-    map.insert('x', KeyMapping { scan_code: 0x2D, virtual_key: 0x58 });
-    map.insert('y', KeyMapping { scan_code: 0x15, virtual_key: 0x59 });
-    map.insert('z', KeyMapping { scan_code: 0x2C, virtual_key: 0x5A });
-    
+    map.insert(
+        'a',
+        KeyMapping {
+            scan_code: 0x1E,
+            virtual_key: 0x41,
+        },
+    );
+    map.insert(
+        'b',
+        KeyMapping {
+            scan_code: 0x30,
+            virtual_key: 0x42,
+        },
+    );
+    map.insert(
+        'c',
+        KeyMapping {
+            scan_code: 0x2E,
+            virtual_key: 0x43,
+        },
+    );
+    map.insert(
+        'd',
+        KeyMapping {
+            scan_code: 0x20,
+            virtual_key: 0x44,
+        },
+    );
+    map.insert(
+        'e',
+        KeyMapping {
+            scan_code: 0x12,
+            virtual_key: 0x45,
+        },
+    );
+    map.insert(
+        'f',
+        KeyMapping {
+            scan_code: 0x21,
+            virtual_key: 0x46,
+        },
+    );
+    map.insert(
+        'g',
+        KeyMapping {
+            scan_code: 0x22,
+            virtual_key: 0x47,
+        },
+    );
+    map.insert(
+        'h',
+        KeyMapping {
+            scan_code: 0x23,
+            virtual_key: 0x48,
+        },
+    );
+    map.insert(
+        'i',
+        KeyMapping {
+            scan_code: 0x17,
+            virtual_key: 0x49,
+        },
+    );
+    map.insert(
+        'j',
+        KeyMapping {
+            scan_code: 0x24,
+            virtual_key: 0x4A,
+        },
+    );
+    map.insert(
+        'k',
+        KeyMapping {
+            scan_code: 0x25,
+            virtual_key: 0x4B,
+        },
+    );
+    map.insert(
+        'l',
+        KeyMapping {
+            scan_code: 0x26,
+            virtual_key: 0x4C,
+        },
+    );
+    map.insert(
+        'm',
+        KeyMapping {
+            scan_code: 0x32,
+            virtual_key: 0x4D,
+        },
+    );
+    map.insert(
+        'n',
+        KeyMapping {
+            scan_code: 0x31,
+            virtual_key: 0x4E,
+        },
+    );
+    map.insert(
+        'o',
+        KeyMapping {
+            scan_code: 0x18,
+            virtual_key: 0x4F,
+        },
+    );
+    map.insert(
+        'p',
+        KeyMapping {
+            scan_code: 0x19,
+            virtual_key: 0x50,
+        },
+    );
+    map.insert(
+        'q',
+        KeyMapping {
+            scan_code: 0x10,
+            virtual_key: 0x51,
+        },
+    );
+    map.insert(
+        'r',
+        KeyMapping {
+            scan_code: 0x13,
+            virtual_key: 0x52,
+        },
+    );
+    map.insert(
+        's',
+        KeyMapping {
+            scan_code: 0x1F,
+            virtual_key: 0x53,
+        },
+    );
+    map.insert(
+        't',
+        KeyMapping {
+            scan_code: 0x14,
+            virtual_key: 0x54,
+        },
+    );
+    map.insert(
+        'u',
+        KeyMapping {
+            scan_code: 0x16,
+            virtual_key: 0x55,
+        },
+    );
+    map.insert(
+        'v',
+        KeyMapping {
+            scan_code: 0x2F,
+            virtual_key: 0x56,
+        },
+    );
+    map.insert(
+        'w',
+        KeyMapping {
+            scan_code: 0x11,
+            virtual_key: 0x57,
+        },
+    );
+    map.insert(
+        'x',
+        KeyMapping {
+            scan_code: 0x2D,
+            virtual_key: 0x58,
+        },
+    );
+    map.insert(
+        'y',
+        KeyMapping {
+            scan_code: 0x15,
+            virtual_key: 0x59,
+        },
+    );
+    map.insert(
+        'z',
+        KeyMapping {
+            scan_code: 0x2C,
+            virtual_key: 0x5A,
+        },
+    );
+
     // Number keys 0-9
-    map.insert('0', KeyMapping { scan_code: 0x0B, virtual_key: 0x30 });
-    map.insert('1', KeyMapping { scan_code: 0x02, virtual_key: 0x31 });
-    map.insert('2', KeyMapping { scan_code: 0x03, virtual_key: 0x32 });
-    map.insert('3', KeyMapping { scan_code: 0x04, virtual_key: 0x33 });
-    map.insert('4', KeyMapping { scan_code: 0x05, virtual_key: 0x34 });
-    map.insert('5', KeyMapping { scan_code: 0x06, virtual_key: 0x35 });
-    map.insert('6', KeyMapping { scan_code: 0x07, virtual_key: 0x36 });
-    map.insert('7', KeyMapping { scan_code: 0x08, virtual_key: 0x37 });
-    map.insert('8', KeyMapping { scan_code: 0x09, virtual_key: 0x38 });
-    map.insert('9', KeyMapping { scan_code: 0x0A, virtual_key: 0x39 });
-    
+    map.insert(
+        '0',
+        KeyMapping {
+            scan_code: 0x0B,
+            virtual_key: 0x30,
+        },
+    );
+    map.insert(
+        '1',
+        KeyMapping {
+            scan_code: 0x02,
+            virtual_key: 0x31,
+        },
+    );
+    map.insert(
+        '2',
+        KeyMapping {
+            scan_code: 0x03,
+            virtual_key: 0x32,
+        },
+    );
+    map.insert(
+        '3',
+        KeyMapping {
+            scan_code: 0x04,
+            virtual_key: 0x33,
+        },
+    );
+    map.insert(
+        '4',
+        KeyMapping {
+            scan_code: 0x05,
+            virtual_key: 0x34,
+        },
+    );
+    map.insert(
+        '5',
+        KeyMapping {
+            scan_code: 0x06,
+            virtual_key: 0x35,
+        },
+    );
+    map.insert(
+        '6',
+        KeyMapping {
+            scan_code: 0x07,
+            virtual_key: 0x36,
+        },
+    );
+    map.insert(
+        '7',
+        KeyMapping {
+            scan_code: 0x08,
+            virtual_key: 0x37,
+        },
+    );
+    map.insert(
+        '8',
+        KeyMapping {
+            scan_code: 0x09,
+            virtual_key: 0x38,
+        },
+    );
+    map.insert(
+        '9',
+        KeyMapping {
+            scan_code: 0x0A,
+            virtual_key: 0x39,
+        },
+    );
+
     // Punctuation keys
-    map.insert(',', KeyMapping { scan_code: 0x33, virtual_key: 0xBC }); // VK_OEM_COMMA
-    map.insert('.', KeyMapping { scan_code: 0x34, virtual_key: 0xBE }); // VK_OEM_PERIOD
-    map.insert(';', KeyMapping { scan_code: 0x27, virtual_key: 0xBA }); // VK_OEM_1
-    map.insert('\'', KeyMapping { scan_code: 0x28, virtual_key: 0xDE }); // VK_OEM_7
-    map.insert('[', KeyMapping { scan_code: 0x1A, virtual_key: 0xDB }); // VK_OEM_4
-    map.insert(']', KeyMapping { scan_code: 0x1B, virtual_key: 0xDD }); // VK_OEM_6
-    map.insert('\\', KeyMapping { scan_code: 0x2B, virtual_key: 0xDC }); // VK_OEM_5
-    map.insert('-', KeyMapping { scan_code: 0x0C, virtual_key: 0xBD }); // VK_OEM_MINUS
-    map.insert('=', KeyMapping { scan_code: 0x0D, virtual_key: 0xBB }); // VK_OEM_PLUS
-    
+    map.insert(
+        ',',
+        KeyMapping {
+            scan_code: 0x33,
+            virtual_key: 0xBC,
+        },
+    ); // VK_OEM_COMMA
+    map.insert(
+        '.',
+        KeyMapping {
+            scan_code: 0x34,
+            virtual_key: 0xBE,
+        },
+    ); // VK_OEM_PERIOD
+    map.insert(
+        ';',
+        KeyMapping {
+            scan_code: 0x27,
+            virtual_key: 0xBA,
+        },
+    ); // VK_OEM_1
+    map.insert(
+        '\'',
+        KeyMapping {
+            scan_code: 0x28,
+            virtual_key: 0xDE,
+        },
+    ); // VK_OEM_7
+    map.insert(
+        '[',
+        KeyMapping {
+            scan_code: 0x1A,
+            virtual_key: 0xDB,
+        },
+    ); // VK_OEM_4
+    map.insert(
+        ']',
+        KeyMapping {
+            scan_code: 0x1B,
+            virtual_key: 0xDD,
+        },
+    ); // VK_OEM_6
+    map.insert(
+        '\\',
+        KeyMapping {
+            scan_code: 0x2B,
+            virtual_key: 0xDC,
+        },
+    ); // VK_OEM_5
+    map.insert(
+        '-',
+        KeyMapping {
+            scan_code: 0x0C,
+            virtual_key: 0xBD,
+        },
+    ); // VK_OEM_MINUS
+    map.insert(
+        '=',
+        KeyMapping {
+            scan_code: 0x0D,
+            virtual_key: 0xBB,
+        },
+    ); // VK_OEM_PLUS
+
     map
 });
 
@@ -397,6 +1303,31 @@ impl Config {
                     e
                 );
             }
+        }
+
+        Ok(())
+    }
+
+    /// Validate macro name
+    /// Rules:
+    /// - Length: 1-50 characters
+    /// - Allowed characters: alphanumeric, underscore, hyphen
+    pub fn validate_macro_name(name: &str) -> anyhow::Result<()> {
+        if name.is_empty() {
+            return Err(anyhow::anyhow!("Macro name cannot be empty"));
+        }
+
+        if name.len() > 50 {
+            return Err(anyhow::anyhow!("Macro name too long (max 50 characters)"));
+        }
+
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            return Err(anyhow::anyhow!(
+                "Macro name contains invalid characters. Only alphanumeric, underscore, and hyphen are allowed"
+            ));
         }
 
         Ok(())
@@ -670,8 +1601,6 @@ pub struct WindowPreset {
     pub height: i32,
 }
 
-
-
 /// Public wildcard matching function - delegates to types::mapping
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
     crate::types::mapping::wildcard_match(text, pattern)
@@ -918,7 +1847,9 @@ pub fn parse_window_action(
                     .first()
                     .ok_or_else(|| anyhow::anyhow!("MoveToEdge requires an edge parameter (Left, Right, Top, Bottom)"))?;
                 if edge_str.is_empty() {
-                    return Err(anyhow::anyhow!("MoveToEdge edge parameter cannot be empty"));
+                    return Err(anyhow::anyhow!(
+                        "MoveToEdge edge parameter cannot be empty"
+                    ));
                 }
                 let edge = parse_edge(edge_str)?;
                 Ok(WindowAction::MoveToEdge(edge))
@@ -928,7 +1859,9 @@ pub fn parse_window_action(
                     .first()
                     .ok_or_else(|| anyhow::anyhow!("HalfScreen requires an edge parameter (Left, Right, Top, Bottom)"))?;
                 if edge_str.is_empty() {
-                    return Err(anyhow::anyhow!("HalfScreen edge parameter cannot be empty"));
+                    return Err(anyhow::anyhow!(
+                        "HalfScreen edge parameter cannot be empty"
+                    ));
                 }
                 let edge = parse_edge(edge_str)?;
                 Ok(WindowAction::HalfScreen(edge))
@@ -938,7 +1871,9 @@ pub fn parse_window_action(
                     .first()
                     .ok_or_else(|| anyhow::anyhow!("LoopWidth requires an alignment parameter (Left, Right, Center)"))?;
                 if align_str.is_empty() {
-                    return Err(anyhow::anyhow!("LoopWidth alignment parameter cannot be empty"));
+                    return Err(anyhow::anyhow!(
+                        "LoopWidth alignment parameter cannot be empty"
+                    ));
                 }
                 let align = parse_alignment(align_str)?;
                 Ok(WindowAction::LoopWidth(align))
@@ -948,24 +1883,25 @@ pub fn parse_window_action(
                     .first()
                     .ok_or_else(|| anyhow::anyhow!("LoopHeight requires an alignment parameter (Top, Bottom, Center)"))?;
                 if align_str.is_empty() {
-                    return Err(anyhow::anyhow!("LoopHeight alignment parameter cannot be empty"));
+                    return Err(anyhow::anyhow!(
+                        "LoopHeight alignment parameter cannot be empty"
+                    ));
                 }
                 let align = parse_alignment(align_str)?;
                 Ok(WindowAction::LoopHeight(align))
             }
             "FixedRatio" => {
-                let ratio_str = param_list
-                    .first()
-                    .ok_or_else(|| anyhow::anyhow!("FixedRatio requires a ratio parameter (e.g., 1.333)"))?;
+                let ratio_str = param_list.first().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "FixedRatio requires a ratio parameter (e.g., 1.333)"
+                    )
+                })?;
                 let ratio = ratio_str.parse::<f32>()?;
                 let scale_index = param_list.get(1).unwrap_or(&"0").parse::<usize>()?;
                 Ok(WindowAction::FixedRatio { ratio, scale_index })
             }
             "NativeRatio" => {
-                let scale_index = param_list
-                    .first()
-                    .unwrap_or(&"0")
-                    .parse::<usize>()?;
+                let scale_index = param_list.first().unwrap_or(&"0").parse::<usize>()?;
                 Ok(WindowAction::NativeRatio { scale_index })
             }
             "MoveToMonitor" => {
@@ -973,15 +1909,17 @@ pub fn parse_window_action(
                     .first()
                     .ok_or_else(|| anyhow::anyhow!("MoveToMonitor requires a direction parameter (Next, Prev, or index)"))?;
                 if direction_str.is_empty() {
-                    return Err(anyhow::anyhow!("MoveToMonitor direction parameter cannot be empty"));
+                    return Err(anyhow::anyhow!(
+                        "MoveToMonitor direction parameter cannot be empty"
+                    ));
                 }
                 let direction = parse_monitor_direction(direction_str)?;
                 Ok(WindowAction::MoveToMonitor(direction))
             }
             "Move" => {
-                let x_str = param_list
-                    .first()
-                    .ok_or_else(|| anyhow::anyhow!("Move requires x and y parameters"))?;
+                let x_str = param_list.first().ok_or_else(|| {
+                    anyhow::anyhow!("Move requires x and y parameters")
+                })?;
                 let y_str = param_list
                     .get(1)
                     .ok_or_else(|| anyhow::anyhow!("Move requires y parameter"))?;
@@ -990,12 +1928,12 @@ pub fn parse_window_action(
                 Ok(WindowAction::Move { x, y })
             }
             "Resize" => {
-                let width_str = param_list
-                    .first()
-                    .ok_or_else(|| anyhow::anyhow!("Resize requires width and height parameters"))?;
-                let height_str = param_list
-                    .get(1)
-                    .ok_or_else(|| anyhow::anyhow!("Resize requires height parameter"))?;
+                let width_str = param_list.first().ok_or_else(|| {
+                    anyhow::anyhow!("Resize requires width and height parameters")
+                })?;
+                let height_str = param_list.get(1).ok_or_else(|| {
+                    anyhow::anyhow!("Resize requires height parameter")
+                })?;
                 let width = width_str.parse::<i32>()?;
                 let height = height_str.parse::<i32>()?;
                 Ok(WindowAction::Resize { width, height })
@@ -1003,7 +1941,9 @@ pub fn parse_window_action(
             "ShowNotification" => {
                 let title = param_list
                     .first()
-                    .ok_or_else(|| anyhow::anyhow!("ShowNotification requires a title parameter"))?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("ShowNotification requires a title parameter")
+                    })?
                     .to_string();
                 let message = param_list.get(1).unwrap_or(&"").to_string();
                 Ok(WindowAction::ShowNotification { title, message })
@@ -1011,14 +1951,18 @@ pub fn parse_window_action(
             "SavePreset" => {
                 let name = param_list
                     .first()
-                    .ok_or_else(|| anyhow::anyhow!("SavePreset requires a name parameter"))?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("SavePreset requires a name parameter")
+                    })?
                     .to_string();
                 Ok(WindowAction::SavePreset { name })
             }
             "LoadPreset" => {
                 let name = param_list
                     .first()
-                    .ok_or_else(|| anyhow::anyhow!("LoadPreset requires a name parameter"))?
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("LoadPreset requires a name parameter")
+                    })?
                     .to_string();
                 Ok(WindowAction::LoadPreset { name })
             }
@@ -1084,7 +2028,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     if let Some(mapping) = KEY_LOOKUP_TABLE.get(lower_name.as_str()) {
         return Ok((mapping.scan_code, mapping.virtual_key));
     }
-    
+
     // For single-character keys, use the char lookup table
     if name.len() == 1 {
         let c = name.chars().next().unwrap().to_ascii_lowercase();
@@ -1162,6 +2106,29 @@ pub fn resolve_config_file_path(
 
     // Use cached path resolution
     CONFIG_PATH_CACHE.get_or_resolve(instance_id)
+}
+
+/// Parse launch item mapping
+/// Supported formats:
+/// - Simple trigger key: "F1" = "notepad.exe"
+/// - Trigger with modifiers: "Ctrl+Alt+Meta+T" = "wt.exe"
+/// - Command with arguments: "Ctrl+Alt+Meta+N" = "notepad.exe C:\\Users\\test.txt"
+fn parse_launch_mapping(trigger: &str, command: &str) -> anyhow::Result<MappingRule> {
+    use crate::types::Action;
+
+    // Parse trigger shortcut (supports modifiers like "Ctrl+Alt+Meta+T")
+    let trigger_obj = parse_shortcut_trigger(trigger)?;
+
+    // Parse launch command
+    let action = if command.contains(' ') {
+        // Use Launcher::parse_command to parse commands with arguments
+        Action::Launch(Launcher::parse_command(command))
+    } else {
+        // Simple command
+        Action::launch(command)
+    };
+
+    Ok(MappingRule::new(trigger_obj, action))
 }
 
 #[cfg(test)]
@@ -1812,27 +2779,4 @@ F5 = "test_macro"
             Some(&"test_macro".to_string())
         );
     }
-}
-
-/// Parse launch item mapping
-/// Supported formats:
-/// - Simple trigger key: "F1" = "notepad.exe"
-/// - Trigger with modifiers: "Ctrl+Alt+Meta+T" = "wt.exe"
-/// - Command with arguments: "Ctrl+Alt+Meta+N" = "notepad.exe C:\\Users\\test.txt"
-fn parse_launch_mapping(trigger: &str, command: &str) -> anyhow::Result<MappingRule> {
-    use crate::types::Action;
-
-    // Parse trigger shortcut (supports modifiers like "Ctrl+Alt+Meta+T")
-    let trigger_obj = parse_shortcut_trigger(trigger)?;
-
-    // Parse launch command
-    let action = if command.contains(' ') {
-        // Use Launcher::parse_command to parse commands with arguments
-        Action::Launch(Launcher::parse_command(command))
-    } else {
-        // Simple command
-        Action::launch(command)
-    };
-
-    Ok(MappingRule::new(trigger_obj, action))
 }

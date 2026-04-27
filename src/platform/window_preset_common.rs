@@ -1,9 +1,7 @@
-//! Common window preset management logic shared across platforms
+//! Common window preset functionality
 //!
-//! Provides a generic [WindowPresetManager] that works with any platform
-//! implementing the [WindowPresetApi] trait. Eliminates duplicated preset
-//! logic previously found in both `windows/window_preset.rs` and
-//! `macos/window_preset.rs`.
+//! This module provides shared window preset logic that can be used across platforms.
+
 #![allow(dead_code)]
 
 use crate::config::wildcard_match;
@@ -93,10 +91,6 @@ impl<A: WindowPresetApi> WindowPresetManager<A> {
     pub fn load_presets(&mut self, presets: Vec<WindowPreset>) {
         info!("Loaded {} window presets", presets.len());
         self.presets = presets;
-    }
-
-    pub fn get_presets(&self) -> &[WindowPreset] {
-        &self.presets
     }
 
     pub fn save_preset(&mut self, name: String) -> Result<()> {

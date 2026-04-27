@@ -2,7 +2,6 @@
 //!
 //! This module provides mock implementations of platform-specific traits
 //! that can be used for testing on any platform.
-#![allow(dead_code)]
 
 use crate::platform::traits::{
     ContextProvider, InputDeviceTrait, OutputDeviceTrait, PlatformUtilities, WindowId,

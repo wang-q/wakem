@@ -407,53 +407,6 @@ pub fn stop_tray() {
     }
 }
 
-/// TrayIcon for macOS (aligned with Windows API)
-/// On macOS, this wraps RealTrayApi for API compatibility
-pub struct TrayIcon {
-    inner: RealTrayApi,
-}
-
-impl TrayIcon {
-    /// Create new tray icon
-    pub fn new() -> Self {
-        Self {
-            inner: RealTrayApi::new(),
-        }
-    }
-
-    /// Register tray icon (no-op on macOS, use run_tray_message_loop instead)
-    pub fn register(&mut self, _hwnd: Option<isize>) -> Result<()> {
-        self.inner.register_blocking()
-    }
-
-    /// Unregister tray icon
-    pub fn unregister(&mut self) -> Result<()> {
-        self.inner.unregister_blocking()
-    }
-
-    /// Show notification
-    pub fn show_notification(&mut self, title: &str, message: &str) -> Result<()> {
-        self.inner.show_notification_native(title, message)
-    }
-
-    /// Show context menu (no-op on macOS)
-    pub fn show_menu(&mut self) -> Result<u32> {
-        Ok(0)
-    }
-}
-
-impl Default for TrayIcon {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Drop for TrayIcon {
-    fn drop(&mut self) {
-        let _ = self.unregister();
-    }
-}
-
 // Re-export shared tray types from tray_common (aligned with Windows)
 #[cfg(test)]
 pub use crate::platform::tray_common::TrayManager;

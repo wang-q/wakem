@@ -1,6 +1,30 @@
 //! Command line argument parsing
 //!
 //! Unified CLI definition, serving as the single source of command line interface for the entire project.
+//!
+//! # Examples
+//!
+//! Parse command line arguments:
+//!
+//! ```
+//! use wakem::cli::Cli;
+//! use clap::Parser;
+//!
+//! // Parse from command line
+//! let cli = Cli::parse_from(["wakem", "daemon"]);
+//! ```
+//!
+//! Create CLI programmatically:
+//!
+//! ```
+//! use wakem::cli::{Cli, Commands};
+//!
+//! let cli = Cli {
+//!     instance: 0,
+//!     config: None,
+//!     command: Some(Commands::Status),
+//! };
+//! ```
 
 use clap::{Parser, Subcommand};
 

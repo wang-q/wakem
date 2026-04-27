@@ -69,7 +69,8 @@ fn test_nested_action_sequences() {
         Action::Key(KeyAction::click(0x0E, 0x08)),
     ]);
 
-    let outer_seq = Action::Sequence(vec![inner_seq, Action::Delay { milliseconds: 100 }]);
+    let outer_seq =
+        Action::Sequence(vec![inner_seq, Action::Delay { milliseconds: 100 }]);
 
     if let Action::Sequence(actions) = outer_seq {
         assert_eq!(actions.len(), 2);

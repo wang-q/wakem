@@ -75,3 +75,6 @@ pub const MAX_RECONNECT_RETRIES: u32 = 3;
 
 /// Maximum connection retries for initial connection
 pub const MAX_CONNECTION_RETRIES: u32 = 10;
+
+/// Daemon shutdown timeout (seconds)
+pub const DAEMON_SHUTDOWN_TIMEOUT_SECS: u64 = 10;

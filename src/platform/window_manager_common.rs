@@ -2,6 +2,7 @@
 //!
 //! This module provides platform-agnostic window management operations
 //! that can be used by any platform-specific window manager.
+
 #![allow(dead_code)]
 
 use crate::platform::traits::{
