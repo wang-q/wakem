@@ -200,7 +200,8 @@ fn simplify_delays(steps: Vec<(Duration, MacroStep)>) -> Vec<MacroStep> {
         return Vec::new();
     }
 
-    let mut result = Vec::new();
+    // Pre-allocate capacity: worst case is each step preceded by a delay action
+    let mut result = Vec::with_capacity(steps.len() * 2);
     let mut last_time = Duration::from_millis(0);
     const MIN_DELAY_MS: u64 = 50; // Minimum delay 50ms
 

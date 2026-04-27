@@ -92,12 +92,13 @@ impl ModifierState {
 /// Timestamp (milliseconds)
 pub type Timestamp = u64;
 
-/// Get current timestamp
+/// Get current timestamp in milliseconds since UNIX epoch.
+/// Returns 0 if system clock is before UNIX epoch (should never happen on normal systems).
 pub fn now() -> Timestamp {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

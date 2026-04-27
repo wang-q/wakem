@@ -142,19 +142,16 @@ impl LayerStack {
     }
 
     /// Check if layer is active
-    #[allow(dead_code)]
     pub fn is_layer_active(&self, name: &str) -> bool {
         self.active_layers.iter().any(|l| l.name == name)
     }
 
     /// Get list of currently active layers
-    #[allow(dead_code)]
     pub fn get_active_layers(&self) -> &[Layer] {
         &self.active_layers
     }
 
     /// Clear all active layers
-    #[allow(dead_code)]
     pub fn clear_active_layers(&mut self) {
         self.active_layers.clear();
         self.hold_layers.clear();

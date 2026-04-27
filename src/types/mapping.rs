@@ -241,6 +241,7 @@ impl ContextCondition {
 
 /// Context information (current active window, etc.)
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct ContextInfo {
     pub window_class: String,
     pub process_name: String,
@@ -251,7 +252,7 @@ pub struct ContextInfo {
 /// Wildcard matching (supports * and ?)
 ///
 /// Performance optimizations:
-/// - Fast path for exact matches and simple patterns
+/// - Fast path for exact matches and simple patterns (no allocation)
 /// - Uses dynamic programming (DP) for complex patterns
 /// - Time complexity: O(m*n) worst case, O(1) best case
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
@@ -259,23 +260,29 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
         return true;
     }
 
+    // Fast path: no wildcards - case-insensitive comparison without allocation
     if !pattern.contains('*') && !pattern.contains('?') {
         return text.eq_ignore_ascii_case(pattern);
     }
 
-    if pattern.starts_with('*') && !pattern[1..].contains('*') && !pattern.contains('?')
-    {
+    // Fast path: simple suffix match (e.g., "*.exe")
+    if pattern.starts_with('*') && !pattern[1..].contains('*') && !pattern.contains('?') {
         let suffix = &pattern[1..];
-        return text.to_lowercase().ends_with(&suffix.to_lowercase());
+        return text.len() >= suffix.len()
+            && text[text.len() - suffix.len()..].eq_ignore_ascii_case(suffix);
     }
+
+    // Fast path: simple prefix match (e.g., "chrome*")
     if pattern.ends_with('*')
         && !pattern[..pattern.len() - 1].contains('*')
         && !pattern.contains('?')
     {
         let prefix = &pattern[..pattern.len() - 1];
-        return text.to_lowercase().starts_with(&prefix.to_lowercase());
+        return text.len() >= prefix.len()
+            && text[..prefix.len()].eq_ignore_ascii_case(prefix);
     }
 
+    // Complex patterns: convert to lowercase and use DP
     let text_lower = text.to_lowercase();
     let pattern_lower = pattern.to_lowercase();
     wildcard_match_dp(&text_lower, &pattern_lower)
@@ -294,6 +301,8 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
         return m == 0;
     }
 
+    /// Maximum input size for wildcard matching to prevent DoS via excessive memory allocation.
+    /// Patterns or texts larger than this limit will not match.
     const WILDCARD_MAX_INPUT_SIZE: usize = 1024;
     if m > WILDCARD_MAX_INPUT_SIZE || n > WILDCARD_MAX_INPUT_SIZE {
         return false;
