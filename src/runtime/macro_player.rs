@@ -2,22 +2,32 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
-use tracing::{debug, info};
+use tokio::time::{sleep, Duration, Instant};
+use tracing::{debug, info, warn};
 
-use crate::platform::traits::OutputDeviceTrait;
+use crate::platform::traits::{
+    LauncherTrait, OutputDeviceTrait, WindowManagerExt, WindowManagerTrait,
+};
 use crate::types::key_codes::{
-    SCAN_CODE_ALT, SCAN_CODE_CTRL, SCAN_CODE_META, SCAN_CODE_SHIFT,
+    SCAN_CODE_ALT, SCAN_CODE_CTRL, SCAN_CODE_META, SCAN_CODE_SHIFT, VK_ALT, VK_CONTROL,
+    VK_LMETA, VK_SHIFT,
 };
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
 pub struct MacroPlayer;
+
+/// Context for executing macro actions that require window manager or launcher
+pub struct MacroContext<'a> {
+    pub window_manager: Option<&'a (dyn WindowManagerTrait + Send + Sync)>,
+    pub launcher: Option<&'a (dyn LauncherTrait + Send + Sync)>,
+}
 
 impl MacroPlayer {
     pub async fn play_macro(
         output_device: &(dyn OutputDeviceTrait + Send + Sync),
         macro_def: &Macro,
         cancel_flag: Option<Arc<AtomicBool>>,
+        context: Option<MacroContext<'_>>,
     ) -> anyhow::Result<()> {
         info!(
             "Playing macro: {} ({} steps)",
@@ -42,10 +52,7 @@ impl MacroPlayer {
                 debug!("Macro inter-step delay: {}ms", step.delay_ms);
                 let delay_ms = step.delay_ms;
                 let cancelled = if let Some(ref flag) = cancel_flag {
-                    tokio::select! {
-                        _ = sleep(Duration::from_millis(delay_ms)) => false,
-                        _ = tokio::task::yield_now() => flag.load(Ordering::Relaxed),
-                    }
+                    Self::sleep_with_cancellation(delay_ms, flag).await
                 } else {
                     sleep(Duration::from_millis(delay_ms)).await;
                     false
@@ -67,7 +74,8 @@ impl MacroPlayer {
             .await?;
 
             // Execute action
-            Self::execute_action(output_device, &step.action, &cancel_flag).await?;
+            Self::execute_action(output_device, &step.action, &cancel_flag, context.as_ref())
+                .await?;
         }
 
         // Release only modifiers that were pressed by the macro player
@@ -75,6 +83,28 @@ impl MacroPlayer {
 
         info!("Macro '{}' completed", macro_def.name);
         Ok(())
+    }
+
+    /// Sleep with periodic cancellation checks for responsive macro cancellation
+    async fn sleep_with_cancellation(delay_ms: u64, cancel_flag: &AtomicBool) -> bool {
+        let start = Instant::now();
+        let total_delay = Duration::from_millis(delay_ms);
+        let check_interval = Duration::from_millis(10);
+
+        loop {
+            if cancel_flag.load(Ordering::Relaxed) {
+                return true;
+            }
+
+            let elapsed = start.elapsed();
+            if elapsed >= total_delay {
+                return false;
+            }
+
+            let remaining = total_delay - elapsed;
+            let sleep_duration = std::cmp::min(remaining, check_interval);
+            sleep(sleep_duration).await;
+        }
     }
 
     async fn ensure_modifiers(
@@ -86,28 +116,28 @@ impl MacroPlayer {
         if target.ctrl && !current.ctrl {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_CTRL,
-                virtual_key: 0x11,
+                virtual_key: VK_CONTROL,
             })?;
             current.ctrl = true;
         }
         if target.shift && !current.shift {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_SHIFT,
-                virtual_key: 0x10,
+                virtual_key: VK_SHIFT,
             })?;
             current.shift = true;
         }
         if target.alt && !current.alt {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_ALT,
-                virtual_key: 0x12,
+                virtual_key: VK_ALT,
             })?;
             current.alt = true;
         }
         if target.meta && !current.meta {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_META,
-                virtual_key: 0x5B,
+                virtual_key: VK_LMETA,
             })?;
             current.meta = true;
         }
@@ -116,28 +146,28 @@ impl MacroPlayer {
         if current.meta && !target.meta {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_META,
-                virtual_key: 0x5B,
+                virtual_key: VK_LMETA,
             })?;
             current.meta = false;
         }
         if current.alt && !target.alt {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_ALT,
-                virtual_key: 0x12,
+                virtual_key: VK_ALT,
             })?;
             current.alt = false;
         }
         if current.shift && !target.shift {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_SHIFT,
-                virtual_key: 0x10,
+                virtual_key: VK_SHIFT,
             })?;
             current.shift = false;
         }
         if current.ctrl && !target.ctrl {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_CTRL,
-                virtual_key: 0x11,
+                virtual_key: VK_CONTROL,
             })?;
             current.ctrl = false;
         }
@@ -152,25 +182,25 @@ impl MacroPlayer {
         if current.meta {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_META,
-                virtual_key: 0x5B,
+                virtual_key: VK_LMETA,
             })?;
         }
         if current.alt {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_ALT,
-                virtual_key: 0x12,
+                virtual_key: VK_ALT,
             })?;
         }
         if current.shift {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_SHIFT,
-                virtual_key: 0x10,
+                virtual_key: VK_SHIFT,
             })?;
         }
         if current.ctrl {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_CTRL,
-                virtual_key: 0x11,
+                virtual_key: VK_CONTROL,
             })?;
         }
 
@@ -181,6 +211,7 @@ impl MacroPlayer {
         output_device: &(dyn OutputDeviceTrait + Send + Sync),
         action: &Action,
         cancel_flag: &Option<Arc<AtomicBool>>,
+        context: Option<&MacroContext<'_>>,
     ) -> anyhow::Result<()> {
         match action {
             Action::Key(key_action) => {
@@ -194,13 +225,8 @@ impl MacroPlayer {
             Action::Delay { milliseconds } => {
                 debug!("Macro Delay action: {}ms", milliseconds);
                 if let Some(ref flag) = cancel_flag {
-                    tokio::select! {
-                        _ = sleep(Duration::from_millis(*milliseconds)) => {},
-                        _ = tokio::task::yield_now() => {
-                            if flag.load(Ordering::Relaxed) {
-                                debug!("Macro cancelled during Delay action");
-                            }
-                        }
+                    if Self::sleep_with_cancellation(*milliseconds, flag).await {
+                        debug!("Macro cancelled during Delay action");
                     }
                 } else {
                     sleep(Duration::from_millis(*milliseconds)).await;
@@ -208,9 +234,68 @@ impl MacroPlayer {
             }
             Action::Window(window_action) => {
                 debug!("Macro WindowAction: {:?}", window_action);
+                if let Some(ctx) = context {
+                    if let Some(wm) = ctx.window_manager {
+                        if let Some(window_id) = wm.get_foreground_window() {
+                            use crate::types::WindowAction;
+                            match window_action {
+                                WindowAction::Center => {
+                                    if let Err(e) = wm.move_to_center(window_id) {
+                                        warn!("Failed to center window: {}", e);
+                                    }
+                                }
+                                WindowAction::Maximize => {
+                                    if let Err(e) = wm.maximize_window(window_id) {
+                                        warn!("Failed to maximize window: {}", e);
+                                    }
+                                }
+                                WindowAction::Minimize => {
+                                    if let Err(e) = wm.minimize_window(window_id) {
+                                        warn!("Failed to minimize window: {}", e);
+                                    }
+                                }
+                                WindowAction::Restore => {
+                                    if let Err(e) = wm.restore_window(window_id) {
+                                        warn!("Failed to restore window: {}", e);
+                                    }
+                                }
+                                WindowAction::Close => {
+                                    if let Err(e) = wm.close_window(window_id) {
+                                        warn!("Failed to close window: {}", e);
+                                    }
+                                }
+                                WindowAction::ToggleTopmost => {
+                                    if let Err(e) = wm.toggle_topmost(window_id) {
+                                        warn!("Failed to toggle topmost: {}", e);
+                                    }
+                                }
+                                _ => {
+                                    debug!("Window action {:?} not supported in macros", window_action);
+                                }
+                            }
+                        } else {
+                            warn!("No foreground window for window action");
+                        }
+                    } else {
+                        warn!("Window manager not available for window action");
+                    }
+                } else {
+                    warn!("Macro context not available for window action");
+                }
             }
             Action::Launch(launch_action) => {
                 debug!("Macro LaunchAction: {:?}", launch_action);
+                if let Some(ctx) = context {
+                    if let Some(launcher) = ctx.launcher {
+                        if let Err(e) = launcher.launch(launch_action) {
+                            warn!("Failed to launch program: {}", e);
+                        }
+                    } else {
+                        warn!("Launcher not available for launch action");
+                    }
+                } else {
+                    warn!("Macro context not available for launch action");
+                }
             }
             Action::Sequence(actions) => {
                 debug!("Macro Sequence: {} actions", actions.len());
@@ -224,6 +309,7 @@ impl MacroPlayer {
                         output_device,
                         sub_action,
                         cancel_flag,
+                        context,
                     ))
                     .await?;
                 }
@@ -238,9 +324,9 @@ impl MacroPlayer {
 #[cfg(test)]
 mod tests {
     use crate::types::{
-        Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState,
-        LaunchAction, LayerMode, Macro, MacroStep, MappingRule, ModifierState,
-        MouseAction, MouseButton, Trigger, WindowAction,
+        Action, InputEvent, KeyAction, KeyEvent, KeyState, LaunchAction, LayerMode,
+        Macro, MacroStep, MappingRule, ModifierState, MouseAction, MouseButton,
+        Trigger, WindowAction,
     };
 
     #[test]

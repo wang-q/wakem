@@ -8,8 +8,8 @@ mod macos_specific_tests {
     use wakem::platform::macos::Launcher;
     use wakem::platform::traits::{MonitorInfo, WindowContext};
     use wakem::types::{
-        Alignment, Edge, KeyAction, KeyEvent, KeyState, ModifierState, MouseButton,
-        MouseEvent, MouseEventType,
+        Alignment, Edge, KeyAction, KeyEvent, KeyState, MouseButton, MouseEvent,
+        MouseEventType,
     };
 
     #[test]

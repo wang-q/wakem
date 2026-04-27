@@ -444,7 +444,7 @@ impl MockWindowId for windows::Win32::Foundation::HWND {
 mod mock_window_api {
     use super::MockWindowId;
     use crate::platform::traits::{
-        MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowInfo,
+        MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame,
     };
     use anyhow::Result;
     use std::cell::RefCell;

@@ -1,8 +1,8 @@
 use crate::types::{
-    Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
+    Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule, MouseEvent,
 };
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::platform::traits::{
     NotificationService, WindowManagerExt, WindowManagerTrait, WindowPresetManagerTrait,
@@ -23,7 +23,7 @@ use crate::platform::traits::{
 ///         .with_process_name("Code.exe"),
 ///     mappings: {
 ///         let mut map = HashMap::new();
-///         map.insert(0x3A, Action::Key(KeyAction::Press { scan_code: None, virtual_key: 0x11 }));
+///         map.insert(0x3A, Action::Key(KeyAction::Press { scan_code: 0x3A, virtual_key: 0x11 }));
 ///         map
 ///     },
 /// };
@@ -159,9 +159,8 @@ impl KeyMapper {
             InputEvent::Key(key_event) => {
                 self.process_key_event_with_context(key_event, context)
             }
-            InputEvent::Mouse(_) => {
-                // Mouse event handling (TODO)
-                None
+            InputEvent::Mouse(mouse_event) => {
+                self.process_mouse_event_with_context(mouse_event, context)
             }
         }
     }
@@ -233,6 +232,66 @@ impl KeyMapper {
         }
 
         debug!("No matching rule found");
+        None
+    }
+
+    /// Process mouse event (with context awareness)
+    fn process_mouse_event_with_context(
+        &self,
+        event: &MouseEvent,
+        context: Option<&crate::platform::traits::WindowContext>,
+    ) -> Option<Action> {
+        debug!(
+            mouse_event = ?event,
+            context_rules_count = self.context_rules.len(),
+            base_rules_count = self.rules.len(),
+            "Mapper processing mouse event"
+        );
+
+        let input_event = InputEvent::Mouse(event.clone());
+
+        // Mouse events are matched by trigger patterns, not by button code lookup
+        // The Trigger::MouseButton variant handles mouse button matching
+
+        // 1. First check context-specific rules (high priority)
+        if let Some(ctx) = context {
+            debug!(
+                process_name = %ctx.process_name,
+                window_class = %ctx.window_class,
+                "Checking context rules for mouse event"
+            );
+            for rule in &self.context_rules {
+                if rule.context.matches(
+                    &ctx.process_name,
+                    &ctx.window_class,
+                    &ctx.window_title,
+                    ctx.executable_path.as_deref(),
+                ) {
+                    // For mouse events, we need to check trigger matching
+                    // Context rules currently use scan_code lookup which doesn't apply to mouse
+                    // This would need Trigger-based matching to work properly
+                }
+            }
+        }
+
+        // 2. Check base rules using trigger matching
+        debug!("Checking base rules for mouse event");
+        for (idx, rule) in self.rules.iter().enumerate() {
+            if !rule.enabled {
+                continue;
+            }
+            debug!(rule_idx = idx, trigger = ?rule.trigger, "Checking rule");
+            if rule.trigger.matches(&input_event) {
+                debug!(
+                    rule_idx = idx,
+                    "Base rule matched for mouse: trigger={:?} -> {:?}",
+                    rule.trigger, rule.action
+                );
+                return Some(rule.action.clone());
+            }
+        }
+
+        debug!("No matching rule found for mouse event");
         None
     }
 
@@ -367,13 +426,15 @@ impl KeyMapper {
                 wm.set_native_ratio(window_id)?;
             }
             WindowAction::SwitchToNextWindow => {
+                // TODO: Implement window switching when WindowManagerTrait supports
+                // get_all_windows() and activate_window() methods
                 if let Some(info) = wm
                     .get_foreground_window()
                     .and_then(|w| wm.get_window_info(w).ok())
                 {
-                    debug!(
+                    warn!(
                         process_name = %info.process_name,
-                        "Switching to next window of same process"
+                        "SwitchToNextWindow not yet implemented - requires platform support"
                     );
                 }
             }

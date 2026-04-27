@@ -118,6 +118,7 @@ impl<T> InputDevice<T> {
 ///
 /// Implement this trait for platform-specific inner device types
 /// to enable the generic [InputDevice] to work with them.
+#[allow(unused)]
 pub trait PlatformInputDevice: Sized + Send {
     /// Create the platform-specific device with a sender
     fn create(sender: Sender<InputEvent>) -> Result<Self>;

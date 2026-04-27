@@ -47,8 +47,8 @@ impl LayerManager {
 
     /// Set base layer mappings
     pub fn set_base_mappings(&mut self, mappings: Vec<MappingRule>) {
-        self.base_mappings = mappings.clone();
-        self.stack.set_base_layer(mappings);
+        self.stack.set_base_layer(mappings.clone());
+        self.base_mappings = mappings;
     }
 
     /// Process input event, check if it's a layer activation key
@@ -79,18 +79,14 @@ impl LayerManager {
 
         if let Some(layer_name) = self.activation_key_index.get(&lookup_key) {
             debug!(layer_name = %layer_name, "Found activation key");
-            if let Some(layer) = self.layers.get(layer_name) {
+            if let Some(layer) = self.layers.get(layer_name).cloned() {
                 match layer.mode {
                     LayerMode::Hold => {
                         match event.state {
                             KeyState::Pressed => {
                                 debug!("Activating layer (Hold): {}", layer.name);
-                                if let Some(layer) =
-                                    self.layers.get(&layer.name).cloned()
-                                {
-                                    self.stack.hold_layer(&layer.name);
-                                    self.stack.activate_layer(layer);
-                                }
+                                self.stack.hold_layer(&layer.name);
+                                self.stack.activate_layer(layer);
                             }
                             KeyState::Released => {
                                 debug!("Deactivating layer (Hold): {}", layer.name);
@@ -102,9 +98,7 @@ impl LayerManager {
                     LayerMode::Toggle => {
                         if event.state == KeyState::Pressed {
                             debug!("Toggling layer: {}", layer.name);
-                            if let Some(layer) = self.layers.get(&layer.name).cloned() {
-                                self.stack.toggle_layer(layer);
-                            }
+                            self.stack.toggle_layer(layer);
                             return (true, None);
                         }
                     }
@@ -142,7 +136,7 @@ impl LayerManager {
     }
 
     /// Get list of currently active layers
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub fn get_active_layers(&self) -> Vec<String> {
         self.stack
             .get_active_layers()
@@ -152,13 +146,13 @@ impl LayerManager {
     }
 
     /// Check if layer is active
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub fn is_layer_active(&self, name: &str) -> bool {
         self.stack.is_layer_active(name)
     }
 
     /// Deactivate all layers
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub fn clear_layers(&mut self) {
         self.stack.clear_active_layers();
     }

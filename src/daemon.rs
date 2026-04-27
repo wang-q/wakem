@@ -13,9 +13,9 @@ use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
     ContextProvider, InputDeviceConfig, InputDeviceTrait, LauncherTrait,
     NotificationService, OutputDeviceTrait, PlatformFactory, PlatformUtilities,
-    WindowPresetManagerTrait,
+    WindowManagerTrait, WindowPresetManagerTrait,
 };
-use crate::runtime::macro_player::MacroPlayer;
+use crate::runtime::macro_player::{MacroContext, MacroPlayer};
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
     macros::MacroRecorder, Action, InputEvent, KeyState, Macro, ModifierState,
@@ -34,7 +34,7 @@ pub struct ServerState {
     mapper: Arc<RwLock<KeyMapper>>,
     layer_manager: Arc<RwLock<LayerManager>>,
     output_device: Arc<Mutex<Box<dyn OutputDeviceTrait + Send + Sync>>>,
-    launcher: Arc<Mutex<Box<dyn LauncherTrait>>>,
+    launcher: Arc<Mutex<Box<dyn LauncherTrait + Send + Sync>>>,
     window_preset_manager: Arc<RwLock<Box<dyn WindowPresetManagerTrait>>>,
     active: Arc<AtomicBool>,
     config_loaded: Arc<RwLock<bool>>,
@@ -703,7 +703,24 @@ impl ServerState {
 
         let output_device = self.output_device.lock().await;
         let output_ref: &(dyn OutputDeviceTrait + Send + Sync) = output_device.as_ref();
-        MacroPlayer::play_macro(output_ref, &macro_def, None).await?;
+
+        // Create macro context with window manager and launcher
+        let window_manager = self.mapper.read().await;
+        let launcher = self.launcher.lock().await;
+
+        // Convert Box<dyn Trait> to &dyn Trait with Send + Sync bounds
+        let wm_ref: Option<&(dyn WindowManagerTrait + Send + Sync)> = window_manager
+            .window_manager
+            .as_ref()
+            .map(|wm| wm.as_ref() as &(dyn WindowManagerTrait + Send + Sync));
+        let launcher_ref: &(dyn LauncherTrait + Send + Sync) = launcher.as_ref();
+
+        let context = MacroContext {
+            window_manager: wm_ref,
+            launcher: Some(launcher_ref),
+        };
+
+        MacroPlayer::play_macro(output_ref, &macro_def, None, Some(context)).await?;
 
         // Show playback complete notification
         let _ = self
