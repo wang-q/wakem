@@ -548,7 +548,9 @@ mod tests {
     fn test_shutdown_flag() {
         let (sender, _receiver) = std::sync::mpsc::channel::<PlatformWindowEvent>();
         let hook = WindowEventHook::new(sender);
-        assert!(!hook.shutdown_flag().load(std::sync::atomic::Ordering::SeqCst));
+        assert!(!hook
+            .shutdown_flag()
+            .load(std::sync::atomic::Ordering::SeqCst));
     }
 
     #[test]
