@@ -63,9 +63,6 @@ pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
 
 // ==================== Wheel Constants ====================
 
-/// Default wheel speed
-pub const DEFAULT_WHEEL_SPEED: i32 = 3;
-
 /// Default wheel acceleration multiplier
 pub const DEFAULT_ACCELERATION_MULTIPLIER: f32 = 2.0;
 

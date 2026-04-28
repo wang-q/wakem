@@ -96,10 +96,10 @@ fn test_extreme_delay_values() {
 fn test_config_extreme_values() {
     let config_str = r#"
 [mouse.wheel]
-speed = 1000000
+acceleration_multiplier = 9.9
 "#;
     let config: Config = toml::from_str(config_str).unwrap();
-    assert_eq!(config.mouse.wheel.speed, 1000000);
+    assert!((config.mouse.wheel.acceleration_multiplier - 9.9).abs() < 0.001);
 }
 
 /// Test rule enable/disable toggle

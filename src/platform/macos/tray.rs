@@ -407,10 +407,6 @@ pub fn stop_tray() {
     }
 }
 
-// Re-export shared tray types from tray_common (aligned with Windows)
-#[cfg(test)]
-pub use crate::platform::tray_common::TrayManager;
-
 #[cfg(test)]
 mod tests {
     use super::*;

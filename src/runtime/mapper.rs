@@ -30,11 +30,9 @@ use crate::platform::traits::{
 /// };
 /// ```
 #[derive(Debug, Clone)]
-pub struct ContextMappingRule {
-    /// Context condition (determines when to apply this rule)
-    pub context: ContextCondition,
-    /// Mapping table: scan code -> action (used when condition is met)
-    pub mappings: HashMap<u16, Action>,
+struct ContextMappingRule {
+    context: ContextCondition,
+    mappings: HashMap<u16, Action>,
 }
 
 /// Key mapping engine

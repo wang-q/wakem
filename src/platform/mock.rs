@@ -4,7 +4,7 @@
 //! that can be used for testing on any platform.
 
 use crate::platform::traits::{
-    ContextProvider, InputDeviceTrait, OutputDeviceTrait, PlatformUtilities, WindowId,
+    ContextProvider, InputDeviceTrait, PlatformUtilities, WindowId,
 };
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
@@ -170,16 +170,8 @@ impl MockInputDevice {
             .push_back(InputEvent::Mouse(event));
     }
 
-    pub fn inject_event(&self, event: InputEvent) {
-        self.state.lock().unwrap().events.push_back(event);
-    }
-
     pub fn get_captured_events(&self) -> Vec<InputEvent> {
         self.state.lock().unwrap().captured_events.clone()
-    }
-
-    pub fn clear_captured(&self) {
-        self.state.lock().unwrap().captured_events.clear();
     }
 
     pub fn pending_count(&self) -> usize {
@@ -188,10 +180,6 @@ impl MockInputDevice {
 
     pub fn clear(&self) {
         self.state.lock().unwrap().events.clear();
-    }
-
-    pub fn set_modifier_state(&self, state: ModifierState) {
-        self.state.lock().unwrap().modifier_state = state;
     }
 
     pub fn get_modifier_state(&self) -> ModifierState {
@@ -246,159 +234,6 @@ impl InputDeviceTrait for MockInputDevice {
     }
 }
 
-/// Mock output event for testing
-#[derive(Debug, Clone, PartialEq)]
-pub enum MockOutputEvent {
-    /// Key event
-    Key {
-        scan_code: u16,
-        virtual_key: u16,
-        release: bool,
-    },
-    /// Mouse move event
-    MouseMove { x: i32, y: i32, relative: bool },
-    /// Mouse button event
-    MouseButton { button: MouseButton, release: bool },
-    /// Mouse wheel event
-    MouseWheel { delta: i32, horizontal: bool },
-}
-
-/// Mock output device for testing
-pub struct MockOutputDevice {
-    events: Arc<Mutex<Vec<MockOutputEvent>>>,
-}
-
-impl MockOutputDevice {
-    /// Create a new mock output device
-    pub fn new() -> Self {
-        Self {
-            events: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    /// Get all recorded events
-    pub fn get_events(&self) -> Vec<MockOutputEvent> {
-        self.events.lock().unwrap().clone()
-    }
-
-    /// Get the number of recorded events
-    pub fn event_count(&self) -> usize {
-        self.events.lock().unwrap().len()
-    }
-
-    /// Clear all recorded events
-    pub fn clear(&self) {
-        self.events.lock().unwrap().clear();
-    }
-
-    /// Check if a specific event was recorded
-    pub fn has_event(&self, expected: &MockOutputEvent) -> bool {
-        self.events.lock().unwrap().contains(expected)
-    }
-}
-
-impl Default for MockOutputDevice {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl OutputDeviceTrait for MockOutputDevice {
-    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
-        self.events.lock().unwrap().push(MockOutputEvent::Key {
-            scan_code,
-            virtual_key,
-            release,
-        });
-        Ok(())
-    }
-
-    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()> {
-        self.events
-            .lock()
-            .unwrap()
-            .push(MockOutputEvent::MouseMove { x, y, relative });
-        Ok(())
-    }
-
-    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()> {
-        self.events
-            .lock()
-            .unwrap()
-            .push(MockOutputEvent::MouseButton { button, release });
-        Ok(())
-    }
-
-    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()> {
-        self.events
-            .lock()
-            .unwrap()
-            .push(MockOutputEvent::MouseWheel { delta, horizontal });
-        Ok(())
-    }
-}
-
-/// Mock platform implementation for testing
-pub struct MockPlatform;
-
-impl PlatformUtilities for MockPlatform {
-    fn get_modifier_state() -> ModifierState {
-        ModifierState::default()
-    }
-}
-
-impl ContextProvider for MockPlatform {
-    fn get_current_context() -> Option<crate::platform::traits::WindowContext> {
-        Some(crate::platform::traits::WindowContext {
-            process_name: "MockApp".to_string(),
-            window_class: "MockWindow".to_string(),
-            window_title: "Mock Window".to_string(),
-            executable_path: Some("/mock/app".to_string()),
-        })
-    }
-}
-
-/// Mock notification service for testing
-pub struct MockNotificationService {
-    notifications: Arc<Mutex<Vec<(String, String)>>>,
-}
-
-impl MockNotificationService {
-    pub fn new() -> Self {
-        Self {
-            notifications: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    pub fn get_notifications(&self) -> Vec<(String, String)> {
-        self.notifications.lock().unwrap().clone()
-    }
-
-    pub fn notification_count(&self) -> usize {
-        self.notifications.lock().unwrap().len()
-    }
-
-    pub fn clear(&self) {
-        self.notifications.lock().unwrap().clear();
-    }
-}
-
-impl Default for MockNotificationService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl crate::platform::traits::NotificationService for MockNotificationService {
-    fn show(&self, title: &str, message: &str) -> Result<()> {
-        self.notifications
-            .lock()
-            .unwrap()
-            .push((title.to_string(), message.to_string()));
-        Ok(())
-    }
-}
-
 /// Trait for converting platform-specific window IDs to usize for mock storage.
 ///
 /// Windows uses HWND (a pointer type) which doesn't implement Hash/Eq,
@@ -435,7 +270,7 @@ impl MockWindowId for windows::Win32::Foundation::HWND {
 mod mock_window_api {
     use super::MockWindowId;
     use crate::platform::traits::{
-        MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame,
+        MonitorInfo, WindowApiBase, WindowFrame,
     };
     use anyhow::Result;
     use std::cell::RefCell;
@@ -538,10 +373,6 @@ mod mock_window_api {
             self.operations_log.borrow().clone()
         }
 
-        pub fn clear_operations(&self) {
-            self.operations_log.borrow_mut().clear();
-        }
-
         fn log_operation(&self, op: WindowApiCall) {
             self.operations_log.borrow_mut().push(op);
         }
@@ -591,15 +422,6 @@ mod mock_window_api {
                 window: window.to_usize(),
             });
             self.monitor_info.borrow().get(&window.to_usize()).cloned()
-        }
-
-        fn get_monitor_work_area(&self, window: Id) -> Option<MonitorWorkArea> {
-            self.get_monitor_info(window).map(|info| MonitorWorkArea {
-                x: info.x,
-                y: info.y,
-                width: info.width,
-                height: info.height,
-            })
         }
 
         pub fn is_window(&self, window: Id) -> bool {

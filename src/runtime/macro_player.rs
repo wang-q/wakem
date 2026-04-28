@@ -338,8 +338,7 @@ impl MacroPlayer {
 #[cfg(test)]
 mod tests {
     use crate::types::{
-        Action, InputEvent, KeyAction, KeyEvent, KeyState, LaunchAction, LayerMode,
-        Macro, MacroStep, MappingRule, ModifierState, MouseAction, MouseButton, Trigger,
+        Action, KeyAction, Macro, MacroStep, ModifierState, MouseAction, MouseButton,
         WindowAction,
     };
 

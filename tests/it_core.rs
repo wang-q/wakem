@@ -40,13 +40,10 @@ instance_id = 1
     let config: Config = toml::from_str(config_str).expect("Failed to parse config");
 
     assert_eq!(config.log_level, "debug");
-    assert!(!config.tray_icon);
-    assert!(config.auto_reload);
     assert_eq!(config.keyboard.remap.len(), 2);
     assert_eq!(config.keyboard.layers.len(), 1);
     assert_eq!(config.window.shortcuts.len(), 2);
     assert_eq!(config.launch.len(), 1);
-    assert!(config.network.enabled);
     assert_eq!(config.network.instance_id, 1);
 
     let serialized =
@@ -55,8 +52,6 @@ instance_id = 1
         toml::from_str(&serialized).expect("Failed to re-parse config");
 
     assert_eq!(config.log_level, config2.log_level);
-    assert_eq!(config.tray_icon, config2.tray_icon);
-    assert_eq!(config.auto_reload, config2.auto_reload);
 }
 
 /// Test config validation

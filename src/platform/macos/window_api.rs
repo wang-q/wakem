@@ -414,9 +414,6 @@ impl WindowApiBase for RealWindowApi {
 pub type MockWindowApi = crate::platform::mock::MockWindowApi<WindowId>;
 
 #[cfg(test)]
-pub use crate::platform::mock::WindowApiCall;
-
-#[cfg(test)]
 mod tests {
     use super::*;
 

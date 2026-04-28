@@ -1,6 +1,6 @@
 // Config comprehensive tests - supplemental configuration parser boundary conditions and complete scenario tests
 
-use wakem::config::{wildcard_match, Config, WindowPreset};
+use wakem::config::{wildcard_match, Config};
 
 // ==================== TOML parsing integrity tests ====================
 
@@ -9,8 +9,6 @@ use wakem::config::{wildcard_match, Config, WindowPreset};
 fn test_parse_complete_config() {
     let config_str = r#"
 log_level = "debug"
-tray_icon = false
-auto_reload = false
 
 [keyboard.remap]
 CapsLock = "Backspace"
@@ -35,15 +33,12 @@ A = "1"
 "Ctrl+Alt+C" = "Center"
 
 [mouse.wheel]
-speed = 5
-invert = true
 acceleration = true
 
 [launch]
 F1 = "notepad.exe"
 
 [network]
-enabled = true
 instance_id = 5
 
 [macros]
@@ -57,16 +52,11 @@ F5 = "test_macro"
 
     // Verify main config items parsed correctly
     assert_eq!(config.log_level, "debug");
-    assert!(!config.tray_icon);
-    assert!(!config.auto_reload);
     assert_eq!(config.keyboard.remap.len(), 2);
     assert_eq!(config.keyboard.layers.len(), 2);
     assert_eq!(config.window.shortcuts.len(), 1);
-    assert_eq!(config.mouse.wheel.speed, 5);
-    assert!(config.mouse.wheel.invert);
     assert!(config.mouse.wheel.acceleration);
     assert_eq!(config.launch.len(), 1);
-    assert!(config.network.enabled);
     assert_eq!(config.network.instance_id, 5);
     assert!(config.macros.contains_key("test_macro"));
 }
@@ -81,14 +71,10 @@ fn test_parse_minimal_config() {
 
     // Verify default values
     assert_eq!(config.log_level, "info");
-    assert!(config.tray_icon);
-    assert!(config.auto_reload);
-    assert!(config.icon_path.is_none());
     assert!(config.keyboard.remap.is_empty());
     assert!(config.keyboard.layers.is_empty());
     assert!(config.window.shortcuts.is_empty());
     assert!(config.launch.is_empty());
-    assert!(!config.network.enabled);
     assert_eq!(config.network.instance_id, 0);
     assert!(config.network.auth_key.is_none());
     assert!(config.macros.is_empty());
@@ -411,9 +397,6 @@ fn test_keyboard_config_default() {
 #[test]
 fn test_mouse_config_default() {
     let config = wakem::config::MouseConfig::default();
-    assert!(config.button_remap.is_empty());
-    assert_eq!(config.wheel.speed, 3);
-    assert!(!config.wheel.invert);
     assert!(!config.wheel.acceleration);
     assert!((config.wheel.acceleration_multiplier - 2.0).abs() < 0.001);
 }
@@ -422,7 +405,6 @@ fn test_mouse_config_default() {
 #[test]
 fn test_network_config_default() {
     let config = wakem::config::NetworkConfig::default();
-    assert!(!config.enabled);
     assert_eq!(config.instance_id, 0);
     assert!(config.auth_key.is_none());
 }
@@ -431,15 +413,8 @@ fn test_network_config_default() {
 #[test]
 fn test_window_config_default() {
     let config = wakem::config::WindowConfig::default();
-    // Note: WindowSwitchConfig and auto_apply_preset use #[serde(default)]
-    // But Default trait does not use these serde defaults
-    assert!(!config.switch.ignore_minimal);
-    assert!(!config.switch.only_current_desktop);
-    assert!(config.positions.is_empty());
     assert!(config.shortcuts.is_empty());
     assert!(config.presets.is_empty());
-    // auto_apply_preset defaults to true during serde deserialization,
-    // but defaults to false in Default trait (bool default value)
     assert!(!config.auto_apply_preset);
 }
 
@@ -509,8 +484,6 @@ fn test_empty_config() {
 
     let config = result.unwrap();
     assert_eq!(config.log_level, "info");
-    assert!(config.tray_icon);
-    assert!(config.auto_reload);
 }
 
 /// Test minimal config
@@ -532,14 +505,8 @@ CapsLock = "Backspace"
 /// Test full config
 #[test]
 fn test_full_config() {
-    // Skip icon path validation for this test
-    std::env::set_var("WAKEM_SKIP_ICON_VALIDATION", "1");
-
     let config_str = r#"
 log_level = "debug"
-tray_icon = false
-auto_reload = false
-icon_path = "custom/icon.ico"
 
 [keyboard.remap]
 CapsLock = "Backspace"
@@ -568,7 +535,6 @@ F4 = "code.exe"
 F5 = "chrome.exe"
 
 [network]
-enabled = true
 instance_id = 5
 "#;
 
@@ -581,9 +547,6 @@ instance_id = 5
 
     let config = result.unwrap();
     assert_eq!(config.log_level, "debug");
-    assert!(!config.tray_icon);
-    assert!(!config.auto_reload);
-    assert_eq!(config.icon_path, Some("custom/icon.ico".to_string()));
 
     // Check keyboard remapping
     assert_eq!(config.keyboard.remap.len(), 2);
@@ -754,8 +717,6 @@ mappings.Period = "3"
 fn test_config_roundtrip() {
     let original_config = r#"
 log_level = "debug"
-tray_icon = true
-auto_reload = true
 
 [keyboard.remap]
 CapsLock = "Backspace"
@@ -764,7 +725,6 @@ CapsLock = "Backspace"
     let config = Config::from_str(original_config).unwrap();
     // Verify config loaded correctly
     assert_eq!(config.log_level, "debug");
-    assert!(config.tray_icon);
 }
 
 /// Test empty layer config

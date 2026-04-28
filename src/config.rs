@@ -7,7 +7,7 @@ use std::path::Path;
 use tracing::debug;
 
 use crate::constants::{
-    DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
+    DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_STEP,
 };
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
@@ -19,15 +19,6 @@ pub struct Config {
     /// Log level
     #[serde(default = "default_log_level")]
     pub log_level: String,
-    /// Whether to show system tray icon
-    #[serde(default = "default_true")]
-    pub tray_icon: bool,
-    /// Whether to auto-reload configuration
-    #[serde(default = "default_true")]
-    pub auto_reload: bool,
-    /// Custom tray icon path
-    #[serde(default)]
-    pub icon_path: Option<String>,
     /// Keyboard mapping rules
     #[serde(default)]
     pub keyboard: KeyboardConfig,
@@ -55,9 +46,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             log_level: default_log_level(),
-            tray_icon: true,
-            auto_reload: true,
-            icon_path: None,
             keyboard: KeyboardConfig::default(),
             window: WindowConfig::default(),
             mouse: MouseConfig::default(),
@@ -94,7 +82,6 @@ impl Config {
         self.validate_macro_steps()?;
         self.validate_layers_activation_keys()?;
         self.validate_wheel_config()?;
-        self.validate_icon_path()?;
         self.validate_launch_commands()?;
         self.validate_keyboard_remap()?;
         self.validate_window_shortcuts()?;
@@ -185,24 +172,6 @@ impl Config {
                 "Invalid mouse.wheel.acceleration_multiplier: {}. Must be in range 0.1-10.0",
                 multiplier
             );
-        }
-        if self.mouse.wheel.speed <= 0 {
-            anyhow::bail!(
-                "Invalid mouse.wheel.speed: {}. Must be positive",
-                self.mouse.wheel.speed
-            );
-        }
-        Ok(())
-    }
-
-    fn validate_icon_path(&self) -> anyhow::Result<()> {
-        if let Some(ref icon_path) = self.icon_path {
-            if !std::path::Path::new(icon_path).exists() {
-                tracing::warn!(
-                    "Icon path '{}' does not exist, using default icon",
-                    icon_path
-                );
-            }
         }
         Ok(())
     }
@@ -506,9 +475,6 @@ pub struct ContextMapping {
 /// Network communication configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NetworkConfig {
-    /// Whether to enable network communication
-    #[serde(default)]
-    pub enabled: bool,
     /// Instance ID (determines port: 57427 + instance_id)
     #[serde(default)]
     pub instance_id: u32,
@@ -545,12 +511,6 @@ impl NetworkConfig {
 /// Window configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WindowConfig {
-    /// Window switching settings
-    #[serde(default)]
-    pub switch: WindowSwitchConfig,
-    /// Window position presets (deprecated, kept for backward compatibility)
-    #[serde(default)]
-    pub positions: IndexMap<String, WindowPosition>,
     /// Window management shortcuts (inspired by mrw)
     #[serde(default)]
     pub shortcuts: IndexMap<String, String>,
@@ -560,24 +520,6 @@ pub struct WindowConfig {
     /// Whether to auto-apply presets
     #[serde(default = "default_true")]
     pub auto_apply_preset: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct WindowSwitchConfig {
-    /// Whether to ignore minimized windows
-    #[serde(default = "default_true")]
-    pub ignore_minimal: bool,
-    /// Whether to only switch on current virtual desktop
-    #[serde(default = "default_true")]
-    pub only_current_desktop: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WindowPosition {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
 }
 
 /// Window preset
@@ -607,9 +549,6 @@ pub use crate::types::mapping::wildcard_match;
 /// Mouse configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MouseConfig {
-    /// Button remapping
-    #[serde(default)]
-    pub button_remap: IndexMap<String, String>,
     /// Wheel settings
     #[serde(default)]
     pub wheel: WheelConfig,
@@ -617,12 +556,6 @@ pub struct MouseConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WheelConfig {
-    /// Wheel speed
-    #[serde(default = "default_wheel_speed")]
-    pub speed: i32,
-    /// Whether to invert wheel direction
-    #[serde(default)]
-    pub invert: bool,
     /// Whether to enable wheel acceleration
     #[serde(default)]
     pub acceleration: bool,
@@ -637,17 +570,11 @@ pub struct WheelConfig {
 impl Default for WheelConfig {
     fn default() -> Self {
         Self {
-            speed: default_wheel_speed(),
-            invert: false,
             acceleration: false,
             acceleration_multiplier: default_acceleration_multiplier(),
             horizontal_scroll: None,
         }
     }
-}
-
-fn default_wheel_speed() -> i32 {
-    DEFAULT_WHEEL_SPEED
 }
 
 fn default_acceleration_multiplier() -> f32 {
@@ -1180,8 +1107,6 @@ mod tests {
     fn test_config_parse() {
         let config_str = r#"
 log_level = "debug"
-tray_icon = true
-auto_reload = true
 
 [keyboard.remap]
 CapsLock = "Backspace"
@@ -1197,7 +1122,6 @@ J = "Down"
 
         let config: Config = toml::from_str(config_str).unwrap();
         assert_eq!(config.log_level, "debug");
-        assert!(config.tray_icon);
         assert!(config.keyboard.remap.contains_key("CapsLock"));
         assert!(config.keyboard.layers.contains_key("navigate"));
     }
@@ -1485,8 +1409,6 @@ J = "Down"
     fn test_config_default() {
         let config = Config::default();
         assert_eq!(config.log_level, "info");
-        assert!(config.tray_icon);
-        assert!(config.auto_reload);
         assert!(config.keyboard.remap.is_empty());
         assert!(config.keyboard.layers.is_empty());
     }
@@ -1507,8 +1429,6 @@ CapsLock = "Backspace"
     fn test_config_full() {
         let config_str = r#"
 log_level = "debug"
-tray_icon = false
-auto_reload = false
 
 [keyboard.remap]
 CapsLock = "Backspace"
@@ -1533,7 +1453,6 @@ F1 = "notepad.exe"
 F2 = "calc.exe"
 
 [network]
-enabled = true
 instance_id = 1
 auth_key = "secret"
 
@@ -1543,20 +1462,16 @@ test_macro = []
 
         let config = Config::from_str(config_str).unwrap();
         assert_eq!(config.log_level, "debug");
-        assert!(!config.tray_icon);
-        assert!(!config.auto_reload);
         assert_eq!(config.keyboard.remap.len(), 2);
         assert_eq!(config.keyboard.layers.len(), 1);
         assert_eq!(config.window.shortcuts.len(), 2);
         assert_eq!(config.launch.len(), 2);
-        assert!(config.network.enabled);
         assert_eq!(config.network.instance_id, 1);
     }
 
     #[test]
     fn test_network_config_default() {
         let config = NetworkConfig::default();
-        assert!(!config.enabled);
         assert_eq!(config.instance_id, 0);
         assert!(config.auth_key.is_none());
     }
@@ -1773,9 +1688,6 @@ test_macro = []
     #[test]
     fn test_mouse_config_default() {
         let config = MouseConfig::default();
-        assert!(config.button_remap.is_empty());
-        assert_eq!(config.wheel.speed, 3);
-        assert!(!config.wheel.invert);
         assert!(!config.wheel.acceleration);
         assert!((config.wheel.acceleration_multiplier - 2.0).abs() < 0.001);
     }
@@ -1783,8 +1695,6 @@ test_macro = []
     #[test]
     fn test_wheel_config_default() {
         let config = WheelConfig::default();
-        assert_eq!(config.speed, 3);
-        assert!(!config.invert);
         assert!(!config.acceleration);
     }
 
