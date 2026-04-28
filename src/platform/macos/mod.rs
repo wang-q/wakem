@@ -86,19 +86,7 @@ impl ContextProvider for MacosPlatform {
 }
 
 /// macOS notification service using native notification center API
-pub struct MacosNotificationService;
-
-impl MacosNotificationService {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for MacosNotificationService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+crate::decl_notification_service!(MacosNotificationService);
 
 impl crate::platform::traits::NotificationService for MacosNotificationService {
     fn show(&self, title: &str, message: &str) -> anyhow::Result<()> {

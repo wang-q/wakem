@@ -83,19 +83,7 @@ impl ContextProvider for LinuxPlatform {
 // ---------------------------------------------------------------------------
 
 /// Placeholder notification service for Linux
-pub struct LinuxNotificationService;
-
-impl LinuxNotificationService {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for LinuxNotificationService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+crate::decl_notification_service!(LinuxNotificationService);
 
 impl NotificationService for LinuxNotificationService {
     fn show(&self, _title: &str, _message: &str) -> Result<()> {

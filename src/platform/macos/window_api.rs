@@ -360,11 +360,9 @@ impl WindowApiBase for RealWindowApi {
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
         self.get_window_info(window)
     }
-
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         self.get_monitors()
     }
-
     fn move_to_monitor(
         &self,
         window: Self::WindowId,

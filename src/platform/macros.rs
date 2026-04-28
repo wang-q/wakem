@@ -240,6 +240,29 @@ macro_rules! impl_window_manager_types {
     };
 }
 
+/// Macro declaring a unit-struct notification service with `new()` and
+/// `Default`. For use when the notification service does not need internal
+/// state (macOS, Linux). Platforms with stateful services (Windows) define
+/// their struct manually.
+#[macro_export]
+macro_rules! decl_notification_service {
+    ($name:ident) => {
+        pub struct $name;
+
+        impl $name {
+            pub fn new() -> Self {
+                Self
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    };
+}
+
 /// Macro implementing the three inherent-method delegation methods for
 /// [`InputDeviceTrait`]. Both Windows and macOS `InputDevice<T>` wrappers
 /// expose inherent `poll_event`, `is_running`, and `stop` methods. This
