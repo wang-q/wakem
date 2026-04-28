@@ -370,7 +370,22 @@ impl KeyMapper {
         }
     }
 
-    pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
+    /// Execute window management action.
+    ///
+    /// This method only handles `Action::Window` variants. Other action types
+    /// (Key, Mouse, Launch, Sequence, Delay, None) are intentionally ignored
+    /// as they are handled by the caller (daemon.rs) directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `action` - The action to execute. Only Window actions are processed.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the action was handled successfully or if it's a
+    /// non-Window action (which are silently ignored). Returns an error if
+    /// a Window action fails to execute.
+    pub fn execute_action(&self, action: &Action) -> anyhow::Result<()> {
         match action {
             Action::Window(window_action) => {
                 if let Some(ref wm) = self.window_manager {
@@ -384,12 +399,8 @@ impl KeyMapper {
                     debug!("WindowManager not available, skipping window action");
                 }
             }
-            Action::Key(_)
-            | Action::Mouse(_)
-            | Action::Launch(_)
-            | Action::Sequence(_)
-            | Action::Delay { .. }
-            | Action::None => {
+            // Non-Window actions are intentionally ignored - they are handled by the caller
+            _ => {
                 debug!(
                     "KeyMapper::execute_action only handles Window actions; \
                      non-Window action {:?} ignored (should be handled elsewhere)",

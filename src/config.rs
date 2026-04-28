@@ -95,7 +95,7 @@ impl Config {
         match self.log_level.to_lowercase().as_str() {
             "trace" | "debug" | "info" | "warn" | "warning" | "error" => Ok(()),
             other => anyhow::bail!(
-                "Invalid log_level '{}': must be one of trace, debug, info, warn, error",
+                "Invalid log_level '{}' in [log_level]: must be one of trace, debug, info, warn, error (case-insensitive)",
                 other
             ),
         }
@@ -104,8 +104,9 @@ impl Config {
     fn validate_instance_id(&self) -> anyhow::Result<()> {
         if self.network.instance_id > 255 {
             anyhow::bail!(
-                "Invalid instance_id {}: must be in range 0-255",
-                self.network.instance_id
+                "Invalid instance_id {} in [network]: must be in range 0-255 (determines port: {} + instance_id)",
+                self.network.instance_id,
+                crate::constants::IPC_BASE_PORT
             );
         }
         Ok(())
@@ -126,7 +127,11 @@ impl Config {
     fn validate_port_range(&self) -> anyhow::Result<()> {
         let port = crate::ipc::get_instance_port(self.network.instance_id);
         if port < 1024 {
-            anyhow::bail!("Invalid port {}: must be in range 1024-65535", port);
+            anyhow::bail!(
+                "Invalid port {} for instance_id {} in [network]: must be in range 1024-65535 (reserved ports 0-1023 are not allowed)",
+                port,
+                self.network.instance_id
+            );
         }
         Ok(())
     }
@@ -169,7 +174,8 @@ impl Config {
         let multiplier = self.mouse.wheel.acceleration_multiplier;
         if !(0.1..=10.0).contains(&multiplier) {
             anyhow::bail!(
-                "Invalid mouse.wheel.acceleration_multiplier: {}. Must be in range 0.1-10.0",
+                "Invalid mouse.wheel.acceleration_multiplier: {} in [mouse.wheel]: must be in range 0.1-10.0 (current: {})",
+                multiplier,
                 multiplier
             );
         }

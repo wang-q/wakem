@@ -84,10 +84,12 @@ macro_rules! impl_test_output_device {
 ///
 /// Uses `Arc<Mutex<>>` for thread-safe interior mutability, consistent
 /// with [MockOutputDevice].
+#[cfg(test)]
 pub struct MockInputDevice {
     state: Arc<Mutex<MockInputState>>,
 }
 
+#[cfg(test)]
 struct MockInputState {
     events: VecDeque<InputEvent>,
     running: bool,
@@ -95,6 +97,7 @@ struct MockInputState {
     captured_events: Vec<InputEvent>,
 }
 
+#[cfg(test)]
 impl MockInputDevice {
     pub fn new() -> Self {
         Self {
@@ -187,12 +190,14 @@ impl MockInputDevice {
     }
 }
 
+#[cfg(test)]
 impl Default for MockInputDevice {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(test)]
 impl InputDeviceTrait for MockInputDevice {
     fn register(&mut self) -> Result<()> {
         self.state.lock().unwrap().running = true;
@@ -238,11 +243,13 @@ impl InputDeviceTrait for MockInputDevice {
 ///
 /// Windows uses HWND (a pointer type) which doesn't implement Hash/Eq,
 /// so we convert to usize for internal storage. macOS uses usize directly.
+#[cfg(test)]
 pub trait MockWindowId: Copy + std::fmt::Debug + 'static {
     fn to_usize(self) -> usize;
     fn from_usize(v: usize) -> Self;
 }
 
+#[cfg(test)]
 impl MockWindowId for WindowId {
     fn to_usize(self) -> usize {
         self
@@ -252,7 +259,7 @@ impl MockWindowId for WindowId {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(test, target_os = "windows"))]
 impl MockWindowId for windows::Win32::Foundation::HWND {
     fn to_usize(self) -> usize {
         self.0 as usize

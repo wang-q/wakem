@@ -581,7 +581,7 @@ impl ServerState {
             }
             Action::Window(window_action) => {
                 info!(?window_action, "Executing window action");
-                let mut mapper = self.mapper.write().await;
+                let mapper = self.mapper.read().await;
                 mapper.execute_action(&Action::Window(window_action))?;
                 info!("Window action executed successfully");
             }
@@ -641,7 +641,7 @@ impl ServerState {
                 }
 
                 Window(window_action) => {
-                    let mut mapper = self.mapper.write().await;
+                    let mapper = self.mapper.read().await;
                     mapper.execute_action(&Window(window_action.clone()))?;
                     i += 1;
                     // mapper lock released here
@@ -935,12 +935,34 @@ impl Default for ServerState {
     }
 }
 
-/// Check if any macro step requires window manager (recursively checks Sequence actions)
+/// Check if any macro step requires window manager.
+///
+/// Recursively checks Sequence actions to determine if a window manager
+/// is needed to execute the macro.
+///
+/// # Arguments
+///
+/// * `steps` - The macro steps to check
+///
+/// # Returns
+///
+/// Returns `true` if any step contains a Window action, `false` otherwise.
 fn action_needs_window_manager(steps: &[crate::types::MacroStep]) -> bool {
     steps.iter().any(|s| action_contains_window(&s.action))
 }
 
-/// Check if any macro step requires launcher (recursively checks Sequence actions)
+/// Check if any macro step requires launcher.
+///
+/// Recursively checks Sequence actions to determine if a launcher
+/// is needed to execute the macro.
+///
+/// # Arguments
+///
+/// * `steps` - The macro steps to check
+///
+/// # Returns
+///
+/// Returns `true` if any step contains a Launch action, `false` otherwise.
 fn action_needs_launcher(steps: &[crate::types::MacroStep]) -> bool {
     steps.iter().any(|s| action_contains_launch(&s.action))
 }
@@ -949,6 +971,33 @@ fn action_needs_launcher(steps: &[crate::types::MacroStep]) -> bool {
 ///
 /// Preserves the correct order of actions when Sequence and non-Sequence
 /// elements are interleaved (e.g., [A, Sequence([B, C]), D] -> [A, B, C, D]).
+///
+/// # Arguments
+///
+/// * `actions` - The slice of actions to flatten
+///
+/// # Returns
+///
+/// Returns a `Vec<Action>` containing the flattened actions in the correct order.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The nesting depth exceeds `MAX_SEQUENCE_DEPTH` (10)
+/// - The total number of actions exceeds `MAX_TOTAL_ACTIONS` (1000)
+///
+/// # Examples
+///
+/// ```
+/// let actions = vec![
+///     Action::Key(KeyAction::click(0x1E, 0x41)),
+///     Action::Sequence(vec![
+///         Action::Key(KeyAction::click(0x1F, 0x42)),
+///     ]),
+/// ];
+/// let flattened = flatten_action_sequence(&actions).unwrap();
+/// assert_eq!(flattened.len(), 2);
+/// ```
 fn flatten_action_sequence(actions: &[Action]) -> Result<Vec<Action>> {
     const MAX_SEQUENCE_DEPTH: usize = 10;
     const MAX_TOTAL_ACTIONS: usize = 1000;
@@ -966,6 +1015,18 @@ fn flatten_action_sequence(actions: &[Action]) -> Result<Vec<Action>> {
     Ok(result)
 }
 
+/// Recursively flatten action sequences with depth and total action limits.
+///
+/// This is an internal helper function for `flatten_action_sequence`.
+///
+/// # Arguments
+///
+/// * `actions` - The slice of actions to process
+/// * `depth` - Current recursion depth
+/// * `result` - Output vector to collect flattened actions
+/// * `total` - Counter for total actions processed
+/// * `max_depth` - Maximum allowed recursion depth
+/// * `max_total` - Maximum allowed total actions
 fn flatten_recursive(
     actions: &[Action],
     depth: usize,
@@ -1009,6 +1070,17 @@ fn flatten_recursive(
     Ok(())
 }
 
+/// Check if an action contains a Window action variant.
+///
+/// Recursively checks Sequence actions.
+///
+/// # Arguments
+///
+/// * `action` - The action to check
+///
+/// # Returns
+///
+/// Returns `true` if the action is a Window action or contains one in a Sequence.
 fn action_contains_window(action: &Action) -> bool {
     match action {
         Action::Window(_) => true,
@@ -1017,6 +1089,17 @@ fn action_contains_window(action: &Action) -> bool {
     }
 }
 
+/// Check if an action contains a Launch action variant.
+///
+/// Recursively checks Sequence actions.
+///
+/// # Arguments
+///
+/// * `action` - The action to check
+///
+/// # Returns
+///
+/// Returns `true` if the action is a Launch action or contains one in a Sequence.
 fn action_contains_launch(action: &Action) -> bool {
     match action {
         Action::Launch(_) => true,
