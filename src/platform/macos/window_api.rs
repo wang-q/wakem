@@ -38,7 +38,7 @@ impl RealWindowApi {
         Self
     }
 
-    fn get_foreground_window(&self) -> Option<WindowId> {
+    fn get_foreground_window_inner(&self) -> Option<WindowId> {
         cg_window::get_frontmost_window_info()
             .ok()
             .flatten()
@@ -81,7 +81,7 @@ impl RealWindowApi {
         ))
     }
 
-    fn set_window_pos(
+    fn set_window_pos_inner(
         &self,
         window: WindowId,
         x: i32,
@@ -119,7 +119,7 @@ impl RealWindowApi {
         Ok(())
     }
 
-    fn minimize_window(&self, window: WindowId) -> Result<()> {
+    fn minimize_window_inner(&self, window: WindowId) -> Result<()> {
         let window_info = cg_window::get_window_info_by_number(window as i64)
             .ok()
             .flatten()
@@ -133,7 +133,7 @@ impl RealWindowApi {
         Ok(())
     }
 
-    fn maximize_window(&self, window: WindowId) -> Result<()> {
+    fn maximize_window_inner(&self, window: WindowId) -> Result<()> {
         let window_info = cg_window::get_window_info_by_number(window as i64)
             .ok()
             .flatten()
@@ -147,7 +147,7 @@ impl RealWindowApi {
         Ok(())
     }
 
-    fn restore_window(&self, window: WindowId) -> Result<()> {
+    fn restore_window_inner(&self, window: WindowId) -> Result<()> {
         let window_info = cg_window::get_window_info_by_number(window as i64)
             .ok()
             .flatten()
@@ -164,7 +164,7 @@ impl RealWindowApi {
         Ok(())
     }
 
-    fn close_window(&self, window: WindowId) -> Result<()> {
+    fn close_window_inner(&self, window: WindowId) -> Result<()> {
         let window_info = cg_window::get_window_info_by_number(window as i64)
             .ok()
             .flatten()
@@ -178,7 +178,7 @@ impl RealWindowApi {
         Ok(())
     }
 
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+    fn set_topmost_inner(&self, window: WindowId, topmost: bool) -> Result<()> {
         if topmost {
             let window_info = cg_window::get_window_info_by_number(window as i64)
                 .ok()
@@ -193,7 +193,7 @@ impl RealWindowApi {
         Ok(())
     }
 
-    fn is_topmost(&self, _window: WindowId) -> bool {
+    fn is_topmost_inner(&self, _window: WindowId) -> bool {
         false
     }
 
@@ -273,9 +273,6 @@ impl RealWindowApi {
         Ok(())
     }
 
-    fn is_window_valid(&self, window: WindowId) -> bool {
-        if window == 0 {
-            return false;
         }
         cg_window::get_window_info_by_number(window as i64)
             .ok()
@@ -283,9 +280,6 @@ impl RealWindowApi {
             .is_some()
     }
 
-    fn is_iconic(&self, window: WindowId) -> bool {
-        // On-screen→not minimized; off-screen→check AX state
-        if cg_window::get_window_info_by_number(window as i64)
             .ok()
             .flatten()
             .is_some()
@@ -318,9 +312,6 @@ impl RealWindowApi {
 
     /// Check if window is maximized (zoomed)
     /// Internal method named after Windows API convention
-    fn is_zoomed(&self, window: WindowId) -> bool {
-        let info = match self.get_window_info(window) {
-            Ok(info) => info,
             Err(_) => return false,
         };
 
@@ -360,7 +351,17 @@ impl WindowApiBase for RealWindowApi {
         id
     }
 
-    crate::impl_window_api_base_delegations!();
+    fn get_foreground_window_inner(&self) -> Option<Self::WindowId> { self.get_foreground_window_inner() }
+    fn set_window_pos_inner(&self, w: Self::WindowId, x: i32, y: i32, wd: i32, h: i32) -> Result<()> { self.set_window_pos_inner(w, x, y, wd, h) }
+    fn minimize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.minimize_window_inner(w) }
+    fn maximize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.maximize_window_inner(w) }
+    fn restore_window_inner(&self, w: Self::WindowId) -> Result<()> { self.restore_window_inner(w) }
+    fn close_window_inner(&self, w: Self::WindowId) -> Result<()> { self.close_window_inner(w) }
+    fn set_topmost_inner(&self, w: Self::WindowId, t: bool) -> Result<()> { self.set_topmost_inner(w, t) }
+    fn is_topmost_inner(&self, w: Self::WindowId) -> bool { self.is_topmost_inner(w) }
+    fn is_window_valid_inner(&self, w: Self::WindowId) -> bool { self.is_window_valid_inner(w) }
+    fn is_minimized_inner(&self, w: Self::WindowId) -> bool { self.is_minimized_inner(w) }
+    fn is_maximized_inner(&self, w: Self::WindowId) -> bool { self.is_maximized_inner(w) }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
         self.get_window_info(window)
@@ -378,9 +379,6 @@ impl WindowApiBase for RealWindowApi {
         self.move_to_monitor(window, monitor_index)
     }
 
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.is_window_valid(window)
-    }
 }
 
 #[cfg(test)]
@@ -452,20 +450,20 @@ mod tests {
         let mock = MockWindowApi::new();
         let window = 9999;
 
-        assert!(!mock.is_iconic(window));
-        assert!(!mock.is_zoomed(window));
+        assert!(!mock.is_minimized_inner(window));
+        assert!(!mock.is_maximized_inner(window));
 
         mock.minimize_window(window).unwrap();
-        assert!(mock.is_iconic(window));
-        assert!(!mock.is_zoomed(window));
+        assert!(mock.is_minimized_inner(window));
+        assert!(!mock.is_maximized_inner(window));
 
         mock.restore_window(window).unwrap();
-        assert!(!mock.is_iconic(window));
-        assert!(!mock.is_zoomed(window));
+        assert!(!mock.is_minimized_inner(window));
+        assert!(!mock.is_maximized_inner(window));
 
         mock.maximize_window(window).unwrap();
-        assert!(!mock.is_iconic(window));
-        assert!(mock.is_zoomed(window));
+        assert!(!mock.is_minimized_inner(window));
+        assert!(mock.is_maximized_inner(window));
     }
 
     #[test]

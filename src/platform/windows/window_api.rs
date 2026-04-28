@@ -25,7 +25,7 @@ impl RealWindowApi {
         Self
     }
 
-    fn get_foreground_window(&self) -> Option<HWND> {
+    fn get_foreground_window_inner(&self) -> Option<HWND> {
         unsafe {
             let hwnd = GetForegroundWindow();
             if hwnd.0.is_null() {
@@ -49,7 +49,7 @@ impl RealWindowApi {
         }
     }
 
-    fn set_window_pos(
+    fn set_window_pos_inner(
         &self,
         hwnd: HWND,
         x: i32,
@@ -71,7 +71,7 @@ impl RealWindowApi {
         }
     }
 
-    fn is_window(&self, hwnd: HWND) -> bool {
+    fn is_window_valid_inner(&self, hwnd: HWND) -> bool {
         unsafe { IsWindow(Some(hwnd)).as_bool() }
     }
 
@@ -90,15 +90,15 @@ impl RealWindowApi {
         }
     }
 
-    fn is_iconic(&self, hwnd: HWND) -> bool {
+    fn is_minimized_inner(&self, hwnd: HWND) -> bool {
         unsafe { IsIconic(hwnd).as_bool() }
     }
 
-    fn is_zoomed(&self, hwnd: HWND) -> bool {
+    fn is_maximized_inner(&self, hwnd: HWND) -> bool {
         unsafe { IsZoomed(hwnd).as_bool() }
     }
 
-    fn minimize_window(&self, hwnd: HWND) -> Result<()> {
+    fn minimize_window_inner(&self, hwnd: HWND) -> Result<()> {
         unsafe {
             ShowWindow(hwnd, windows::Win32::UI::WindowsAndMessaging::SW_MINIMIZE)
                 .ok()
@@ -107,7 +107,7 @@ impl RealWindowApi {
         }
     }
 
-    fn maximize_window(&self, hwnd: HWND) -> Result<()> {
+    fn maximize_window_inner(&self, hwnd: HWND) -> Result<()> {
         unsafe {
             ShowWindow(hwnd, windows::Win32::UI::WindowsAndMessaging::SW_MAXIMIZE)
                 .ok()
@@ -116,7 +116,7 @@ impl RealWindowApi {
         }
     }
 
-    fn restore_window(&self, hwnd: HWND) -> Result<()> {
+    fn restore_window_inner(&self, hwnd: HWND) -> Result<()> {
         unsafe {
             ShowWindow(hwnd, SW_RESTORE)
                 .ok()
@@ -125,7 +125,7 @@ impl RealWindowApi {
         }
     }
 
-    fn close_window(&self, hwnd: HWND) -> Result<()> {
+    fn close_window_inner(&self, hwnd: HWND) -> Result<()> {
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
             PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0))
@@ -134,7 +134,7 @@ impl RealWindowApi {
         }
     }
 
-    fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()> {
+    fn set_topmost_inner(&self, hwnd: HWND, topmost: bool) -> Result<()> {
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::{
                 SetWindowPos, HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
@@ -149,7 +149,7 @@ impl RealWindowApi {
         }
     }
 
-    fn is_topmost(&self, hwnd: HWND) -> bool {
+    fn is_topmost_inner(&self, hwnd: HWND) -> bool {
         unsafe {
             use windows::Win32::UI::WindowsAndMessaging::WS_EX_TOPMOST;
             use windows::Win32::UI::WindowsAndMessaging::{
@@ -183,7 +183,17 @@ impl WindowApiBase for RealWindowApi {
         HWND(id as *mut std::ffi::c_void)
     }
 
-    crate::impl_window_api_base_delegations!();
+    fn get_foreground_window_inner(&self) -> Option<Self::WindowId> { self.get_foreground_window_inner() }
+    fn set_window_pos_inner(&self, w: Self::WindowId, x: i32, y: i32, wd: i32, h: i32) -> Result<()> { self.set_window_pos_inner(w, x, y, wd, h) }
+    fn minimize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.minimize_window_inner(w) }
+    fn maximize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.maximize_window_inner(w) }
+    fn restore_window_inner(&self, w: Self::WindowId) -> Result<()> { self.restore_window_inner(w) }
+    fn close_window_inner(&self, w: Self::WindowId) -> Result<()> { self.close_window_inner(w) }
+    fn set_topmost_inner(&self, w: Self::WindowId, t: bool) -> Result<()> { self.set_topmost_inner(w, t) }
+    fn is_topmost_inner(&self, w: Self::WindowId) -> bool { self.is_topmost_inner(w) }
+    fn is_window_valid_inner(&self, w: Self::WindowId) -> bool { self.is_window_valid_inner(w) }
+    fn is_minimized_inner(&self, w: Self::WindowId) -> bool { self.is_minimized_inner(w) }
+    fn is_maximized_inner(&self, w: Self::WindowId) -> bool { self.is_maximized_inner(w) }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
         let title = self.get_window_title(window).unwrap_or_default();
@@ -250,9 +260,6 @@ impl WindowApiBase for RealWindowApi {
         Ok(())
     }
 
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.is_window(window)
-    }
 }
 
 #[cfg(test)]
@@ -448,20 +455,20 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(9999);
 
-        assert!(!api.is_iconic(hwnd));
-        assert!(!api.is_zoomed(hwnd));
+        assert!(!api.is_minimized_inner(hwnd));
+        assert!(!api.is_maximized_inner(hwnd));
 
         api.minimize_window(hwnd).unwrap();
-        assert!(api.is_iconic(hwnd));
-        assert!(!api.is_zoomed(hwnd));
+        assert!(api.is_minimized_inner(hwnd));
+        assert!(!api.is_maximized_inner(hwnd));
 
         api.restore_window(hwnd).unwrap();
-        assert!(!api.is_iconic(hwnd));
-        assert!(!api.is_zoomed(hwnd));
+        assert!(!api.is_minimized_inner(hwnd));
+        assert!(!api.is_maximized_inner(hwnd));
 
         api.maximize_window(hwnd).unwrap();
-        assert!(!api.is_iconic(hwnd));
-        assert!(api.is_zoomed(hwnd));
+        assert!(!api.is_minimized_inner(hwnd));
+        assert!(api.is_maximized_inner(hwnd));
     }
 
     #[test]

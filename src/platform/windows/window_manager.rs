@@ -203,7 +203,7 @@ impl RealWindowManager {
 mod tests {
     use super::super::MockWindowApi;
     use super::*;
-    use crate::platform::traits::{WindowFrame, WindowManagerExt};
+    use crate::platform::traits::{WindowApiBase, WindowFrame, WindowManagerExt};
     use crate::types::{Alignment, Edge};
 
     fn test_hwnd(value: usize) -> HWND {

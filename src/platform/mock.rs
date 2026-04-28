@@ -433,7 +433,7 @@ mod mock_window_api {
                 .cloned()
         }
 
-        pub fn is_window(&self, window: Id) -> bool {
+        pub fn is_window_valid_inner(&self, window: Id) -> bool {
             self.log_operation(WindowApiCall::IsWindow {
                 window: window.to_usize(),
             });
@@ -450,7 +450,7 @@ mod mock_window_api {
             Some(format!("Window {}", window.to_usize()))
         }
 
-        pub fn is_iconic(&self, window: Id) -> bool {
+        pub fn is_minimized_inner(&self, window: Id) -> bool {
             self.window_states
                 .lock()
                 .unwrap()
@@ -459,7 +459,7 @@ mod mock_window_api {
                 .unwrap_or(false)
         }
 
-        pub fn is_zoomed(&self, window: Id) -> bool {
+        pub fn is_maximized_inner(&self, window: Id) -> bool {
             self.window_states
                 .lock()
                 .unwrap()
@@ -468,7 +468,7 @@ mod mock_window_api {
                 .unwrap_or(false)
         }
 
-        pub fn minimize_window(&self, window: Id) -> Result<()> {
+        pub fn minimize_window_inner(&self, window: Id) -> Result<()> {
             self.log_operation(WindowApiCall::MinimizeWindow {
                 window: window.to_usize(),
             });
@@ -477,7 +477,7 @@ mod mock_window_api {
             Ok(())
         }
 
-        pub fn maximize_window(&self, window: Id) -> Result<()> {
+        pub fn maximize_window_inner(&self, window: Id) -> Result<()> {
             self.log_operation(WindowApiCall::MaximizeWindow {
                 window: window.to_usize(),
             });
@@ -486,7 +486,7 @@ mod mock_window_api {
             Ok(())
         }
 
-        pub fn restore_window(&self, window: Id) -> Result<()> {
+        pub fn restore_window_inner(&self, window: Id) -> Result<()> {
             self.log_operation(WindowApiCall::RestoreWindow {
                 window: window.to_usize(),
             });
@@ -498,7 +498,7 @@ mod mock_window_api {
             Ok(())
         }
 
-        pub fn close_window(&self, window: Id) -> Result<()> {
+        pub fn close_window_inner(&self, window: Id) -> Result<()> {
             self.log_operation(WindowApiCall::CloseWindow {
                 window: window.to_usize(),
             });
@@ -510,7 +510,7 @@ mod mock_window_api {
             Ok(())
         }
 
-        pub fn set_topmost(&self, window: Id, topmost: bool) -> Result<()> {
+        pub fn set_topmost_inner(&self, window: Id, topmost: bool) -> Result<()> {
             self.log_operation(WindowApiCall::SetTopmost {
                 window: window.to_usize(),
                 topmost,
@@ -520,7 +520,7 @@ mod mock_window_api {
             Ok(())
         }
 
-        pub fn is_topmost(&self, window: Id) -> bool {
+        pub fn is_topmost_inner(&self, window: Id) -> bool {
             self.window_states
                 .lock()
                 .unwrap()
@@ -565,40 +565,17 @@ mod mock_window_api {
             })
         }
 
-        fn set_window_pos(
-            &self,
-            window: Self::WindowId,
-            x: i32,
-            y: i32,
-            width: i32,
-            height: i32,
-        ) -> Result<()> {
-            self.set_window_pos_inner(window, x, y, width, height)
-        }
-
-        fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-            self.minimize_window(window)
-        }
-
-        fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-            self.maximize_window(window)
-        }
-
-        fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-            self.restore_window(window)
-        }
-
-        fn close_window(&self, window: Self::WindowId) -> Result<()> {
-            self.close_window(window)
-        }
-
-        fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-            self.set_topmost(window, topmost)
-        }
-
-        fn is_topmost(&self, window: Self::WindowId) -> bool {
-            self.is_topmost(window)
-        }
+        fn get_foreground_window_inner(&self) -> Option<Self::WindowId> { self.get_foreground_window() }
+        fn set_window_pos_inner(&self, w: Self::WindowId, x: i32, y: i32, wd: i32, h: i32) -> Result<()> { self.set_window_pos_inner(w, x, y, wd, h) }
+        fn minimize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.minimize_window_inner(w) }
+        fn maximize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.maximize_window_inner(w) }
+        fn restore_window_inner(&self, w: Self::WindowId) -> Result<()> { self.restore_window_inner(w) }
+        fn close_window_inner(&self, w: Self::WindowId) -> Result<()> { self.close_window_inner(w) }
+        fn set_topmost_inner(&self, w: Self::WindowId, t: bool) -> Result<()> { self.set_topmost_inner(w, t) }
+        fn is_topmost_inner(&self, w: Self::WindowId) -> bool { self.is_topmost_inner(w) }
+        fn is_window_valid_inner(&self, w: Self::WindowId) -> bool { self.is_window_valid_inner(w) }
+        fn is_minimized_inner(&self, w: Self::WindowId) -> bool { self.is_minimized_inner(w) }
+        fn is_maximized_inner(&self, w: Self::WindowId) -> bool { self.is_maximized_inner(w) }
 
         fn get_monitors(&self) -> Vec<MonitorInfo> {
             let fg = self.get_foreground_window();
@@ -613,18 +590,6 @@ mod mock_window_api {
             _monitor_index: usize,
         ) -> Result<()> {
             Ok(())
-        }
-
-        fn is_window_valid(&self, window: Self::WindowId) -> bool {
-            self.is_window(window)
-        }
-
-        fn is_minimized(&self, window: Self::WindowId) -> bool {
-            self.is_iconic(window)
-        }
-
-        fn is_maximized(&self, window: Self::WindowId) -> bool {
-            self.is_zoomed(window)
         }
 
         fn window_id_to_usize(id: Self::WindowId) -> usize {

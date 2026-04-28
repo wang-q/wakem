@@ -311,9 +311,18 @@ pub trait WindowApiBase {
     fn window_id_to_usize(id: Self::WindowId) -> usize;
     fn usize_to_window_id(id: usize) -> Self::WindowId;
 
-    fn get_foreground_window(&self) -> Option<Self::WindowId>;
+    /// Platform-specific: these must be implemented.
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo>;
-    fn set_window_pos(
+    fn get_monitors(&self) -> Vec<MonitorInfo>;
+    fn move_to_monitor(
+        &self,
+        window: Self::WindowId,
+        monitor_index: usize,
+    ) -> Result<()>;
+
+    /// Implement `_inner` on the concrete type. Trait defaults delegate to these.
+    fn get_foreground_window_inner(&self) -> Option<Self::WindowId>;
+    fn set_window_pos_inner(
         &self,
         window: Self::WindowId,
         x: i32,
@@ -321,21 +330,57 @@ pub trait WindowApiBase {
         width: i32,
         height: i32,
     ) -> Result<()>;
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
-    fn restore_window(&self, window: Self::WindowId) -> Result<()>;
-    fn close_window(&self, window: Self::WindowId) -> Result<()>;
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost(&self, window: Self::WindowId) -> bool;
-    fn get_monitors(&self) -> Vec<MonitorInfo>;
-    fn move_to_monitor(
+    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn close_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost_inner(&self, window: Self::WindowId) -> bool;
+    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool;
+    fn is_minimized_inner(&self, window: Self::WindowId) -> bool;
+    fn is_maximized_inner(&self, window: Self::WindowId) -> bool;
+
+    /// Default delegations to `_inner` methods.
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        self.get_foreground_window_inner()
+    }
+    fn set_window_pos(
         &self,
         window: Self::WindowId,
-        monitor_index: usize,
-    ) -> Result<()>;
-    fn is_window_valid(&self, window: Self::WindowId) -> bool;
-    fn is_minimized(&self, window: Self::WindowId) -> bool;
-    fn is_maximized(&self, window: Self::WindowId) -> bool;
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        self.set_window_pos_inner(window, x, y, width, height)
+    }
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.minimize_window_inner(window)
+    }
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.maximize_window_inner(window)
+    }
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        self.restore_window_inner(window)
+    }
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        self.close_window_inner(window)
+    }
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.set_topmost_inner(window, topmost)
+    }
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.is_topmost_inner(window)
+    }
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.is_window_valid_inner(window)
+    }
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
+        self.is_minimized_inner(window)
+    }
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.is_maximized_inner(window)
+    }
 
     /// Ensure window is restored (not minimized or maximized)
     fn ensure_window_restored(&self, window: Self::WindowId) -> Result<()> {
@@ -865,65 +910,6 @@ macro_rules! impl_window_event_hook_trait {
 
         fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
             self.shutdown_flag()
-        }
-    };
-}
-
-/// Macro implementing the boilerplate `WindowApiBase` trait delegation methods
-/// that trivially forward to identically-named inherent methods. Eliminates ~50
-/// lines of duplication across Windows and macOS `RealWindowApi`.
-#[macro_export]
-macro_rules! impl_window_api_base_delegations {
-    () => {
-        fn get_foreground_window(&self) -> Option<Self::WindowId> {
-            self.get_foreground_window()
-        }
-
-        fn set_window_pos(
-            &self,
-            window: Self::WindowId,
-            x: i32,
-            y: i32,
-            width: i32,
-            height: i32,
-        ) -> anyhow::Result<()> {
-            self.set_window_pos(window, x, y, width, height)
-        }
-
-        fn minimize_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
-            self.minimize_window(window)
-        }
-
-        fn maximize_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
-            self.maximize_window(window)
-        }
-
-        fn restore_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
-            self.restore_window(window)
-        }
-
-        fn close_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
-            self.close_window(window)
-        }
-
-        fn set_topmost(
-            &self,
-            window: Self::WindowId,
-            topmost: bool,
-        ) -> anyhow::Result<()> {
-            self.set_topmost(window, topmost)
-        }
-
-        fn is_topmost(&self, window: Self::WindowId) -> bool {
-            self.is_topmost(window)
-        }
-
-        fn is_minimized(&self, window: Self::WindowId) -> bool {
-            self.is_iconic(window)
-        }
-
-        fn is_maximized(&self, window: Self::WindowId) -> bool {
-            self.is_zoomed(window)
         }
     };
 }
