@@ -13,7 +13,7 @@
 //! 1. **Types & traits** (`types.rs`, `traits.rs`, `macros.rs`) — shared
 //!    data types, trait interfaces, and code-generation macros.
 //!
-//! 2. **Common implementations** (`*_common.rs`) — platform-agnostic
+//! 2. **Common implementations** (`common/`) — platform-agnostic
 //!    implementations that work across all supported platforms.
 //!
 //! 3. **Platform modules** (`windows/`, `macos/`, `linux/`) —
@@ -32,13 +32,17 @@ pub mod macros;
 // ---------------------------------------------------------------------------
 // Layer 2: Common implementations (platform-agnostic logic)
 // ---------------------------------------------------------------------------
-pub mod output_helpers;
-pub mod output_device_common;
-pub mod input_device_common;
-pub mod launcher_common;
-pub mod tray_common;
-pub mod window_manager_common;
-pub mod window_preset_common;
+pub mod common;
+
+// Backward-compatible re-exports — code using the old flat paths
+// (e.g. `crate::platform::input_device_common`) continues to work.
+pub use common::input_device as input_device_common;
+pub use common::launcher as launcher_common;
+pub use common::output_device as output_device_common;
+pub use common::output_helpers;
+pub use common::tray as tray_common;
+pub use common::window_manager as window_manager_common;
+pub use common::window_preset as window_preset_common;
 
 // ---------------------------------------------------------------------------
 // Layer 3: Platform-specific modules (selected via conditional compilation)

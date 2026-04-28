@@ -56,7 +56,9 @@ impl InputDeviceTrait for InputDevice<RawInputInner> {
         self.unregister_inner();
     }
 
-    fn poll_event_inner(&mut self) -> Option<InputEvent> { self.poll_event_inner() } fn is_running_inner(&self) -> bool { self.is_running_inner() } fn stop_inner(&mut self) { self.stop_inner(); }
+    fn poll_event(&mut self) -> Option<InputEvent> { self.poll_event() }
+    fn is_running(&self) -> bool { self.is_running() }
+    fn stop(&mut self) { self.stop(); }
 }
 
 // Shared input device tests live in input_device_common.rs

@@ -147,7 +147,7 @@ impl<T: PlatformInputDevice> InputDevice<T> {
         Ok(())
     }
 
-    pub fn poll_event_inner(&mut self) -> Option<InputEvent> {
+    pub fn poll_event(&mut self) -> Option<InputEvent> {
         if !self.base.running {
             return None;
         }
@@ -160,14 +160,14 @@ impl<T: PlatformInputDevice> InputDevice<T> {
     }
 
     pub fn unregister_inner(&mut self) {
-        self.stop_inner();
+        self.stop();
     }
 
-    pub fn is_running_inner(&self) -> bool {
+    pub fn is_running(&self) -> bool {
         self.base.is_running()
     }
 
-    pub fn stop_inner(&mut self) {
+    pub fn stop(&mut self) {
         self.base.stop();
         if let Some(mut inner) = self.inner.take() {
             inner.stop();

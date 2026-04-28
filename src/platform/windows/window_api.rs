@@ -164,28 +164,8 @@ impl RealWindowApi {
             (ex_style as u32) & WS_EX_TOPMOST.0 != 0
         }
     }
-}
 
-impl Default for RealWindowApi {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl WindowApiBase for RealWindowApi {
-    type WindowId = HWND;
-
-    fn window_id_to_usize(id: Self::WindowId) -> usize {
-        id.0 as usize
-    }
-
-    fn usize_to_window_id(id: usize) -> Self::WindowId {
-        HWND(id as *mut std::ffi::c_void)
-    }
-
-    crate::impl_window_api_base_inner!();
-
-    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+    fn get_window_info(&self, window: HWND) -> Result<WindowInfo> {
         let title = self.get_window_title(window).unwrap_or_default();
         let frame = self
             .get_window_rect(window)
@@ -221,19 +201,16 @@ impl WindowApiBase for RealWindowApi {
 
     fn move_to_monitor(
         &self,
-        window: Self::WindowId,
+        window: HWND,
         monitor_index: usize,
     ) -> Result<()> {
         let monitors = self.get_monitors();
         let monitor = monitors.get(monitor_index).ok_or_else(|| {
             anyhow::anyhow!("Monitor index {} out of range", monitor_index)
         })?;
-
         let info = self.get_window_info(window)?;
-
         let new_x = monitor.x + (monitor.width - info.width) / 2;
         let new_y = monitor.y + (monitor.height - info.height) / 2;
-
         unsafe {
             SetWindowPos(
                 window,
@@ -246,8 +223,43 @@ impl WindowApiBase for RealWindowApi {
             )
             .map_err(|e| anyhow::anyhow!("SetWindowPos failed: {e}"))?;
         }
-
         Ok(())
+    }
+}
+
+impl Default for RealWindowApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WindowApiBase for RealWindowApi {
+    type WindowId = HWND;
+
+    fn window_id_to_usize(id: Self::WindowId) -> usize {
+        id.0 as usize
+    }
+
+    fn usize_to_window_id(id: usize) -> Self::WindowId {
+        HWND(id as *mut std::ffi::c_void)
+    }
+
+    crate::impl_window_api_base_inner!();
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
+        self.get_window_info(window)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.get_monitors()
+    }
+
+    fn move_to_monitor(
+        &self,
+        window: Self::WindowId,
+        monitor_index: usize,
+    ) -> Result<()> {
+        self.move_to_monitor(window, monitor_index)
     }
 
 }

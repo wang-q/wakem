@@ -11,33 +11,7 @@ use crate::platform::macos::window_api::RealWindowApi;
 pub use crate::platform::traits::MonitorDirection;
 pub use crate::platform::window_manager_common::WindowManager;
 
-/// Type alias for the real window manager using native macOS APIs
-pub type RealWindowManager = WindowManager<RealWindowApi>;
-
-impl WindowManager<RealWindowApi> {
-    /// Create a new window manager with the real macOS API
-    pub fn new() -> Self {
-        Self::with_api(RealWindowApi::new())
-    }
-}
-
-impl Default for RealWindowManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// Re-export window preset manager for macOS
-use crate::platform::window_preset_common::WindowPresetManager as CommonWindowPresetManager;
-
-/// Window preset manager type for macOS platform
-pub type WindowPresetManager = CommonWindowPresetManager<WindowManager<RealWindowApi>>;
-
-impl Default for WindowPresetManager {
-    fn default() -> Self {
-        Self::new(WindowManager::new())
-    }
-}
+crate::impl_window_manager_types!();
 
 #[cfg(test)]
 mod tests {

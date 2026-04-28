@@ -26,20 +26,9 @@ pub use super::types::*;
 pub trait InputDeviceTrait: Send {
     fn register(&mut self) -> Result<()>;
     fn unregister(&mut self);
-
-    fn poll_event(&mut self) -> Option<InputEvent> {
-        self.poll_event_inner()
-    }
-    fn is_running(&self) -> bool {
-        self.is_running_inner()
-    }
-    fn stop(&mut self) {
-        self.stop_inner();
-    }
-
-    fn poll_event_inner(&mut self) -> Option<InputEvent>;
-    fn is_running_inner(&self) -> bool;
-    fn stop_inner(&mut self);
+    fn poll_event(&mut self) -> Option<InputEvent>;
+    fn is_running(&self) -> bool;
+    fn stop(&mut self);
 }
 
 /// Output device trait - for sending simulated input events

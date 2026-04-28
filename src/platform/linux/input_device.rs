@@ -28,13 +28,13 @@ impl InputDeviceTrait for LinuxInputDevice {
 
     fn unregister(&mut self) {}
 
-    fn poll_event_inner(&mut self) -> Option<crate::types::InputEvent> {
+    fn poll_event(&mut self) -> Option<crate::types::InputEvent> {
         None
     }
 
-    fn is_running_inner(&self) -> bool {
+    fn is_running(&self) -> bool {
         false
     }
 
-    fn stop_inner(&mut self) {}
+    fn stop(&mut self) {}
 }
