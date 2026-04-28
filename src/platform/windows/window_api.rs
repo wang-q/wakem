@@ -11,8 +11,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[cfg(test)]
 use crate::platform::mock::WindowApiCall;
 use crate::platform::traits::{
-    MonitorInfo, PlatformUtilities, WindowApiBase, WindowFrame,
-    WindowInfo,
+    MonitorInfo, PlatformUtilities, WindowApiBase, WindowFrame, WindowInfo,
 };
 use crate::platform::windows::WindowsPlatform;
 use tracing::debug;

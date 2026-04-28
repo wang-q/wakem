@@ -86,6 +86,8 @@ pub struct KeyMapper {
     window_manager: Option<Box<dyn WindowManagerTrait>>,
     notification_service: Option<NotificationServiceRef>,
     window_preset_manager: Option<WindowPresetManagerRef>,
+    /// O(1) lookup of scan codes referenced by any rule, used by `has_rule_for_key`.
+    scan_code_index: std::collections::HashSet<u16>,
 }
 
 /// Type alias for notification service reference to simplify complex type signatures
@@ -109,6 +111,7 @@ impl KeyMapper {
             window_manager: None,
             notification_service: None,
             window_preset_manager: None,
+            scan_code_index: std::collections::HashSet::new(),
         }
     }
 
@@ -131,21 +134,34 @@ impl KeyMapper {
     /// Load mapping rules from configuration
     pub fn load_rules(&mut self, rules: &[MappingRule]) {
         self.rules = rules.to_vec();
+        self.rebuild_scan_code_index();
         debug!("Loaded {} mapping rules", self.rules.len());
+    }
+
+    /// Rebuild the scan code index for O(1) `has_rule_for_key` lookups.
+    fn rebuild_scan_code_index(&mut self) {
+        self.scan_code_index.clear();
+        for rule in &self.rules {
+            if let Trigger::Key {
+                scan_code: Some(sc),
+                ..
+            } = &rule.trigger
+            {
+                self.scan_code_index.insert(*sc);
+            }
+        }
+        for ctx_rule in &self.context_rules {
+            for sc in ctx_rule.key_mappings.keys() {
+                self.scan_code_index.insert(*sc);
+            }
+        }
     }
 
     /// Check if any base or context rule references the given scan code.
     ///
-    /// Used by the daemon to decide whether a key release event should be
-    /// allowed through to the mapper (keys without rules get filtered).
+    /// O(1) lookup via pre-built index, updated on `load_rules`/`load_context_rules`.
     pub fn has_rule_for_key(&self, scan_code: u16) -> bool {
-        self.rules
-            .iter()
-            .any(|r| r.trigger.has_scan_code(scan_code))
-            || self
-                .context_rules
-                .iter()
-                .any(|r| r.key_mappings.contains_key(&scan_code))
+        self.scan_code_index.contains(&scan_code)
     }
 
     /// Process input event (with context awareness)
@@ -495,20 +511,13 @@ impl KeyMapper {
                         idx
                     }
                     MonitorDirection::Next | MonitorDirection::Prev => {
-                        // Get current window position to determine which monitor it's on
                         let info = wm.get_window_info(window_id)?;
-                        // Use window center point for more robust monitor detection
                         let cx = info.x + info.width / 2;
                         let cy = info.y + info.height / 2;
-                        let current_monitor_idx = monitors
-                            .iter()
-                            .position(|m| {
-                                cx >= m.x
-                                    && cx < m.x + m.width
-                                    && cy >= m.y
-                                    && cy < m.y + m.height
-                            })
-                            .unwrap_or(0);
+                        let current_monitor_idx =
+                            crate::platform::traits::find_monitor_index_for_point(
+                                &monitors, cx, cy,
+                            );
 
                         match direction {
                             MonitorDirection::Next => {
@@ -670,6 +679,7 @@ impl KeyMapper {
             }
         }
 
+        self.rebuild_scan_code_index();
         debug!("Loaded {} context mapping rules", self.context_rules.len());
     }
 

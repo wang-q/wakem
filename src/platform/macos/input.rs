@@ -207,9 +207,7 @@ fn convert_cg_event(event: *const c_void) -> Option<InputEvent> {
             convert_key_event(event, KeyState::Pressed)
         }
         t if t == cg_event_types::KEY_UP => convert_key_event(event, KeyState::Released),
-        t if t == cg_event_types::FLAGS_CHANGED => {
-            convert_flags_changed_event(event)
-        }
+        t if t == cg_event_types::FLAGS_CHANGED => convert_flags_changed_event(event),
         t if t == cg_event_types::LEFT_MOUSE_DOWN => {
             convert_mouse_button_event(event, MouseButton::Left, KeyState::Pressed)
         }
@@ -268,7 +266,6 @@ fn convert_flags_changed_event(event: *const c_void) -> Option<InputEvent> {
     let scan_code = keycode as u16;
     let virtual_key = keycode_to_virtual_key(scan_code);
 
-    // Determine press vs release by checking if this modifier is now active
     let is_pressed = is_modifier_active(scan_code, flags);
     let state = if is_pressed {
         KeyState::Pressed
@@ -284,30 +281,45 @@ fn convert_flags_changed_event(event: *const c_void) -> Option<InputEvent> {
         flags.bits(),
     );
 
-    Some(InputEvent::Key(KeyEvent::new(scan_code, virtual_key, state)))
+    Some(InputEvent::Key(KeyEvent::new(
+        scan_code,
+        virtual_key,
+        state,
+    )))
 }
+
+// Apple-defined keycodes for modifier keys (from Carbon/HIToolbox).
+const KVK_SHIFT_LEFT: i64 = 56;
+const KVK_SHIFT_RIGHT: i64 = 60;
+const KVK_CONTROL_LEFT: i64 = 59;
+const KVK_CONTROL_RIGHT: i64 = 62;
+const KVK_OPTION_LEFT: i64 = 58;
+const KVK_OPTION_RIGHT: i64 = 61;
+const KVK_COMMAND_LEFT: i64 = 55;
+const KVK_COMMAND_RIGHT: i64 = 54;
+const KVK_CAPS_LOCK: i64 = 57;
+const KVK_FN: i64 = 63;
 
 /// Check if the modifier key with the given macOS keycode is currently active
 /// based on the CGEventFlags bitmask.
 fn is_modifier_active(keycode: i64, flags: core_graphics::event::CGEventFlags) -> bool {
     use core_graphics::event::CGEventFlags;
     match keycode {
-        // Left/Right Shift
-        56 | 60 => flags.contains(CGEventFlags::CGEventFlagShift),
-        // Left/Right Control
-        59 | 62 => flags.contains(CGEventFlags::CGEventFlagControl),
-        // Left/Right Option (Alt)
-        58 | 61 => flags.contains(CGEventFlags::CGEventFlagAlternate),
-        // Left/Right Command (Meta)
-        55 | 54 => flags.contains(CGEventFlags::CGEventFlagCommand),
-        // Caps Lock — treat as pressed when flags indicate caps lock is on
-        57 => flags.contains(CGEventFlags::CGEventFlagAlphaShift),
-        // Secondary Fn / other modifiers
-        63 => flags.contains(CGEventFlags::CGEventFlagSecondaryFn),
-        _ => {
-            // Unknown keycode — check if any modifier flag is set as a fallback
-            !flags.is_empty()
+        KVK_SHIFT_LEFT | KVK_SHIFT_RIGHT => {
+            flags.contains(CGEventFlags::CGEventFlagShift)
         }
+        KVK_CONTROL_LEFT | KVK_CONTROL_RIGHT => {
+            flags.contains(CGEventFlags::CGEventFlagControl)
+        }
+        KVK_OPTION_LEFT | KVK_OPTION_RIGHT => {
+            flags.contains(CGEventFlags::CGEventFlagAlternate)
+        }
+        KVK_COMMAND_LEFT | KVK_COMMAND_RIGHT => {
+            flags.contains(CGEventFlags::CGEventFlagCommand)
+        }
+        KVK_CAPS_LOCK => flags.contains(CGEventFlags::CGEventFlagAlphaShift),
+        KVK_FN => flags.contains(CGEventFlags::CGEventFlagSecondaryFn),
+        _ => !flags.is_empty(),
     }
 }
 

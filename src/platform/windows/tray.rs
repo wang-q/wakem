@@ -315,7 +315,6 @@ pub fn stop_tray() {
     }
 }
 
-
 // Re-export shared TrayApi trait from tray_common
 pub use crate::platform::tray_common::TrayApi;
 

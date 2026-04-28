@@ -17,6 +17,10 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
     MOUSEEVENTF_WHEEL, VIRTUAL_KEY,
 };
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+    SM_YVIRTUALSCREEN,
+};
 
 /// SendInput-based output device implementing [OutputDeviceTrait]
 #[derive(Debug, Clone)]
@@ -85,38 +89,14 @@ impl OutputDeviceTrait for SendInputDevice {
                 input.Anonymous.mi.dx = x;
                 input.Anonymous.mi.dy = y;
             } else {
-                // Absolute mode: normalize coordinates to [0, 65535] range
-                // per Windows SendInput MOUSEEVENTF_ABSOLUTE specification.
-                // Account for virtual screen origin offset for multi-monitor setups
-                // where secondary monitors may have negative coordinates.
-                let screen_w = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                    windows::Win32::UI::WindowsAndMessaging::SM_CXVIRTUALSCREEN,
-                );
-                let screen_h = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                    windows::Win32::UI::WindowsAndMessaging::SM_CYVIRTUALSCREEN,
-                );
-                let virtual_left =
-                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                        windows::Win32::UI::WindowsAndMessaging::SM_XVIRTUALSCREEN,
-                    );
-                let virtual_top =
-                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                        windows::Win32::UI::WindowsAndMessaging::SM_YVIRTUALSCREEN,
-                    );
-                input.Anonymous.mi.dx = if screen_w > 0 {
-                    (((x - virtual_left) as i64 * 65536 / screen_w as i32 as i64)
-                        as i32)
-                        .clamp(0, 65535)
-                } else {
-                    0
-                };
-                input.Anonymous.mi.dy = if screen_h > 0 {
-                    (((y - virtual_top) as i64 * 65536 / screen_h as i32 as i64)
-                        as i32)
-                        .clamp(0, 65535)
-                } else {
-                    0
-                };
+                // Normalize to [0, 65535] per SendInput MOUSEEVENTF_ABSOLUTE spec.
+                // Virtual screen origin offset needed for multi-monitor setups.
+                let screen_w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+                let screen_h = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+                let virtual_left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+                let virtual_top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+                input.Anonymous.mi.dx = normalize_axis(x, virtual_left, screen_w);
+                input.Anonymous.mi.dy = normalize_axis(y, virtual_top, screen_h);
             }
             input.Anonymous.mi.dwFlags = MOUSEEVENTF_MOVE;
 
@@ -196,6 +176,16 @@ impl OutputDeviceTrait for SendInputDevice {
             delta, horizontal
         );
         Ok(())
+    }
+}
+
+/// Normalize one axis coordinate from virtual-screen pixels to the [0, 65535]
+/// range expected by SendInput MOUSEEVENTF_ABSOLUTE.
+fn normalize_axis(value: i32, offset: i32, screen_size: i32) -> i32 {
+    if screen_size > 0 {
+        (((value - offset) as i64 * 65536 / screen_size as i64) as i32).clamp(0, 65535)
+    } else {
+        0
     }
 }
 

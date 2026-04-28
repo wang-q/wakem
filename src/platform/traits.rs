@@ -423,6 +423,14 @@ pub fn find_monitor_for_point(
         .or_else(|| monitors.first())
 }
 
+/// Find the monitor index containing a point, returning the index.
+pub fn find_monitor_index_for_point(monitors: &[MonitorInfo], x: i32, y: i32) -> usize {
+    monitors
+        .iter()
+        .position(|m| x >= m.x && x < m.x + m.width && y >= m.y && y < m.y + m.height)
+        .unwrap_or(0)
+}
+
 /// Extension trait providing high-level window management operations
 ///
 /// These methods combine basic operations to provide convenient

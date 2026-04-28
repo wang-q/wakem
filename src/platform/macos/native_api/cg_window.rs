@@ -54,7 +54,10 @@ pub fn get_all_windows() -> Result<Vec<CGWindowInfo>> {
 
 /// Shared implementation: query CGWindowList with the given option flags.
 fn get_windows_with_option(list_option: u32) -> Result<Vec<CGWindowInfo>> {
-    trace!("Getting windows via CGWindowListCopyWindowInfo (option={})", list_option);
+    trace!(
+        "Getting windows via CGWindowListCopyWindowInfo (option={})",
+        list_option
+    );
 
     unsafe {
         let option_exclude_desktop: u32 = 1 << 3; // kCGWindowListOptionExcludeDesktopElement

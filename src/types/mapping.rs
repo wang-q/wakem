@@ -134,21 +134,6 @@ impl Trigger {
         }
     }
 
-    /// Check if this trigger references the given scan code.
-    ///
-    /// Returns true for `Key` triggers where `scan_code` matches,
-    /// or for `Chord` triggers where any element matches.
-    /// Mouse and other triggers return false.
-    pub fn has_scan_code(&self, scan_code: u16) -> bool {
-        match self {
-            Trigger::Key {
-                scan_code: Some(sc), ..
-            } => *sc == scan_code,
-            Trigger::Chord(chord) => chord.iter().any(|t| t.has_scan_code(scan_code)),
-            _ => false,
-        }
-    }
-
     /// Create simple key trigger
     pub fn key(scan_code: u16, virtual_key: u16) -> Self {
         Self::Key {
@@ -270,16 +255,8 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
     wildcard_match_dp(text, pattern)
 }
 
-/// Dynamic programming implementation of wildcard matching
-/// Uses rolling array optimization (2 rows instead of full matrix).
-/// Performs case-insensitive comparison. Uses byte-level access for ASCII
-/// strings to avoid heap allocation; falls back to char collection for Unicode.
 /// Byte-level wildcard DP for ASCII strings. No heap allocation.
-fn wildcard_match_dp_ascii(
-    text: &[u8],
-    pattern: &[u8],
-    max_size: usize,
-) -> bool {
+fn wildcard_match_dp_ascii(text: &[u8], pattern: &[u8], max_size: usize) -> bool {
     let m = text.len();
     let n = pattern.len();
 
@@ -331,7 +308,11 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
 
     // ASCII fast path: use byte-level DP (no heap allocation)
     if text.is_ascii() && pattern.is_ascii() {
-        return wildcard_match_dp_ascii(text.as_bytes(), pattern.as_bytes(), WILDCARD_MAX_INPUT_SIZE);
+        return wildcard_match_dp_ascii(
+            text.as_bytes(),
+            pattern.as_bytes(),
+            WILDCARD_MAX_INPUT_SIZE,
+        );
     }
 
     let text_chars: Vec<char> = text.chars().collect();

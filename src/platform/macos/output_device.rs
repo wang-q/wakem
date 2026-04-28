@@ -125,13 +125,13 @@ impl OutputDeviceTrait for SendInputDevice {
             MouseButton::Left => CGMouseButton::Left,
             MouseButton::Right => CGMouseButton::Right,
             MouseButton::Middle => CGMouseButton::Center,
-            // kCGMouseButton3 = 3, kCGMouseButton4 = 4 (not in core-graphics enum)
-            MouseButton::X1 => unsafe {
-                std::mem::transmute::<i32, CGMouseButton>(3)
-            },
-            MouseButton::X2 => unsafe {
-                std::mem::transmute::<i32, CGMouseButton>(4)
-            },
+            // SAFETY: macOS defines kCGMouseButton3=3 and kCGMouseButton4=4.
+            // core-graphics 0.24 only exposes Left(0)/Right(1)/Center(2) in its
+            // enum, but CGEventPost correctly handles buttons 3 (X1) and 4 (X2).
+            // The transmute is sound because CGMouseButton is a C-compatible enum
+            // backed by u32, and these discriminant values are ABI-stable.
+            MouseButton::X1 => unsafe { std::mem::transmute::<i32, CGMouseButton>(3) },
+            MouseButton::X2 => unsafe { std::mem::transmute::<i32, CGMouseButton>(4) },
         };
 
         let event = CGEvent::new_mouse_event(source, event_type, point, cg_button)
