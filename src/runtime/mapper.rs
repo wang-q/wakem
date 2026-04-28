@@ -1,9 +1,9 @@
 use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
-    MouseEvent,
+    MouseEvent, Trigger,
 };
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::platform::traits::{
     NotificationService, WindowManagerExt, WindowManagerTrait, WindowPresetManagerTrait,
@@ -15,6 +15,8 @@ use crate::platform::traits::{
 /// (process name, window class, title, etc.).
 /// This allows the same key to have different behaviors in different applications.
 ///
+/// Supports both keyboard (scan_code-based) and mouse (trigger-based) mappings.
+///
 /// # Example
 ///
 /// ```ignore
@@ -22,17 +24,21 @@ use crate::platform::traits::{
 /// let rule = ContextMappingRule {
 ///     context: ContextCondition::new()
 ///         .with_process_name("Code.exe"),
-///     mappings: {
+///     key_mappings: {
 ///         let mut map = HashMap::new();
 ///         map.insert(0x3A, Action::Key(KeyAction::Press { scan_code: 0x3A, virtual_key: 0x11 }));
 ///         map
 ///     },
+///     trigger_mappings: vec![],
 /// };
 /// ```
 #[derive(Debug, Clone)]
 struct ContextMappingRule {
     context: ContextCondition,
-    mappings: HashMap<u16, Action>,
+    /// Keyboard mappings using scan_code for fast lookup
+    key_mappings: HashMap<u16, Action>,
+    /// Mouse and other trigger-based mappings
+    trigger_mappings: Vec<(Trigger, Action)>,
 }
 
 /// Key mapping engine
@@ -179,17 +185,32 @@ impl KeyMapper {
                     &ctx.window_title,
                     ctx.executable_path.as_deref(),
                 ) {
-                    // Look up mapping in matched context
-                    if let Some(action) = rule.mappings.get(&event.scan_code) {
+                    // Look up mapping in matched context (keyboard uses scan_code lookup)
+                    if let Some(action) = rule.key_mappings.get(&event.scan_code) {
                         let adjusted_action =
                             self.adjust_action_for_key_state(action, event);
                         if adjusted_action.is_some() {
                             debug!(
-                                "Context mapping found: {:04X} -> {:?}",
+                                "Context key mapping found: {:04X} -> {:?}",
                                 event.scan_code, action
                             );
                         }
                         return adjusted_action;
+                    }
+                    // Check trigger-based mappings (for complex triggers with modifiers)
+                    let input_event = InputEvent::Key(event.clone());
+                    for (trigger, action) in &rule.trigger_mappings {
+                        if trigger.matches(&input_event) {
+                            let adjusted_action =
+                                self.adjust_action_for_key_state(action, event);
+                            if adjusted_action.is_some() {
+                                debug!(
+                                    "Context trigger mapping found: {:?} -> {:?}",
+                                    trigger, action
+                                );
+                            }
+                            return adjusted_action;
+                        }
                     }
                 }
             }
@@ -250,17 +271,16 @@ impl KeyMapper {
                     &ctx.window_title,
                     ctx.executable_path.as_deref(),
                 ) {
-                    // Context rules use scan_code-based lookup (HashMap<u16, Action>)
-                    // which doesn't directly apply to mouse events.
-                    // Mouse events require Trigger-based matching which is not yet
-                    // implemented for context rules.
-                    // TODO: Implement Trigger-based matching for context rules
-                    // to support mouse button mappings in context-specific layers.
-                    warn!(
-                        "Context rule matched for mouse event but Trigger-based \
-                         matching is not yet implemented; mouse mappings in \
-                         context-specific layers are ignored"
-                    );
+                    // Check trigger-based mappings for mouse events
+                    for (trigger, action) in &rule.trigger_mappings {
+                        if trigger.matches(&input_event) {
+                            debug!(
+                                "Context trigger mapping found for mouse: {:?} -> {:?}",
+                                trigger, action
+                            );
+                            return Some(action.clone());
+                        }
+                    }
                 }
             }
         }
@@ -411,12 +431,12 @@ impl KeyMapper {
             }
             WindowAction::FixedRatio {
                 ratio,
-                scale_index: _,
+                scale_index,
             } => {
-                wm.set_fixed_ratio(window_id, *ratio)?;
+                wm.set_fixed_ratio(window_id, *ratio, Some(*scale_index))?;
             }
-            WindowAction::NativeRatio { scale_index: _ } => {
-                wm.set_native_ratio(window_id)?;
+            WindowAction::NativeRatio { scale_index } => {
+                wm.set_native_ratio(window_id, Some(*scale_index))?;
             }
             WindowAction::SwitchToNextWindow => {
                 // Attempt to switch to next window of the same process
@@ -439,9 +459,50 @@ impl KeyMapper {
                 }
             }
             WindowAction::MoveToMonitor(direction) => {
+                let monitors = wm.get_monitors();
+                if monitors.is_empty() {
+                    anyhow::bail!("No monitors found");
+                }
+
                 let monitor_index: usize = match direction {
-                    MonitorDirection::Next | MonitorDirection::Prev => 0,
-                    MonitorDirection::Index(idx) => *idx as usize,
+                    MonitorDirection::Index(idx) => {
+                        let idx = *idx as usize;
+                        if idx >= monitors.len() {
+                            anyhow::bail!(
+                                "Monitor index {} out of range (0-{})",
+                                idx,
+                                monitors.len() - 1
+                            );
+                        }
+                        idx
+                    }
+                    MonitorDirection::Next | MonitorDirection::Prev => {
+                        // Get current window position to determine which monitor it's on
+                        let info = wm.get_window_info(window_id)?;
+                        let current_monitor_idx = monitors
+                            .iter()
+                            .position(|m| {
+                                info.x >= m.x
+                                    && info.x < m.x + m.width
+                                    && info.y >= m.y
+                                    && info.y < m.y + m.height
+                            })
+                            .unwrap_or(0);
+
+                        match direction {
+                            MonitorDirection::Next => {
+                                (current_monitor_idx + 1) % monitors.len()
+                            }
+                            MonitorDirection::Prev => {
+                                if current_monitor_idx == 0 {
+                                    monitors.len() - 1
+                                } else {
+                                    current_monitor_idx - 1
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
                 };
                 wm.move_to_monitor(window_id, monitor_index)?;
             }
@@ -558,32 +619,44 @@ impl KeyMapper {
         self.context_rules.clear();
 
         for mapping in context_mappings {
-            let mut rule_mappings = HashMap::new();
+            let mut key_mappings = HashMap::new();
+            let mut trigger_mappings = Vec::new();
 
             // Parse each mapping string
             for (from, to) in &mapping.mappings {
-                if let Ok((scan_code, action)) = Self::parse_context_mapping(from, to) {
-                    rule_mappings.insert(scan_code, action);
+                // Try to parse as simple key mapping (for fast lookup)
+                if let Ok((scan_code, action)) = Self::parse_context_key_mapping(from, to) {
+                    key_mappings.insert(scan_code, action);
+                    continue;
+                }
+
+                // Try to parse as trigger-based mapping (supports modifiers and mouse)
+                if let Ok((trigger, action)) = Self::parse_context_trigger_mapping(from, to) {
+                    trigger_mappings.push((trigger, action));
                 }
             }
 
-            if !rule_mappings.is_empty() {
+            if !key_mappings.is_empty() || !trigger_mappings.is_empty() {
                 self.context_rules.push(ContextMappingRule {
                     context: mapping.context.clone(),
-                    mappings: rule_mappings,
+                    key_mappings,
+                    trigger_mappings,
                 });
             }
         }
 
-        debug!("Loaded {} context mapping rules", self.context_rules.len());
+        debug!(
+            "Loaded {} context mapping rules",
+            self.context_rules.len()
+        );
     }
 
-    /// Parse context mapping string
-    fn parse_context_mapping(from: &str, to: &str) -> anyhow::Result<(u16, Action)> {
+    /// Parse simple key context mapping (returns scan_code for fast lookup)
+    fn parse_context_key_mapping(from: &str, to: &str) -> anyhow::Result<(u16, Action)> {
         use crate::config::parse_key;
         use crate::types::KeyAction;
 
-        // Parse source key
+        // Parse source key - must be a simple key without modifiers
         let from_key = parse_key(from)?;
 
         // Parse target action
@@ -601,7 +674,36 @@ impl KeyMapper {
         }
 
         Err(anyhow::anyhow!(
-            "Failed to parse mapping: {} -> {}",
+            "Failed to parse key mapping: {} -> {}",
+            from,
+            to
+        ))
+    }
+
+    /// Parse trigger-based context mapping (supports modifiers and mouse buttons)
+    fn parse_context_trigger_mapping(
+        from: &str,
+        to: &str,
+    ) -> anyhow::Result<(Trigger, Action)> {
+        use crate::config::{parse_key, parse_shortcut_trigger, parse_window_action};
+        use crate::types::KeyAction;
+
+        // Try to parse source as shortcut trigger (supports modifiers)
+        let trigger = parse_shortcut_trigger(from)?;
+
+        // Parse target action
+        // First try to parse as key
+        if let Ok(to_key) = parse_key(to) {
+            return Ok((trigger, Action::key(KeyAction::click(to_key.0, to_key.1))));
+        }
+
+        // Try to parse as window action
+        if let Ok(window_action) = parse_window_action(to) {
+            return Ok((trigger, Action::window(window_action)));
+        }
+
+        Err(anyhow::anyhow!(
+            "Failed to parse trigger mapping: {} -> {}",
             from,
             to
         ))

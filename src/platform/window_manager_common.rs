@@ -358,19 +358,24 @@ pub trait CommonWindowApi {
     }
 
     /// Set window to a fixed aspect ratio and scale it up/down cyclically
-    fn set_fixed_ratio(&self, window: Self::WindowId, ratio: f32) -> Result<()>
+    fn set_fixed_ratio(
+        &self,
+        window: Self::WindowId,
+        ratio: f32,
+        scale_index: Option<usize>,
+    ) -> Result<()>
     where
         Self: Sized,
     {
-        CommonWindowManager::set_fixed_ratio(self, window, ratio)
+        CommonWindowManager::set_fixed_ratio(self, window, ratio, scale_index)
     }
 
     /// Set window to its "native" content ratio and cycle sizes
-    fn set_native_ratio(&self, window: Self::WindowId) -> Result<()>
+    fn set_native_ratio(&self, window: Self::WindowId, scale_index: Option<usize>) -> Result<()>
     where
         Self: Sized,
     {
-        CommonWindowManager::set_native_ratio(self, window)
+        CommonWindowManager::set_native_ratio(self, window, scale_index)
     }
 
     /// Toggle window topmost state, returns the new state
@@ -601,9 +606,20 @@ impl CommonWindowManager {
         Ok(())
     }
 
-    /// Set window to a fixed aspect ratio and scale it up/down cyclically
-    /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
-    pub fn set_fixed_ratio<A, W, I>(api: &A, window: W, ratio: f32) -> Result<()>
+    /// Set window to a fixed aspect ratio and scale it up/down
+    ///
+    /// # Arguments
+    /// * `api` - The window API
+    /// * `window` - The window to resize
+    /// * `ratio` - The aspect ratio (width / height)
+    /// * `scale_index` - Index into the scale array [1.0, 0.9, 0.7, 0.5].
+    ///   If None, cycles through scales based on current window size.
+    pub fn set_fixed_ratio<A, W, I>(
+        api: &A,
+        window: W,
+        ratio: f32,
+        scale_index: Option<usize>,
+    ) -> Result<()>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
         I: WindowInfoProvider,
@@ -620,17 +636,28 @@ impl CommonWindowManager {
         let base_width = (base_size as f32 * ratio) as i32;
         let base_height = base_size;
 
-        let current_width_ratio = info.width() as f32 / base_width as f32;
-        let current_height_ratio = info.height() as f32 / base_height as f32;
-        let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
-
-        let mut next_scale = SCALES[0];
-        for (i, scale) in SCALES.iter().enumerate() {
-            if (current_scale - scale).abs() < 0.05 {
-                next_scale = SCALES[(i + 1) % SCALES.len()];
-                break;
+        // Determine which scale to use
+        let next_scale = match scale_index {
+            Some(idx) if idx < SCALES.len() => SCALES[idx],
+            Some(idx) => {
+                anyhow::bail!("Scale index {} out of range (0-{})", idx, SCALES.len() - 1);
             }
-        }
+            None => {
+                // Auto-detect next scale based on current window size
+                let current_width_ratio = info.width() as f32 / base_width as f32;
+                let current_height_ratio = info.height() as f32 / base_height as f32;
+                let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
+
+                let mut next = SCALES[0];
+                for (i, scale) in SCALES.iter().enumerate() {
+                    if (current_scale - scale).abs() < 0.05 {
+                        next = SCALES[(i + 1) % SCALES.len()];
+                        break;
+                    }
+                }
+                next
+            }
+        };
 
         let new_width = (base_width as f32 * next_scale) as i32;
         let new_height = (base_height as f32 * next_scale) as i32;
@@ -647,8 +674,13 @@ impl CommonWindowManager {
     }
 
     /// Set window to its "native" content ratio (e.g., video 16:9) and cycle sizes
-    /// Automatically cycles through scales: 100% -> 90% -> 70% -> 50% -> 100%
-    pub fn set_native_ratio<A, W, I>(api: &A, window: W) -> Result<()>
+    ///
+    /// # Arguments
+    /// * `api` - The window API
+    /// * `window` - The window to resize
+    /// * `scale_index` - Index into the scale array [1.0, 0.9, 0.7, 0.5].
+    ///   If None, cycles through scales based on current window size.
+    pub fn set_native_ratio<A, W, I>(api: &A, window: W, scale_index: Option<usize>) -> Result<()>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
         I: WindowInfoProvider,
@@ -660,36 +692,9 @@ impl CommonWindowManager {
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let screen_ratio = monitor.width as f32 / monitor.height as f32;
-        let base_size = std::cmp::min(monitor.width, monitor.height);
-        let base_width = (base_size as f32 * screen_ratio) as i32;
-        let base_height = base_size;
 
-        let current_width_ratio = info.width() as f32 / base_width as f32;
-        let current_height_ratio = info.height() as f32 / base_height as f32;
-        let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
-
-        const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
-
-        let mut next_scale = SCALES[0];
-        for (i, scale) in SCALES.iter().enumerate() {
-            if (current_scale - scale).abs() < 0.05 {
-                next_scale = SCALES[(i + 1) % SCALES.len()];
-                break;
-            }
-        }
-
-        let new_width = (base_width as f32 * next_scale) as i32;
-        let new_height = (base_height as f32 * next_scale) as i32;
-
-        let new_x = monitor.x + (monitor.width - new_width) / 2;
-        let new_y = monitor.y + (monitor.height - new_height) / 2;
-
-        api.set_window_pos(window, new_x, new_y, new_width, new_height)?;
-        debug!(
-            "Set native ratio -> {}x{} at ({}, {})",
-            new_width, new_height, new_x, new_y
-        );
-        Ok(())
+        // Use set_fixed_ratio with the screen ratio
+        Self::set_fixed_ratio(api, window, screen_ratio, scale_index)
     }
 
     /// Toggle window topmost state

@@ -553,7 +553,18 @@ pub trait WindowManagerExt:
     }
 
     /// Set window to fixed aspect ratio with scaling
-    fn set_fixed_ratio(&self, window: WindowId, ratio: f32) -> Result<()> {
+    ///
+    /// # Arguments
+    /// * `window` - The window to resize
+    /// * `ratio` - The aspect ratio (width / height)
+    /// * `scale_index` - Index into the scale array [1.0, 0.9, 0.7, 0.5].
+    ///   If None, cycles through scales based on current window size.
+    fn set_fixed_ratio(
+        &self,
+        window: WindowId,
+        ratio: f32,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
         const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
@@ -562,16 +573,29 @@ pub trait WindowManagerExt:
         let base_size = std::cmp::min(monitor.width, monitor.height);
         let base_width = (base_size as f32 * ratio) as i32;
         let base_height = base_size;
-        let current_scale = (info.width as f32 / base_width as f32
-            + info.height as f32 / base_height as f32)
-            / 2.0;
-        let mut next_scale = SCALES[0];
-        for (i, scale) in SCALES.iter().enumerate() {
-            if (current_scale - scale).abs() < 0.05 {
-                next_scale = SCALES[(i + 1) % SCALES.len()];
-                break;
+
+        // Determine which scale to use
+        let next_scale = match scale_index {
+            Some(idx) if idx < SCALES.len() => SCALES[idx],
+            Some(idx) => {
+                anyhow::bail!("Scale index {} out of range (0-{})", idx, SCALES.len() - 1);
             }
-        }
+            None => {
+                // Auto-detect next scale based on current window size
+                let current_scale = (info.width as f32 / base_width as f32
+                    + info.height as f32 / base_height as f32)
+                    / 2.0;
+                let mut next = SCALES[0];
+                for (i, scale) in SCALES.iter().enumerate() {
+                    if (current_scale - scale).abs() < 0.05 {
+                        next = SCALES[(i + 1) % SCALES.len()];
+                        break;
+                    }
+                }
+                next
+            }
+        };
+
         let new_width = (base_width as f32 * next_scale) as i32;
         let new_height = (base_height as f32 * next_scale) as i32;
         let new_x = monitor.x + (monitor.width - new_width) / 2;
@@ -580,13 +604,18 @@ pub trait WindowManagerExt:
     }
 
     /// Set window to native monitor aspect ratio
-    fn set_native_ratio(&self, window: WindowId) -> Result<()> {
+    ///
+    /// # Arguments
+    /// * `window` - The window to resize
+    /// * `scale_index` - Index into the scale array [1.0, 0.9, 0.7, 0.5].
+    ///   If None, cycles through scales based on current window size.
+    fn set_native_ratio(&self, window: WindowId, scale_index: Option<usize>) -> Result<()> {
         let monitors = self.get_monitors();
         let info = self.get_window_info(window)?;
         let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let ratio = monitor.width as f32 / monitor.height as f32;
-        self.set_fixed_ratio(window, ratio)
+        self.set_fixed_ratio(window, ratio, scale_index)
     }
 
     /// Toggle window topmost state

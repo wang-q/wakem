@@ -710,7 +710,7 @@ fn parse_window_shortcut(from: &str, to: &str) -> anyhow::Result<MappingRule> {
 
 /// Parse shortcut trigger
 /// Format: "Ctrl+Alt+C", "Ctrl+Alt+Win+Left"
-fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigger> {
+pub(crate) fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigger> {
     use crate::types::{ModifierState, Trigger};
 
     let parts: Vec<&str> = shortcut.split('+').map(|s| s.trim()).collect();
