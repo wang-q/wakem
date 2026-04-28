@@ -4,13 +4,16 @@
 
 pub mod cli;
 pub mod client;
+pub mod commands;
 pub mod config;
 pub mod constants;
 pub mod daemon;
 pub mod ipc;
 pub mod platform;
 pub mod runtime;
+pub mod runtime_util;
 pub mod shutdown;
+pub mod tray;
 pub mod types;
 
 pub use config::Config;
