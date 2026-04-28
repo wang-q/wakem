@@ -4,7 +4,7 @@
 
 ## 项目概览
 
-**当前状态**: 活跃开发中 | **主要语言**: Rust | **版本**: 0.1.2 | **平台**: Windows (完整支持), macOS (开发中), Linux(Wayland) 将在后续迁移.
+**当前状态**: 活跃开发中 | **主要语言**: Rust | **版本**: 0.1.3 | **平台**: Windows (完整支持), macOS (开发中), Linux(Wayland) 将在后续迁移.
 
 **语言约定**: 为了便于指导，本文件 (`AGENTS.md`) 使用中文编写，且**与用户交流时请使用中文**。但项目代码中的
 **所有文档注释 (doc comments)**、**行内注释**以及**提交信息**必须使用**英文**。
@@ -44,42 +44,43 @@ src/
 │   ├── security.rs      # 安全策略（IP 白名单）
 │   └── rate_limiter.rs  # 连接速率限制
 │
-├── platform/            # 平台抽象层
-│   ├── mod.rs           # 平台模块入口和条件编译
-│   ├── traits.rs        # 平台无关的 trait 定义
-│   ├── mock.rs          # Mock 实现（用于测试）
+├── platform/             # 平台抽象层
+│   ├── mod.rs            # 平台模块入口和条件编译
+│   ├── traits.rs         # 平台无关的 trait 定义
+│   ├── mock.rs           # Mock 实现（用于测试，仅 cfg(test)）
 │   ├── output_helpers.rs # 输出设备辅助函数
-│   ├── windows/         # Windows 平台实现
-│   │   ├── mod.rs       # Windows 平台模块入口
-│   │   ├── input.rs     # 输入设备抽象 trait
-│   │   ├── input_device.rs   # Raw Input 设备实现
-│   │   ├── output_device.rs  # SendInput 输出实现
-│   │   ├── launcher.rs  # 应用程序启动器
-│   │   ├── context.rs   # 窗口上下文信息获取
-│   │   ├── tray.rs      # 系统托盘图标
-│   │   ├── window_api.rs      # Win32 API 封装
-│   │   ├── window_manager.rs  # 窗口管理器（移动/调整/状态）
-│   │   ├── window_event_hook.rs  # 窗口事件钩子
-│   │   └── window_preset.rs     # 窗口预设匹配和应用
-│   └── macos/           # macOS 平台实现
-│       ├── mod.rs       # macOS 平台模块入口
-│       ├── input.rs     # 输入设备抽象 trait
-│       ├── input_device.rs   # CGEvent 输入设备实现
-│       ├── output_device.rs  # CGEvent 输出实现
-│       ├── launcher.rs  # 应用程序启动器
-│       ├── context.rs   # 窗口上下文信息获取
-│       ├── tray.rs      # 系统托盘图标
-│       ├── window_api.rs      # Cocoa/Accessibility API 封装
-│       ├── window_manager.rs  # 窗口管理器
-│       ├── window_event_hook.rs  # 窗口事件监听
-│       ├── window_preset.rs     # 窗口预设匹配和应用
-│       ├── native_api.rs      # 原生 API 模块入口
-│       └── native_api/        # macOS 原生 API 封装
-│           ├── ax_element.rs    # Accessibility API 封装
-│           ├── cg_window.rs     # Core Graphics 窗口 API
-│           ├── coordinate.rs    # 坐标转换
-│           ├── notification.rs  # 通知中心 API
-│           └── ns_workspace.rs  # NSWorkspace API
+│   ├── input_device_common.rs   # 输入设备公共逻辑
+│   ├── launcher_common.rs       # 应用程序启动器公共实现
+│   ├── tray_common.rs           # 系统托盘公共逻辑
+│   ├── window_manager_common.rs # 窗口管理器公共逻辑
+│   ├── window_preset_common.rs  # 窗口预设公共逻辑
+│   ├── windows/          # Windows 平台实现
+│   │   ├── mod.rs        # Windows 平台模块入口 + 平台结构体 + trait impl
+│   │   ├── input.rs      # 输入设备抽象 trait
+│   │   ├── input_device.rs    # Raw Input 设备实现
+│   │   ├── output_device.rs   # SendInput 输出实现
+│   │   ├── context.rs    # 窗口上下文信息获取
+│   │   ├── tray.rs       # 系统托盘图标
+│   │   ├── window_api.rs      # Win32 API 封装 + 窗口事件钩子
+│   │   └── window_manager.rs  # 窗口管理器 + 窗口预设管理器
+│   ├── macos/            # macOS 平台实现
+│   │   ├── mod.rs        # macOS 平台模块入口 + 平台结构体 + trait impl
+│   │   ├── input.rs      # 输入设备抽象 trait
+│   │   ├── input_device.rs    # CGEvent 输入设备实现
+│   │   ├── output_device.rs   # CGEvent 输出实现
+│   │   ├── context.rs    # 窗口上下文信息获取
+│   │   ├── tray.rs       # 系统托盘图标
+│   │   ├── window_api.rs      # Cocoa/Accessibility API 封装 + 窗口事件钩子
+│   │   ├── window_manager.rs  # 窗口管理器 + 窗口预设管理器
+│   │   ├── native_api.rs      # 原生 API 模块入口
+│   │   └── native_api/        # macOS 原生 API 封装
+│   │       ├── ax_element.rs    # Accessibility API 封装
+│   │       ├── cg_window.rs     # Core Graphics 窗口 API
+│   │       ├── coordinate.rs    # 坐标转换
+│   │       ├── notification.rs  # 通知中心 API
+│   │       └── ns_workspace.rs  # NSWorkspace API
+│   └── linux/            # Linux 平台实现（计划中，当前为占位）
+│       └── mod.rs
 │
 ├── runtime/             # 运行时逻辑层
 │   ├── mod.rs           # 运行时模块入口
@@ -88,14 +89,13 @@ src/
 │   └── macro_player.rs  # 宏录制与播放
 │
 └── types/               # 核心数据类型定义
-    ├── mod.rs           # 类型模块入口
-    ├── action.rs        # 动作类型（Key/Mouse/Window/Launch/System/Delay/Sequence）
+    ├── mod.rs           # 类型模块入口 + ModifierState + DeviceType + KeyState
+    ├── action.rs        # 动作类型（Key/Mouse/Window/Launch/Delay/Sequence/None）
     ├── input.rs         # 输入事件类型（KeyEvent/MouseEvent/InputEvent）
-    ├── key_codes.rs     # 扫描码/虚拟键码定义和转换
-    ├── layer.rs         # 层定义（Layer/LayerStack）
+    ├── key_codes.rs     # 扫描码/虚拟键码定义和转换 + VK 常量
+    ├── layer.rs         # 层定义（Layer/LayerMode/LayerStack）
     ├── mapping.rs       # 映射规则（MappingRule/Trigger/ContextCondition）
-    ├── macros.rs        # 宏相关类型（MacroStep/MacroRecorder）
-    └── time_source.rs   # 时间源抽象（用于测试）
+    └── macros.rs        # 宏相关类型（Macro/MacroStep/MacroRecorder）
 
 tests/                   # 测试目录（扁平结构，按前缀分类）
 ├── ut_config_comprehensive.rs   # 配置系统综合测试
@@ -121,7 +121,6 @@ tests/                   # 测试目录（扁平结构，按前缀分类）
 └── e2e_macos.rs                 # macOS 端到端测试
 
 benches/                  # 性能基准测试 (cargo bench)
-├── basic_benchmarks.rs    # 跨平台基准测试（Criterion）
 └── macos/
     └── macos_bench.rs     # macOS 专用基准 [macOS only]
 
@@ -142,7 +141,7 @@ docs/                    # 文档
 
 - 核心类型通过 `wakem::types::*` 访问（如 `wakem::types::InputEvent`, `wakem::types::Action`）
 - 配置通过 `wakem::config::Config` 访问
-- 守护进程通过 `wakem::daemon::WakemServer` 访问
+- 守护进程通过 `wakem::daemon::ServerState` 访问
 - IPC 客户端通过 `wakem::client::DaemonClient` 访问
 - 平台特定功能通过 `wakem::platform::*` 访问
 - 全局常量通过 `wakem::constants::*` 访问
@@ -175,7 +174,6 @@ cargo test --test ut_core_daemon
 
 # 运行性能基准测试
 cargo bench
-cargo bench --bench basic_benchmarks  # 仅跨平台基准 [macOS: cargo bench --bench macos_bench]
 ```
 
 ### 代码质量检查
@@ -203,6 +201,7 @@ cargo clippy -- -D warnings
 | `clap` | 4.4 | 命令行参数解析 |
 | `parking_lot` | 0.12 | 高性能同步原语（Mutex/RwLock） |
 | `keyboard-codes` | 0.3 | 跨平台键码映射 |
+| `keycode` | 1.0 | 键码映射辅助 |
 | `anyhow` / `thiserror` | 1.0 | 错误处理 |
 | `indexmap` | 2.0 | 有序 HashMap（保持配置顺序） |
 | `once_cell` / `lazy_static` | 1.19 / 1.4 | 延迟初始化全局单例 |
@@ -237,6 +236,7 @@ cargo clippy -- -D warnings
 |-------|------|------|
 | `hmac` / `sha2` | 0.12 / 0.10 | IPC 通信的 HMAC-SHA256 认证 |
 | `rand` | 0.8 | 认证密钥生成 |
+| `zeroize` | 1.7 | 安全清除内存中的敏感数据（认证密钥） |
 
 ### 开发依赖
 
@@ -309,14 +309,17 @@ cargo test --test ut_window_calc
 ├─────────────────┴───────────────────┤
 │      platform/                      │  平台实现
 │  ├─ traits.rs (平台无关接口)        │
+│  ├─ *_common.rs (跨平台公共逻辑)     │
 │  ├─ windows/                        │
 │  │   ├─ input_device (Raw Input)   │
 │  │   ├─ output_device (SendInput)  │
-│  │   └─ window_manager             │
+│  │   ├─ window_api (Win32 + Hook)  │
+│  │   └─ window_manager (WM+Preset) │
 │  └─ macos/                          │
 │      ├─ input_device (CGEvent)     │
 │      ├─ output_device (CGEvent)    │
-│      └─ window_manager             │
+│      ├─ window_api (Cocoa + Hook)  │
+│      └─ window_manager (WM+Preset) │
 └─────────────────────────────────────┘
 ```
 
@@ -324,7 +327,8 @@ cargo test --test ut_window_calc
 
 - `platform::traits.rs` 定义了跨平台的 trait 接口
 - `platform::mock.rs` 提供了用于测试的 Mock 实现
-- Windows 和 macOS 分别实现了这些 trait
+- `*_common.rs` 提取了跨平台公共逻辑（Launcher、InputDevice、Tray、WindowManager、WindowPreset），减少 Windows/macOS 之间的代码重复
+- Windows 和 macOS 模块聚焦于平台特定的 API 调用，公共逻辑委托给 `*_common.rs`
 - 使用条件编译 (`#[cfg(target_os = "...")]`) 选择平台实现
 
 ### 配置键名支持
