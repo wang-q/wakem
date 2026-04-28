@@ -81,8 +81,33 @@ impl OutputDeviceTrait for SendInputDevice {
         };
 
         unsafe {
-            input.Anonymous.mi.dx = x;
-            input.Anonymous.mi.dy = y;
+            if relative {
+                input.Anonymous.mi.dx = x;
+                input.Anonymous.mi.dy = y;
+            } else {
+                // Absolute mode: normalize coordinates to [0, 65535] range
+                // per Windows SendInput MOUSEEVENTF_ABSOLUTE specification
+                let screen_w =
+                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                        windows::Win32::UI::WindowsAndMessaging::SM_CXVIRTUALSCREEN,
+                    );
+                let screen_h =
+                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                        windows::Win32::UI::WindowsAndMessaging::SM_CYVIRTUALSCREEN,
+                    );
+                input.Anonymous.mi.dx = if screen_w > 0 {
+                    ((x as i64 * 65536 / screen_w as i32 as i64) as i32)
+                        .clamp(0, 65535)
+                } else {
+                    0
+                };
+                input.Anonymous.mi.dy = if screen_h > 0 {
+                    ((y as i64 * 65536 / screen_h as i32 as i64) as i32)
+                        .clamp(0, 65535)
+                } else {
+                    0
+                };
+            }
             input.Anonymous.mi.dwFlags = MOUSEEVENTF_MOVE;
 
             if !relative {

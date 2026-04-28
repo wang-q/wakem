@@ -11,7 +11,8 @@ use core_graphics::display::{CGDisplay, CGDisplayBounds};
 
 /// Get PID of the frontmost application
 ///
-/// Uses a simple approach that works without full Cocoa dependency.
+/// Uses the frontmost (topmost) normal window from the on-screen window list.
+/// Windows are sorted by layer then window number, so the last matching entry is topmost.
 ///
 /// Performance: < 1ms (vs 30ms with AppleScript)
 pub fn get_frontmost_app_pid() -> Option<u32> {
@@ -19,7 +20,11 @@ pub fn get_frontmost_app_pid() -> Option<u32> {
     use crate::platform::macos::native_api::cg_window::get_on_screen_windows;
 
     match get_on_screen_windows() {
-        Ok(windows) => windows.first().map(|w| w.pid as u32),
+        Ok(windows) => windows
+            .into_iter()
+            .rev()
+            .find(|w| w.layer == 0 && !w.name.is_empty())
+            .map(|w| w.pid as u32),
         Err(_) => None,
     }
 }
@@ -31,7 +36,11 @@ pub fn get_frontmost_app_name() -> Option<String> {
     use crate::platform::macos::native_api::cg_window::get_on_screen_windows;
 
     match get_on_screen_windows() {
-        Ok(windows) => windows.first().map(|w| w.owner_name.clone()),
+        Ok(windows) => windows
+            .into_iter()
+            .rev()
+            .find(|w| w.layer == 0 && !w.owner_name.is_empty())
+            .map(|w| w.owner_name.clone()),
         Err(_) => None,
     }
 }

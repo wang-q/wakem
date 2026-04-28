@@ -276,17 +276,19 @@ impl ServerState {
     }
 
     /// Save current configuration to file
+    ///
+    /// Uses a snapshot-based strategy (like `save_macro` and `delete_macro`)
+    /// to avoid holding the config lock during (potentially slow) file I/O.
     pub async fn save_config_to_file(&self) -> Result<()> {
         use crate::config::resolve_config_file_path;
 
         info!("Saving configuration to file...");
 
-        // Get current instance ID and config file path
-        let (_instance_id, config_path) = {
+        let (config_path, config_snapshot) = {
             let config = self.config.read().await;
             let id = config.config.network.instance_id;
             let path = resolve_config_file_path(None, id);
-            (id, path)
+            (path, config.config.clone())
         };
 
         let config_path = match config_path {
@@ -298,9 +300,7 @@ impl ServerState {
 
         info!("Saving config to: {:?}", config_path);
 
-        // Get current config and save
-        let config = self.config.read().await;
-        match config.config.save_to_file(&config_path) {
+        match config_snapshot.save_to_file(&config_path) {
             Ok(_) => {
                 info!("Configuration saved successfully");
                 Ok(())
@@ -1189,6 +1189,16 @@ async fn setup_ipc_server(
         let mut config = state.config.write().await;
         let addr = config.config.network.get_bind_address();
         config.config.network.ensure_auth_key();
+        // Sync the generated auth key to state.auth_key so the IPC server uses it
+        let mut auth = state.auth_key.write().await;
+        *auth = Zeroizing::new(
+            config
+                .config
+                .network
+                .auth_key
+                .clone()
+                .unwrap_or_default(),
+        );
         addr
     };
 
@@ -1365,7 +1375,7 @@ async fn run_input_processor(
             }
 
             for event in event_batch.drain(..) {
-                if shutdown.has_changed().unwrap_or(false) {
+                if shutdown.has_changed().unwrap_or(true) {
                     info!("Input processing task received shutdown signal during batch");
                     return;
                 }
