@@ -440,10 +440,7 @@ impl KeyMapper {
             WindowAction::LoopHeight(align) => {
                 wm.loop_height(window_id, *align)?;
             }
-            WindowAction::FixedRatio {
-                ratio,
-                scale_index,
-            } => {
+            WindowAction::FixedRatio { ratio, scale_index } => {
                 wm.set_fixed_ratio(window_id, *ratio, Some(*scale_index))?;
             }
             WindowAction::NativeRatio { scale_index } => {
@@ -632,13 +629,17 @@ impl KeyMapper {
             // Parse each mapping string
             for (from, to) in &mapping.mappings {
                 // Try to parse as simple key mapping (for fast lookup)
-                if let Ok((scan_code, action)) = Self::parse_context_key_mapping(from, to) {
+                if let Ok((scan_code, action)) =
+                    Self::parse_context_key_mapping(from, to)
+                {
                     key_mappings.insert(scan_code, action);
                     continue;
                 }
 
                 // Try to parse as trigger-based mapping (supports modifiers and mouse)
-                if let Ok((trigger, action)) = Self::parse_context_trigger_mapping(from, to) {
+                if let Ok((trigger, action)) =
+                    Self::parse_context_trigger_mapping(from, to)
+                {
                     trigger_mappings.push((trigger, action));
                 }
             }
@@ -652,10 +653,7 @@ impl KeyMapper {
             }
         }
 
-        debug!(
-            "Loaded {} context mapping rules",
-            self.context_rules.len()
-        );
+        debug!("Loaded {} context mapping rules", self.context_rules.len());
     }
 
     /// Parse simple key context mapping (returns scan_code for fast lookup)

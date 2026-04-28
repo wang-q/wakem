@@ -3,8 +3,6 @@
 //! This module provides platform-agnostic window management operations
 //! that can be used by any platform-specific window manager.
 
-#![allow(dead_code)]
-
 use crate::platform::traits::{
     ForegroundWindowOperations, MonitorDirection, MonitorInfo, MonitorOperations,
     WindowApiBase, WindowFrame, WindowId, WindowInfo, WindowInfoProvider,
@@ -35,13 +33,11 @@ impl<A: WindowApiBase> WindowManager<A> {
     }
 
     /// Get foreground window
-    #[allow(dead_code)]
     pub fn get_foreground_window(&self) -> Option<A::WindowId> {
         self.api.get_foreground_window()
     }
 
     /// Get foreground window information
-    #[allow(dead_code)]
     pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
         let window = self
             .api
@@ -50,7 +46,6 @@ impl<A: WindowApiBase> WindowManager<A> {
         self.api.get_window_info(window)
     }
 
-    #[allow(dead_code)]
     pub fn get_window_info(&self, window: A::WindowId) -> Result<WindowInfo> {
         self.api.get_window_info(window)
     }
@@ -74,25 +69,21 @@ impl<A: WindowApiBase> WindowManager<A> {
     }
 
     /// Minimize window
-    #[allow(dead_code)]
     pub fn minimize_window(&self, window: A::WindowId) -> Result<()> {
         self.api.minimize_window(window)
     }
 
     /// Maximize window
-    #[allow(dead_code)]
     pub fn maximize_window(&self, window: A::WindowId) -> Result<()> {
         self.api.maximize_window(window)
     }
 
     /// Restore window
-    #[allow(dead_code)]
     pub fn restore_window(&self, window: A::WindowId) -> Result<()> {
         self.api.restore_window(window)
     }
 
     /// Close window
-    #[allow(dead_code)]
     pub fn close_window(&self, window: A::WindowId) -> Result<()> {
         self.api.close_window(window)
     }
@@ -275,17 +266,8 @@ impl<A: WindowApiBase + Send + Sync + 'static> WindowManagerTrait for WindowMana
 /// platform-agnostic and can be used by any window manager implementation.
 pub struct CommonWindowManager;
 
-/// Find the monitor that contains the given point, falling back to the first monitor.
-fn find_monitor_for_point(
-    monitors: &[MonitorInfo],
-    x: i32,
-    y: i32,
-) -> Option<&MonitorInfo> {
-    monitors
-        .iter()
-        .find(|m| x >= m.x && x < m.x + m.width && y >= m.y && y < m.y + m.height)
-        .or_else(|| monitors.first())
-}
+// Re-export find_monitor_for_point from traits module to avoid duplication
+pub use crate::platform::traits::find_monitor_for_point;
 
 /// Trait for window API operations needed by common window manager
 pub trait CommonWindowApi {
@@ -371,7 +353,11 @@ pub trait CommonWindowApi {
     }
 
     /// Set window to its "native" content ratio and cycle sizes
-    fn set_native_ratio(&self, window: Self::WindowId, scale_index: Option<usize>) -> Result<()>
+    fn set_native_ratio(
+        &self,
+        window: Self::WindowId,
+        scale_index: Option<usize>,
+    ) -> Result<()>
     where
         Self: Sized,
     {
@@ -379,7 +365,6 @@ pub trait CommonWindowApi {
     }
 
     /// Toggle window topmost state, returns the new state
-    #[allow(dead_code)]
     fn toggle_topmost(&self, window: Self::WindowId) -> Result<bool>
     where
         Self: Sized,
@@ -640,7 +625,11 @@ impl CommonWindowManager {
         let next_scale = match scale_index {
             Some(idx) if idx < SCALES.len() => SCALES[idx],
             Some(idx) => {
-                anyhow::bail!("Scale index {} out of range (0-{})", idx, SCALES.len() - 1);
+                anyhow::bail!(
+                    "Scale index {} out of range (0-{})",
+                    idx,
+                    SCALES.len() - 1
+                );
             }
             None => {
                 // Auto-detect next scale based on current window size
@@ -680,7 +669,11 @@ impl CommonWindowManager {
     /// * `window` - The window to resize
     /// * `scale_index` - Index into the scale array [1.0, 0.9, 0.7, 0.5].
     ///   If None, cycles through scales based on current window size.
-    pub fn set_native_ratio<A, W, I>(api: &A, window: W, scale_index: Option<usize>) -> Result<()>
+    pub fn set_native_ratio<A, W, I>(
+        api: &A,
+        window: W,
+        scale_index: Option<usize>,
+    ) -> Result<()>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,
         I: WindowInfoProvider,
@@ -698,7 +691,6 @@ impl CommonWindowManager {
     }
 
     /// Toggle window topmost state
-    #[allow(dead_code)]
     pub fn toggle_topmost<A, W, I>(api: &A, window: W) -> Result<bool>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,

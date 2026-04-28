@@ -2,8 +2,6 @@
 //!
 //! Direct access to window properties via Accessibility API.
 //! Requires Accessibility permission (System Settings > Privacy & Security > Accessibility).
-
-#![allow(dead_code)]
 //!
 //! Performance: < 10ms for most operations (vs 134-160ms with AppleScript)
 //!
@@ -15,8 +13,6 @@
 //! - Minimize, maximize, restore, close windows
 //! - Bring windows to front
 //! - Query window state (minimized, focused, title)
-
-// Allow dead code - this module is under development for macOS accessibility support
 
 use anyhow::{bail, Result};
 use std::ffi::{c_void, CStr, CString};

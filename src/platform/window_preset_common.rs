@@ -2,8 +2,6 @@
 //!
 //! This module provides shared window preset logic that can be used across platforms.
 
-#![allow(dead_code)]
-
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;
 use crate::platform::traits::{

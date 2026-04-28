@@ -13,9 +13,6 @@
 //!
 //! Event callback latency: < 0.1ms per event (kernel-level interception)
 
-// Allow dead code - this module is under development for macOS input support
-#![allow(dead_code)]
-
 use std::ffi::c_void;
 use std::sync::mpsc::Sender;
 
@@ -120,31 +117,30 @@ extern "C" {
 }
 
 // ============================================================================
-// Global callback state (thread-local storage for sender)
+// Global callback state (thread-safe storage for sender)
 // ============================================================================
 
-thread_local! {
-    static EVENT_SENDER: std::cell::RefCell<Option<Sender<InputEvent>>> =
-        const { std::cell::RefCell::new(None) };
-}
+use std::sync::Mutex;
 
-/// Set the event sender for the current thread's callback
+static EVENT_SENDER: Mutex<Option<Sender<InputEvent>>> = Mutex::new(None);
+
+/// Set the event sender for the callback
 fn set_sender(sender: Sender<InputEvent>) {
-    EVENT_SENDER.with(|s| {
-        *s.borrow_mut() = Some(sender);
-    });
+    if let Ok(mut guard) = EVENT_SENDER.lock() {
+        *guard = Some(sender);
+    }
 }
 
-/// Get the event sender from the current thread's callback
+/// Get the event sender from the callback
 fn get_sender() -> Option<Sender<InputEvent>> {
-    EVENT_SENDER.with(|s| s.borrow().clone())
+    EVENT_SENDER.lock().ok()?.clone()
 }
 
 /// Clear the event sender
 fn clear_sender() {
-    EVENT_SENDER.with(|s| {
-        *s.borrow_mut() = None;
-    });
+    if let Ok(mut guard) = EVENT_SENDER.lock() {
+        *guard = None;
+    }
 }
 
 // ============================================================================

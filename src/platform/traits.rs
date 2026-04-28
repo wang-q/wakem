@@ -6,8 +6,6 @@
 //! Note: Some trait methods and struct fields may appear unused on certain
 //! platforms but are required for cross-platform API completeness.
 
-#![allow(dead_code)]
-
 use crate::platform::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
@@ -414,7 +412,12 @@ pub trait WindowManagerTrait:
 {
 }
 
-fn find_monitor_for_point(
+/// Find the monitor that contains the given point, falling back to the first monitor.
+///
+/// This function searches through the list of monitors and returns the one
+/// that contains the specified point (x, y). If no monitor contains the point,
+/// it returns the first monitor in the list as a fallback.
+pub fn find_monitor_for_point(
     monitors: &[MonitorInfo],
     x: i32,
     y: i32,
@@ -578,7 +581,11 @@ pub trait WindowManagerExt:
         let next_scale = match scale_index {
             Some(idx) if idx < SCALES.len() => SCALES[idx],
             Some(idx) => {
-                anyhow::bail!("Scale index {} out of range (0-{})", idx, SCALES.len() - 1);
+                anyhow::bail!(
+                    "Scale index {} out of range (0-{})",
+                    idx,
+                    SCALES.len() - 1
+                );
             }
             None => {
                 // Auto-detect next scale based on current window size
@@ -609,7 +616,11 @@ pub trait WindowManagerExt:
     /// * `window` - The window to resize
     /// * `scale_index` - Index into the scale array [1.0, 0.9, 0.7, 0.5].
     ///   If None, cycles through scales based on current window size.
-    fn set_native_ratio(&self, window: WindowId, scale_index: Option<usize>) -> Result<()> {
+    fn set_native_ratio(
+        &self,
+        window: WindowId,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
         let monitors = self.get_monitors();
         let info = self.get_window_info(window)?;
         let monitor = find_monitor_for_point(&monitors, info.x, info.y)
@@ -789,36 +800,95 @@ pub struct WindowContext {
     pub executable_path: Option<String>,
 }
 
+/// Criteria for matching window context.
+///
+/// All fields are optional. A field of `None` means "match any value" (no restriction).
+/// A field of `Some(pattern)` means the corresponding window property must match
+/// the pattern (supports wildcards like `*` and `?`).
+///
+/// # Example
+///
+/// ```
+/// use wakem::platform::traits::WindowMatchCriteria;
+///
+/// let criteria = WindowMatchCriteria {
+///     process_name: Some("Chrome*".to_string()),
+///     window_title: Some("*GitHub*".to_string()),
+///     ..Default::default()
+/// };
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct WindowMatchCriteria {
+    pub process_name: Option<String>,
+    pub window_class: Option<String>,
+    pub window_title: Option<String>,
+    pub executable_path: Option<String>,
+}
+
+impl WindowMatchCriteria {
+    /// Create a new criteria with no restrictions (matches any window).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the process name pattern.
+    pub fn with_process_name(mut self, pattern: impl Into<String>) -> Self {
+        self.process_name = Some(pattern.into());
+        self
+    }
+
+    /// Set the window class pattern.
+    pub fn with_window_class(mut self, pattern: impl Into<String>) -> Self {
+        self.window_class = Some(pattern.into());
+        self
+    }
+
+    /// Set the window title pattern.
+    pub fn with_window_title(mut self, pattern: impl Into<String>) -> Self {
+        self.window_title = Some(pattern.into());
+        self
+    }
+
+    /// Set the executable path pattern.
+    pub fn with_executable_path(mut self, pattern: impl Into<String>) -> Self {
+        self.executable_path = Some(pattern.into());
+        self
+    }
+}
+
 impl WindowContext {
     pub fn empty() -> Self {
         Self::default()
     }
 
-    pub fn matches(
-        &self,
-        process_name: Option<&str>,
-        window_class: Option<&str>,
-        window_title: Option<&str>,
-        executable_path: Option<&str>,
-    ) -> bool {
+    /// Check if this context matches the given criteria.
+    ///
+    /// # Arguments
+    ///
+    /// * `criteria` - The matching criteria. Fields of `None` match any value.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if all specified criteria match (or if no criteria are specified).
+    pub fn matches_criteria(&self, criteria: &WindowMatchCriteria) -> bool {
         use crate::config::wildcard_match;
 
-        if let Some(pattern) = process_name {
+        if let Some(pattern) = &criteria.process_name {
             if !wildcard_match(&self.process_name, pattern) {
                 return false;
             }
         }
-        if let Some(pattern) = window_class {
+        if let Some(pattern) = &criteria.window_class {
             if !wildcard_match(&self.window_class, pattern) {
                 return false;
             }
         }
-        if let Some(pattern) = window_title {
+        if let Some(pattern) = &criteria.window_title {
             if !wildcard_match(&self.window_title, pattern) {
                 return false;
             }
         }
-        if let Some(pattern) = executable_path {
+        if let Some(pattern) = &criteria.executable_path {
             match &self.executable_path {
                 Some(path) if !wildcard_match(path, pattern) => return false,
                 None => return false,
@@ -826,6 +896,39 @@ impl WindowContext {
             }
         }
         true
+    }
+
+    /// Check if this context matches the given patterns (legacy API).
+    ///
+    /// # Arguments
+    ///
+    /// * `process_name` - Optional pattern to match against process name
+    /// * `window_class` - Optional pattern to match against window class
+    /// * `window_title` - Optional pattern to match against window title
+    /// * `executable_path` - Optional pattern to match against executable path
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if all specified patterns match. A pattern of `None` means
+    /// "match any value". If all patterns are `None`, returns `true` (matches any window).
+    ///
+    /// # Deprecated
+    ///
+    /// Consider using [`matches_criteria`](Self::matches_criteria) with [`WindowMatchCriteria`] instead.
+    pub fn matches(
+        &self,
+        process_name: Option<&str>,
+        window_class: Option<&str>,
+        window_title: Option<&str>,
+        executable_path: Option<&str>,
+    ) -> bool {
+        let criteria = WindowMatchCriteria {
+            process_name: process_name.map(|s| s.to_string()),
+            window_class: window_class.map(|s| s.to_string()),
+            window_title: window_title.map(|s| s.to_string()),
+            executable_path: executable_path.map(|s| s.to_string()),
+        };
+        self.matches_criteria(&criteria)
     }
 }
 

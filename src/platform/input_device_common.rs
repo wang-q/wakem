@@ -6,8 +6,6 @@
 //!
 //! Also provides [InputDevice] generic struct for platform-specific implementations.
 
-#![allow(dead_code)]
-
 use crate::platform::traits::InputDeviceConfig;
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
@@ -36,10 +34,16 @@ impl InputDeviceBase {
     }
 
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Self {
+        // Create a dummy channel for the receiver - the sender will be dropped
+        // but we need a receiver to satisfy the type system
+        let (_dummy_sender, receiver) = channel();
+        // Explicitly drop the dummy sender to avoid resource waste
+        drop(_dummy_sender);
+
         Self {
             modifier_state: ModifierState::default(),
             running: false,
-            event_receiver: channel().1,
+            event_receiver: receiver,
             event_sender,
         }
     }

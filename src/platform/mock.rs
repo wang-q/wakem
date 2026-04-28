@@ -3,9 +3,7 @@
 //! This module provides mock implementations of platform-specific traits
 //! that can be used for testing on any platform.
 
-use crate::platform::traits::{
-    InputDeviceTrait, WindowId,
-};
+use crate::platform::traits::{InputDeviceTrait, WindowId};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
@@ -276,9 +274,7 @@ impl MockWindowId for windows::Win32::Foundation::HWND {
 #[cfg(test)]
 mod mock_window_api {
     use super::MockWindowId;
-    use crate::platform::traits::{
-        MonitorInfo, WindowApiBase, WindowFrame,
-    };
+    use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowFrame};
     use anyhow::Result;
     use std::cell::RefCell;
     use std::collections::HashMap;

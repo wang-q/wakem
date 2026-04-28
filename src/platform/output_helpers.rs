@@ -28,6 +28,15 @@ pub mod modifier_vk {
 /// - Letters: a-z, A-Z
 /// - Digits: 0-9
 /// - Space, Tab, Enter
+///
+/// # Limitations
+///
+/// This function only supports basic ASCII characters. Unicode characters,
+/// special symbols (like `@`, `#`, `$`), and non-US keyboard layouts are
+/// not supported and will return `None`.
+///
+/// For full keyboard layout support, consider using a dedicated keyboard
+/// layout library like `keyboard-types` or platform-specific APIs.
 pub fn char_to_vk(ch: char) -> Option<u16> {
     match ch {
         'a'..='z' => Some(ch as u16 - 'a' as u16 + 0x41),

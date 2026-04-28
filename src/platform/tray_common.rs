@@ -3,8 +3,6 @@
 //! This module provides a platform-agnostic tray API trait and manager
 //! that works across Windows and macOS platforms.
 
-#![allow(dead_code)]
-
 use crate::platform::traits::{AppCommand, MenuAction};
 use anyhow::Result;
 use async_trait::async_trait;

@@ -514,12 +514,8 @@ mod tests {
             ..Default::default()
         };
 
-        let step = MacroStep::new(
-            0,
-            Action::key(KeyAction::press(0x2E, 0x43)),
-            modifiers,
-            100,
-        );
+        let step =
+            MacroStep::new(0, Action::key(KeyAction::press(0x2E, 0x43)), modifiers, 100);
 
         assert!(step.modifiers.ctrl);
         assert!(step.modifiers.shift);

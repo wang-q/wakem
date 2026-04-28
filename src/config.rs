@@ -6,9 +6,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
 
-use crate::constants::{
-    DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_STEP,
-};
+use crate::constants::{DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_STEP};
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
 use crate::platform::launcher_common::Launcher;
@@ -502,7 +500,9 @@ impl NetworkConfig {
             debug!("Authentication key generated for security");
             self.auth_key = Some(key);
         }
-        self.auth_key.as_deref().expect("auth_key was just ensured above")
+        self.auth_key
+            .as_deref()
+            .expect("auth_key was just ensured above")
     }
 
     /// Generate random authentication key (32 character hex)
@@ -716,7 +716,9 @@ fn parse_window_shortcut(from: &str, to: &str) -> anyhow::Result<MappingRule> {
 
 /// Parse shortcut trigger
 /// Format: "Ctrl+Alt+C", "Ctrl+Alt+Win+Left"
-pub(crate) fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigger> {
+pub(crate) fn parse_shortcut_trigger(
+    shortcut: &str,
+) -> anyhow::Result<crate::types::Trigger> {
     use crate::types::{ModifierState, Trigger};
 
     let parts: Vec<&str> = shortcut.split('+').map(|s| s.trim()).collect();

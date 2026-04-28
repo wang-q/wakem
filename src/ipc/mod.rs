@@ -16,9 +16,9 @@ pub use client::IpcClient;
 
 // These re-exports are part of the public API for external crate usage.
 // They may not be used internally but are kept for backward compatibility.
+pub use discovery::discover_instances;
 #[allow(unused_imports)]
 pub use discovery::InstanceInfo;
-pub use discovery::discover_instances;
 
 #[allow(unused_imports)]
 pub use rate_limiter::ConnectionLimiter;

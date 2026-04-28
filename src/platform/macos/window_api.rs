@@ -3,17 +3,13 @@
 //! Provides high-performance window operations on macOS using:
 //! - Core Graphics: CGDisplay for monitor info
 //! - Accessibility (AXUIElement): Window manipulation
-
-#![allow(dead_code)]
 //! - Cocoa (NSWorkspace): Application queries
 //!
 //! Performance: All operations complete in < 10ms (typically < 5ms)
 
-// Allow dead code - some trait methods are under development
-
 use crate::platform::macos::native_api::{ax_element, cg_window, ns_workspace};
 use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowId, WindowInfo,
+    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowId, WindowInfo,
 };
 use anyhow::{anyhow, Result};
 use core_graphics::display::{CGDisplay, CGDisplayBounds};
@@ -85,24 +81,21 @@ impl RealWindowApi {
         ))
     }
 
-    fn get_window_rect(&self, window: WindowId) -> Option<WindowFrame> {
-        self.get_window_info(window)
-            .ok()
-            .map(|info| WindowFrame::new(info.x, info.y, info.width, info.height))
-    }
-
     fn set_window_pos(
         &self,
-        _window: WindowId,
+        window: WindowId,
         x: i32,
         y: i32,
         width: i32,
         height: i32,
     ) -> Result<()> {
-        let pid = ns_workspace::get_frontmost_app_pid()
-            .ok_or_else(|| anyhow!("No frontmost application"))?;
+        // Get window info to find the owning PID
+        let window_info = cg_window::get_window_info_by_number(window as i64)
+            .ok()
+            .flatten()
+            .ok_or_else(|| anyhow!("Window {} not found", window))?;
 
-        let app_elem = ax_element::create_app_element(pid)?;
+        let app_elem = ax_element::create_app_element(window_info.pid as u32)?;
         let win_elem = ax_element::get_main_window(&app_elem)?;
 
         let screen_height = ns_workspace::get_main_display_height();
@@ -120,64 +113,82 @@ impl RealWindowApi {
         )?;
 
         debug!(
-            "Set window pos natively: {}x{} at ({}, {})",
-            width, height, x, y
+            "Set window {} pos: {}x{} at ({}, {})",
+            window, width, height, x, y
         );
         Ok(())
     }
 
-    fn minimize_window(&self, _window: WindowId) -> Result<()> {
-        let pid = ns_workspace::get_frontmost_app_pid()
-            .ok_or_else(|| anyhow!("No frontmost application"))?;
-        let app_elem = ax_element::create_app_element(pid)?;
+    fn minimize_window(&self, window: WindowId) -> Result<()> {
+        let window_info = cg_window::get_window_info_by_number(window as i64)
+            .ok()
+            .flatten()
+            .ok_or_else(|| anyhow!("Window {} not found", window))?;
+
+        let app_elem = ax_element::create_app_element(window_info.pid as u32)?;
         let win_elem = ax_element::get_main_window(&app_elem)?;
 
         ax_element::minimize_window(&win_elem)?;
-        debug!("Minimized window via native API");
+        debug!("Minimized window {} via native API", window);
         Ok(())
     }
 
-    fn maximize_window(&self, _window: WindowId) -> Result<()> {
-        let pid = ns_workspace::get_frontmost_app_pid()
-            .ok_or_else(|| anyhow!("No frontmost application"))?;
-        let app_elem = ax_element::create_app_element(pid)?;
+    fn maximize_window(&self, window: WindowId) -> Result<()> {
+        let window_info = cg_window::get_window_info_by_number(window as i64)
+            .ok()
+            .flatten()
+            .ok_or_else(|| anyhow!("Window {} not found", window))?;
+
+        let app_elem = ax_element::create_app_element(window_info.pid as u32)?;
         let win_elem = ax_element::get_main_window(&app_elem)?;
 
         ax_element::maximize_window(&win_elem)?;
-        debug!("Maximized window via native API");
+        debug!("Maximized window {} via native API", window);
         Ok(())
     }
 
-    fn restore_window(&self, _window: WindowId) -> Result<()> {
-        let pid = ns_workspace::get_frontmost_app_pid()
-            .ok_or_else(|| anyhow!("No frontmost application"))?;
-        let app_elem = ax_element::create_app_element(pid)?;
+    fn restore_window(&self, window: WindowId) -> Result<()> {
+        let window_info = cg_window::get_window_info_by_number(window as i64)
+            .ok()
+            .flatten()
+            .ok_or_else(|| anyhow!("Window {} not found", window))?;
+
+        let app_elem = ax_element::create_app_element(window_info.pid as u32)?;
         let win_elem = ax_element::get_main_window(&app_elem)?;
 
         ax_element::restore_window(&win_elem)?;
-        debug!("Restored window from minimized state via native API");
+        debug!(
+            "Restored window {} from minimized state via native API",
+            window
+        );
         Ok(())
     }
 
-    fn close_window(&self, _window: WindowId) -> Result<()> {
-        let pid = ns_workspace::get_frontmost_app_pid()
-            .ok_or_else(|| anyhow!("No frontmost application"))?;
-        let app_elem = ax_element::create_app_element(pid)?;
+    fn close_window(&self, window: WindowId) -> Result<()> {
+        let window_info = cg_window::get_window_info_by_number(window as i64)
+            .ok()
+            .flatten()
+            .ok_or_else(|| anyhow!("Window {} not found", window))?;
+
+        let app_elem = ax_element::create_app_element(window_info.pid as u32)?;
         let win_elem = ax_element::get_main_window(&app_elem)?;
 
         ax_element::close_window(&win_elem)?;
-        debug!("Closed window via native API");
+        debug!("Closed window {} via native API", window);
         Ok(())
     }
 
-    fn set_topmost(&self, _window: WindowId, topmost: bool) -> Result<()> {
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
         if topmost {
-            let pid = ns_workspace::get_frontmost_app_pid()
-                .ok_or_else(|| anyhow!("No frontmost application"))?;
-            let app_elem = ax_element::create_app_element(pid)?;
+            let window_info = cg_window::get_window_info_by_number(window as i64)
+                .ok()
+                .flatten()
+                .ok_or_else(|| anyhow!("Window {} not found", window))?;
+
+            let app_elem = ax_element::create_app_element(window_info.pid as u32)?;
 
             ax_element::bring_to_front(&app_elem)?;
-            debug!("Brought window to front via native API");
+            debug!("Brought window {} to front via native API", window);
         }
         Ok(())
     }
@@ -218,11 +229,6 @@ impl RealWindowApi {
         }
 
         monitors
-    }
-
-    fn get_monitor_info(&self, _window: WindowId) -> Option<MonitorInfo> {
-        let monitors = self.get_monitors();
-        monitors.first().cloned()
     }
 
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
@@ -467,11 +473,11 @@ mod tests {
 
         mock.set_window_pos(window, 50, 100, 1024, 768).unwrap();
 
-        let frame = mock.get_window_rect(window).unwrap();
-        assert_eq!(frame.x, 50);
-        assert_eq!(frame.y, 100);
-        assert_eq!(frame.width, 1024);
-        assert_eq!(frame.height, 768);
+        let info = mock.get_window_info(window).unwrap();
+        assert_eq!(info.x, 50);
+        assert_eq!(info.y, 100);
+        assert_eq!(info.width, 1024);
+        assert_eq!(info.height, 768);
     }
 
     #[test]

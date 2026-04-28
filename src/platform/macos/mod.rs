@@ -2,8 +2,6 @@
 //!
 //! This module provides the macOS-specific implementations of all platform traits.
 
-#![allow(dead_code)]
-
 pub mod context;
 pub mod input;
 pub mod input_device;
