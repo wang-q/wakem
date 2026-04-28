@@ -104,10 +104,6 @@ proptest = "1.4"
 # Benchmarking
 criterion = "0.5"
 
-[[bench]]
-name = "basic_benchmarks"
-harness = false
-
 # Note: macOS-specific benchmarks can be run with:
 # cargo bench --bench macos_bench (on macOS only)
 # The macos_bench.rs file is located at benches/macos/macos_bench.rs
