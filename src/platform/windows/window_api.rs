@@ -5,7 +5,8 @@ use anyhow::Result;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowRect, IsIconic, IsWindow, IsZoomed, SetWindowPos,
-    ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
+    ShowWindow, HWND_TOP, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER,
+    SWP_NOSIZE, SWP_NOZORDER, SW_RESTORE,
 };
 
 #[cfg(test)]
@@ -265,9 +266,32 @@ impl WindowApiBase for RealWindowApi {
 
     fn move_to_monitor(
         &self,
-        _window: Self::WindowId,
-        _monitor_index: usize,
+        window: Self::WindowId,
+        monitor_index: usize,
     ) -> Result<()> {
+        let monitors = self.get_monitors();
+        let monitor = monitors.get(monitor_index).ok_or_else(|| {
+            anyhow::anyhow!("Monitor index {} out of range", monitor_index)
+        })?;
+
+        let info = self.get_window_info(window)?;
+
+        let new_x = monitor.x + (monitor.width - info.width) / 2;
+        let new_y = monitor.y + (monitor.height - info.height) / 2;
+
+        unsafe {
+            SetWindowPos(
+                window,
+                Some(HWND_TOP),
+                new_x,
+                new_y,
+                0,
+                0,
+                SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOSIZE | SWP_NOZORDER,
+            )
+            .map_err(|e| anyhow::anyhow!("SetWindowPos failed: {e}"))?;
+        }
+
         Ok(())
     }
 
