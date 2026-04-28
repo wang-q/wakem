@@ -341,15 +341,6 @@ impl RealWindowApi {
         let threshold = 0.95;
         width_ratio >= threshold && height_ratio >= threshold
     }
-
-    /// Ensure window is restored (not minimized or maximized)
-    /// Internal method named after Windows API convention
-    pub fn ensure_window_restored(&self, window: WindowId) -> Result<()> {
-        if self.is_iconic(window) || self.is_zoomed(window) {
-            self.restore_window(window)?;
-        }
-        Ok(())
-    }
 }
 
 impl Default for RealWindowApi {

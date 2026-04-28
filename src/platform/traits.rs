@@ -800,6 +800,75 @@ pub trait PlatformFactory {
     ) -> Self::WindowEventHook;
 }
 
+/// Macro to implement `PlatformFactory` with the six boilerplate factory methods
+/// that are identical across platforms. Only the associated types differ.
+#[macro_export]
+macro_rules! impl_platform_factory_methods {
+    ($platform:ty, $input:ty, $output:ty, $wm:ty, $wpm:ty, $notif:ty,
+     $launcher:ty, $hook:ty) => {
+        fn create_input_device(
+            _config: $crate::platform::traits::InputDeviceConfig,
+            sender: Option<std::sync::mpsc::Sender<$crate::types::InputEvent>>,
+        ) -> anyhow::Result<Self::InputDevice> {
+            match sender {
+                Some(tx) => <$input>::with_sender(tx),
+                None => {
+                    <$input>::new($crate::platform::traits::InputDeviceConfig::default())
+                }
+            }
+        }
+
+        fn create_output_device() -> Self::OutputDevice {
+            <$output>::new()
+        }
+
+        fn create_window_manager() -> Self::WindowManager {
+            <$wm>::new()
+        }
+
+        fn create_window_preset_manager() -> Self::WindowPresetManager {
+            <$wpm>::new(<$wm>::new())
+        }
+
+        fn create_notification_service() -> Self::NotificationService {
+            <$notif>::new()
+        }
+
+        fn create_launcher() -> Self::Launcher {
+            <$launcher>::new()
+        }
+
+        fn create_window_event_hook(
+            sender: std::sync::mpsc::Sender<
+                $crate::platform::traits::PlatformWindowEvent,
+            >,
+        ) -> Self::WindowEventHook {
+            <$hook>::new(sender)
+        }
+    };
+}
+
+/// Macro to implement `WindowEventHookTrait` with the standard delegation pattern.
+#[macro_export]
+macro_rules! impl_window_event_hook_trait {
+    ($hook:ty) => {
+        fn start_with_shutdown(
+            &mut self,
+            shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        ) -> anyhow::Result<()> {
+            self.start_with_shutdown(shutdown_flag)
+        }
+
+        fn stop(&mut self) {
+            self.stop()
+        }
+
+        fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+            self.shutdown_flag()
+        }
+    };
+}
+
 /// Window context information (for context-aware mappings)
 #[derive(Debug, Clone, Default)]
 pub struct WindowContext {

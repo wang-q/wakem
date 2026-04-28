@@ -213,20 +213,7 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
 }
 
 impl WindowEventHookTrait for WindowEventHook {
-    fn start_with_shutdown(
-        &mut self,
-        shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    ) -> anyhow::Result<()> {
-        self.start_with_shutdown(shutdown_flag)
-    }
-
-    fn stop(&mut self) {
-        self.stop()
-    }
-
-    fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
-        self.shutdown_flag()
-    }
+    crate::impl_window_event_hook_trait!(WindowEventHook);
 }
 
 impl TrayLifecycle for WindowsPlatform {
@@ -324,39 +311,14 @@ impl PlatformFactory for WindowsPlatform {
     type Launcher = Launcher;
     type WindowEventHook = WindowEventHook;
 
-    fn create_input_device(
-        _config: InputDeviceConfig,
-        sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
-    ) -> anyhow::Result<Self::InputDevice> {
-        match sender {
-            Some(tx) => RawInputDevice::with_sender(tx),
-            None => RawInputDevice::new(InputDeviceConfig::default()),
-        }
-    }
-
-    fn create_output_device() -> Self::OutputDevice {
-        SendInputDevice::new()
-    }
-
-    fn create_window_manager() -> Self::WindowManager {
-        WindowManager::new()
-    }
-
-    fn create_window_preset_manager() -> Self::WindowPresetManager {
-        WindowPresetManager::new(WindowManager::new())
-    }
-
-    fn create_notification_service() -> Self::NotificationService {
-        WindowsNotificationService::new()
-    }
-
-    fn create_launcher() -> Self::Launcher {
-        Launcher::new()
-    }
-
-    fn create_window_event_hook(
-        sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
-    ) -> Self::WindowEventHook {
-        WindowEventHook::new(sender)
-    }
+    crate::impl_platform_factory_methods!(
+        Self,
+        RawInputDevice,
+        SendInputDevice,
+        WindowManager<window_api::RealWindowApi>,
+        WindowPresetManager,
+        WindowsNotificationService,
+        Launcher,
+        WindowEventHook
+    );
 }

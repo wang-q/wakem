@@ -164,14 +164,6 @@ impl RealWindowApi {
             (ex_style as u32) & WS_EX_TOPMOST.0 != 0
         }
     }
-
-    #[allow(dead_code)]
-    fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
-        if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
-            self.restore_window(hwnd)?;
-        }
-        Ok(())
-    }
 }
 
 impl Default for RealWindowApi {
