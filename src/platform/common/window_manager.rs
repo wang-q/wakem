@@ -1,8 +1,8 @@
-//! Common window manager logic shared across platforms
+//! Common window manager logic shared across platforms.
 //!
-//! Methods are used via trait dispatch (dyn WindowManagerTrait / CommonWindowApi).
+//! Methods are used via trait dispatch (dyn WindowManagerTrait / CommonWindowApi)
+//! and can be used by any platform-specific window manager.
 #![allow(dead_code)]
-//! that can be used by any platform-specific window manager.
 
 use crate::platform::traits::{
     ForegroundWindowOperations, MonitorDirection, MonitorInfo, MonitorOperations,

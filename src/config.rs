@@ -549,8 +549,8 @@ pub struct WindowPreset {
     pub height: i32,
 }
 
-/// Public wildcard matching function - re-exported from types::mapping
-pub use crate::types::mapping::wildcard_match;
+/// Public wildcard matching function - re-exported from types::context
+pub use crate::types::context::wildcard_match;
 
 /// Mouse configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -1491,82 +1491,6 @@ test_macro = []
             ..Default::default()
         };
         assert_eq!(config.get_bind_address(), "127.0.0.1:57432");
-    }
-
-    #[test]
-    fn test_wildcard_match_function() {
-        // Test public wildcard matching function
-        assert!(wildcard_match("test.exe", "*.exe"));
-        assert!(wildcard_match("file.txt", "*.txt"));
-        assert!(wildcard_match("document.pdf", "*.pdf"));
-        assert!(!wildcard_match("test.exe", "*.txt"));
-    }
-
-    #[test]
-    fn test_wildcard_dp_basic_patterns() {
-        assert!(wildcard_match("hello", "hello"));
-        assert!(!wildcard_match("hello", "world"));
-
-        assert!(wildcard_match("test.exe", "*.exe"));
-        assert!(wildcard_match("file.txt", "*.txt"));
-        assert!(wildcard_match("", "*"));
-        assert!(wildcard_match("anything", "*"));
-        assert!(wildcard_match("prefix-suffix", "*suffix"));
-        assert!(wildcard_match("prefix-suffix", "prefix*"));
-
-        assert!(wildcard_match("cat", "?at"));
-        assert!(wildcard_match("bat", "?at"));
-        assert!(!wildcard_match("at", "?at"));
-        assert!(wildcard_match("abc", "???"));
-        assert!(!wildcard_match("ab", "???"));
-
-        assert!(wildcard_match("test123.txt", "test*.txt"));
-        assert!(wildcard_match("file_1.txt", "file_?.txt"));
-    }
-
-    #[test]
-    fn test_wildcard_dp_edge_cases() {
-        assert!(wildcard_match("", ""));
-        assert!(!wildcard_match("a", ""));
-        assert!(wildcard_match("", "*"));
-        assert!(!wildcard_match("", "?"));
-
-        assert!(wildcard_match("test", "**test"));
-        assert!(wildcard_match("test", "***"));
-        assert!(wildcard_match("", "**"));
-
-        assert!(wildcard_match("test", "****test"));
-
-        assert!(wildcard_match("TEST.EXE", "*.exe"));
-        assert!(wildcard_match("File.TXT", "*.txt"));
-    }
-
-    #[test]
-    fn test_wildcard_dp_complex_patterns() {
-        assert!(wildcard_match("a.b.c.d", "*.d"));
-        assert!(wildcard_match("a.b.c.d", "a.*.c.*"));
-
-        assert!(wildcard_match("test_2024.log", "test_????.log"));
-        assert!(wildcard_match("image001.png", "image???.png"));
-
-        assert!(wildcard_match("/path/to/file.txt", "/path/*/file.txt"));
-        assert!(wildcard_match(
-            "c:\\users\\test\\*\\*.txt",
-            "c:\\users\\test\\*\\*.txt"
-        ));
-    }
-
-    #[test]
-    fn test_wildcard_dp_performance_safety() {
-        let long_text = "a".repeat(1000);
-        let long_pattern = "*".repeat(100);
-
-        let result = wildcard_match(&long_text, &long_pattern);
-        assert!(result);
-
-        assert!(!wildcard_match(&long_text, ""));
-
-        assert!(wildcard_match(&long_text, "*"));
     }
 
     #[test]
