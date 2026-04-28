@@ -272,14 +272,15 @@ impl RealWindowApi {
         );
         Ok(())
     }
-
-        }
+    fn is_window_valid_inner(&self, window: WindowId) -> bool {
         cg_window::get_window_info_by_number(window as i64)
             .ok()
             .flatten()
             .is_some()
     }
 
+    fn is_minimized_inner(&self, window: WindowId) -> bool {
+        if !cg_window::get_window_info_by_number(window as i64)
             .ok()
             .flatten()
             .is_some()
@@ -301,17 +302,11 @@ impl RealWindowApi {
         ax_element::is_minimized(&win_elem).unwrap_or(false)
     }
 
-    /// Look up the PID of an off-screen window via the full CGWindowList.
-    fn find_window_pid_off_screen(window: WindowId) -> Option<u32> {
-        let windows = cg_window::get_all_windows().ok()?;
-        windows
-            .iter()
-            .find(|w| w.number == window as i64)
-            .map(|w| w.pid as u32)
-    }
-
-    /// Check if window is maximized (zoomed)
-    /// Internal method named after Windows API convention
+    /// Check if window is maximized (zoomed) by comparing its dimensions
+    /// against the monitor work area.
+    fn is_maximized_inner(&self, window: WindowId) -> bool {
+        let info = match self.get_window_info(window) {
+            Ok(i) => i,
             Err(_) => return false,
         };
 
@@ -332,6 +327,15 @@ impl RealWindowApi {
         let threshold = 0.95;
         width_ratio >= threshold && height_ratio >= threshold
     }
+}
+
+/// Look up the PID of an off-screen window via the full CGWindowList.
+fn find_window_pid_off_screen(window: WindowId) -> Option<u32> {
+    let windows = cg_window::get_all_windows().ok()?;
+    windows
+        .iter()
+        .find(|w| w.number == window as i64)
+        .map(|w| w.pid as u32)
 }
 
 impl Default for RealWindowApi {
@@ -368,7 +372,6 @@ impl WindowApiBase for RealWindowApi {
     ) -> Result<()> {
         self.move_to_monitor(window, monitor_index)
     }
-
 }
 
 #[cfg(test)]

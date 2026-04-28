@@ -25,9 +25,9 @@
 // ---------------------------------------------------------------------------
 // Layer 1: Types & traits (shared across all platforms)
 // ---------------------------------------------------------------------------
-pub mod types;
-pub mod traits;
 pub mod macros;
+pub mod traits;
+pub mod types;
 
 // ---------------------------------------------------------------------------
 // Layer 2: Common implementations (platform-agnostic logic)

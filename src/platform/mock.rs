@@ -378,7 +378,7 @@ mod mock_window_api {
             self.operations_log.lock().unwrap().push(op);
         }
 
-        pub fn get_foreground_window(&self) -> Option<Id> {
+        pub fn get_foreground_window_inner(&self) -> Option<Id> {
             self.log_operation(WindowApiCall::GetForegroundWindow);
             *self.foreground_window.lock().unwrap()
         }
@@ -542,7 +542,7 @@ mod mock_window_api {
         type WindowId = Id;
 
         fn get_foreground_window(&self) -> Option<Self::WindowId> {
-            self.get_foreground_window()
+            self.get_foreground_window_inner()
         }
 
         fn get_window_info(
@@ -565,20 +565,10 @@ mod mock_window_api {
             })
         }
 
-        fn get_foreground_window_inner(&self) -> Option<Self::WindowId> { self.get_foreground_window() }
-        fn set_window_pos_inner(&self, w: Self::WindowId, x: i32, y: i32, wd: i32, h: i32) -> Result<()> { self.set_window_pos_inner(w, x, y, wd, h) }
-        fn minimize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.minimize_window_inner(w) }
-        fn maximize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.maximize_window_inner(w) }
-        fn restore_window_inner(&self, w: Self::WindowId) -> Result<()> { self.restore_window_inner(w) }
-        fn close_window_inner(&self, w: Self::WindowId) -> Result<()> { self.close_window_inner(w) }
-        fn set_topmost_inner(&self, w: Self::WindowId, t: bool) -> Result<()> { self.set_topmost_inner(w, t) }
-        fn is_topmost_inner(&self, w: Self::WindowId) -> bool { self.is_topmost_inner(w) }
-        fn is_window_valid_inner(&self, w: Self::WindowId) -> bool { self.is_window_valid_inner(w) }
-        fn is_minimized_inner(&self, w: Self::WindowId) -> bool { self.is_minimized_inner(w) }
-        fn is_maximized_inner(&self, w: Self::WindowId) -> bool { self.is_maximized_inner(w) }
+        crate::impl_window_api_base_inner!();
 
         fn get_monitors(&self) -> Vec<MonitorInfo> {
-            let fg = self.get_foreground_window();
+            let fg = self.get_foreground_window_inner();
             fg.and_then(|window| self.get_monitor_info(window))
                 .map(|info| vec![info])
                 .unwrap_or_default()

@@ -2,8 +2,7 @@
 
 use crate::platform::traits::{
     ForegroundWindowOperations, MonitorInfo, MonitorOperations, WindowId, WindowInfo,
-    WindowManagerTrait, WindowOperations, WindowPresetManagerTrait,
-    WindowStateQueries,
+    WindowManagerTrait, WindowOperations, WindowPresetManagerTrait, WindowStateQueries,
 };
 use anyhow::Result;
 
@@ -95,11 +94,7 @@ impl MonitorOperations for LinuxWindowManager {
         Vec::new()
     }
 
-    fn move_to_monitor(
-        &self,
-        _window: WindowId,
-        _monitor_index: usize,
-    ) -> Result<()> {
+    fn move_to_monitor(&self, _window: WindowId, _monitor_index: usize) -> Result<()> {
         Err(anyhow::anyhow!(
             "Linux window manager not yet implemented. Wayland output management required."
         ))
@@ -112,9 +107,7 @@ impl ForegroundWindowOperations for LinuxWindowManager {
     }
 
     fn set_topmost(&self, _window: WindowId, _topmost: bool) -> Result<()> {
-        Err(anyhow::anyhow!(
-            "Linux window manager not yet implemented."
-        ))
+        Err(anyhow::anyhow!("Linux window manager not yet implemented."))
     }
 }
 

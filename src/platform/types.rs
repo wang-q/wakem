@@ -1,7 +1,6 @@
 //! Cross-platform data types used by platform traits and implementations.
 #![allow(dead_code)]
 
-
 /// Input device configuration
 #[derive(Debug, Clone)]
 pub struct InputDeviceConfig {
@@ -73,11 +72,20 @@ pub struct WindowFrame {
 
 impl WindowFrame {
     pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     pub fn aspect_ratio(&self) -> f64 {
-        if self.height > 0 { self.width as f64 / self.height as f64 } else { 0.0 }
+        if self.height > 0 {
+            self.width as f64 / self.height as f64
+        } else {
+            0.0
+        }
     }
 
     pub fn is_valid(&self) -> bool {
@@ -92,10 +100,18 @@ impl WindowFrame {
 }
 
 impl WindowInfoProvider for WindowInfo {
-    fn x(&self) -> i32 { self.x }
-    fn y(&self) -> i32 { self.y }
-    fn width(&self) -> i32 { self.width }
-    fn height(&self) -> i32 { self.height }
+    fn x(&self) -> i32 {
+        self.x
+    }
+    fn y(&self) -> i32 {
+        self.y
+    }
+    fn width(&self) -> i32 {
+        self.width
+    }
+    fn height(&self) -> i32 {
+        self.height
+    }
 }
 
 /// Monitor direction for moving windows between displays
@@ -183,15 +199,12 @@ impl WindowContext {
                 .window_title
                 .as_ref()
                 .is_none_or(|t| crate::types::wildcard_match(&self.window_title, t))
-            && criteria
-                .executable_path
-                .as_ref()
-                .is_none_or(|p| {
-                    crate::types::wildcard_match(
-                        self.executable_path.as_deref().unwrap_or(""),
-                        p,
-                    )
-                })
+            && criteria.executable_path.as_ref().is_none_or(|p| {
+                crate::types::wildcard_match(
+                    self.executable_path.as_deref().unwrap_or(""),
+                    p,
+                )
+            })
     }
 
     pub fn matches(

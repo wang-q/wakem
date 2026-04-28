@@ -6,9 +6,7 @@ use anyhow::Result;
 pub struct LinuxInputDevice;
 
 impl LinuxInputDevice {
-    pub fn new(
-        _config: crate::platform::traits::InputDeviceConfig,
-    ) -> Result<Self> {
+    pub fn new(_config: crate::platform::traits::InputDeviceConfig) -> Result<Self> {
         Ok(Self)
     }
 

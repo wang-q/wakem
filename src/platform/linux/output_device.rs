@@ -18,7 +18,12 @@ impl Default for LinuxOutputDevice {
 }
 
 impl OutputDeviceTrait for LinuxOutputDevice {
-    fn send_key(&self, _scan_code: u16, _virtual_key: u16, _release: bool) -> Result<()> {
+    fn send_key(
+        &self,
+        _scan_code: u16,
+        _virtual_key: u16,
+        _release: bool,
+    ) -> Result<()> {
         Err(anyhow::anyhow!(
             "Linux output device not yet implemented. Wayland virtual input required."
         ))

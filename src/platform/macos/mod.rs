@@ -11,23 +11,14 @@ pub mod tray;
 pub mod window_api;
 pub mod window_manager;
 
-// Re-export common types (aligned with Windows platform)
-// These are public API for users who need platform-specific types
-#[allow(unused_imports)]
 pub use crate::platform::launcher_common::Launcher;
-#[allow(unused_imports)]
 pub use input_device::RawInputDevice;
-#[allow(unused_imports)]
 pub use output_device::SendInputDevice;
-#[allow(unused_imports)]
-pub use window_api::{RealWindowApi, WindowEventHook};
+pub use window_api::WindowEventHook;
+pub use window_manager::{WindowManager, WindowPresetManager};
 
 #[cfg(test)]
-#[allow(unused_imports)]
 pub use window_api::MockWindowApi;
-
-#[allow(unused_imports)]
-pub use window_manager::{MonitorDirection, WindowManager, WindowPresetManager};
 
 use crate::platform::traits::{
     ApplicationControl, ContextProvider, PlatformFactory, PlatformUtilities,

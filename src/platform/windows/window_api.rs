@@ -199,11 +199,7 @@ impl RealWindowApi {
         unsafe { super::window_manager::enumerate_all_monitors() }
     }
 
-    fn move_to_monitor(
-        &self,
-        window: HWND,
-        monitor_index: usize,
-    ) -> Result<()> {
+    fn move_to_monitor(&self, window: HWND, monitor_index: usize) -> Result<()> {
         let monitors = self.get_monitors();
         let monitor = monitors.get(monitor_index).ok_or_else(|| {
             anyhow::anyhow!("Monitor index {} out of range", monitor_index)
@@ -261,7 +257,6 @@ impl WindowApiBase for RealWindowApi {
     ) -> Result<()> {
         self.move_to_monitor(window, monitor_index)
     }
-
 }
 
 #[cfg(test)]

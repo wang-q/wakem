@@ -101,9 +101,7 @@ macro_rules! impl_window_event_hook {
             self.stop()
         }
 
-        fn shutdown_flag(
-            &self,
-        ) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+        fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
             self.shutdown_flag()
         }
     };
@@ -141,31 +139,19 @@ macro_rules! impl_window_api_base_inner {
             self.set_window_pos_inner(window, x, y, width, height)
         }
 
-        fn minimize_window_inner(
-            &self,
-            window: Self::WindowId,
-        ) -> anyhow::Result<()> {
+        fn minimize_window_inner(&self, window: Self::WindowId) -> anyhow::Result<()> {
             self.minimize_window_inner(window)
         }
 
-        fn maximize_window_inner(
-            &self,
-            window: Self::WindowId,
-        ) -> anyhow::Result<()> {
+        fn maximize_window_inner(&self, window: Self::WindowId) -> anyhow::Result<()> {
             self.maximize_window_inner(window)
         }
 
-        fn restore_window_inner(
-            &self,
-            window: Self::WindowId,
-        ) -> anyhow::Result<()> {
+        fn restore_window_inner(&self, window: Self::WindowId) -> anyhow::Result<()> {
             self.restore_window_inner(window)
         }
 
-        fn close_window_inner(
-            &self,
-            window: Self::WindowId,
-        ) -> anyhow::Result<()> {
+        fn close_window_inner(&self, window: Self::WindowId) -> anyhow::Result<()> {
             self.close_window_inner(window)
         }
 
@@ -250,6 +236,28 @@ macro_rules! impl_window_manager_types {
                     RealWindowApi,
                 >::new())
             }
+        }
+    };
+}
+
+/// Macro implementing the three inherent-method delegation methods for
+/// [`InputDeviceTrait`]. Both Windows and macOS `InputDevice<T>` wrappers
+/// expose inherent `poll_event`, `is_running`, and `stop` methods. This
+/// macro generates trait method bodies that delegate to those inherent
+/// methods.
+///
+/// [`InputDeviceTrait`]: crate::platform::traits::InputDeviceTrait
+#[macro_export]
+macro_rules! impl_input_device_delegation {
+    () => {
+        fn poll_event(&mut self) -> Option<$crate::types::InputEvent> {
+            self.poll_event()
+        }
+        fn is_running(&self) -> bool {
+            self.is_running()
+        }
+        fn stop(&mut self) {
+            self.stop();
         }
     };
 }

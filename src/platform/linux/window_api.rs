@@ -7,9 +7,7 @@ pub struct LinuxWindowEventHook;
 
 impl LinuxWindowEventHook {
     pub fn new(
-        _sender: std::sync::mpsc::Sender<
-            crate::platform::traits::PlatformWindowEvent,
-        >,
+        _sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
     ) -> Self {
         Self
     }
@@ -25,9 +23,7 @@ impl LinuxWindowEventHook {
 
     pub fn stop(&mut self) {}
 
-    pub fn shutdown_flag(
-        &self,
-    ) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    pub fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
         std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true))
     }
 }

@@ -35,9 +35,8 @@ pub use window_api::LinuxWindowEventHook;
 pub use window_manager::{LinuxWindowManager, LinuxWindowPresetManager};
 
 use crate::platform::traits::{
-    ApplicationControl, ContextProvider, InputDeviceConfig, LauncherTrait,
-    NotificationService, PlatformFactory, PlatformUtilities,
-    PlatformWindowEvent, TrayLifecycle,
+    ApplicationControl, ContextProvider, LauncherTrait, NotificationService,
+    PlatformFactory, PlatformUtilities, TrayLifecycle,
 };
 use crate::types::ModifierState;
 use anyhow::Result;
