@@ -84,8 +84,9 @@ impl PlatformUtilities for MacosPlatform {
 
     fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
         use crate::platform::macos::native_api::ns_workspace;
-        ns_workspace::get_app_path(pid)
-            .ok_or_else(|| anyhow::anyhow!("Failed to get executable path for pid {}", pid))
+        ns_workspace::get_app_path(pid).ok_or_else(|| {
+            anyhow::anyhow!("Failed to get executable path for pid {}", pid)
+        })
     }
 }
 

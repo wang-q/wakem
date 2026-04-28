@@ -162,8 +162,8 @@ mod integration_tests {
         );
         let info = info.unwrap();
         assert!(!info.title.is_empty(), "Window title should not be empty");
-        assert!(info.frame.width > 0, "Window width should be positive");
-        assert!(info.frame.height > 0, "Window height should be positive");
+        assert!(info.width > 0, "Window width should be positive");
+        assert!(info.height > 0, "Window height should be positive");
 
         teardown();
     }
@@ -187,8 +187,8 @@ mod integration_tests {
             "Title should contain 'Notepad' or 'Untitled', got: {}",
             info.title
         );
-        assert!(info.frame.width > 0, "Width should be positive");
-        assert!(info.frame.height > 0, "Height should be positive");
+        assert!(info.width > 0, "Width should be positive");
+        assert!(info.height > 0, "Height should be positive");
 
         teardown();
     }
@@ -213,24 +213,24 @@ mod integration_tests {
 
         let info = wm.get_window_info(hwnd).unwrap();
         assert!(
-            (info.frame.x - 100).abs() < 10,
+            (info.x - 100).abs() < 10,
             "X should be near 100, got {}",
-            info.frame.x
+            info.x
         );
         assert!(
-            (info.frame.y - 100).abs() < 10,
+            (info.y - 100).abs() < 10,
             "Y should be near 100, got {}",
-            info.frame.y
+            info.y
         );
         assert!(
-            (info.frame.width - 800).abs() < 20,
+            (info.width - 800).abs() < 20,
             "Width should be near 800, got {}",
-            info.frame.width
+            info.width
         );
         assert!(
-            (info.frame.height - 600).abs() < 20,
+            (info.height - 600).abs() < 20,
             "Height should be near 600, got {}",
-            info.frame.height
+            info.height
         );
 
         teardown();
@@ -246,13 +246,13 @@ mod integration_tests {
         let wm = WindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
 
-        let original = wm.get_window_info(hwnd).unwrap().frame;
+        let original = wm.get_window_info(hwnd).unwrap();
         let result = wm.move_to_center(hwnd);
         assert!(result.is_ok(), "Should move window to center");
 
         wait_for_window_stable();
 
-        let new_frame = wm.get_window_info(hwnd).unwrap().frame;
+        let new_frame = wm.get_window_info(hwnd).unwrap();
         assert!(
             new_frame.x != original.x || new_frame.y != original.y,
             "Window position should have changed"
@@ -281,7 +281,7 @@ mod integration_tests {
         assert!(result.is_ok(), "Should move window to left edge");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
+        let frame = wm.get_window_info(hwnd).unwrap();
         assert!(
             frame.x < 100,
             "Window should be near left edge, x={}",
@@ -302,15 +302,15 @@ mod integration_tests {
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
 
         // Get monitor info for comparison
-        let info = wm.get_window_info(hwnd).unwrap();
-        let monitor_width = info.work_area.width;
+        let monitors = wm.get_monitors();
+        let monitor_width = monitors.first().map(|m| m.width).unwrap_or(1920);
 
         // Set to left half
         let result = wm.set_half_screen(hwnd, Edge::Left);
         assert!(result.is_ok(), "Should set window to left half");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
+        let frame = wm.get_window_info(hwnd).unwrap();
         assert!(
             frame.x < 100,
             "Window should be at left edge, x={}",
@@ -337,13 +337,13 @@ mod integration_tests {
         let wm = WindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
 
-        let original_width = wm.get_window_info(hwnd).unwrap().frame.width;
+        let original_width = wm.get_window_info(hwnd).unwrap().width;
 
         // Cycle through widths
         wm.loop_width(hwnd, Alignment::Left).unwrap();
         wait_for_window_stable();
 
-        let new_width = wm.get_window_info(hwnd).unwrap().frame.width;
+        let new_width = wm.get_window_info(hwnd).unwrap().width;
         assert!(
             new_width != original_width,
             "Width should have changed after loop_width"
@@ -362,13 +362,13 @@ mod integration_tests {
         let wm = WindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
 
-        let original_height = wm.get_window_info(hwnd).unwrap().frame.height;
+        let original_height = wm.get_window_info(hwnd).unwrap().height;
 
         // Cycle through heights
         wm.loop_height(hwnd, Alignment::Top).unwrap();
         wait_for_window_stable();
 
-        let new_height = wm.get_window_info(hwnd).unwrap().frame.height;
+        let new_height = wm.get_window_info(hwnd).unwrap().height;
         assert!(
             new_height != original_height,
             "Height should have changed after loop_height"
@@ -388,11 +388,11 @@ mod integration_tests {
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
 
         // Test 16:9 ratio
-        let result = wm.set_fixed_ratio(hwnd, 16.0 / 9.0);
+        let result = wm.set_fixed_ratio(hwnd, 16.0 / 9.0, None);
         assert!(result.is_ok(), "Should set 16:9 ratio");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
+        let frame = wm.get_window_info(hwnd).unwrap();
         let ratio = frame.width as f32 / frame.height as f32;
         assert!(
             (ratio - 16.0 / 9.0).abs() < 0.1,
@@ -401,11 +401,11 @@ mod integration_tests {
         );
 
         // Test 4:3 ratio
-        let result = wm.set_fixed_ratio(hwnd, 4.0 / 3.0);
+        let result = wm.set_fixed_ratio(hwnd, 4.0 / 3.0, None);
         assert!(result.is_ok(), "Should set 4:3 ratio");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
+        let frame = wm.get_window_info(hwnd).unwrap();
         let ratio = frame.width as f32 / frame.height as f32;
         assert!(
             (ratio - 4.0 / 3.0).abs() < 0.1,
@@ -463,14 +463,14 @@ mod integration_tests {
         let wm = WindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
 
-        let original = wm.get_window_info(hwnd).unwrap().frame;
+        let original = wm.get_window_info(hwnd).unwrap();
 
         // Maximize
         let result = wm.maximize_window(hwnd);
         assert!(result.is_ok(), "Should maximize window");
         wait_for_window_stable();
 
-        let maximized = wm.get_window_info(hwnd).unwrap().frame;
+        let maximized = wm.get_window_info(hwnd).unwrap();
         // Maximized window should be larger than original
         assert!(
             maximized.width > original.width || maximized.height > original.height,
@@ -482,7 +482,7 @@ mod integration_tests {
         assert!(result.is_ok(), "Should restore window");
         wait_for_window_stable();
 
-        let restored = wm.get_window_info(hwnd).unwrap().frame;
+        let restored = wm.get_window_info(hwnd).unwrap();
         // Size should be back to approximately original
         assert!(
             (restored.width - original.width).abs() < 50,
@@ -645,19 +645,17 @@ mod integration_tests {
 
     #[test]
     #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_get_debug_info() {
+    fn test_get_monitors() {
         setup();
-
-        let _pid = launch_test_window();
-        wait_for_window_stable();
 
         let wm = WindowManager::new();
 
-        let debug_info = wm.get_debug_info();
-        assert!(debug_info.is_ok(), "Should get debug info");
+        let monitors = wm.get_monitors();
+        assert!(!monitors.is_empty(), "Should have at least one monitor");
 
-        let info = debug_info.unwrap();
-        assert!(!info.is_empty(), "Debug info should not be empty");
+        let m = &monitors[0];
+        assert!(m.width > 0, "Monitor width should be positive");
+        assert!(m.height > 0, "Monitor height should be positive");
 
         teardown();
     }

@@ -396,7 +396,8 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Test 4:3 ratio, 100% scale
-        wm.set_fixed_ratio(hwnd.0 as usize, 4.0 / 3.0, None).unwrap();
+        wm.set_fixed_ratio(hwnd.0 as usize, 4.0 / 3.0, None)
+            .unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         // Based on smaller side 1080, 4:3 ratio, width = 1080 * 4/3 = 1440

@@ -87,23 +87,19 @@ impl OutputDeviceTrait for SendInputDevice {
             } else {
                 // Absolute mode: normalize coordinates to [0, 65535] range
                 // per Windows SendInput MOUSEEVENTF_ABSOLUTE specification
-                let screen_w =
-                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                        windows::Win32::UI::WindowsAndMessaging::SM_CXVIRTUALSCREEN,
-                    );
-                let screen_h =
-                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
-                        windows::Win32::UI::WindowsAndMessaging::SM_CYVIRTUALSCREEN,
-                    );
+                let screen_w = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                    windows::Win32::UI::WindowsAndMessaging::SM_CXVIRTUALSCREEN,
+                );
+                let screen_h = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                    windows::Win32::UI::WindowsAndMessaging::SM_CYVIRTUALSCREEN,
+                );
                 input.Anonymous.mi.dx = if screen_w > 0 {
-                    ((x as i64 * 65536 / screen_w as i32 as i64) as i32)
-                        .clamp(0, 65535)
+                    ((x as i64 * 65536 / screen_w as i32 as i64) as i32).clamp(0, 65535)
                 } else {
                     0
                 };
                 input.Anonymous.mi.dy = if screen_h > 0 {
-                    ((y as i64 * 65536 / screen_h as i32 as i64) as i32)
-                        .clamp(0, 65535)
+                    ((y as i64 * 65536 / screen_h as i32 as i64) as i32).clamp(0, 65535)
                 } else {
                     0
                 };

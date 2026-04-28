@@ -229,8 +229,7 @@ impl RawInputDevice {
             // Get current modifier state
             let modifiers = Self::get_current_modifier_state();
 
-            let mut event =
-                KeyEvent::new(scan_code, keyboard.VKey, state);
+            let mut event = KeyEvent::new(scan_code, keyboard.VKey, state);
             event.modifiers = modifiers;
 
             trace!(

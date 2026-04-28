@@ -276,8 +276,8 @@ mod mock_window_api {
     use super::MockWindowId;
     use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowFrame};
     use anyhow::Result;
-    use std::sync::Mutex;
     use std::collections::HashMap;
+    use std::sync::Mutex;
 
     #[derive(Debug, Clone)]
     pub enum WindowApiCall {
@@ -360,13 +360,15 @@ mod mock_window_api {
 
         pub fn set_window_rect(&self, window: Id, frame: WindowFrame) {
             self.window_rects
-                .lock().unwrap()
+                .lock()
+                .unwrap()
                 .insert(window.to_usize(), frame);
         }
 
         pub fn set_monitor_info(&self, window: Id, info: MonitorInfo) {
             self.monitor_info
-                .lock().unwrap()
+                .lock()
+                .unwrap()
                 .insert(window.to_usize(), info);
         }
 
@@ -394,7 +396,11 @@ mod mock_window_api {
             self.log_operation(WindowApiCall::GetWindowRect {
                 window: window.to_usize(),
             });
-            self.window_rects.lock().unwrap().get(&window.to_usize()).copied()
+            self.window_rects
+                .lock()
+                .unwrap()
+                .get(&window.to_usize())
+                .copied()
         }
 
         fn set_window_pos_inner(
@@ -429,14 +435,21 @@ mod mock_window_api {
             self.log_operation(WindowApiCall::GetMonitorInfo {
                 window: window.to_usize(),
             });
-            self.monitor_info.lock().unwrap().get(&window.to_usize()).cloned()
+            self.monitor_info
+                .lock()
+                .unwrap()
+                .get(&window.to_usize())
+                .cloned()
         }
 
         pub fn is_window(&self, window: Id) -> bool {
             self.log_operation(WindowApiCall::IsWindow {
                 window: window.to_usize(),
             });
-            self.window_rects.lock().unwrap().contains_key(&window.to_usize())
+            self.window_rects
+                .lock()
+                .unwrap()
+                .contains_key(&window.to_usize())
         }
 
         pub fn get_window_title(&self, window: Id) -> Option<String> {
@@ -448,7 +461,8 @@ mod mock_window_api {
 
         pub fn is_iconic(&self, window: Id) -> bool {
             self.window_states
-                .lock().unwrap()
+                .lock()
+                .unwrap()
                 .get(&window.to_usize())
                 .map(|s| s.minimized)
                 .unwrap_or(false)
@@ -456,7 +470,8 @@ mod mock_window_api {
 
         pub fn is_zoomed(&self, window: Id) -> bool {
             self.window_states
-                .lock().unwrap()
+                .lock()
+                .unwrap()
                 .get(&window.to_usize())
                 .map(|s| s.maximized)
                 .unwrap_or(false)
@@ -497,7 +512,10 @@ mod mock_window_api {
                 window: window.to_usize(),
             });
             self.window_rects.lock().unwrap().remove(&window.to_usize());
-            self.window_states.lock().unwrap().remove(&window.to_usize());
+            self.window_states
+                .lock()
+                .unwrap()
+                .remove(&window.to_usize());
             Ok(())
         }
 
@@ -523,7 +541,8 @@ mod mock_window_api {
 
         pub fn is_topmost(&self, window: Id) -> bool {
             self.window_states
-                .lock().unwrap()
+                .lock()
+                .unwrap()
                 .get(&window.to_usize())
                 .map(|s| s.topmost)
                 .unwrap_or(false)

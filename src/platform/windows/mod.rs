@@ -9,11 +9,11 @@ pub mod window_api;
 pub mod window_manager;
 
 pub use crate::platform::launcher_common::Launcher;
+pub use crate::platform::traits::MonitorDirection;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
 pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
 pub use window_api::{RealWindowApi, WindowEventHook};
-pub use crate::platform::traits::MonitorDirection;
 pub use window_manager::{WindowManager, WindowPresetManager};
 
 #[cfg(test)]
@@ -191,13 +191,10 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
                 nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
 
                 unsafe {
-                    let success = windows::Win32::UI::Shell::Shell_NotifyIconW(
-                        NIM_MODIFY, &nid,
-                    );
+                    let success =
+                        windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid);
                     if !success.as_bool() {
-                        return Err(anyhow::anyhow!(
-                            "Failed to show notification"
-                        ));
+                        return Err(anyhow::anyhow!("Failed to show notification"));
                     }
                 }
 

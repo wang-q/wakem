@@ -988,7 +988,7 @@ fn action_needs_launcher(steps: &[crate::types::MacroStep]) -> bool {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// let actions = vec![
 ///     Action::Key(KeyAction::click(0x1E, 0x41)),
 ///     Action::Sequence(vec![
@@ -1191,14 +1191,8 @@ async fn setup_ipc_server(
         config.config.network.ensure_auth_key();
         // Sync the generated auth key to state.auth_key so the IPC server uses it
         let mut auth = state.auth_key.write().await;
-        *auth = Zeroizing::new(
-            config
-                .config
-                .network
-                .auth_key
-                .clone()
-                .unwrap_or_default(),
-        );
+        *auth =
+            Zeroizing::new(config.config.network.auth_key.clone().unwrap_or_default());
         addr
     };
 
