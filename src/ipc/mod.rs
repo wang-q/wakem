@@ -11,20 +11,8 @@ pub mod rate_limiter;
 pub mod security;
 pub mod server;
 
-// Re-export commonly used types for convenience
 pub use client::IpcClient;
-
-// These re-exports are part of the public API for external crate usage.
-// They may not be used internally but are kept for backward compatibility.
 pub use discovery::discover_instances;
-#[allow(unused_imports)]
-pub use discovery::InstanceInfo;
-
-#[allow(unused_imports)]
-pub use rate_limiter::ConnectionLimiter;
-
-#[allow(unused_imports)]
-pub use security::{is_allowed_ip, is_private_ip};
 pub use server::IpcServer;
 
 // ==================== Message Protocol ====================

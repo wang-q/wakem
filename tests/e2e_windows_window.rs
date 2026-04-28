@@ -22,6 +22,9 @@ mod integration_tests {
         let child = Command::new("notepad.exe")
             .spawn()
             .expect("Failed to launch notepad.exe");
+        let pid = child.id();
+        // Process runs independently; cleaned up by cleanup_test_windows() via WM_CLOSE
+        std::mem::forget(child);
 
         // Wait for window to appear
         let start = std::time::Instant::now();
@@ -32,36 +35,7 @@ mod integration_tests {
             thread::sleep(Duration::from_millis(100));
         }
 
-        child.id()
-    }
-
-    /// Launch multiple notepad windows for testing
-    fn launch_multiple_test_windows(count: usize) -> Vec<u32> {
-        cleanup_test_windows();
-        thread::sleep(Duration::from_millis(100));
-
-        let mut pids = Vec::new();
-
-        for _ in 0..count {
-            if let Ok(child) = Command::new("notepad.exe").spawn() {
-                pids.push(child.id());
-
-                // Wait for the new window to appear
-                let start = std::time::Instant::now();
-                while start.elapsed() < Duration::from_secs(5) {
-                    let wm = WindowManager::new();
-                    let windows = wm.get_app_visible_windows("notepad.exe");
-                    if windows.len() >= pids.len() {
-                        break;
-                    }
-                    thread::sleep(Duration::from_millis(100));
-                }
-
-                thread::sleep(Duration::from_millis(300));
-            }
-        }
-
-        pids
+        pid
     }
 
     fn cleanup_test_windows() {
@@ -88,13 +62,12 @@ mod integration_tests {
         let len = GetWindowTextW(hwnd, &mut buffer);
         if len > 0 {
             let title = String::from_utf16_lossy(&buffer[..len as usize]);
-            if title.contains("Notepad")
+            if (title.contains("Notepad")
                 || title.contains("Untitled")
-                || title.contains(".txt")
+                || title.contains(".txt"))
+                && IsWindowVisible(hwnd).as_bool()
             {
-                if IsWindowVisible(hwnd).as_bool() {
-                    windows.push(hwnd);
-                }
+                windows.push(hwnd);
             }
         }
         BOOL(1)
@@ -120,11 +93,12 @@ mod integration_tests {
         let len = GetWindowTextW(hwnd, &mut buffer);
         if len > 0 {
             let title = String::from_utf16_lossy(&buffer[..len as usize]);
-            if title.contains("Notepad") || title.contains("Untitled") {
-                if IsWindowVisible(hwnd).as_bool() && IsWindow(Some(hwnd)).as_bool() {
-                    *result = Some(hwnd);
-                    return BOOL(0);
-                }
+            if (title.contains("Notepad") || title.contains("Untitled"))
+                && IsWindowVisible(hwnd).as_bool()
+                && IsWindow(Some(hwnd)).as_bool()
+            {
+                *result = Some(hwnd);
+                return BOOL(0);
             }
         }
         BOOL(1)

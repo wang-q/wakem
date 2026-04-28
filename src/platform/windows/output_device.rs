@@ -17,6 +17,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
     MOUSEEVENTF_WHEEL, VIRTUAL_KEY,
 };
+#[cfg(not(test))]
 use windows::Win32::UI::WindowsAndMessaging::{
     GetSystemMetrics, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
     SM_YVIRTUALSCREEN,
@@ -179,6 +180,7 @@ impl OutputDeviceTrait for SendInputDevice {
     }
 }
 
+#[cfg(not(test))]
 /// Normalize one axis coordinate from virtual-screen pixels to the [0, 65535]
 /// range expected by SendInput MOUSEEVENTF_ABSOLUTE.
 fn normalize_axis(value: i32, offset: i32, screen_size: i32) -> i32 {

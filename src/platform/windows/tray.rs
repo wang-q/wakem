@@ -57,29 +57,29 @@ struct TrayIconData {
 }
 
 impl TrayIconData {
-    fn create() -> Self {
+    fn create() -> Result<Self> {
         let offset = unsafe {
             LookupIconIdFromDirectoryEx(ICON_BYTES.as_ptr(), true, 0, 0, LR_DEFAULTCOLOR)
         } as usize;
         if offset >= ICON_BYTES.len() {
-            panic!(
+            return Err(anyhow!(
                 "Icon offset {} out of bounds (max {})",
                 offset,
                 ICON_BYTES.len()
-            );
+            ));
         }
         let icon_data = &ICON_BYTES[offset..];
         let hicon = unsafe {
             CreateIconFromResourceEx(icon_data, true, 0x30000, 0, 0, LR_DEFAULTCOLOR)
-        }
-        .expect("Failed to load icon");
+                .map_err(|e| anyhow!("Failed to load icon resource: {e}"))?
+        };
 
         let mut tooltip = [0u16; 128];
         let src: Vec<u16> = unsafe { w!("wakem").as_wide() }.to_vec();
         let copy_len = src.len().min(tooltip.len() - 1);
         tooltip[..copy_len].copy_from_slice(&src[..copy_len]);
 
-        Self {
+        Ok(Self {
             data: NOTIFYICONDATAW {
                 uID: WM_USER_TRAYICON,
                 uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
@@ -88,7 +88,7 @@ impl TrayIconData {
                 szTip: tooltip,
                 ..Default::default()
             },
-        }
+        })
     }
 
     fn register(&mut self, hwnd: HWND) {
@@ -259,7 +259,7 @@ where
                 Some(windows::Win32::System::Threading::GetCurrentThreadId());
         });
 
-        let mut tray_data = TrayIconData::create();
+        let mut tray_data = TrayIconData::create()?;
         tray_data.register(hwnd);
         TRAY_ICON.with(|t| {
             *t.borrow_mut() = Some(tray_data);

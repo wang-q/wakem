@@ -203,7 +203,7 @@ impl RealWindowManager {
 mod tests {
     use super::super::MockWindowApi;
     use super::*;
-    use crate::platform::traits::{WindowFrame, WindowInfo, WindowManagerExt};
+    use crate::platform::traits::{WindowFrame, WindowManagerExt};
     use crate::types::{Alignment, Edge};
 
     fn test_hwnd(value: usize) -> HWND {
@@ -216,7 +216,7 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Verify creation success
-        assert!(wm.api().is_window(test_hwnd(0)) == false);
+        assert!(!wm.api().is_window(test_hwnd(0)));
     }
 
     #[test]

@@ -37,7 +37,6 @@ clap = { version = "4.4", features = ["derive"] }
 # Other
 indexmap = { version = "2.0", features = ["serde"] }
 once_cell = "1.19"
-lazy_static = "1.4"
 dirs = "5"
 libc = "0.2"  # For native API calls (pid_t, c_char, proc_pidpath)
 regex = "1.10"
@@ -50,9 +49,6 @@ zeroize = { version = "1.7", features = ["derive"] }
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
-
-# Keyboard code mapping (cross-platform)
-keyboard-codes = { version = "0.3", features = ["serde"] }
 
 keycode = "1.0"
 

@@ -280,6 +280,7 @@ mod mock_window_api {
     use std::sync::Mutex;
 
     #[derive(Debug, Clone)]
+    #[allow(dead_code)]
     pub enum WindowApiCall {
         GetForegroundWindow,
         GetWindowRect {
@@ -317,13 +318,10 @@ mod mock_window_api {
             window: usize,
             topmost: bool,
         },
-        EnsureRestored {
-            window: usize,
-        },
     }
 
     #[derive(Debug, Clone, Copy, Default)]
-    struct MockWindowState {
+    pub struct MockWindowState {
         minimized: bool,
         maximized: bool,
         topmost: bool,
@@ -370,13 +368,6 @@ mod mock_window_api {
                 .lock()
                 .unwrap()
                 .insert(window.to_usize(), info);
-        }
-
-        pub fn set_window_state(&self, window: Id, minimized: bool, maximized: bool) {
-            let mut states = self.window_states.lock().unwrap();
-            let state = states.entry(window.to_usize()).or_default();
-            state.minimized = minimized;
-            state.maximized = maximized;
         }
 
         pub fn get_operations(&self) -> Vec<WindowApiCall> {
@@ -526,16 +517,6 @@ mod mock_window_api {
             });
             let mut states = self.window_states.lock().unwrap();
             states.entry(window.to_usize()).or_default().topmost = topmost;
-            Ok(())
-        }
-
-        pub fn ensure_window_restored(&self, window: Id) -> Result<()> {
-            self.log_operation(WindowApiCall::EnsureRestored {
-                window: window.to_usize(),
-            });
-            if self.is_iconic(window) || self.is_zoomed(window) {
-                self.restore_window(window)?;
-            }
             Ok(())
         }
 

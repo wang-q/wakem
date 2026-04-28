@@ -14,9 +14,3 @@ pub mod shutdown;
 pub mod types;
 
 pub use config::Config;
-
-// Re-export core types for convenience (e.g., `wakem::InputEvent` instead of `wakem::types::InputEvent`).
-// NOTE: Wildcard re-export exposes all public types from the types module.
-// If the public API needs to be tightened in the future, replace this with
-// explicit re-exports of only the types that should be part of the crate-level API.
-pub use types::*;
