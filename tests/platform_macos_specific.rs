@@ -6,7 +6,7 @@ mod macos_specific_tests {
         keycode_to_virtual_key, virtual_key_to_keycode,
     };
     use wakem::platform::macos::Launcher;
-    use wakem::platform::traits::{MonitorInfo, WindowContext};
+    use wakem::platform::traits::{MonitorInfo, WindowContext, WindowMatchCriteria};
     use wakem::types::{
         Alignment, Edge, KeyAction, KeyEvent, KeyState, MouseButton, MouseEvent,
         MouseEventType,
@@ -181,12 +181,30 @@ mod macos_specific_tests {
             ),
         };
 
-        assert!(safari_ctx.matches(Some("Safari"), None, None, None));
-        assert!(safari_ctx.matches(Some("Saf*"), None, None, None));
-        assert!(safari_ctx.matches(Some("*ari"), None, None, None));
-        assert!(safari_ctx.matches(None, None, Some("*Apple*"), None));
-        assert!(safari_ctx.matches(None, None, None, Some("*Safari*")));
-        assert!(!safari_ctx.matches(Some("Firefox"), None, None, None));
+        assert!(safari_ctx.matches_criteria(&WindowMatchCriteria {
+            process_name: Some("Safari".to_string()),
+            ..Default::default()
+        }));
+        assert!(safari_ctx.matches_criteria(&WindowMatchCriteria {
+            process_name: Some("Saf*".to_string()),
+            ..Default::default()
+        }));
+        assert!(safari_ctx.matches_criteria(&WindowMatchCriteria {
+            process_name: Some("*ari".to_string()),
+            ..Default::default()
+        }));
+        assert!(safari_ctx.matches_criteria(&WindowMatchCriteria {
+            window_title: Some("*Apple*".to_string()),
+            ..Default::default()
+        }));
+        assert!(safari_ctx.matches_criteria(&WindowMatchCriteria {
+            executable_path: Some("*Safari*".to_string()),
+            ..Default::default()
+        }));
+        assert!(!safari_ctx.matches_criteria(&WindowMatchCriteria {
+            process_name: Some("Firefox".to_string()),
+            ..Default::default()
+        }));
     }
 
     #[test]
