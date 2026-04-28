@@ -38,9 +38,20 @@ impl Default for InputDeviceConfig {
 pub trait InputDeviceTrait: Send {
     fn register(&mut self) -> Result<()>;
     fn unregister(&mut self);
-    fn poll_event(&mut self) -> Option<InputEvent>;
-    fn is_running(&self) -> bool;
-    fn stop(&mut self);
+
+    fn poll_event(&mut self) -> Option<InputEvent> {
+        self.poll_event_inner()
+    }
+    fn is_running(&self) -> bool {
+        self.is_running_inner()
+    }
+    fn stop(&mut self) {
+        self.stop_inner();
+    }
+
+    fn poll_event_inner(&mut self) -> Option<InputEvent>;
+    fn is_running_inner(&self) -> bool;
+    fn stop_inner(&mut self);
 }
 
 /// Output device trait - for sending simulated input events
@@ -776,9 +787,22 @@ pub trait WindowEventHookTrait: Send {
     fn start_with_shutdown(
         &mut self,
         shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<()> {
+        self.start_with_shutdown_inner(shutdown_flag)
+    }
+    fn stop(&mut self) {
+        self.stop_inner()
+    }
+    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool> {
+        self.shutdown_flag_inner()
+    }
+
+    fn start_with_shutdown_inner(
+        &mut self,
+        shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<()>;
-    fn stop(&mut self);
-    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool>;
+    fn stop_inner(&mut self);
+    fn shutdown_flag_inner(&self) -> Arc<std::sync::atomic::AtomicBool>;
 }
 
 /// Trait for program launcher
@@ -889,27 +913,6 @@ macro_rules! impl_platform_factory_methods {
             >,
         ) -> Self::WindowEventHook {
             <$hook>::new(sender)
-        }
-    };
-}
-
-/// Macro to implement `WindowEventHookTrait` with the standard delegation pattern.
-#[macro_export]
-macro_rules! impl_window_event_hook_trait {
-    ($hook:ty) => {
-        fn start_with_shutdown(
-            &mut self,
-            shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
-        ) -> anyhow::Result<()> {
-            self.start_with_shutdown(shutdown_flag)
-        }
-
-        fn stop(&mut self) {
-            self.stop()
-        }
-
-        fn shutdown_flag(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
-            self.shutdown_flag()
         }
     };
 }

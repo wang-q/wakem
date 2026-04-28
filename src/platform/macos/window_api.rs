@@ -573,7 +573,7 @@ impl WindowEventHook {
     }
 
     /// Start window event monitoring with shutdown flag for graceful exit
-    pub fn start_with_shutdown(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()> {
+    pub fn start_with_shutdown_inner(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -661,7 +661,7 @@ impl WindowEventHook {
     }
 
     /// Stop window event monitoring
-    pub fn stop(&mut self) {
+    pub fn stop_inner(&mut self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
 
         if let Some(handle) = self.thread_handle.take() {
@@ -674,7 +674,7 @@ impl WindowEventHook {
     }
 
     /// Get shutdown flag reference
-    pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
+    pub fn shutdown_flag_inner(&self) -> Arc<AtomicBool> {
         self.shutdown_flag.clone()
     }
 }

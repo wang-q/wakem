@@ -206,7 +206,7 @@ impl InputDeviceTrait for MockInputDevice {
         self.state.lock().unwrap().running = false;
     }
 
-    fn poll_event(&mut self) -> Option<InputEvent> {
+    fn poll_event_inner(&mut self) -> Option<InputEvent> {
         let mut state = self.state.lock().unwrap();
         if !state.running {
             return None;
@@ -228,11 +228,11 @@ impl InputDeviceTrait for MockInputDevice {
         event
     }
 
-    fn is_running(&self) -> bool {
+    fn is_running_inner(&self) -> bool {
         self.state.lock().unwrap().running
     }
 
-    fn stop(&mut self) {
+    fn stop_inner(&mut self) {
         self.state.lock().unwrap().running = false;
     }
 }
