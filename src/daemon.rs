@@ -155,7 +155,7 @@ impl ServerState {
         let all_rules = config.get_all_rules();
         {
             let mut mapper = self.mapper.write().await;
-            mapper.load_rules(all_rules.clone());
+            mapper.load_rules(&all_rules);
             mapper.load_context_rules(&config.keyboard.context_mappings);
             debug!(
                 context_mappings_count = config.keyboard.context_mappings.len(),
@@ -405,18 +405,26 @@ impl ServerState {
 
     /// Check if a key release event should be filtered out.
     ///
-    /// Hyper key releases must pass through (to clear virtual_modifiers),
-    /// but other releases are blocked to prevent double-triggering of
-    /// shortcut actions.
+    /// Hyper key releases always pass through (to clear virtual_modifiers).
+    /// Other releases are filtered only when no mapping rule references the key,
+    /// preventing double-triggering while still allowing explicitly mapped keys
+    /// to receive both press and release events.
     async fn should_filter_key_release(&self, event: &InputEvent) -> bool {
         if let InputEvent::Key(key_event) = event {
             if key_event.state == KeyState::Released {
                 let hyper_map = self.hyper_key_map.read().await;
-                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
+                if hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
                 {
-                    debug!("Filtered non-hyper key release event");
-                    return true;
+                    return false;
                 }
+                // Allow release through if any rule references this key
+                let mapper = self.mapper.read().await;
+                let has_rule = mapper.has_rule_for_key(key_event.scan_code);
+                if has_rule {
+                    return false;
+                }
+                debug!("Filtered non-hyper key release event");
+                return true;
             }
         }
         false

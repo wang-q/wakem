@@ -18,8 +18,6 @@ pub struct LayerManager {
     layers: HashMap<String, Layer>,
     /// Layer stack (manages activation state)
     stack: LayerStack,
-    /// Base layer mappings (simple remapping loaded from config)
-    base_mappings: Vec<MappingRule>,
     /// Activation key index: (scan_code, vk) -> layer name
     activation_key_index: HashMap<ActivationKey, String>,
 }
@@ -29,7 +27,6 @@ impl LayerManager {
         Self {
             layers: HashMap::new(),
             stack: LayerStack::new(),
-            base_mappings: Vec::new(),
             activation_key_index: HashMap::new(),
         }
     }
@@ -47,8 +44,7 @@ impl LayerManager {
 
     /// Set base layer mappings
     pub fn set_base_mappings(&mut self, mappings: Vec<MappingRule>) {
-        self.stack.set_base_layer(mappings.clone());
-        self.base_mappings = mappings;
+        self.stack.set_base_layer(mappings);
     }
 
     /// Process input event, check if it's a layer activation key
@@ -68,7 +64,6 @@ impl LayerManager {
             state = ?event.state,
             layers_count = self.layers.len(),
             activation_keys_count = self.activation_key_index.len(),
-            base_mappings_count = self.base_mappings.len(),
             "LayerManager processing key event"
         );
 
@@ -107,7 +102,7 @@ impl LayerManager {
             }
         }
 
-        // If not an activation key, search for mapping in active layers
+        // Search for mapping in active layers (which already includes base layer)
         let input_event = InputEvent::Key(event.clone());
         let mappings = self.stack.get_all_mappings();
         debug!(mappings_count = mappings.len(), "Checking layer mappings");
@@ -115,19 +110,6 @@ impl LayerManager {
             debug!(rule_idx = idx, trigger = ?rule.trigger, "Checking layer rule");
             if rule.trigger.matches(&input_event) {
                 debug!("Found mapping in layer stack: {:?}", rule.action);
-                return (true, Some(rule.action.clone()));
-            }
-        }
-
-        // Also check base mappings directly
-        debug!(
-            base_mappings_count = self.base_mappings.len(),
-            "Checking base mappings"
-        );
-        for (idx, rule) in self.base_mappings.iter().enumerate() {
-            debug!(rule_idx = idx, trigger = ?rule.trigger, "Checking base rule");
-            if rule.trigger.matches(&input_event) {
-                debug!("Found mapping in base: {:?}", rule.action);
                 return (true, Some(rule.action.clone()));
             }
         }

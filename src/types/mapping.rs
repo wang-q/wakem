@@ -134,6 +134,21 @@ impl Trigger {
         }
     }
 
+    /// Check if this trigger references the given scan code.
+    ///
+    /// Returns true for `Key` triggers where `scan_code` matches,
+    /// or for `Chord` triggers where any element matches.
+    /// Mouse and other triggers return false.
+    pub fn has_scan_code(&self, scan_code: u16) -> bool {
+        match self {
+            Trigger::Key {
+                scan_code: Some(sc), ..
+            } => *sc == scan_code,
+            Trigger::Chord(chord) => chord.iter().any(|t| t.has_scan_code(scan_code)),
+            _ => false,
+        }
+    }
+
     /// Create simple key trigger
     pub fn key(scan_code: u16, virtual_key: u16) -> Self {
         Self::Key {
@@ -256,9 +271,69 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
 }
 
 /// Dynamic programming implementation of wildcard matching
-/// Uses rolling array optimization (2 rows instead of full matrix)
-/// Performs case-insensitive comparison without heap allocation for ASCII.
+/// Uses rolling array optimization (2 rows instead of full matrix).
+/// Performs case-insensitive comparison. Uses byte-level access for ASCII
+/// strings to avoid heap allocation; falls back to char collection for Unicode.
+/// Byte-level wildcard DP for ASCII strings. No heap allocation.
+fn wildcard_match_dp_ascii(
+    text: &[u8],
+    pattern: &[u8],
+    max_size: usize,
+) -> bool {
+    let m = text.len();
+    let n = pattern.len();
+
+    if n == 0 {
+        return m == 0;
+    }
+    if m > max_size || n > max_size {
+        return false;
+    }
+
+    let mut prev = vec![false; n + 1];
+    let mut curr = vec![false; n + 1];
+
+    prev[0] = true;
+
+    for j in 1..=n {
+        if pattern[j - 1] == b'*' {
+            prev[j] = prev[j - 1];
+        } else {
+            break;
+        }
+    }
+
+    for i in 1..=m {
+        curr[0] = false;
+        for j in 1..=n {
+            let pc = pattern[j - 1];
+            if pc == b'*' {
+                curr[j] = curr[j - 1] || prev[j];
+            } else if pc == b'?' || text[i - 1].eq_ignore_ascii_case(&pc) {
+                curr[j] = prev[j - 1];
+            } else {
+                curr[j] = false;
+            }
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[n]
+}
+
+/// Dynamic programming implementation of wildcard matching
+/// Uses rolling array optimization (2 rows instead of full matrix).
+/// Performs case-insensitive comparison. Uses byte-level access for ASCII
+/// strings to avoid heap allocation; falls back to char collection for Unicode.
 fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
+    /// Maximum input size for wildcard matching to prevent DoS via excessive memory allocation.
+    const WILDCARD_MAX_INPUT_SIZE: usize = 4096;
+
+    // ASCII fast path: use byte-level DP (no heap allocation)
+    if text.is_ascii() && pattern.is_ascii() {
+        return wildcard_match_dp_ascii(text.as_bytes(), pattern.as_bytes(), WILDCARD_MAX_INPUT_SIZE);
+    }
+
     let text_chars: Vec<char> = text.chars().collect();
     let pattern_chars: Vec<char> = pattern.chars().collect();
 
@@ -269,10 +344,6 @@ fn wildcard_match_dp(text: &str, pattern: &str) -> bool {
         return m == 0;
     }
 
-    /// Maximum input size for wildcard matching to prevent DoS via excessive memory allocation.
-    /// Patterns or texts larger than this limit will not match.
-    /// Set to 4096 to accommodate long window titles while still preventing abuse.
-    const WILDCARD_MAX_INPUT_SIZE: usize = 4096;
     if m > WILDCARD_MAX_INPUT_SIZE || n > WILDCARD_MAX_INPUT_SIZE {
         return false;
     }

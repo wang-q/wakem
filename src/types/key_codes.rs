@@ -518,6 +518,9 @@ fn code_to_vk(code: KeyMappingCode) -> u16 {
         KeyMappingCode::F22 => 0x85,
         KeyMappingCode::F23 => 0x86,
         KeyMappingCode::F24 => 0x87,
+        // New KeyMappingCode variants added by the keycode crate in future
+        // versions will fall through here. VirtualKey 0 is VK__none_ on
+        // Windows, triggering no action rather than a spurious key event.
         _ => 0,
     }
 }

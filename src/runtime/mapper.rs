@@ -66,7 +66,7 @@ struct ContextMappingRule {
 ///
 /// // Load rules from configuration
 /// let rules = config.get_all_rules();
-/// mapper.load_rules(rules);
+/// mapper.load_rules(&rules);
 ///
 /// // Process input event
 /// if let Some(action) = mapper.process_event(&input_event) {
@@ -129,9 +129,23 @@ impl KeyMapper {
     }
 
     /// Load mapping rules from configuration
-    pub fn load_rules(&mut self, rules: Vec<MappingRule>) {
-        self.rules = rules;
+    pub fn load_rules(&mut self, rules: &[MappingRule]) {
+        self.rules = rules.to_vec();
         debug!("Loaded {} mapping rules", self.rules.len());
+    }
+
+    /// Check if any base or context rule references the given scan code.
+    ///
+    /// Used by the daemon to decide whether a key release event should be
+    /// allowed through to the mapper (keys without rules get filtered).
+    pub fn has_rule_for_key(&self, scan_code: u16) -> bool {
+        self.rules
+            .iter()
+            .any(|r| r.trigger.has_scan_code(scan_code))
+            || self
+                .context_rules
+                .iter()
+                .any(|r| r.key_mappings.contains_key(&scan_code))
     }
 
     /// Process input event (with context awareness)
@@ -483,13 +497,16 @@ impl KeyMapper {
                     MonitorDirection::Next | MonitorDirection::Prev => {
                         // Get current window position to determine which monitor it's on
                         let info = wm.get_window_info(window_id)?;
+                        // Use window center point for more robust monitor detection
+                        let cx = info.x + info.width / 2;
+                        let cy = info.y + info.height / 2;
                         let current_monitor_idx = monitors
                             .iter()
                             .position(|m| {
-                                info.x >= m.x
-                                    && info.x < m.x + m.width
-                                    && info.y >= m.y
-                                    && info.y < m.y + m.height
+                                cx >= m.x
+                                    && cx < m.x + m.width
+                                    && cy >= m.y
+                                    && cy < m.y + m.height
                             })
                             .unwrap_or(0);
 
@@ -758,7 +775,7 @@ mod tests {
             Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
         )];
 
-        mapper.load_rules(rules);
+        mapper.load_rules(&rules);
 
         // Verify rules loaded
         assert_eq!(mapper.rules.len(), 1);
@@ -791,7 +808,7 @@ mod tests {
             ),
         ];
 
-        mapper.load_rules(rules);
+        mapper.load_rules(&rules);
     }
 
     #[test]
@@ -803,7 +820,7 @@ mod tests {
             Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
         )];
 
-        mapper.load_rules(rules);
+        mapper.load_rules(&rules);
 
         let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
         let result = mapper.process_event_with_context(&event, None);
@@ -820,7 +837,7 @@ mod tests {
             Action::key(KeyAction::click(0x0E, 0x08)), // Backspace
         )];
 
-        mapper.load_rules(rules);
+        mapper.load_rules(&rules);
 
         // Press 'A' key, should not match
         let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
@@ -838,7 +855,7 @@ mod tests {
             Action::key(KeyAction::click(0x0E, 0x08)),
         )];
 
-        mapper.load_rules(rules);
+        mapper.load_rules(&rules);
 
         // When disabled, events should return None
         // Note: enabled field is private, we verify through behavior
@@ -871,7 +888,7 @@ mod tests {
             Action::key(KeyAction::click(0x0E, 0x08)), // Click action
         )];
 
-        mapper.load_rules(rules);
+        mapper.load_rules(&rules);
 
         // Press event -> should return Press action
         let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
@@ -894,7 +911,7 @@ mod tests {
             Action::key(KeyAction::click(0x0E, 0x08)), // Click action
         )];
 
-        mapper.load_rules(rules);
+        mapper.load_rules(&rules);
 
         // Release event -> should return Release action
         let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Released));

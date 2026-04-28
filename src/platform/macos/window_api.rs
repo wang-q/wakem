@@ -286,10 +286,17 @@ impl RealWindowApi {
     /// Check if window is minimized (iconic)
     /// Internal method named after Windows API convention
     fn is_iconic(&self, window: WindowId) -> bool {
-        // For macOS, we check if the frontmost app's main window is minimized
-        // This is a limitation - we don't check the specific window ID
-        let _ = window; // Unused for now
-        match ns_workspace::get_frontmost_app_pid() {
+        // On-screen windows are not minimized
+        if cg_window::get_window_info_by_number(window as i64)
+            .ok()
+            .flatten()
+            .is_some()
+        {
+            return false;
+        }
+        // Window not on-screen — check via the owning app's AX state
+        // by finding the PID from the full (including off-screen) window list
+        match find_window_pid(window) {
             Some(pid) => match ax_element::create_app_element(pid) {
                 Ok(app_elem) => match ax_element::get_main_window(&app_elem) {
                     Ok(win_elem) => ax_element::is_minimized(&win_elem).unwrap_or(false),
@@ -301,6 +308,22 @@ impl RealWindowApi {
         }
     }
 
+    /// Look up the owning PID for a window (including off-screen / minimized windows).
+    /// Uses the full CGWindowList (not filtered to on-screen only).
+    fn find_window_pid(window: WindowId) -> Option<u32> {
+        // Try on-screen list first (fast path)
+        if let Ok(Some(info)) = cg_window::get_window_info_by_number(window as i64) {
+            return Some(info.pid as u32);
+        }
+        // Try the full window list (includes minimized / off-screen windows)
+        if let Ok(windows) = cg_window::get_all_windows() {
+            if let Some(w) = windows.iter().find(|w| w.number == window as i64) {
+                return Some(w.pid as u32);
+            }
+        }
+        None
+    }
+
     /// Check if window is maximized (zoomed)
     /// Internal method named after Windows API convention
     fn is_zoomed(&self, window: WindowId) -> bool {
@@ -309,7 +332,16 @@ impl RealWindowApi {
             Err(_) => return false,
         };
 
-        let work_area = match self.get_monitor_work_area(0) {
+        // Find which monitor the window is on using its center point
+        let cx = info.x + info.width / 2;
+        let cy = info.y + info.height / 2;
+        let monitors = self.get_monitors();
+        let monitor_idx = monitors
+            .iter()
+            .position(|m| cx >= m.x && cx < m.x + m.width && cy >= m.y && cy < m.y + m.height)
+            .unwrap_or(0);
+
+        let work_area = match self.get_monitor_work_area(monitor_idx) {
             Some(wa) => wa,
             None => return false,
         };

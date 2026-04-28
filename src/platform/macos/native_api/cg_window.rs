@@ -39,13 +39,26 @@ pub struct CGWindowInfo {
 ///
 /// Typically completes in < 2ms on modern Mac hardware.
 pub fn get_on_screen_windows() -> Result<Vec<CGWindowInfo>> {
-    trace!("Getting on-screen windows via CGWindowListCopyWindowInfo");
+    let option_on_screen: u32 = 1 << 0; // kCGWindowListOptionOnScreenOnly
+    get_windows_with_option(option_on_screen)
+}
+
+/// Get all windows (including off-screen / minimized) via CGWindowListCopyWindowInfo.
+///
+/// Returns the full window list without the on-screen-only filter, which includes
+/// minimized and hidden windows. Useful for checking window existence and state.
+pub fn get_all_windows() -> Result<Vec<CGWindowInfo>> {
+    let option_all: u32 = 0; // No filter — include all windows
+    get_windows_with_option(option_all)
+}
+
+/// Shared implementation: query CGWindowList with the given option flags.
+fn get_windows_with_option(list_option: u32) -> Result<Vec<CGWindowInfo>> {
+    trace!("Getting windows via CGWindowListCopyWindowInfo (option={})", list_option);
 
     unsafe {
-        // Call CGWindowListCopyWindowInfo directly via FFI
-        let option_on_screen: u32 = 1 << 0; // kCGWindowListOptionOnScreenOnly
         let option_exclude_desktop: u32 = 1 << 3; // kCGWindowListOptionExcludeDesktopElement
-        let options = option_on_screen | option_exclude_desktop;
+        let options = list_option | option_exclude_desktop;
         let null_window_id: u32 = 0; // kCGNullWindowID
 
         let window_list = cg_window_list_copy_window_info(options, null_window_id);
@@ -54,7 +67,6 @@ pub fn get_on_screen_windows() -> Result<Vec<CGWindowInfo>> {
             return Err(anyhow!("Failed to copy window list"));
         }
 
-        // Convert raw CFArrayRef to Vec using cf_array_get_count and cf_array_get_value_at
         let count = cf_array_get_count(window_list);
         let mut result = Vec::with_capacity(count as usize);
 
@@ -70,7 +82,6 @@ pub fn get_on_screen_windows() -> Result<Vec<CGWindowInfo>> {
             }
         }
 
-        // Release the CFArray
         cf_release(window_list);
 
         // Sort by layer (normal windows first), then by window number

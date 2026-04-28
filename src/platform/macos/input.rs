@@ -207,7 +207,9 @@ fn convert_cg_event(event: *const c_void) -> Option<InputEvent> {
             convert_key_event(event, KeyState::Pressed)
         }
         t if t == cg_event_types::KEY_UP => convert_key_event(event, KeyState::Released),
-        t if t == cg_event_types::FLAGS_CHANGED => None, // Handled implicitly via modifier tracking
+        t if t == cg_event_types::FLAGS_CHANGED => {
+            convert_flags_changed_event(event)
+        }
         t if t == cg_event_types::LEFT_MOUSE_DOWN => {
             convert_mouse_button_event(event, MouseButton::Left, KeyState::Pressed)
         }
@@ -250,6 +252,63 @@ fn convert_key_event(event: *const c_void, state: KeyState) -> Option<InputEvent
         virtual_key,
         state,
     )))
+}
+
+/// Convert a flags-changed CGEvent (modifier key press/release) to KeyEvent.
+///
+/// On macOS, modifier keys generate `kCGEventFlagsChanged` rather than
+/// `kCGEventKeyDown`/`kCGEventKeyUp`. The keycode field identifies which
+/// modifier key changed; the event flags indicate whether it was pressed
+/// or released.
+fn convert_flags_changed_event(event: *const c_void) -> Option<InputEvent> {
+    let keycode =
+        unsafe { CGEventGetIntegerValueField(event, cg_event_fields::KEYBOARD_KEYCODE) };
+    let flags = unsafe { CGEventGetFlags(event) };
+
+    let scan_code = keycode as u16;
+    let virtual_key = keycode_to_virtual_key(scan_code);
+
+    // Determine press vs release by checking if this modifier is now active
+    let is_pressed = is_modifier_active(scan_code, flags);
+    let state = if is_pressed {
+        KeyState::Pressed
+    } else {
+        KeyState::Released
+    };
+
+    trace!(
+        "Flags changed: keycode={}, vk=0x{:02X}, state={:?}, flags=0x{:016X}",
+        keycode,
+        virtual_key,
+        state,
+        flags.bits(),
+    );
+
+    Some(InputEvent::Key(KeyEvent::new(scan_code, virtual_key, state)))
+}
+
+/// Check if the modifier key with the given macOS keycode is currently active
+/// based on the CGEventFlags bitmask.
+fn is_modifier_active(keycode: i64, flags: core_graphics::event::CGEventFlags) -> bool {
+    use core_graphics::event::CGEventFlags;
+    match keycode {
+        // Left/Right Shift
+        56 | 60 => flags.contains(CGEventFlags::CGEventFlagShift),
+        // Left/Right Control
+        59 | 62 => flags.contains(CGEventFlags::CGEventFlagControl),
+        // Left/Right Option (Alt)
+        58 | 61 => flags.contains(CGEventFlags::CGEventFlagAlternate),
+        // Left/Right Command (Meta)
+        55 | 54 => flags.contains(CGEventFlags::CGEventFlagCommand),
+        // Caps Lock — treat as pressed when flags indicate caps lock is on
+        57 => flags.contains(CGEventFlags::CGEventFlagAlphaShift),
+        // Secondary Fn / other modifiers
+        63 => flags.contains(CGEventFlags::CGEventFlagSecondaryFn),
+        _ => {
+            // Unknown keycode — check if any modifier flag is set as a fallback
+            !flags.is_empty()
+        }
+    }
 }
 
 /// Convert a mouse button CGEvent to MouseEvent

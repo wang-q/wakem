@@ -114,13 +114,24 @@ impl OutputDeviceTrait for SendInputDevice {
             (MouseButton::Right, true) => CGEventType::RightMouseUp,
             (MouseButton::Middle, false) => CGEventType::OtherMouseDown,
             (MouseButton::Middle, true) => CGEventType::OtherMouseUp,
-            _ => CGEventType::OtherMouseDown,
+            // X1 and X2 use OtherMouseDown/OtherMouseUp with button numbers 3 and 4
+            (MouseButton::X1, false) => CGEventType::OtherMouseDown,
+            (MouseButton::X1, true) => CGEventType::OtherMouseUp,
+            (MouseButton::X2, false) => CGEventType::OtherMouseDown,
+            (MouseButton::X2, true) => CGEventType::OtherMouseUp,
         };
 
         let cg_button = match button {
             MouseButton::Left => CGMouseButton::Left,
             MouseButton::Right => CGMouseButton::Right,
-            _ => CGMouseButton::Center,
+            MouseButton::Middle => CGMouseButton::Center,
+            // kCGMouseButton3 = 3, kCGMouseButton4 = 4 (not in core-graphics enum)
+            MouseButton::X1 => unsafe {
+                std::mem::transmute::<i32, CGMouseButton>(3)
+            },
+            MouseButton::X2 => unsafe {
+                std::mem::transmute::<i32, CGMouseButton>(4)
+            },
         };
 
         let event = CGEvent::new_mouse_event(source, event_type, point, cg_button)

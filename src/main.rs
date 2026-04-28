@@ -538,17 +538,16 @@ fn cmd_instances_sync() -> Result<()> {
     run_async(|| async {
         let instances = ipc::discover_instances(None).await;
 
-        println!("Running instances:");
+        println!("Discovered instances:");
         let mut found = false;
-        for info in instances {
-            if info.active {
-                found = true;
-                println!("  Instance {}: {} (active)", info.id, info.address);
-            }
+        for info in &instances {
+            found = true;
+            let state = if info.active { "active" } else { "disabled" };
+            println!("  Instance {}: {} ({})", info.id, info.address, state);
         }
 
         if !found {
-            println!("  No running instances found");
+            println!("  No instances found");
         }
 
         Ok(())

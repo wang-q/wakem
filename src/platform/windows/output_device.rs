@@ -86,20 +86,34 @@ impl OutputDeviceTrait for SendInputDevice {
                 input.Anonymous.mi.dy = y;
             } else {
                 // Absolute mode: normalize coordinates to [0, 65535] range
-                // per Windows SendInput MOUSEEVENTF_ABSOLUTE specification
+                // per Windows SendInput MOUSEEVENTF_ABSOLUTE specification.
+                // Account for virtual screen origin offset for multi-monitor setups
+                // where secondary monitors may have negative coordinates.
                 let screen_w = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
                     windows::Win32::UI::WindowsAndMessaging::SM_CXVIRTUALSCREEN,
                 );
                 let screen_h = windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
                     windows::Win32::UI::WindowsAndMessaging::SM_CYVIRTUALSCREEN,
                 );
+                let virtual_left =
+                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                        windows::Win32::UI::WindowsAndMessaging::SM_XVIRTUALSCREEN,
+                    );
+                let virtual_top =
+                    windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                        windows::Win32::UI::WindowsAndMessaging::SM_YVIRTUALSCREEN,
+                    );
                 input.Anonymous.mi.dx = if screen_w > 0 {
-                    ((x as i64 * 65536 / screen_w as i32 as i64) as i32).clamp(0, 65535)
+                    (((x - virtual_left) as i64 * 65536 / screen_w as i32 as i64)
+                        as i32)
+                        .clamp(0, 65535)
                 } else {
                     0
                 };
                 input.Anonymous.mi.dy = if screen_h > 0 {
-                    ((y as i64 * 65536 / screen_h as i32 as i64) as i32).clamp(0, 65535)
+                    (((y - virtual_top) as i64 * 65536 / screen_h as i32 as i64)
+                        as i32)
+                        .clamp(0, 65535)
                 } else {
                     0
                 };
