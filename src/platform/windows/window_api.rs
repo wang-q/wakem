@@ -3,7 +3,6 @@
 
 use anyhow::Result;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
-use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowRect, IsIconic, IsWindow, IsZoomed, SetWindowPos,
     ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
@@ -12,7 +11,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[cfg(test)]
 use crate::platform::mock::WindowApiCall;
 use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, PlatformUtilities, WindowApiBase, WindowFrame,
+    MonitorInfo, PlatformUtilities, WindowApiBase, WindowFrame,
     WindowInfo,
 };
 use crate::platform::windows::WindowsPlatform;
@@ -69,60 +68,6 @@ impl RealWindowApi {
                 SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_FRAMECHANGED,
             )?;
             Ok(())
-        }
-    }
-
-    fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo> {
-        unsafe {
-            let hmonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            if hmonitor.is_invalid() {
-                return None;
-            }
-
-            use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITORINFO};
-            let mut monitor_info = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                ..Default::default()
-            };
-
-            if !GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
-                return None;
-            }
-
-            let rect = &monitor_info.rcMonitor;
-            Some(MonitorInfo {
-                x: rect.left,
-                y: rect.top,
-                width: rect.right - rect.left,
-                height: rect.bottom - rect.top,
-            })
-        }
-    }
-
-    fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea> {
-        unsafe {
-            let hmonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            if hmonitor.is_invalid() {
-                return None;
-            }
-
-            use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITORINFO};
-            let mut monitor_info = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                ..Default::default()
-            };
-
-            if !GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
-                return None;
-            }
-
-            let work_area = &monitor_info.rcWork;
-            Some(MonitorWorkArea {
-                x: work_area.left,
-                y: work_area.top,
-                width: work_area.right - work_area.left,
-                height: work_area.bottom - work_area.top,
-            })
         }
     }
 
@@ -220,6 +165,7 @@ impl RealWindowApi {
         }
     }
 
+    #[allow(dead_code)]
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
             self.restore_window(hwnd)?;

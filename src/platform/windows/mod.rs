@@ -9,20 +9,17 @@ pub mod window_api;
 pub mod window_manager;
 
 pub use crate::platform::launcher_common::Launcher;
-pub use crate::platform::traits::MonitorDirection;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
-pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
-pub use window_api::{RealWindowApi, WindowEventHook};
+pub use window_api::WindowEventHook;
 pub use window_manager::{WindowManager, WindowPresetManager};
 
 #[cfg(test)]
 pub use window_api::MockWindowApi;
 
 use crate::platform::traits::{
-    ApplicationControl, ContextProvider, InputDeviceConfig, LauncherTrait,
-    NotificationService, PlatformFactory, PlatformUtilities, TrayLifecycle,
-    WindowEventHookTrait, WindowPresetManagerTrait,
+    ApplicationControl, ContextProvider, InputDeviceConfig, PlatformFactory,
+    PlatformUtilities, TrayLifecycle, WindowEventHookTrait,
 };
 use crate::types::ModifierState;
 use anyhow::Result;

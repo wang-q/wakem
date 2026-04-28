@@ -3,6 +3,11 @@
 //! This module defines the cross-platform interfaces that can be implemented
 //! by each platform-specific module (Windows, macOS, Linux).
 //!
+//! Many trait methods and types here are used via dynamic dispatch (dyn Trait)
+//! or only on one platform. The dead_code lint is suppressed at module level
+//! because individual #[allow] annotations would be too verbose.
+#![allow(dead_code)]
+//!
 //! Note: Some trait methods and struct fields may appear unused on certain
 //! platforms but are required for cross-platform API completeness.
 
@@ -164,7 +169,9 @@ pub struct MonitorInfo {
 }
 
 /// Monitor work area (usable screen area excluding taskbar/dock)
+/// Monitor work area (excludes taskbar/Dock). Used on macOS; Windows uses MonitorInfo directly.
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct MonitorWorkArea {
     pub x: i32,
     pub y: i32,
@@ -246,6 +253,7 @@ pub enum MonitorDirection {
 
 /// Application commands sent from tray menu
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum AppCommand {
     ToggleActive,
     ReloadConfig,
@@ -269,19 +277,6 @@ pub enum PlatformWindowEvent {
         process_name: String,
         window_title: String,
         window_id: usize,
-    },
-    WindowMinimized {
-        process_name: String,
-    },
-    WindowRestored {
-        process_name: String,
-    },
-    WindowMovedOrResized {
-        process_name: String,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
     },
     WindowCreated {
         process_name: String,
@@ -829,37 +824,6 @@ pub struct WindowMatchCriteria {
     pub window_class: Option<String>,
     pub window_title: Option<String>,
     pub executable_path: Option<String>,
-}
-
-impl WindowMatchCriteria {
-    /// Create a new criteria with no restrictions (matches any window).
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set the process name pattern.
-    pub fn with_process_name(mut self, pattern: impl Into<String>) -> Self {
-        self.process_name = Some(pattern.into());
-        self
-    }
-
-    /// Set the window class pattern.
-    pub fn with_window_class(mut self, pattern: impl Into<String>) -> Self {
-        self.window_class = Some(pattern.into());
-        self
-    }
-
-    /// Set the window title pattern.
-    pub fn with_window_title(mut self, pattern: impl Into<String>) -> Self {
-        self.window_title = Some(pattern.into());
-        self
-    }
-
-    /// Set the executable path pattern.
-    pub fn with_executable_path(mut self, pattern: impl Into<String>) -> Self {
-        self.executable_path = Some(pattern.into());
-        self
-    }
 }
 
 impl WindowContext {

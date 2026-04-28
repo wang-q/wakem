@@ -1,24 +1,12 @@
 //! Windows window manager implementation
 #![cfg(target_os = "windows")]
 
-use anyhow::Result;
-use tracing::debug;
 use windows::Win32::Foundation::{HWND, LPARAM, RECT};
-use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
-use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId,
-    IsIconic, SetForegroundWindow, ShowWindow, GW_OWNER, SW_RESTORE,
-};
+use windows::Win32::UI::WindowsAndMessaging::GW_OWNER;
 use windows_core::BOOL;
 
-// Import Edge and Alignment from types
 use super::window_api::RealWindowApi;
-pub use crate::types::{Alignment, Edge};
-// Import common window manager and shared types
-use crate::platform::traits::{
-    MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo,
-    WindowManagerExt,
-};
+use crate::platform::traits::MonitorInfo;
 pub use crate::platform::window_manager_common::WindowManager;
 
 // Re-export window preset manager for Windows
@@ -112,6 +100,7 @@ impl RealWindowManager {
     /// - Owned/child popup windows (GW_OWNER check)
     /// - Windows with empty titles
     /// - System shell windows ("Program Manager" / Progman class)
+    #[allow(dead_code)]
     pub fn get_app_visible_windows(&self, target_process_name: &str) -> Vec<HWND> {
         use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
@@ -214,6 +203,8 @@ impl RealWindowManager {
 mod tests {
     use super::super::MockWindowApi;
     use super::*;
+    use crate::platform::traits::{WindowFrame, WindowInfo, WindowManagerExt};
+    use crate::types::{Alignment, Edge};
 
     fn test_hwnd(value: usize) -> HWND {
         HWND(value as *mut core::ffi::c_void)

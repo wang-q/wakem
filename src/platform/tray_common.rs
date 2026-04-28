@@ -2,6 +2,10 @@
 //!
 //! This module provides a platform-agnostic tray API trait and manager
 //! that works across Windows and macOS platforms.
+//!
+//! MockTrayApi and related types are used by integration tests (compiled as
+//! a separate crate), so they appear dead to the library build.
+#![allow(dead_code)]
 
 use crate::platform::traits::{AppCommand, MenuAction};
 use anyhow::Result;
@@ -199,9 +203,14 @@ impl<T: TrayApi> TrayManager<T> {
     /// Create a TrayManager from an existing API instance.
     ///
     /// This is a legacy constructor that does not set up a command channel.
-    /// Prefer `TrayManager::new()` which returns `(Self, Receiver<AppCommand>)`.
+    /// The returned `command_sender` will silently drop all sent commands
+    /// because the receiver is discarded. Prefer `TrayManager::new()` which
+    /// returns `(Self, Receiver<AppCommand>)`.
+    #[allow(dead_code)]
     pub fn from_api(api: T) -> Self {
         let (sender, _) = channel();
+        // NOTE: command_sender will discard all messages — receiver is dropped.
+        // This constructor exists for backward compatibility with test code.
         Self {
             tray: Some(TrayIconWrapper::new(api)),
             command_sender: sender,

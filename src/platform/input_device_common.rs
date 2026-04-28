@@ -20,6 +20,9 @@ pub struct InputDeviceBase {
     pub running: bool,
     pub event_receiver: Receiver<InputEvent>,
     pub event_sender: Sender<InputEvent>,
+    /// Platform-specific input configuration (keyboard/mouse capture, legacy input blocking).
+    /// Used by platform device implementations during registration.
+    pub config: InputDeviceConfig,
 }
 
 impl InputDeviceBase {
@@ -30,6 +33,7 @@ impl InputDeviceBase {
             running: false,
             event_receiver: receiver,
             event_sender: sender,
+            config: InputDeviceConfig::default(),
         }
     }
 
@@ -45,6 +49,7 @@ impl InputDeviceBase {
             running: false,
             event_receiver: receiver,
             event_sender,
+            config: InputDeviceConfig::default(),
         }
     }
 
@@ -97,13 +102,15 @@ pub struct InputDevice<T> {
 }
 
 impl<T> InputDevice<T> {
-    pub fn new(_config: InputDeviceConfig) -> Result<Self> {
-        let base = InputDeviceBase::new();
+    pub fn new(config: InputDeviceConfig) -> Result<Self> {
+        let mut base = InputDeviceBase::new();
+        base.config = config;
         Ok(Self { base, inner: None })
     }
 
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
-        let base = InputDeviceBase::with_sender(event_sender);
+        let mut base = InputDeviceBase::with_sender(event_sender);
+        base.config = InputDeviceConfig::default();
         Ok(Self { base, inner: None })
     }
 }

@@ -4,7 +4,7 @@
 mod tray_tests {
     use wakem::platform::traits::MenuAction;
     use wakem::platform::tray_common::menu_ids;
-    use wakem::platform::windows::tray::{MockTrayApi, TrayApi, TrayManager};
+    use wakem::platform::tray_common::{MockTrayApi, TrayApi, TrayManager};
 
     #[tokio::test]
     async fn test_mock_tray_api_register() {

@@ -1,6 +1,7 @@
 //! Common window manager logic shared across platforms
 //!
-//! This module provides platform-agnostic window management operations
+//! Methods are used via trait dispatch (dyn WindowManagerTrait / CommonWindowApi).
+#![allow(dead_code)]
 //! that can be used by any platform-specific window manager.
 
 use crate::platform::traits::{

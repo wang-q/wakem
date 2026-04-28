@@ -1,6 +1,7 @@
-//! Common window preset functionality
+//! Common window preset functionality.
 //!
-//! This module provides shared window preset logic that can be used across platforms.
+//! Trait methods are used via dynamic dispatch (dyn WindowPresetManagerTrait).
+#![allow(dead_code)]
 
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;
@@ -159,6 +160,7 @@ impl<A: WindowPresetApi> WindowPresetManager<A> {
             || preset.title_pattern.is_some()
     }
 
+    #[cfg(test)]
     pub fn apply_preset_for_window(&self) -> Result<bool> {
         let id = match self.api.get_foreground_window() {
             Some(id) => id,
