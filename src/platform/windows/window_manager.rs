@@ -216,7 +216,7 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Verify creation success
-        assert!(!wm.api().is_window(test_hwnd(0)));
+        assert!(!wm.api().is_window_valid(test_hwnd(0)));
     }
 
     #[test]
@@ -407,15 +407,15 @@ mod tests {
 
         // Test minimize
         wm.minimize_window(hwnd).unwrap();
-        assert!(wm.api().is_iconic(hwnd));
+        assert!(wm.api().is_minimized(hwnd));
 
         // Test restore
         wm.restore_window(hwnd).unwrap();
-        assert!(!wm.api().is_iconic(hwnd));
+        assert!(!wm.api().is_minimized(hwnd));
 
         // Test maximize
         wm.maximize_window(hwnd).unwrap();
-        assert!(wm.api().is_zoomed(hwnd));
+        assert!(wm.api().is_maximized(hwnd));
     }
 
     #[test]
@@ -426,11 +426,11 @@ mod tests {
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
 
         let wm = WindowManager::with_api(api);
-        assert!(wm.api().is_window(hwnd));
+        assert!(wm.api().is_window_valid(hwnd));
 
         wm.close_window(hwnd).unwrap();
 
         // Window should be removed
-        assert!(!wm.api().is_window(hwnd));
+        assert!(!wm.api().is_window_valid(hwnd));
     }
 }
