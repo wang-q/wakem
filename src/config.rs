@@ -870,13 +870,7 @@ pub fn parse_window_action(
                         anyhow::anyhow!("ShowNotification requires a title parameter")
                     })?
                     .to_string();
-                let message = if params.contains(',') {
-                    params.split_once(',')
-                        .map(|(_, rest)| rest.trim())
-                        .unwrap_or("")
-                } else {
-                    ""
-                }.to_string();
+                let message = param_list.get(1).unwrap_or(&"").to_string();
                 Ok(WindowAction::ShowNotification { title, message })
             }
             "SavePreset" => {

@@ -406,6 +406,5 @@ mod tests {
         }]);
         let result = mgr.apply_preset_for_window().unwrap();
         assert!(result);
-        assert_eq!(result, true);
     }
 }

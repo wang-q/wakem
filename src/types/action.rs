@@ -475,8 +475,8 @@ mod tests {
 
     #[test]
     fn test_edge_alignment_enums() {
-        let edges = vec![Edge::Left, Edge::Right, Edge::Top, Edge::Bottom];
-        let alignments = vec![
+        let edges = [Edge::Left, Edge::Right, Edge::Top, Edge::Bottom];
+        let alignments = [
             Alignment::Left,
             Alignment::Right,
             Alignment::Top,
@@ -507,9 +507,9 @@ mod tests {
     fn test_launch_action() {
         let launch = LaunchAction {
             program: "code.exe".to_string(),
-            args: vec![".", "--goto"].iter().map(|s| s.to_string()).collect(),
+            args: [".", "--goto"].iter().map(|s| s.to_string()).collect(),
             working_dir: Some("C:\\Projects".to_string()),
-            env_vars: vec![("EDITOR".to_string(), "code".to_string())],
+            env_vars: [("EDITOR".to_string(), "code".to_string())].to_vec(),
         };
 
         assert_eq!(launch.program, "code.exe");

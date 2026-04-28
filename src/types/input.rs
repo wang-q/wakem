@@ -240,7 +240,7 @@ mod tests {
         a_release.modifiers.ctrl = true;
         let ctrl_release = KeyEvent::new(0x1D, 0x11, KeyState::Released);
 
-        let events = vec![
+        let events = [
             InputEvent::Key(ctrl_press),   // Ctrl
             InputEvent::Key(a_press),      // 'A'
             InputEvent::Key(a_release),    // 'A' release

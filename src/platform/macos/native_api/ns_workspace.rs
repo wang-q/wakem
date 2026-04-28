@@ -166,7 +166,7 @@ mod tests {
         assert!(height > 0.0, "Display height should be positive");
         // Common heights: 768, 900, 1050, 1080, 1440, etc.
         assert!(
-            height >= 400.0 && height <= 4000.0,
+            (400.0..=4000.0).contains(&height),
             "Height {} seems unusual",
             height
         );
@@ -176,7 +176,7 @@ mod tests {
     fn test_get_app_path_for_current_process() {
         use std::process;
 
-        let current_pid = process::id() as u32;
+        let current_pid = process::id();
         let path = get_app_path(current_pid);
 
         // The path might not exist for all processes, but shouldn't panic

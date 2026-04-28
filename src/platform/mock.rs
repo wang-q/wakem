@@ -4,7 +4,7 @@
 //! that can be used for testing on any platform.
 
 use crate::platform::traits::{
-    ContextProvider, InputDeviceTrait, PlatformUtilities, WindowId,
+    InputDeviceTrait, WindowId,
 };
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
@@ -810,7 +810,7 @@ mod tests {
 
         // Poll all events
         let mut polled_count = 0;
-        while let Some(_) = device.poll_event() {
+        while device.poll_event().is_some() {
             polled_count += 1;
             if polled_count > 1100 {
                 panic!("Polled more events than injected (possible infinite loop)");

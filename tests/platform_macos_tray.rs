@@ -17,7 +17,7 @@ mod macos_tray_tests {
     #[test]
     fn test_menu_action_clone() {
         let action = MenuAction::Reload;
-        let cloned = action.clone();
+        let cloned = action;
         assert_eq!(action, cloned);
     }
 
@@ -50,7 +50,7 @@ mod macos_tray_tests {
     #[test]
     fn test_app_command_clone() {
         let cmd = AppCommand::ReloadConfig;
-        let cloned = cmd.clone();
+        let cloned = cmd;
         assert_eq!(cmd, cloned);
     }
 

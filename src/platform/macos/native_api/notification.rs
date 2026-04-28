@@ -76,6 +76,5 @@ mod tests {
     #[test]
     fn test_notification_module_creation() {
         // Just verify the module compiles
-        assert!(true);
     }
 }

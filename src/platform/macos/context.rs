@@ -121,7 +121,7 @@ mod tests {
     fn test_get_app_path_for_current_process() {
         use std::process;
 
-        let current_pid = process::id() as u32;
+        let current_pid = process::id();
         let path = ns_workspace::get_app_path(current_pid);
 
         if let Some(p) = path {

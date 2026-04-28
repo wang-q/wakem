@@ -128,6 +128,6 @@ mod tests {
 
     #[test]
     fn test_launcher_default() {
-        let _launcher = Launcher::default();
+        let _launcher = Launcher;
     }
 }

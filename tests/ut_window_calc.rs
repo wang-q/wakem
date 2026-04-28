@@ -191,7 +191,7 @@ fn test_loop_width_wrap_right() {
 #[test]
 fn test_loop_width_all_ratios() {
     let screen_width = 1920;
-    let expected_widths = vec![
+    let expected_widths = [
         1440, // 75%
         1152, // 60%
         960,  // 50%

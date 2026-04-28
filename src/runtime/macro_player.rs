@@ -408,9 +408,11 @@ mod tests {
     #[test]
     fn test_macro_with_modifiers() {
         // Test macro steps with modifiers
-        let mut modifiers = ModifierState::default();
-        modifiers.ctrl = true;
-        modifiers.shift = true;
+        let modifiers = ModifierState {
+            ctrl: true,
+            shift: true,
+            ..Default::default()
+        };
 
         let step = MacroStep::new(
             0,
@@ -506,14 +508,16 @@ mod tests {
 
     #[test]
     fn test_macro_step_with_modifiers_alt() {
-        let mut modifiers = ModifierState::default();
-        modifiers.ctrl = true;
-        modifiers.shift = true;
+        let modifiers = ModifierState {
+            ctrl: true,
+            shift: true,
+            ..Default::default()
+        };
 
         let step = MacroStep::new(
             0,
             Action::key(KeyAction::press(0x2E, 0x43)),
-            modifiers.clone(),
+            modifiers,
             100,
         );
 

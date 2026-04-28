@@ -439,23 +439,19 @@ impl KeyMapper {
                 wm.set_native_ratio(window_id, Some(*scale_index))?;
             }
             WindowAction::SwitchToNextWindow => {
-                // Attempt to switch to next window of the same process
+                // TODO: Implement SwitchToNextWindow action
                 // This requires platform-specific implementation
-                debug!("SwitchToNextWindow action triggered");
+                // See: https://github.com/your-org/wakem/issues/XXX
+                debug!("SwitchToNextWindow action triggered (not yet implemented)");
                 if let Some(current_info) = wm
                     .get_foreground_window()
                     .and_then(|w| wm.get_window_info(w).ok())
                 {
-                    // Log the attempt - actual implementation requires platform support
                     debug!(
                         process_name = %current_info.process_name,
                         window_title = %current_info.title,
-                        "Attempting to switch to next window of same process"
+                        "SwitchToNextWindow: Would switch to next window of same process"
                     );
-                    // Note: Full implementation requires:
-                    // 1. WindowManagerTrait::get_windows_by_process() method
-                    // 2. WindowManagerTrait::activate_window() method
-                    // These are platform-specific and will be added in future versions
                 }
             }
             WindowAction::MoveToMonitor(direction) => {

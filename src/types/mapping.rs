@@ -516,8 +516,10 @@ mod tests {
 
     #[test]
     fn test_trigger_matches_with_modifiers_alt() {
-        let mut modifiers = ModifierState::default();
-        modifiers.ctrl = true;
+        let modifiers = ModifierState {
+            ctrl: true,
+            ..Default::default()
+        };
         let trigger = Trigger::key_with_modifiers(0x1E, 0x41, modifiers);
 
         // Event with Ctrl - should match

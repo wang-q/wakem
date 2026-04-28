@@ -21,7 +21,7 @@ mod macos_property_tests {
         for keycode in common_keycodes {
             let vk = keycode_to_virtual_key(keycode);
             assert!(
-                !seen_vks.contains(&vk) || vk == keycode as u16,
+                !seen_vks.contains(&vk) || vk == keycode,
                 "Duplicate mapping found"
             );
             seen_vks.insert(vk);

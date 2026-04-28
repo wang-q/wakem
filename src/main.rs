@@ -428,6 +428,14 @@ fn open_config_folder_sync(instance_id: u32) -> Result<()> {
 ///
 /// The runtime reference is only valid within the closure, avoiding the need
 /// for unsafe lifetime extension.
+///
+/// # Limitations
+///
+/// - The runtime is stored in thread-local storage, so it will be destroyed
+///   when the thread exits. This function is designed for short-lived CLI
+///   commands and should not be used in long-running threads.
+/// - Each thread gets its own runtime instance, so this does not share
+///   runtimes across threads.
 fn with_runtime<F, R>(f: F) -> Result<R>
 where
     F: FnOnce(&tokio::runtime::Runtime) -> Result<R>,
