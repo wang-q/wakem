@@ -869,6 +869,57 @@ macro_rules! impl_window_event_hook_trait {
     };
 }
 
+/// Macro implementing the boilerplate `WindowApiBase` trait delegation methods
+/// that trivially forward to identically-named inherent methods. Eliminates ~50
+/// lines of duplication across Windows and macOS `RealWindowApi`.
+#[macro_export]
+macro_rules! impl_window_api_base_delegations {
+    () => {
+        fn get_foreground_window(&self) -> Option<Self::WindowId> {
+            self.get_foreground_window()
+        }
+
+        fn set_window_pos(
+            &self,
+            window: Self::WindowId,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+        ) -> anyhow::Result<()> {
+            self.set_window_pos(window, x, y, width, height)
+        }
+
+        fn minimize_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
+            self.minimize_window(window)
+        }
+
+        fn maximize_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
+            self.maximize_window(window)
+        }
+
+        fn restore_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
+            self.restore_window(window)
+        }
+
+        fn close_window(&self, window: Self::WindowId) -> anyhow::Result<()> {
+            self.close_window(window)
+        }
+
+        fn set_topmost(
+            &self,
+            window: Self::WindowId,
+            topmost: bool,
+        ) -> anyhow::Result<()> {
+            self.set_topmost(window, topmost)
+        }
+
+        fn is_topmost(&self, window: Self::WindowId) -> bool {
+            self.is_topmost(window)
+        }
+    };
+}
+
 /// Window context information (for context-aware mappings)
 #[derive(Debug, Clone, Default)]
 pub struct WindowContext {

@@ -70,17 +70,7 @@ impl InputDeviceTrait for InputDevice<CGEventTapInner> {
         }
     }
 
-    fn poll_event(&mut self) -> Option<InputEvent> {
-        self.poll_event_inner()
-    }
-
-    fn is_running(&self) -> bool {
-        self.base.is_running()
-    }
-
-    fn stop(&mut self) {
-        self.stop_inner();
-    }
+    crate::impl_input_device_trait_common!();
 }
 
 #[cfg(test)]

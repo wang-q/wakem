@@ -18,8 +18,8 @@ pub use window_manager::{WindowManager, WindowPresetManager};
 pub use window_api::MockWindowApi;
 
 use crate::platform::traits::{
-    ApplicationControl, ContextProvider, InputDeviceConfig, PlatformFactory,
-    PlatformUtilities, TrayLifecycle, WindowEventHookTrait,
+    ApplicationControl, ContextProvider, PlatformFactory, PlatformUtilities,
+    TrayLifecycle, WindowEventHookTrait,
 };
 use crate::types::ModifierState;
 use anyhow::Result;

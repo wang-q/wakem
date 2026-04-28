@@ -56,17 +56,7 @@ impl InputDeviceTrait for InputDevice<RawInputInner> {
         self.unregister_inner();
     }
 
-    fn poll_event(&mut self) -> Option<InputEvent> {
-        self.poll_event_inner()
-    }
-
-    fn is_running(&self) -> bool {
-        self.is_running_inner()
-    }
-
-    fn stop(&mut self) {
-        self.stop_inner();
-    }
+    crate::impl_input_device_trait_common!();
 }
 
 #[cfg(test)]

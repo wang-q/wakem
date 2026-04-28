@@ -163,16 +163,31 @@ impl<T: PlatformInputDevice> InputDevice<T> {
         self.stop_inner();
     }
 
-    pub fn is_running_inner(&self) -> bool {
-        self.base.is_running()
-    }
-
     pub fn stop_inner(&mut self) {
         self.base.stop();
         if let Some(mut inner) = self.inner.take() {
             inner.stop();
         }
     }
+}
+
+/// Macro implementing the three trivially-identical `InputDeviceTrait` methods
+/// shared by all platform input devices: `poll_event`, `is_running`, `stop`.
+#[macro_export]
+macro_rules! impl_input_device_trait_common {
+    () => {
+        fn poll_event(&mut self) -> Option<$crate::types::InputEvent> {
+            self.poll_event_inner()
+        }
+
+        fn is_running(&self) -> bool {
+            self.base.is_running()
+        }
+
+        fn stop(&mut self) {
+            self.stop_inner();
+        }
+    };
 }
 
 #[cfg(test)]
