@@ -211,9 +211,7 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
 }
 
 impl WindowEventHookTrait for WindowEventHook {
-    fn start_with_shutdown_inner(&mut self, sf: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Result<()> { self.start_with_shutdown_inner(sf) }
-    fn stop_inner(&mut self) { self.stop_inner() }
-    fn shutdown_flag_inner(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> { self.shutdown_flag_inner() }
+    crate::impl_window_event_hook!();
 }
 
 impl TrayLifecycle for WindowsPlatform {

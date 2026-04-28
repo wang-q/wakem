@@ -183,17 +183,7 @@ impl WindowApiBase for RealWindowApi {
         HWND(id as *mut std::ffi::c_void)
     }
 
-    fn get_foreground_window_inner(&self) -> Option<Self::WindowId> { self.get_foreground_window_inner() }
-    fn set_window_pos_inner(&self, w: Self::WindowId, x: i32, y: i32, wd: i32, h: i32) -> Result<()> { self.set_window_pos_inner(w, x, y, wd, h) }
-    fn minimize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.minimize_window_inner(w) }
-    fn maximize_window_inner(&self, w: Self::WindowId) -> Result<()> { self.maximize_window_inner(w) }
-    fn restore_window_inner(&self, w: Self::WindowId) -> Result<()> { self.restore_window_inner(w) }
-    fn close_window_inner(&self, w: Self::WindowId) -> Result<()> { self.close_window_inner(w) }
-    fn set_topmost_inner(&self, w: Self::WindowId, t: bool) -> Result<()> { self.set_topmost_inner(w, t) }
-    fn is_topmost_inner(&self, w: Self::WindowId) -> bool { self.is_topmost_inner(w) }
-    fn is_window_valid_inner(&self, w: Self::WindowId) -> bool { self.is_window_valid_inner(w) }
-    fn is_minimized_inner(&self, w: Self::WindowId) -> bool { self.is_minimized_inner(w) }
-    fn is_maximized_inner(&self, w: Self::WindowId) -> bool { self.is_maximized_inner(w) }
+    crate::impl_window_api_base_inner!();
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
         let title = self.get_window_title(window).unwrap_or_default();

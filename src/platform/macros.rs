@@ -79,3 +79,119 @@ macro_rules! impl_context_provider {
         }
     };
 }
+
+/// Macro implementing `WindowEventHookTrait` with the standard delegation pattern.
+///
+/// Both Windows and macOS `WindowEventHook` types expose inherent methods
+/// (`start_with_shutdown_inner`, `stop_inner`, `shutdown_flag_inner`) that
+/// implement the actual logic. This macro generates trait method bodies
+/// that delegate to those inherent methods, avoiding infinite recursion
+/// because Rust resolves `self.method()` to inherent methods before trait
+/// methods in method lookup.
+#[macro_export]
+macro_rules! impl_window_event_hook {
+    () => {
+        fn start_with_shutdown_inner(
+            &mut self,
+            shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        ) -> anyhow::Result<()> {
+            self.start_with_shutdown_inner(shutdown_flag)
+        }
+
+        fn stop_inner(&mut self) {
+            self.stop_inner()
+        }
+
+        fn shutdown_flag_inner(
+            &self,
+        ) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+            self.shutdown_flag_inner()
+        }
+    };
+}
+
+/// Macro implementing the 11 `_inner` delegation methods required by
+/// [`WindowApiBase`](crate::platform::traits::WindowApiBase).
+///
+/// Both Windows [`RealWindowApi`] and macOS [`RealWindowApi`] expose inherent
+/// methods with identical signatures. The trait impl delegates to those
+/// inherent methods. This macro generates all 11 delegation bodies.
+///
+/// The inherent methods are:
+/// - `get_foreground_window_inner`
+/// - `set_window_pos_inner`
+/// - `minimize_window_inner` / `maximize_window_inner` / `restore_window_inner`
+/// - `close_window_inner`
+/// - `set_topmost_inner` / `is_topmost_inner`
+/// - `is_window_valid_inner` / `is_minimized_inner` / `is_maximized_inner`
+#[macro_export]
+macro_rules! impl_window_api_base_inner {
+    () => {
+        fn get_foreground_window_inner(&self) -> Option<Self::WindowId> {
+            self.get_foreground_window_inner()
+        }
+
+        fn set_window_pos_inner(
+            &self,
+            window: Self::WindowId,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+        ) -> anyhow::Result<()> {
+            self.set_window_pos_inner(window, x, y, width, height)
+        }
+
+        fn minimize_window_inner(
+            &self,
+            window: Self::WindowId,
+        ) -> anyhow::Result<()> {
+            self.minimize_window_inner(window)
+        }
+
+        fn maximize_window_inner(
+            &self,
+            window: Self::WindowId,
+        ) -> anyhow::Result<()> {
+            self.maximize_window_inner(window)
+        }
+
+        fn restore_window_inner(
+            &self,
+            window: Self::WindowId,
+        ) -> anyhow::Result<()> {
+            self.restore_window_inner(window)
+        }
+
+        fn close_window_inner(
+            &self,
+            window: Self::WindowId,
+        ) -> anyhow::Result<()> {
+            self.close_window_inner(window)
+        }
+
+        fn set_topmost_inner(
+            &self,
+            window: Self::WindowId,
+            topmost: bool,
+        ) -> anyhow::Result<()> {
+            self.set_topmost_inner(window, topmost)
+        }
+
+        fn is_topmost_inner(&self, window: Self::WindowId) -> bool {
+            self.is_topmost_inner(window)
+        }
+
+        fn is_window_valid_inner(&self, window: Self::WindowId) -> bool {
+            self.is_window_valid_inner(window)
+        }
+
+        fn is_minimized_inner(&self, window: Self::WindowId) -> bool {
+            self.is_minimized_inner(window)
+        }
+
+        fn is_maximized_inner(&self, window: Self::WindowId) -> bool {
+            self.is_maximized_inner(window)
+        }
+    };
+}
