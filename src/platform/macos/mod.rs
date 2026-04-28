@@ -91,9 +91,7 @@ impl PlatformUtilities for MacosPlatform {
 }
 
 impl ContextProvider for MacosPlatform {
-    fn get_current_context() -> Option<crate::platform::traits::WindowContext> {
-        context::get_current()
-    }
+    crate::impl_context_provider!();
 }
 
 /// macOS notification service using native notification center API
@@ -133,15 +131,7 @@ impl WindowEventHookTrait for WindowEventHook {
 }
 
 impl TrayLifecycle for MacosPlatform {
-    fn run_tray_message_loop(
-        callback: Box<dyn Fn(crate::platform::traits::AppCommand) + Send>,
-    ) -> anyhow::Result<()> {
-        tray::run_tray_message_loop(callback)
-    }
-
-    fn stop_tray() {
-        tray::stop_tray()
-    }
+    crate::impl_tray_lifecycle!();
 }
 
 impl ApplicationControl for MacosPlatform {

@@ -73,29 +73,4 @@ impl InputDeviceTrait for InputDevice<CGEventTapInner> {
     crate::impl_input_device_trait_common!();
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::platform::traits::InputDeviceConfig;
-
-    #[test]
-    fn test_raw_input_device_creation() {
-        let config = InputDeviceConfig::default();
-        let device = RawInputDevice::new(config).unwrap();
-        assert!(!device.is_running());
-    }
-
-    #[test]
-    fn test_raw_input_device_with_sender() {
-        let (tx, _rx) = std::sync::mpsc::channel();
-        let device = RawInputDevice::with_sender(tx).unwrap();
-        assert!(!device.is_running());
-    }
-
-    #[test]
-    fn test_raw_input_device_poll_when_not_running() {
-        let config = InputDeviceConfig::default();
-        let mut device = RawInputDevice::new(config).unwrap();
-        assert!(device.poll_event().is_none());
-    }
-}
+// Shared input device tests live in input_device_common.rs

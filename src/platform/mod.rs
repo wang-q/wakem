@@ -13,6 +13,7 @@ pub mod input_device_common;
 pub mod launcher_common;
 #[cfg(test)]
 pub mod mock;
+pub mod output_device_common;
 pub mod output_helpers;
 pub mod traits;
 pub mod tray_common;

@@ -9,24 +9,12 @@ use anyhow::Result;
 #[cfg(not(test))]
 use tracing::debug;
 
-/// macOS output device using CGEvent (aligned with Windows SendInputDevice)
-#[derive(Debug, Clone)]
-pub struct SendInputDevice;
+pub use crate::platform::output_device_common::SendInputDevice;
 
 impl SendInputDevice {
-    pub fn new() -> Self {
-        Self
-    }
-
     /// Convert Windows-style virtual key to macOS CGKeyCode
     fn virtual_key_to_cg_keycode(virtual_key: u16) -> u16 {
         crate::platform::macos::input::virtual_key_to_keycode(virtual_key)
-    }
-}
-
-impl Default for SendInputDevice {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

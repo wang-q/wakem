@@ -381,14 +381,6 @@ impl WindowApiBase for RealWindowApi {
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
         self.is_window_valid(window)
     }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        self.is_iconic(window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.is_zoomed(window)
-    }
 }
 
 #[cfg(test)]

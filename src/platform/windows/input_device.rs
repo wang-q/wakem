@@ -59,11 +59,12 @@ impl InputDeviceTrait for InputDevice<RawInputInner> {
     crate::impl_input_device_trait_common!();
 }
 
+// Shared input device tests live in input_device_common.rs
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::platform::traits::InputDeviceConfig;
-    use crate::platform::traits::InputDeviceTrait;
 
     #[test]
     fn test_raw_input_device_creation() {

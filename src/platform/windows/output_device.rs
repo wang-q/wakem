@@ -23,21 +23,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SM_YVIRTUALSCREEN,
 };
 
-/// SendInput-based output device implementing [OutputDeviceTrait]
-#[derive(Debug, Clone)]
-pub struct SendInputDevice;
-
-impl Default for SendInputDevice {
-    fn default() -> Self {
-        Self
-    }
-}
-
-impl SendInputDevice {
-    pub fn new() -> Self {
-        Self
-    }
-}
+pub use crate::platform::output_device_common::SendInputDevice;
 
 #[cfg(not(test))]
 impl OutputDeviceTrait for SendInputDevice {
