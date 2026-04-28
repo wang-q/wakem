@@ -1,7 +1,8 @@
 //! Windows window context implementation
 #![cfg(target_os = "windows")]
 
-use crate::platform::traits::WindowContext;
+use crate::platform::traits::{PlatformUtilities, WindowContext};
+use crate::platform::windows::WindowsPlatform;
 use tracing::debug;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,
@@ -37,11 +38,12 @@ pub fn get_current() -> Option<WindowContext> {
         GetWindowThreadProcessId(hwnd, Some(&mut process_id));
 
         // Get process name
-        let process_name = super::get_process_name_by_pid(process_id)
+        let process_name = WindowsPlatform::get_process_name_by_pid(process_id)
             .unwrap_or_else(|_| format!("pid:{}", process_id));
 
         // Get executable file path
-        let executable_path = super::get_executable_path_by_pid(process_id).ok();
+        let executable_path =
+            WindowsPlatform::get_executable_path_by_pid(process_id).ok();
 
         debug!(
             "Current window: class={}, title={}, process={}, path={}",

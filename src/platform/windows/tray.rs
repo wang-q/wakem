@@ -623,7 +623,6 @@ impl TrayApi for RealTrayApi {
 /// Mock tray icon API implementation - for testing
 // Re-export unified MockTrayApi and shared TrayManager from tray_common
 // (used by integration tests in tests/platform_windows_tray.rs)
-#[cfg(test)]
 pub use crate::platform::tray_common::MockTrayApi;
 
 // Re-export shared TrayManager from tray_common

@@ -655,6 +655,12 @@ impl<
 pub trait PlatformUtilities {
     /// Get current modifier state
     fn get_modifier_state() -> ModifierState;
+
+    /// Get process name by PID
+    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String>;
+
+    /// Get executable path by PID
+    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String>;
 }
 
 /// Trait for providing current window context information

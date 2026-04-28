@@ -276,7 +276,7 @@ mod mock_window_api {
     use super::MockWindowId;
     use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowFrame};
     use anyhow::Result;
-    use std::cell::RefCell;
+    use std::sync::Mutex;
     use std::collections::HashMap;
 
     #[derive(Debug, Clone)]
@@ -330,66 +330,71 @@ mod mock_window_api {
     }
 
     pub struct MockWindowApi<Id: MockWindowId> {
-        pub foreground_window: RefCell<Option<Id>>,
-        pub window_rects: RefCell<HashMap<usize, WindowFrame>>,
-        pub monitor_info: RefCell<HashMap<usize, MonitorInfo>>,
-        pub window_states: RefCell<HashMap<usize, MockWindowState>>,
-        pub operations_log: RefCell<Vec<WindowApiCall>>,
+        pub foreground_window: Mutex<Option<Id>>,
+        pub window_rects: Mutex<HashMap<usize, WindowFrame>>,
+        pub monitor_info: Mutex<HashMap<usize, MonitorInfo>>,
+        pub window_states: Mutex<HashMap<usize, MockWindowState>>,
+        pub operations_log: Mutex<Vec<WindowApiCall>>,
     }
+
+    // SAFETY: All fields are behind Mutex, providing thread-safe access.
+    // The Mutex wraps all inner state so MockWindowApi is both Send and Sync.
+    unsafe impl<Id: MockWindowId> Send for MockWindowApi<Id> {}
+    unsafe impl<Id: MockWindowId> Sync for MockWindowApi<Id> {}
 
     #[cfg(test)]
     impl<Id: MockWindowId> MockWindowApi<Id> {
         pub fn new() -> Self {
             Self {
-                foreground_window: RefCell::new(None),
-                window_rects: RefCell::new(HashMap::new()),
-                monitor_info: RefCell::new(HashMap::new()),
-                window_states: RefCell::new(HashMap::new()),
-                operations_log: RefCell::new(Vec::new()),
+                foreground_window: Mutex::new(None),
+                window_rects: Mutex::new(HashMap::new()),
+                monitor_info: Mutex::new(HashMap::new()),
+                window_states: Mutex::new(HashMap::new()),
+                operations_log: Mutex::new(Vec::new()),
             }
         }
 
         pub fn set_foreground_window(&self, window: Id) {
-            *self.foreground_window.borrow_mut() = Some(window);
+            *self.foreground_window.lock().unwrap() = Some(window);
         }
 
         pub fn set_window_rect(&self, window: Id, frame: WindowFrame) {
             self.window_rects
-                .borrow_mut()
+                .lock().unwrap()
                 .insert(window.to_usize(), frame);
         }
 
         pub fn set_monitor_info(&self, window: Id, info: MonitorInfo) {
             self.monitor_info
-                .borrow_mut()
+                .lock().unwrap()
                 .insert(window.to_usize(), info);
         }
 
         pub fn set_window_state(&self, window: Id, minimized: bool, maximized: bool) {
-            let mut states = self.window_states.borrow_mut();
+            let mut states = self.window_states.lock().unwrap();
             let state = states.entry(window.to_usize()).or_default();
             state.minimized = minimized;
             state.maximized = maximized;
         }
 
         pub fn get_operations(&self) -> Vec<WindowApiCall> {
-            self.operations_log.borrow().clone()
+            self.operations_log.lock().unwrap().clone()
         }
 
         fn log_operation(&self, op: WindowApiCall) {
-            self.operations_log.borrow_mut().push(op);
+            self.operations_log.lock().unwrap().push(op);
         }
 
         pub fn get_foreground_window(&self) -> Option<Id> {
             self.log_operation(WindowApiCall::GetForegroundWindow);
-            *self.foreground_window.borrow()
+            *self.foreground_window.lock().unwrap()
         }
 
         pub fn get_window_rect(&self, window: Id) -> Option<WindowFrame> {
             self.log_operation(WindowApiCall::GetWindowRect {
                 window: window.to_usize(),
             });
-            self.window_rects.borrow().get(&window.to_usize()).copied()
+            self.window_rects.lock().unwrap().get(&window.to_usize()).copied()
         }
 
         fn set_window_pos_inner(
@@ -408,10 +413,10 @@ mod mock_window_api {
                 height,
             });
 
-            let mut rects = self.window_rects.borrow_mut();
+            let mut rects = self.window_rects.lock().unwrap();
             rects.insert(window.to_usize(), WindowFrame::new(x, y, width, height));
 
-            let mut states = self.window_states.borrow_mut();
+            let mut states = self.window_states.lock().unwrap();
             if let Some(state) = states.get_mut(&window.to_usize()) {
                 state.minimized = false;
                 state.maximized = false;
@@ -424,14 +429,14 @@ mod mock_window_api {
             self.log_operation(WindowApiCall::GetMonitorInfo {
                 window: window.to_usize(),
             });
-            self.monitor_info.borrow().get(&window.to_usize()).cloned()
+            self.monitor_info.lock().unwrap().get(&window.to_usize()).cloned()
         }
 
         pub fn is_window(&self, window: Id) -> bool {
             self.log_operation(WindowApiCall::IsWindow {
                 window: window.to_usize(),
             });
-            self.window_rects.borrow().contains_key(&window.to_usize())
+            self.window_rects.lock().unwrap().contains_key(&window.to_usize())
         }
 
         pub fn get_window_title(&self, window: Id) -> Option<String> {
@@ -443,7 +448,7 @@ mod mock_window_api {
 
         pub fn is_iconic(&self, window: Id) -> bool {
             self.window_states
-                .borrow()
+                .lock().unwrap()
                 .get(&window.to_usize())
                 .map(|s| s.minimized)
                 .unwrap_or(false)
@@ -451,7 +456,7 @@ mod mock_window_api {
 
         pub fn is_zoomed(&self, window: Id) -> bool {
             self.window_states
-                .borrow()
+                .lock().unwrap()
                 .get(&window.to_usize())
                 .map(|s| s.maximized)
                 .unwrap_or(false)
@@ -461,7 +466,7 @@ mod mock_window_api {
             self.log_operation(WindowApiCall::MinimizeWindow {
                 window: window.to_usize(),
             });
-            let mut states = self.window_states.borrow_mut();
+            let mut states = self.window_states.lock().unwrap();
             states.entry(window.to_usize()).or_default().minimized = true;
             Ok(())
         }
@@ -470,7 +475,7 @@ mod mock_window_api {
             self.log_operation(WindowApiCall::MaximizeWindow {
                 window: window.to_usize(),
             });
-            let mut states = self.window_states.borrow_mut();
+            let mut states = self.window_states.lock().unwrap();
             states.entry(window.to_usize()).or_default().maximized = true;
             Ok(())
         }
@@ -479,7 +484,7 @@ mod mock_window_api {
             self.log_operation(WindowApiCall::RestoreWindow {
                 window: window.to_usize(),
             });
-            let mut states = self.window_states.borrow_mut();
+            let mut states = self.window_states.lock().unwrap();
             if let Some(state) = states.get_mut(&window.to_usize()) {
                 state.minimized = false;
                 state.maximized = false;
@@ -491,8 +496,8 @@ mod mock_window_api {
             self.log_operation(WindowApiCall::CloseWindow {
                 window: window.to_usize(),
             });
-            self.window_rects.borrow_mut().remove(&window.to_usize());
-            self.window_states.borrow_mut().remove(&window.to_usize());
+            self.window_rects.lock().unwrap().remove(&window.to_usize());
+            self.window_states.lock().unwrap().remove(&window.to_usize());
             Ok(())
         }
 
@@ -501,7 +506,7 @@ mod mock_window_api {
                 window: window.to_usize(),
                 topmost,
             });
-            let mut states = self.window_states.borrow_mut();
+            let mut states = self.window_states.lock().unwrap();
             states.entry(window.to_usize()).or_default().topmost = topmost;
             Ok(())
         }
@@ -518,7 +523,7 @@ mod mock_window_api {
 
         pub fn is_topmost(&self, window: Id) -> bool {
             self.window_states
-                .borrow()
+                .lock().unwrap()
                 .get(&window.to_usize())
                 .map(|s| s.topmost)
                 .unwrap_or(false)

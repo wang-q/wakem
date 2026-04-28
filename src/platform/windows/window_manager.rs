@@ -17,6 +17,7 @@ pub use crate::types::{Alignment, Edge};
 // Import common window manager and shared types
 use crate::platform::traits::{
     MonitorDirection, MonitorInfo, WindowApiBase, WindowFrame, WindowInfo,
+    WindowManagerExt,
 };
 pub use crate::platform::window_manager_common::WindowManager;
 
@@ -243,14 +244,15 @@ mod tests {
                 height: 1080,
             },
         );
+        api.set_foreground_window(hwnd);
 
         let wm = WindowManager::with_api(api);
         let info = wm.get_window_info(hwnd).unwrap();
 
-        assert_eq!(info.frame.x, 100);
-        assert_eq!(info.frame.y, 200);
-        assert_eq!(info.frame.width, 800);
-        assert_eq!(info.frame.height, 600);
+        assert_eq!(info.x, 100);
+        assert_eq!(info.y, 200);
+        assert_eq!(info.width, 800);
+        assert_eq!(info.height, 600);
     }
 
     #[test]
@@ -269,9 +271,10 @@ mod tests {
                 height: 1080,
             },
         );
+        api.set_foreground_window(hwnd);
 
         let wm = WindowManager::with_api(api);
-        wm.move_to_center(hwnd).unwrap();
+        wm.move_to_center(hwnd.0 as usize).unwrap();
 
         // Verify window position (1920-800)/2 = 560, (1080-600)/2 = 240
         let frame = wm.api().get_window_rect(hwnd).unwrap();
@@ -294,16 +297,17 @@ mod tests {
                 height: 1080,
             },
         );
+        api.set_foreground_window(hwnd);
 
         let wm = WindowManager::with_api(api);
 
         // Test left edge
-        wm.move_to_edge(hwnd, Edge::Left).unwrap();
+        wm.move_to_edge(hwnd.0 as usize, Edge::Left).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 0);
 
         // Test right edge
-        wm.move_to_edge(hwnd, Edge::Right).unwrap();
+        wm.move_to_edge(hwnd.0 as usize, Edge::Right).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 1920 - 800);
     }
@@ -323,11 +327,12 @@ mod tests {
                 height: 1080,
             },
         );
+        api.set_foreground_window(hwnd);
 
         let wm = WindowManager::with_api(api);
 
         // Test left half screen
-        wm.set_half_screen(hwnd, Edge::Left).unwrap();
+        wm.set_half_screen(hwnd.0 as usize, Edge::Left).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 0);
         assert_eq!(frame.y, 0);
@@ -335,7 +340,7 @@ mod tests {
         assert_eq!(frame.height, 1080);
 
         // Test right half screen
-        wm.set_half_screen(hwnd, Edge::Right).unwrap();
+        wm.set_half_screen(hwnd.0 as usize, Edge::Right).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 960);
         assert_eq!(frame.width, 960);
@@ -357,11 +362,12 @@ mod tests {
             },
         );
         api.set_window_rect(hwnd, WindowFrame::new(0, 0, 960, 600));
+        api.set_foreground_window(hwnd);
 
         let wm = WindowManager::with_api(api);
 
         // Test cycle from 50%
-        wm.loop_width(hwnd, Alignment::Left).unwrap();
+        wm.loop_width(hwnd.0 as usize, Alignment::Left).unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         // 50% -> 40% = 768
@@ -385,11 +391,12 @@ mod tests {
         );
         // Need to set an initial window size first
         api.set_window_rect(hwnd, WindowFrame::new(100, 100, 800, 600));
+        api.set_foreground_window(hwnd);
 
         let wm = WindowManager::with_api(api);
 
         // Test 4:3 ratio, 100% scale
-        wm.set_fixed_ratio(hwnd, 4.0 / 3.0).unwrap();
+        wm.set_fixed_ratio(hwnd.0 as usize, 4.0 / 3.0, None).unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         // Based on smaller side 1080, 4:3 ratio, width = 1080 * 4/3 = 1440

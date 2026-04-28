@@ -13,7 +13,8 @@ pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
 pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
 pub use window_api::{RealWindowApi, WindowEventHook};
-pub use window_manager::{MonitorDirection, WindowManager, WindowPresetManager};
+pub use crate::platform::traits::MonitorDirection;
+pub use window_manager::{WindowManager, WindowPresetManager};
 
 #[cfg(test)]
 pub use window_api::MockWindowApi;
@@ -24,6 +25,7 @@ use crate::platform::traits::{
     WindowEventHookTrait, WindowPresetManagerTrait,
 };
 use crate::types::ModifierState;
+use anyhow::Result;
 
 /// Windows platform utilities
 pub struct WindowsPlatform;
@@ -189,10 +191,14 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
                 nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
 
                 unsafe {
-                    windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid)
-                        .map_err(|e| {
-                            anyhow::anyhow!("Failed to show notification: {}", e)
-                        })?;
+                    let success = windows::Win32::UI::Shell::Shell_NotifyIconW(
+                        NIM_MODIFY, &nid,
+                    );
+                    if !success.as_bool() {
+                        return Err(anyhow::anyhow!(
+                            "Failed to show notification"
+                        ));
+                    }
                 }
 
                 tracing::info!("Notification shown: {} - {}", title, message);

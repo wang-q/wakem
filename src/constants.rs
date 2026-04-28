@@ -63,6 +63,9 @@ pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
 
 // ==================== Wheel Constants ====================
 
+/// Standard Windows WHEEL_DELTA constant (one notch of the wheel)
+pub const WHEEL_DELTA: i32 = 120;
+
 /// Default wheel acceleration multiplier
 pub const DEFAULT_ACCELERATION_MULTIPLIER: f32 = 2.0;
 

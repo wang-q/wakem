@@ -152,6 +152,14 @@ impl<T: PlatformInputDevice> InputDevice<T> {
         self.base.try_recv_event()
     }
 
+    pub fn unregister_inner(&mut self) {
+        self.stop_inner();
+    }
+
+    pub fn is_running_inner(&self) -> bool {
+        self.base.is_running()
+    }
+
     pub fn stop_inner(&mut self) {
         self.base.stop();
         if let Some(mut inner) = self.inner.take() {

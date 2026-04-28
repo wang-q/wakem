@@ -12,8 +12,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[cfg(test)]
 use crate::platform::mock::WindowApiCall;
 use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame, WindowInfo,
+    MonitorInfo, MonitorWorkArea, PlatformUtilities, WindowApiBase, WindowFrame,
+    WindowInfo,
 };
+use crate::platform::windows::WindowsPlatform;
+use tracing::debug;
 
 /// Real Windows API implementation
 pub struct RealWindowApi;
@@ -260,8 +263,9 @@ impl WindowApiBase for RealWindowApi {
             pid
         };
         let process_name =
-            super::get_process_name_by_pid(process_id).unwrap_or_default();
-        let executable_path = super::get_executable_path_by_pid(process_id).ok();
+            WindowsPlatform::get_process_name_by_pid(process_id).unwrap_or_default();
+        let executable_path =
+            WindowsPlatform::get_executable_path_by_pid(process_id).ok();
 
         Ok(WindowInfo {
             id: window.0 as usize,
@@ -361,6 +365,11 @@ pub struct WindowEventHook {
     shutdown_flag: Arc<AtomicBool>,
 }
 
+// SAFETY: The hook is only used on the thread that created it
+// (the window message loop thread). HWINEVENTHOOK is a handle
+// that Windows manages per-thread.
+unsafe impl Send for WindowEventHook {}
+
 impl WindowEventHook {
     /// Create new window event hook
     pub fn new(event_tx: Sender<PlatformWindowEvent>) -> Self {
@@ -442,7 +451,7 @@ unsafe fn get_process_name_for_hwnd(hwnd: HWND) -> String {
     if pid == 0 {
         return String::new();
     }
-    super::get_process_name_by_pid(pid).unwrap_or_default()
+    WindowsPlatform::get_process_name_by_pid(pid).unwrap_or_default()
 }
 
 /// WinEvent callback function

@@ -69,6 +69,24 @@ impl PlatformUtilities for MacosPlatform {
 
         modifiers
     }
+
+    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
+        use crate::platform::macos::native_api::ns_workspace;
+        ns_workspace::get_app_path(pid)
+            .and_then(|path| {
+                std::path::Path::new(&path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.to_string())
+            })
+            .ok_or_else(|| anyhow::anyhow!("Failed to get process name for pid {}", pid))
+    }
+
+    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
+        use crate::platform::macos::native_api::ns_workspace;
+        ns_workspace::get_app_path(pid)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get executable path for pid {}", pid))
+    }
 }
 
 impl ContextProvider for MacosPlatform {

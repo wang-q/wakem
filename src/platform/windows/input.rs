@@ -2,6 +2,8 @@
 #![cfg(target_os = "windows")]
 
 use crate::constants::WHEEL_DELTA;
+use crate::platform::traits::PlatformUtilities;
+use crate::platform::windows::WindowsPlatform;
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
@@ -181,7 +183,7 @@ impl RawInputDevice {
     }
 
     unsafe fn get_current_modifier_state() -> ModifierState {
-        super::get_modifier_state()
+        WindowsPlatform::get_modifier_state()
     }
 
     /// Handle Raw Input message
@@ -227,8 +229,9 @@ impl RawInputDevice {
             // Get current modifier state
             let modifiers = Self::get_current_modifier_state();
 
-            let event =
-                KeyEvent::new(scan_code, keyboard.VKey, state).with_modifiers(modifiers);
+            let mut event =
+                KeyEvent::new(scan_code, keyboard.VKey, state);
+            event.modifiers = modifiers;
 
             trace!(
                 "Keyboard: scan_code={:04X}, vk={:04X}, state={:?}, modifiers={:?}",
