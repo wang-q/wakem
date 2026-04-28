@@ -607,22 +607,9 @@ pub trait WindowEventHookTrait: Send {
     fn start_with_shutdown(
         &mut self,
         shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
-    ) -> Result<()> {
-        self.start_with_shutdown_inner(shutdown_flag)
-    }
-    fn stop(&mut self) {
-        self.stop_inner()
-    }
-    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool> {
-        self.shutdown_flag_inner()
-    }
-
-    fn start_with_shutdown_inner(
-        &mut self,
-        shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<()>;
-    fn stop_inner(&mut self);
-    fn shutdown_flag_inner(&self) -> Arc<std::sync::atomic::AtomicBool>;
+    fn stop(&mut self);
+    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool>;
 }
 
 /// Trait for program launcher

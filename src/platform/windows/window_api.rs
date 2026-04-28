@@ -331,13 +331,13 @@ impl WindowEventHook {
     }
 
     /// Start window event monitoring with shutdown flag for graceful exit
-    pub fn start_with_shutdown_inner(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()> {
+    pub fn start_with_shutdown(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()> {
         self.shutdown_flag = shutdown_flag;
         self.start()
     }
 
     /// Stop window event monitoring
-    pub fn stop_inner(&mut self) {
+    pub fn stop(&mut self) {
         if let Some(hook) = self.hook.take() {
             unsafe {
                 let _ = UnhookWinEvent(hook);
@@ -347,14 +347,14 @@ impl WindowEventHook {
     }
 
     /// Get shutdown flag reference
-    pub fn shutdown_flag_inner(&self) -> Arc<AtomicBool> {
+    pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
         self.shutdown_flag.clone()
     }
 }
 
 impl Drop for WindowEventHook {
     fn drop(&mut self) {
-        self.stop_inner();
+        self.stop();
     }
 }
 

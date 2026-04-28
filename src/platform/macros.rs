@@ -80,32 +80,31 @@ macro_rules! impl_context_provider {
     };
 }
 
-/// Macro implementing `WindowEventHookTrait` with the standard delegation pattern.
+/// Macro implementing [`WindowEventHookTrait`] with the standard delegation
+/// pattern. The platform `WindowEventHook` types expose inherent methods
+/// (`start_with_shutdown`, `stop`, `shutdown_flag`) that implement the
+/// actual logic. This macro generates trait method bodies that delegate
+/// to those inherent methods.
 ///
-/// Both Windows and macOS `WindowEventHook` types expose inherent methods
-/// (`start_with_shutdown_inner`, `stop_inner`, `shutdown_flag_inner`) that
-/// implement the actual logic. This macro generates trait method bodies
-/// that delegate to those inherent methods, avoiding infinite recursion
-/// because Rust resolves `self.method()` to inherent methods before trait
-/// methods in method lookup.
+/// [`WindowEventHookTrait`]: crate::platform::traits::WindowEventHookTrait
 #[macro_export]
 macro_rules! impl_window_event_hook {
     () => {
-        fn start_with_shutdown_inner(
+        fn start_with_shutdown(
             &mut self,
             shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
         ) -> anyhow::Result<()> {
-            self.start_with_shutdown_inner(shutdown_flag)
+            self.start_with_shutdown(shutdown_flag)
         }
 
-        fn stop_inner(&mut self) {
-            self.stop_inner()
+        fn stop(&mut self) {
+            self.stop()
         }
 
-        fn shutdown_flag_inner(
+        fn shutdown_flag(
             &self,
         ) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
-            self.shutdown_flag_inner()
+            self.shutdown_flag()
         }
     };
 }

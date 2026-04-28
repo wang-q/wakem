@@ -14,7 +14,7 @@ use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
     ContextProvider, InputDeviceConfig, InputDeviceTrait, LauncherTrait,
     NotificationService, OutputDeviceTrait, PlatformFactory, PlatformUtilities,
-    WindowEventHookTrait, WindowManagerTrait, WindowPresetManagerTrait,
+    WindowManagerTrait, WindowPresetManagerTrait,
 };
 use crate::runtime::macro_player::{MacroContext, MacroPlayer};
 use crate::shutdown::ShutdownSignal;

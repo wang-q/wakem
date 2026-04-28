@@ -14,7 +14,7 @@ impl LinuxWindowEventHook {
         Self
     }
 
-    pub fn start_with_shutdown_inner(
+    pub fn start_with_shutdown(
         &mut self,
         _shutdown_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<()> {
@@ -23,9 +23,9 @@ impl LinuxWindowEventHook {
         ))
     }
 
-    pub fn stop_inner(&mut self) {}
+    pub fn stop(&mut self) {}
 
-    pub fn shutdown_flag_inner(
+    pub fn shutdown_flag(
         &self,
     ) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
         std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true))
