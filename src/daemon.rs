@@ -121,7 +121,6 @@ impl ServerState {
     ///
     /// Performance optimization: batch updates to reduce lock hold time
     #[tracing::instrument(skip(self, config), fields(
-        rules_count = config.get_all_rules().len(),
         layers_count = config.keyboard.layers.len(),
         presets_count = config.window.presets.len(),
         context_mappings_count = config.keyboard.context_mappings.len(),
@@ -132,7 +131,6 @@ impl ServerState {
         // 4. preset_manager 5. layer_manager   6. config (includes loaded flag)
         // IMPORTANT: Always acquire locks in this order. Never acquire an earlier
         // lock while holding a later one, as this could cause deadlocks.
-        // Debug: Log config details
         debug!(
             window_shortcuts_count = config.window.shortcuts.len(),
             launch_count = config.launch.len(),
@@ -153,6 +151,7 @@ impl ServerState {
         // 2. Update base mapping rules and context rules (merged into one write lock)
         // Compute all_rules once and share between mapper and layer_manager
         let all_rules = config.get_all_rules();
+        tracing::Span::current().record("rules_count", all_rules.len());
         {
             let mut mapper = self.mapper.write().await;
             mapper.load_rules(&all_rules);
@@ -1136,12 +1135,6 @@ async fn initialize_server(
     let shutdown = Arc::new(ShutdownSignal::new());
     let state = Arc::new(ServerState::new((*shutdown).clone()));
 
-    // Set instance ID
-    {
-        let mut config = state.config.write().await;
-        config.config.network.instance_id = instance_id;
-    }
-
     load_configuration(&state, instance_id, preloaded_config, config_path).await?;
 
     Ok((state, shutdown))
@@ -1154,21 +1147,14 @@ async fn load_configuration(
     preloaded_config: Option<Config>,
     config_path: Option<std::path::PathBuf>,
 ) -> Result<()> {
-    if let Some(cfg) = preloaded_config {
-        let mut config = state.config.write().await;
-        config.config.network.instance_id = instance_id;
-        drop(config);
+    if let Some(mut cfg) = preloaded_config {
+        cfg.network.instance_id = instance_id;
         state.load_config(cfg).await?;
-        info!("Configuration loaded from preloaded config");
     } else if let Some(path) = config_path {
-        info!("Loading config from: {:?}", path);
         match Config::from_file(&path) {
-            Ok(cfg) => {
-                let mut config = state.config.write().await;
-                config.config.network.instance_id = instance_id;
-                drop(config);
+            Ok(mut cfg) => {
+                cfg.network.instance_id = instance_id;
                 state.load_config(cfg).await?;
-                info!("Configuration loaded successfully from {:?}", path);
             }
             Err(e) => {
                 warn!(
@@ -1182,8 +1168,6 @@ async fn load_configuration(
             "Failed to load config on startup: {}. Using default config.",
             e
         );
-    } else {
-        info!("Configuration loaded successfully on startup");
     }
     Ok(())
 }
