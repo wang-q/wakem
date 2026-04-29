@@ -121,28 +121,6 @@ mod integration_tests {
 
     #[test]
     #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_get_foreground_window_info() {
-        setup();
-        let _pid = launch_test_window();
-        wait_for_window_stable();
-
-        let wm = WindowManager::new();
-        let info = wm.get_foreground_window_info();
-        assert!(
-            info.is_ok(),
-            "Should get foreground window info: {:?}",
-            info.err()
-        );
-        let info = info.unwrap();
-        assert!(!info.title.is_empty(), "Window title should not be empty");
-        assert!(info.width > 0, "Window width should be positive");
-        assert!(info.height > 0, "Window height should be positive");
-
-        teardown();
-    }
-
-    #[test]
-    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
     fn test_get_window_info_by_handle() {
         setup();
         let _pid = launch_test_window();
@@ -542,76 +520,6 @@ mod integration_tests {
             .args(["/F", "/IM", "notepad.exe"])
             .output();
         thread::sleep(Duration::from_millis(200));
-    }
-
-    // ==================== Window Enumeration Tests ====================
-
-    #[test]
-    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_get_app_visible_windows() {
-        setup();
-
-        let _pid = launch_test_window();
-        wait_for_window_stable();
-
-        let wm = WindowManager::new();
-
-        // Get notepad windows
-        let windows = wm.get_app_visible_windows("notepad.exe");
-
-        assert!(
-            !windows.is_empty(),
-            "Should find at least one notepad window"
-        );
-
-        // Verify all returned handles are valid
-        for hwnd in &windows {
-            unsafe {
-                assert!(IsWindow(Some(*hwnd)).as_bool(), "Handle should be valid");
-            }
-        }
-
-        teardown();
-    }
-
-    #[test]
-    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_get_app_visible_windows_finds_notepad() {
-        setup();
-
-        let _pid = launch_test_window();
-        wait_for_window_stable();
-
-        let wm = WindowManager::new();
-
-        // Get notepad windows
-        let windows = wm.get_app_visible_windows("notepad.exe");
-
-        assert!(!windows.is_empty(), "Should find notepad windows");
-
-        teardown();
-    }
-
-    #[test]
-    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_explorer_multi_process_window_enumeration() {
-        // This test verifies that get_app_visible_windows correctly finds
-        // Explorer windows even though they run in separate processes
-
-        let wm = WindowManager::new();
-
-        // Get explorer windows - this should work even with multi-process
-        let windows = wm.get_app_visible_windows("explorer.exe");
-
-        // We may or may not have Explorer windows open
-        // The important thing is that the function doesn't panic
-        // and correctly filters out system windows
-        for hwnd in &windows {
-            unsafe {
-                assert!(IsWindow(Some(*hwnd)).as_bool(), "Handle should be valid");
-                assert!(IsWindowVisible(*hwnd).as_bool(), "Window should be visible");
-            }
-        }
     }
 
     // ==================== Debug Info Test ====================

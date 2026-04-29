@@ -1,5 +1,4 @@
 //! Cross-platform data types used by platform traits and implementations.
-#![allow(dead_code)]
 
 /// Input device configuration
 #[derive(Debug, Clone)]
@@ -53,14 +52,6 @@ pub struct MonitorWorkArea {
     pub height: i32,
 }
 
-/// Trait for window information needed by common operations
-pub trait WindowInfoProvider {
-    fn x(&self) -> i32;
-    fn y(&self) -> i32;
-    fn width(&self) -> i32;
-    fn height(&self) -> i32;
-}
-
 /// Window frame with position and size
 #[derive(Debug, Clone, Copy)]
 pub struct WindowFrame {
@@ -78,39 +69,6 @@ impl WindowFrame {
             width,
             height,
         }
-    }
-
-    pub fn aspect_ratio(&self) -> f64 {
-        if self.height > 0 {
-            self.width as f64 / self.height as f64
-        } else {
-            0.0
-        }
-    }
-
-    pub fn is_valid(&self) -> bool {
-        self.width > 0 && self.height > 0
-    }
-
-    pub fn center_in(&self, monitor: &MonitorInfo) -> (i32, i32) {
-        let x = monitor.x + (monitor.width - self.width) / 2;
-        let y = monitor.y + (monitor.height - self.height) / 2;
-        (x, y)
-    }
-}
-
-impl WindowInfoProvider for WindowInfo {
-    fn x(&self) -> i32 {
-        self.x
-    }
-    fn y(&self) -> i32 {
-        self.y
-    }
-    fn width(&self) -> i32 {
-        self.width
-    }
-    fn height(&self) -> i32 {
-        self.height
     }
 }
 

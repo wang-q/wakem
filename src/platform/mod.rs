@@ -16,7 +16,7 @@
 //! 2. **Common implementations** (`common/`) — platform-agnostic
 //!    implementations that work across all supported platforms.
 //!
-//! 3. **Platform modules** (`windows/`, `macos/`, `linux/`) —
+//! 3. **Platform modules** (`windows/`, `macos/`) —
 //!    platform-specific code selected via conditional compilation.
 //!
 //! The module uses conditional compilation to select the appropriate
@@ -56,9 +56,6 @@ pub mod windows;
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-#[cfg(target_os = "linux")]
-pub mod linux;
-
 // ---------------------------------------------------------------------------
 // Current platform type alias
 // ---------------------------------------------------------------------------
@@ -68,6 +65,3 @@ pub type CurrentPlatform = windows::WindowsPlatform;
 
 #[cfg(target_os = "macos")]
 pub type CurrentPlatform = macos::MacosPlatform;
-
-#[cfg(target_os = "linux")]
-pub type CurrentPlatform = linux::LinuxPlatform;

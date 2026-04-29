@@ -8,7 +8,7 @@
 use crate::platform::traits::{
     find_monitor_for_point, ForegroundWindowOperations, MonitorDirection, MonitorInfo,
     MonitorOperations, WindowApiBase, WindowFrame, WindowId, WindowInfo,
-    WindowInfoProvider, WindowManagerTrait, WindowOperations, WindowStateQueries,
+    WindowManagerTrait, WindowOperations, WindowStateQueries,
 };
 use crate::types::{Alignment, Edge};
 use anyhow::Result;
@@ -37,15 +37,6 @@ impl<A: WindowApiBase> WindowManager<A> {
     /// Get foreground window
     pub fn get_foreground_window(&self) -> Option<A::WindowId> {
         self.api.get_foreground_window()
-    }
-
-    /// Get foreground window information
-    pub fn get_foreground_window_info(&self) -> Result<WindowInfo> {
-        let window = self
-            .api
-            .get_foreground_window()
-            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
-        self.api.get_window_info(window)
     }
 
     pub fn get_window_info(&self, window: A::WindowId) -> Result<WindowInfo> {
@@ -95,15 +86,16 @@ impl<A: WindowApiBase> WindowManager<A> {
         let info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
 
-        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
-        let frame = WindowFrame::new(info.x(), info.y(), info.width(), info.height());
-        let (new_x, new_y) = frame.center_in(monitor);
+        let frame = WindowFrame::new(info.x, info.y, info.width, info.height);
+        let new_x = monitor.x + (monitor.width - frame.width) / 2;
+        let new_y = monitor.y + (monitor.height - frame.height) / 2;
 
         self.set_window_frame(
             window,
-            &WindowFrame::new(new_x, new_y, info.width(), info.height()),
+            &WindowFrame::new(new_x, new_y, info.width, info.height),
         )?;
         debug!("Moved window to center: ({}, {})", new_x, new_y);
         Ok(())
@@ -113,19 +105,19 @@ impl<A: WindowApiBase> WindowManager<A> {
     pub fn move_to_edge(&self, window: A::WindowId, edge: Edge) -> Result<()> {
         let info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let (new_x, new_y) = match edge {
-            Edge::Left => (monitor.x, info.y()),
-            Edge::Right => (monitor.x + monitor.width - info.width(), info.y()),
-            Edge::Top => (info.x(), monitor.y),
-            Edge::Bottom => (info.x(), monitor.y + monitor.height - info.height()),
+            Edge::Left => (monitor.x, info.y),
+            Edge::Right => (monitor.x + monitor.width - info.width, info.y),
+            Edge::Top => (info.x, monitor.y),
+            Edge::Bottom => (info.x, monitor.y + monitor.height - info.height),
         };
 
         self.set_window_frame(
             window,
-            &WindowFrame::new(new_x, new_y, info.width(), info.height()),
+            &WindowFrame::new(new_x, new_y, info.width, info.height),
         )?;
         debug!("Moved window to {:?} edge: ({}, {})", edge, new_x, new_y);
         Ok(())
@@ -135,7 +127,7 @@ impl<A: WindowApiBase> WindowManager<A> {
     pub fn set_half_screen(&self, window: A::WindowId, edge: Edge) -> Result<()> {
         let info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let (new_x, new_y, new_width, new_height) = match edge {
@@ -168,10 +160,10 @@ impl<A: WindowApiBase> WindowManager<A> {
 
         let info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
-        let current_ratio = info.width() as f32 / monitor.width as f32;
+        let current_ratio = info.width as f32 / monitor.width as f32;
 
         let mut next_ratio = WIDTH_RATIOS[0];
         for (i, ratio) in WIDTH_RATIOS.iter().enumerate() {
@@ -185,12 +177,12 @@ impl<A: WindowApiBase> WindowManager<A> {
         let new_x = match align {
             Alignment::Left => monitor.x,
             Alignment::Right => monitor.x + monitor.width - new_width,
-            _ => info.x(),
+            _ => info.x,
         };
 
         self.set_window_frame(
             window,
-            &WindowFrame::new(new_x, info.y(), new_width, info.height()),
+            &WindowFrame::new(new_x, info.y, new_width, info.height),
         )?;
         debug!("Looped width to {} (ratio: {})", new_width, next_ratio);
         Ok(())
@@ -202,10 +194,10 @@ impl<A: WindowApiBase> WindowManager<A> {
 
         let info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
-        let current_ratio = info.height() as f32 / monitor.height as f32;
+        let current_ratio = info.height as f32 / monitor.height as f32;
 
         let mut next_ratio = HEIGHT_RATIOS[0];
         for (i, ratio) in HEIGHT_RATIOS.iter().enumerate() {
@@ -219,12 +211,12 @@ impl<A: WindowApiBase> WindowManager<A> {
         let new_y = match align {
             Alignment::Top => monitor.y,
             Alignment::Bottom => monitor.y + monitor.height - new_height,
-            _ => info.y(),
+            _ => info.y,
         };
 
         self.set_window_frame(
             window,
-            &WindowFrame::new(info.x(), new_y, info.width(), new_height),
+            &WindowFrame::new(info.x, new_y, info.width, new_height),
         )?;
         debug!("Looped height to {} (ratio: {})", new_height, next_ratio);
         Ok(())
@@ -241,7 +233,7 @@ impl<A: WindowApiBase> WindowManager<A> {
 
         let info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let base_size = std::cmp::min(monitor.width, monitor.height);
@@ -258,8 +250,8 @@ impl<A: WindowApiBase> WindowManager<A> {
                 );
             }
             None => {
-                let current_width_ratio = info.width() as f32 / base_width as f32;
-                let current_height_ratio = info.height() as f32 / base_height as f32;
+                let current_width_ratio = info.width as f32 / base_width as f32;
+                let current_height_ratio = info.height as f32 / base_height as f32;
                 let current_scale = (current_width_ratio + current_height_ratio) / 2.0;
 
                 let mut next = SCALES[0];
@@ -298,7 +290,7 @@ impl<A: WindowApiBase> WindowManager<A> {
     ) -> Result<()> {
         let info = self.api.get_window_info(window)?;
         let monitors = self.api.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x(), info.y())
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
 
         let screen_ratio = monitor.width as f32 / monitor.height as f32;
@@ -335,10 +327,10 @@ impl<A: WindowApiBase> WindowManager<A> {
         let current_monitor_index = monitors
             .iter()
             .position(|m| {
-                info.x() >= m.x
-                    && info.x() < m.x + m.width
-                    && info.y() >= m.y
-                    && info.y() < m.y + m.height
+                info.x >= m.x
+                    && info.x < m.x + m.width
+                    && info.y >= m.y
+                    && info.y < m.y + m.height
             })
             .unwrap_or(0);
 
@@ -363,11 +355,10 @@ impl<A: WindowApiBase> WindowManager<A> {
         let target_monitor = &monitors[target_index];
         let current_monitor = &monitors[current_monitor_index];
 
-        let rel_x = (info.x() - current_monitor.x) as f32 / current_monitor.width as f32;
-        let rel_y =
-            (info.y() - current_monitor.y) as f32 / current_monitor.height as f32;
-        let rel_width = info.width() as f32 / current_monitor.width as f32;
-        let rel_height = info.height() as f32 / current_monitor.height as f32;
+        let rel_x = (info.x - current_monitor.x) as f32 / current_monitor.width as f32;
+        let rel_y = (info.y - current_monitor.y) as f32 / current_monitor.height as f32;
+        let rel_width = info.width as f32 / current_monitor.width as f32;
+        let rel_height = info.height as f32 / current_monitor.height as f32;
 
         let new_x = target_monitor.x + (rel_x * target_monitor.width as f32) as i32;
         let new_y = target_monitor.y + (rel_y * target_monitor.height as f32) as i32;
@@ -503,35 +494,6 @@ mod tests {
         assert_eq!(frame.y, 200);
         assert_eq!(frame.width, 800);
         assert_eq!(frame.height, 600);
-    }
-
-    #[test]
-    fn test_window_frame_aspect_ratio() {
-        let frame = WindowFrame::new(0, 0, 1920, 1080);
-        assert!((frame.aspect_ratio() - 16.0 / 9.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_window_frame_invalid() {
-        let frame = WindowFrame::new(0, 0, -100, 500);
-        assert!(!frame.is_valid());
-
-        let frame = WindowFrame::new(0, 0, 100, -500);
-        assert!(!frame.is_valid());
-    }
-
-    #[test]
-    fn test_window_frame_center_in() {
-        let frame = WindowFrame::new(0, 0, 800, 600);
-        let monitor = MonitorInfo {
-            x: 0,
-            y: 0,
-            width: 1920,
-            height: 1080,
-        };
-        let (x, y) = frame.center_in(&monitor);
-        assert_eq!(x, 560);
-        assert_eq!(y, 240);
     }
 
     #[test]

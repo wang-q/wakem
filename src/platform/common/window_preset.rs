@@ -1,7 +1,4 @@
 //! Common window preset functionality.
-//!
-//! Trait methods are used via dynamic dispatch (dyn WindowPresetManagerTrait).
-#![allow(dead_code)]
 
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;

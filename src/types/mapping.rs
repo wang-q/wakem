@@ -43,30 +43,6 @@ pub enum Trigger {
         button: super::MouseButton,
         modifiers: ModifierState,
     },
-    /// Hot string (text expansion) - RESERVED FOR FUTURE USE
-    ///
-    /// # Warning
-    /// This trigger type is not yet implemented. Using it will have no effect.
-    /// It is reserved for future text expansion functionality.
-    #[doc(alias = "text_expansion")]
-    #[doc(hidden)]
-    HotString { trigger: String },
-    /// Chord trigger (multiple keys in sequence) - RESERVED FOR FUTURE USE
-    ///
-    /// # Warning
-    /// This trigger type is not yet implemented. Using it will have no effect.
-    /// It is reserved for future chord/sequence matching functionality.
-    #[doc(alias = "sequence")]
-    #[doc(hidden)]
-    Chord(Vec<Trigger>),
-    /// Timer trigger - RESERVED FOR FUTURE USE
-    ///
-    /// # Warning
-    /// This trigger type is not yet implemented. Using it will have no effect.
-    /// It is reserved for future timer-based automation functionality.
-    #[doc(alias = "interval")]
-    #[doc(hidden)]
-    Timer { interval_ms: u64 },
     /// Always trigger
     Always,
 }
@@ -78,9 +54,6 @@ impl Trigger {
     ///
     /// - `Key`: Matches keyboard events with optional scan code, virtual key, and modifier checks
     /// - `MouseButton`: Matches mouse button down events with optional modifier checks
-    /// - `HotString`: Not yet implemented (always returns false)
-    /// - `Chord`: Not yet implemented (always returns false)
-    /// - `Timer`: Not yet implemented (always returns false)
     /// - `Always`: Always matches
     pub fn matches(&self, event: &InputEvent) -> bool {
         match (self, event) {
@@ -128,10 +101,6 @@ impl Trigger {
             (Trigger::Key { .. }, InputEvent::Mouse(_)) => false,
             // MouseButton trigger doesn't match key events
             (Trigger::MouseButton { .. }, InputEvent::Key(_)) => false,
-            // These trigger types require stateful matching infrastructure
-            (Trigger::HotString { .. }, _) => false,
-            (Trigger::Chord(_), _) => false,
-            (Trigger::Timer { .. }, _) => false,
         }
     }
 
@@ -435,17 +404,6 @@ mod tests {
     }
 
     #[test]
-    fn test_trigger_matches_hotstring() {
-        let trigger = Trigger::HotString {
-            trigger: "test".to_string(),
-        };
-
-        // HotString trigger matching may need special handling
-        // Here we just verify it can be created
-        let _ = trigger;
-    }
-
-    #[test]
     fn test_mapping_rule_enable_disable() {
         let rule = MappingRule::new(
             Trigger::key(0x3A, 0x14),
@@ -544,15 +502,10 @@ mod tests {
             modifiers: ModifierState::default(),
         };
 
-        let hotstring_trigger = Trigger::HotString {
-            trigger: ".date".to_string(),
-        };
-
         let always_trigger = Trigger::Always;
 
         assert!(matches!(key_trigger, Trigger::Key { .. }));
         assert!(matches!(mouse_trigger, Trigger::MouseButton { .. }));
-        assert!(matches!(hotstring_trigger, Trigger::HotString { .. }));
         assert!(matches!(always_trigger, Trigger::Always));
     }
 }

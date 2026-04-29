@@ -1,8 +1,7 @@
 //! Windows window manager implementation
 #![cfg(target_os = "windows")]
 
-use windows::Win32::Foundation::{HWND, LPARAM, RECT};
-use windows::Win32::UI::WindowsAndMessaging::GW_OWNER;
+use windows::Win32::Foundation::{LPARAM, RECT};
 use windows_core::BOOL;
 
 use super::window_api::RealWindowApi;
@@ -63,120 +62,13 @@ pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
     data.monitors
 }
 
-/// Features requiring real Windows API
-impl RealWindowManager {
-    /// Get all visible windows belonging to the same application (by process name)
-    ///
-    /// Filters out:
-    /// - Invisible windows
-    /// - Owned/child popup windows (GW_OWNER check)
-    /// - Windows with empty titles
-    /// - System shell windows ("Program Manager" / Progman class)
-    #[allow(dead_code)]
-    pub fn get_app_visible_windows(&self, target_process_name: &str) -> Vec<HWND> {
-        use windows::Win32::Foundation::CloseHandle;
-        use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
-        use windows::Win32::System::Threading::{
-            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-        };
-        use windows::Win32::UI::WindowsAndMessaging::{
-            EnumWindows, GetClassNameW, GetWindow, GetWindowTextW, IsWindowVisible,
-        };
-
-        struct EnumData<'a> {
-            target_process_name: &'a str,
-            windows: Vec<HWND>,
-        }
-
-        unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-            let data = &mut *(lparam.0 as *mut EnumData);
-
-            if !IsWindowVisible(hwnd).as_bool() {
-                return BOOL(1);
-            }
-
-            let owner = GetWindow(hwnd, GW_OWNER).unwrap_or_default();
-            if !owner.0.is_null() {
-                return BOOL(1);
-            }
-
-            let mut title = [0u16; 256];
-            let len = GetWindowTextW(hwnd, &mut title);
-            if len == 0 {
-                return BOOL(1);
-            }
-            let title_str = String::from_utf16_lossy(&title[..len as usize]);
-
-            if title_str == "Program Manager" {
-                return BOOL(1);
-            }
-
-            let mut class_name = [0u16; 256];
-            let class_len = GetClassNameW(hwnd, &mut class_name);
-            let class_str = String::from_utf16_lossy(&class_name[..class_len as usize]);
-
-            if class_str == "Progman"
-                || class_str == "WorkerW"
-                || class_str == "Shell_TrayWnd"
-            {
-                return BOOL(1);
-            }
-
-            let mut pid: u32 = 0;
-            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
-                hwnd,
-                Some(&mut pid),
-            );
-            if pid == 0 {
-                return BOOL(1);
-            }
-
-            let handle = match OpenProcess(
-                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-                false,
-                pid,
-            ) {
-                Ok(h) => h,
-                Err(_) => return BOOL(1),
-            };
-
-            let mut name_buf = [0u16; 260];
-            let name_len = GetModuleBaseNameW(handle, None, &mut name_buf);
-            CloseHandle(handle).ok();
-
-            if name_len == 0 {
-                return BOOL(1);
-            }
-
-            let proc_name = String::from_utf16_lossy(&name_buf[..name_len as usize]);
-            if !proc_name.eq_ignore_ascii_case(data.target_process_name) {
-                return BOOL(1);
-            }
-
-            data.windows.push(hwnd);
-            BOOL(1)
-        }
-
-        unsafe {
-            let mut data = EnumData {
-                target_process_name,
-                windows: Vec::new(),
-            };
-
-            let _ =
-                EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
-
-            data.windows
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::super::MockWindowApi;
     use super::*;
     use crate::platform::traits::{WindowApiBase, WindowFrame};
     use crate::types::{Alignment, Edge};
+    use windows::Win32::Foundation::HWND;
 
     fn test_hwnd(value: usize) -> HWND {
         HWND(value as *mut core::ffi::c_void)

@@ -110,7 +110,7 @@ fn run_daemon_inline(instance_id: u32) -> Result<()> {
 pub fn wait_for_daemon_shutdown(
     handle: std::thread::JoinHandle<()>,
     timeout: std::time::Duration,
-) -> Result<(), ()> {
+) -> anyhow::Result<()> {
     use std::sync::mpsc::channel;
 
     let (tx, rx) = channel();
@@ -120,10 +120,9 @@ pub fn wait_for_daemon_shutdown(
         let _ = tx.send(());
     });
 
-    match rx.recv_timeout(timeout) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(()),
-    }
+    rx.recv_timeout(timeout)
+        .map_err(|_| anyhow::anyhow!("Daemon shutdown timed out after {:?}", timeout))?;
+    Ok(())
 }
 
 /// Try to reconnect to daemon after connection loss

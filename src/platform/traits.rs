@@ -1,15 +1,7 @@
 //! Platform abstraction traits
 //!
-//! This module defines the cross-platform interfaces that can be implemented
-//! by each platform-specific module (Windows, macOS, Linux).
-//!
-//! Many trait methods and types here are used via dynamic dispatch (dyn Trait)
-//! or only on one platform. The dead_code lint is suppressed at module level
-//! because individual #[allow] annotations would be too verbose.
-#![allow(dead_code)]
-//!
-//! Note: Some trait methods and struct fields may appear unused on certain
-//! platforms but are required for cross-platform API completeness.
+//! This module defines the cross-platform interfaces implemented
+//! by each platform-specific module (Windows, macOS).
 
 use crate::platform::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
@@ -322,14 +314,6 @@ pub fn find_monitor_index_for_point(monitors: &[MonitorInfo], x: i32, y: i32) ->
 pub trait WindowManagerExt:
     WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations
 {
-    /// Get information about the currently focused window
-    fn get_foreground_window_info(&self) -> Result<WindowInfo> {
-        let window = self
-            .get_foreground_window()
-            .ok_or_else(|| anyhow::anyhow!("No foreground window found"))?;
-        self.get_window_info(window)
-    }
-
     /// Move window to center of its current monitor
     fn move_to_center(&self, window: WindowId) -> Result<()> {
         let info = self.get_window_info(window)?;
