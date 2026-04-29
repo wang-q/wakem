@@ -1378,14 +1378,11 @@ fn setup_window_event_processing(
     state: &Arc<ServerState>,
     shutdown: &Arc<ShutdownSignal>,
 ) -> (Arc<AtomicBool>, std::thread::JoinHandle<()>) {
-    let window_shutdown_flag = Arc::new(AtomicBool::new(false));
-    let window_shutdown_flag_clone = window_shutdown_flag.clone();
-
-    let hook_shutdown_flag = Arc::new(AtomicBool::new(false));
-    let hook_shutdown_flag_clone = hook_shutdown_flag.clone();
+    let shutdown_flag = Arc::new(AtomicBool::new(false));
+    let shutdown_flag_clone = shutdown_flag.clone();
 
     let handle = std::thread::spawn(move || {
-        run_window_event_bridge(window_shutdown_flag_clone, hook_shutdown_flag);
+        run_window_event_bridge(shutdown_flag_clone);
     });
 
     // Start async window event processor
@@ -1395,7 +1392,7 @@ fn setup_window_event_processing(
         run_window_event_processor(state_clone, window_shutdown).await;
     });
 
-    (hook_shutdown_flag_clone, handle)
+    (shutdown_flag, handle)
 }
 
 /// Run window event bridge thread
@@ -1408,17 +1405,14 @@ fn setup_window_event_processing(
 ///
 /// This is needed for auto-apply preset on window activation (see
 /// `handle_window_event` and `WINDOW_PRESET_APPLY_DELAY_MS`).
-fn run_window_event_bridge(
-    shutdown_flag: Arc<AtomicBool>,
-    hook_shutdown: Arc<AtomicBool>,
-) {
+fn run_window_event_bridge(shutdown_flag: Arc<AtomicBool>) {
     let (std_tx, std_rx) =
         std::sync::mpsc::channel::<crate::platform::traits::PlatformWindowEvent>();
 
-    let hook_shutdown_inner = hook_shutdown.clone();
+    let shutdown_flag_inner = shutdown_flag.clone();
     let hook_handle = std::thread::spawn(move || {
         let mut hook = <crate::platform::CurrentPlatform as PlatformFactory>::create_window_event_hook(std_tx);
-        if let Err(e) = hook.start_with_shutdown(hook_shutdown_inner) {
+        if let Err(e) = hook.start_with_shutdown(shutdown_flag_inner) {
             error!("Failed to start window event hook: {}", e);
         } else {
             info!("Window event hook started");
@@ -1447,7 +1441,6 @@ fn run_window_event_bridge(
         }
     }
 
-    hook_shutdown.store(true, Ordering::SeqCst);
     let _ = hook_handle.join();
     info!("Window event bridge thread shutdown complete");
 }
@@ -1562,9 +1555,10 @@ async fn cleanup_server(
         thread_handles.len()
     );
     for (index, handle) in thread_handles.into_iter().enumerate() {
-        match handle.join() {
-            Ok(_) => debug!("Thread {} completed successfully", index),
-            Err(e) => error!("Thread {} panicked: {:?}", index, e),
+        match tokio::task::spawn_blocking(|| handle.join()).await {
+            Ok(Ok(_)) => debug!("Thread {} completed successfully", index),
+            Ok(Err(e)) => error!("Thread {} panicked: {:?}", index, e),
+            Err(e) => error!("Thread {} join task failed: {}", index, e),
         }
     }
 
