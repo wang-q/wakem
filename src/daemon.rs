@@ -121,6 +121,7 @@ impl ServerState {
     ///
     /// Performance optimization: batch updates to reduce lock hold time
     #[tracing::instrument(skip(self, config), fields(
+        rules_count,
         layers_count = config.keyboard.layers.len(),
         presets_count = config.window.presets.len(),
         context_mappings_count = config.keyboard.context_mappings.len(),
