@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Agent",
+      "Task",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [{
+          "type": "command",
+          "command": "cargo fmt 2>/dev/null; cargo check 2>&1 | tail -1"
+        }]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [{
+          "type": "command",
+          "command": "cargo fmt 2>/dev/null; cargo check 2>&1 | tail -3; echo ---; cargo test 2>&1 | tail -3"
+        }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{
+          "type": "command",
+          "command": "cargo clippy 2>&1 | grep -E '^(error|warning)' | head -10; echo ---; cargo test 2>&1 | tail -3"
+        }]
+      }
+    ]
+  }
+}
