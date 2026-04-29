@@ -242,7 +242,7 @@ macro_rules! impl_window_manager_types {
 
 /// Macro declaring a unit-struct notification service with `new()` and
 /// `Default`. For use when the notification service does not need internal
-/// state (macOS, Linux). Platforms with stateful services (Windows) define
+/// state (macOS). Platforms with stateful services (Windows) define
 /// their struct manually.
 #[macro_export]
 macro_rules! decl_notification_service {

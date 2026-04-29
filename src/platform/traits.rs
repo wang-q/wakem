@@ -123,7 +123,7 @@ pub trait OutputDeviceTrait: Send {
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()>;
 }
 
-// WindowId, WindowInfo, MonitorInfo, MonitorWorkArea, WindowInfoProvider,
+// WindowId, WindowInfo, MonitorInfo, MonitorWorkArea,
 // WindowFrame, MonitorDirection, AppCommand, PlatformWindowEvent, and MenuAction
 // are defined in super::types and re-exported via `pub use super::types::*`.
 
