@@ -1,26 +1,7 @@
 //! Platform-agnostic output device helper functions
 //!
-//! Contains shared logic used by all platform output device implementations,
-//! including cross-platform modifier key virtual key codes.
-
-/// Cross-platform modifier key virtual key codes.
-///
-/// These constants use Windows virtual key code values as the canonical
-/// representation. On macOS, [MacosOutputDevice] converts them to
-/// CGKeyCode values via [virtual_key_to_keycode].
-///
-/// | Constant  | Windows VK     | macOS Keycode |
-/// |-----------|----------------|---------------|
-/// | SHIFT     | VK_SHIFT (0x10)| 56            |
-/// | CONTROL   | VK_CONTROL (0x11)| 59          |
-/// | ALT       | VK_MENU (0x12) | 58            |
-/// | META/WIN  | VK_LWIN (0x5B) | 55            |
-pub mod modifier_vk {
-    pub const SHIFT: u16 = 0x10;
-    pub const CONTROL: u16 = 0x11;
-    pub const ALT: u16 = 0x12;
-    pub const META: u16 = 0x5B;
-}
+//! Contains shared logic used by all platform output device implementations.
+//! Modifier key virtual key codes are defined in [crate::types::key_codes].
 
 /// Convert ASCII character to virtual key code
 ///

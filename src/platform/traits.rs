@@ -74,35 +74,35 @@ pub trait OutputDeviceTrait: Send {
         scan_code: u16,
         virtual_key: u16,
     ) -> Result<()> {
-        use crate::platform::output_helpers::modifier_vk;
+        use crate::types::key_codes::{VK_ALT, VK_CONTROL, VK_LMETA, VK_SHIFT};
 
         if modifiers.shift {
-            self.send_key(0, modifier_vk::SHIFT, false)?;
+            self.send_key(0, VK_SHIFT, false)?;
         }
         if modifiers.ctrl {
-            self.send_key(0, modifier_vk::CONTROL, false)?;
+            self.send_key(0, VK_CONTROL, false)?;
         }
         if modifiers.alt {
-            self.send_key(0, modifier_vk::ALT, false)?;
+            self.send_key(0, VK_ALT, false)?;
         }
         if modifiers.meta {
-            self.send_key(0, modifier_vk::META, false)?;
+            self.send_key(0, VK_LMETA, false)?;
         }
 
         self.send_key(scan_code, virtual_key, false)?;
         self.send_key(scan_code, virtual_key, true)?;
 
         if modifiers.meta {
-            self.send_key(0, modifier_vk::META, true)?;
+            self.send_key(0, VK_LMETA, true)?;
         }
         if modifiers.alt {
-            self.send_key(0, modifier_vk::ALT, true)?;
+            self.send_key(0, VK_ALT, true)?;
         }
         if modifiers.ctrl {
-            self.send_key(0, modifier_vk::CONTROL, true)?;
+            self.send_key(0, VK_CONTROL, true)?;
         }
         if modifiers.shift {
-            self.send_key(0, modifier_vk::SHIFT, true)?;
+            self.send_key(0, VK_SHIFT, true)?;
         }
 
         Ok(())

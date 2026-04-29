@@ -494,7 +494,7 @@ mod tests {
         let (sender, receiver) = std::sync::mpsc::channel::<PlatformWindowEvent>();
         let mut hook = WindowEventHook::new(sender);
 
-        hook.start().unwrap();
+        hook.start_with_shutdown(hook.shutdown_flag()).unwrap();
 
         std::thread::sleep(std::time::Duration::from_millis(100));
 
@@ -556,11 +556,6 @@ impl WindowEventHook {
             poll_interval_ms: 200,
             thread_handle: None,
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn start(&mut self) -> Result<()> {
-        self.start_with_shutdown(self.shutdown_flag.clone())
     }
 
     /// Start window event monitoring with shutdown flag for graceful exit

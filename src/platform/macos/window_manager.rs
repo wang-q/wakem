@@ -18,7 +18,6 @@ mod tests {
     use super::super::window_api::MockWindowApi;
     use super::*;
     use crate::platform::traits::{MonitorInfo, WindowApiBase, WindowFrame};
-    use crate::platform::window_manager_common::CommonWindowApi;
     use crate::types::{Alignment, Edge};
 
     #[test]

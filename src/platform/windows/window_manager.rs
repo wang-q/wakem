@@ -175,7 +175,7 @@ impl RealWindowManager {
 mod tests {
     use super::super::MockWindowApi;
     use super::*;
-    use crate::platform::traits::{WindowApiBase, WindowFrame, WindowManagerExt};
+    use crate::platform::traits::{WindowApiBase, WindowFrame};
     use crate::types::{Alignment, Edge};
 
     fn test_hwnd(value: usize) -> HWND {
@@ -237,7 +237,7 @@ mod tests {
         api.set_foreground_window(hwnd);
 
         let wm = WindowManager::with_api(api);
-        wm.move_to_center(hwnd.0 as usize).unwrap();
+        wm.move_to_center(hwnd).unwrap();
 
         // Verify window position (1920-800)/2 = 560, (1080-600)/2 = 240
         let frame = wm.api().get_window_rect(hwnd).unwrap();
@@ -265,12 +265,12 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Test left edge
-        wm.move_to_edge(hwnd.0 as usize, Edge::Left).unwrap();
+        wm.move_to_edge(hwnd, Edge::Left).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 0);
 
         // Test right edge
-        wm.move_to_edge(hwnd.0 as usize, Edge::Right).unwrap();
+        wm.move_to_edge(hwnd, Edge::Right).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 1920 - 800);
     }
@@ -295,7 +295,7 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Test left half screen
-        wm.set_half_screen(hwnd.0 as usize, Edge::Left).unwrap();
+        wm.set_half_screen(hwnd, Edge::Left).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 0);
         assert_eq!(frame.y, 0);
@@ -303,7 +303,7 @@ mod tests {
         assert_eq!(frame.height, 1080);
 
         // Test right half screen
-        wm.set_half_screen(hwnd.0 as usize, Edge::Right).unwrap();
+        wm.set_half_screen(hwnd, Edge::Right).unwrap();
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 960);
         assert_eq!(frame.width, 960);
@@ -330,7 +330,7 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Test cycle from 50%
-        wm.loop_width(hwnd.0 as usize, Alignment::Left).unwrap();
+        wm.loop_width(hwnd, Alignment::Left).unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         // 50% -> 40% = 768
@@ -359,8 +359,7 @@ mod tests {
         let wm = WindowManager::with_api(api);
 
         // Test 4:3 ratio, 100% scale
-        wm.set_fixed_ratio(hwnd.0 as usize, 4.0 / 3.0, None)
-            .unwrap();
+        wm.set_fixed_ratio(hwnd, 4.0 / 3.0, None).unwrap();
 
         let frame = wm.api().get_window_rect(hwnd).unwrap();
         // Based on smaller side 1080, 4:3 ratio, width = 1080 * 4/3 = 1440

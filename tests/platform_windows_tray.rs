@@ -4,7 +4,11 @@
 mod tray_tests {
     use wakem::platform::traits::MenuAction;
     use wakem::platform::tray_common::menu_ids;
-    use wakem::platform::tray_common::{MockTrayApi, TrayApi, TrayManager};
+    use wakem::platform::tray_common::MockTrayApi;
+    use wakem::platform::tray_common::TrayApi;
+    use wakem::platform::tray_common::TrayManager;
+
+    // -- MockTrayApi direct tests --
 
     #[tokio::test]
     async fn test_mock_tray_api_register() {
@@ -79,100 +83,53 @@ mod tray_tests {
         assert!(api.is_active().await);
     }
 
-    #[tokio::test]
-    async fn test_tray_manager_init() {
-        let api = MockTrayApi::new();
-        let manager = TrayManager::from_api(api);
+    // -- TrayManager tests (new API) --
 
-        manager.init(Some(12345)).await.unwrap();
-        assert!(manager.api().unwrap().is_registered());
+    #[tokio::test]
+    async fn test_tray_manager_start_stop() {
+        let (mut manager, _rx) = TrayManager::<MockTrayApi>::new();
+        assert!(!manager.is_running());
+
+        manager.start().await.unwrap();
+        assert!(manager.is_running());
+
+        manager.stop().await.unwrap();
+        assert!(!manager.is_running());
     }
 
     #[tokio::test]
-    async fn test_tray_manager_cleanup() {
-        let api = MockTrayApi::new();
-        let manager = TrayManager::from_api(api);
+    async fn test_tray_manager_double_start_is_idempotent() {
+        let (mut manager, _rx) = TrayManager::<MockTrayApi>::new();
 
-        manager.init(Some(12345)).await.unwrap();
-        assert!(manager.api().unwrap().is_registered());
+        manager.start().await.unwrap();
+        manager.start().await.unwrap(); // second start should be no-op
+        assert!(manager.is_running());
 
-        manager.cleanup().await.unwrap();
-        assert!(!manager.api().unwrap().is_registered());
+        manager.stop().await.unwrap();
+        assert!(!manager.is_running());
     }
 
     #[tokio::test]
     async fn test_tray_manager_notify() {
-        let api = MockTrayApi::new();
-        let manager = TrayManager::from_api(api);
+        let (mut manager, _rx) = TrayManager::<MockTrayApi>::new();
+        manager.start().await.unwrap();
 
         manager
             .notify("Notification", "This is a test")
             .await
             .unwrap();
-
-        let notifications = manager.api().unwrap().get_notifications();
-        assert_eq!(notifications.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_tray_manager_show_context_menu_toggle() {
-        let api = MockTrayApi::new();
-        api.set_menu_selections(vec![menu_ids::TOGGLE_ACTIVE]);
+    async fn test_tray_manager_set_active_status() {
+        let (mut manager, _rx) = TrayManager::<MockTrayApi>::new();
+        manager.start().await.unwrap();
 
-        let manager = TrayManager::from_api(api);
-        let action = manager.show_context_menu().await.unwrap();
-
-        assert_eq!(action, MenuAction::ToggleActive);
+        manager.set_active_status(false).await.unwrap();
+        manager.set_active_status(true).await.unwrap();
     }
 
-    #[tokio::test]
-    async fn test_tray_manager_show_context_menu_reload() {
-        let api = MockTrayApi::new();
-        api.set_menu_selections(vec![menu_ids::RELOAD]);
-
-        let manager = TrayManager::from_api(api);
-        let action = manager.show_context_menu().await.unwrap();
-
-        assert_eq!(action, MenuAction::Reload);
-    }
-
-    #[tokio::test]
-    async fn test_tray_manager_show_context_menu_open_config() {
-        let api = MockTrayApi::new();
-        api.set_menu_selections(vec![menu_ids::OPEN_CONFIG]);
-
-        let manager = TrayManager::from_api(api);
-        let action = manager.show_context_menu().await.unwrap();
-
-        assert_eq!(action, MenuAction::OpenConfig);
-    }
-
-    #[tokio::test]
-    async fn test_tray_manager_show_context_menu_exit() {
-        let api = MockTrayApi::new();
-        api.set_menu_selections(vec![menu_ids::EXIT]);
-
-        let manager = TrayManager::from_api(api);
-        let action = manager.show_context_menu().await.unwrap();
-
-        assert_eq!(action, MenuAction::Exit);
-    }
-
-    #[tokio::test]
-    async fn test_tray_manager_toggle_active() {
-        let api = MockTrayApi::new();
-        let manager = TrayManager::from_api(api);
-
-        assert!(manager.is_active().await);
-
-        let new_state = manager.toggle_active().await.unwrap();
-        assert!(!new_state);
-        assert!(!manager.is_active().await);
-
-        let new_state = manager.toggle_active().await.unwrap();
-        assert!(new_state);
-        assert!(manager.is_active().await);
-    }
+    // -- MenuAction and menu_ids tests --
 
     #[test]
     fn test_menu_action_debug() {

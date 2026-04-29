@@ -7,6 +7,7 @@ pub mod macros;
 pub mod mapping;
 
 pub use action::*;
+pub use context::*;
 pub use input::*;
 pub use key_codes::*;
 pub use layer::*;
@@ -14,12 +15,6 @@ pub use macros::*;
 pub use mapping::*;
 
 use serde::{Deserialize, Serialize};
-
-// Re-export modifier key constants from key_codes module for backward compatibility
-pub use key_codes::{
-    VK_ALT, VK_CONTROL, VK_LALT, VK_LCONTROL, VK_LMETA, VK_LSHIFT, VK_RALT, VK_RCONTROL,
-    VK_RMETA, VK_RSHIFT, VK_SHIFT,
-};
 
 /// Device type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

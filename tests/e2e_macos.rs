@@ -7,7 +7,6 @@ mod macos_integration_tests {
     use std::time::Duration;
     use wakem::platform::macos::{RealWindowApi, WindowManager};
     use wakem::platform::traits::{WindowApiBase, WindowId};
-    use wakem::platform::window_manager_common::CommonWindowApi;
     use wakem::types::Edge;
 
     /// Type alias for real window manager
@@ -63,7 +62,7 @@ mod macos_integration_tests {
 
         let original = wm.get_window_info(window_id).ok();
 
-        let result = CommonWindowApi::move_to_center(&wm, window_id);
+        let result = wm.move_to_center(window_id);
         assert!(result.is_ok());
 
         thread::sleep(Duration::from_millis(300));
@@ -88,7 +87,7 @@ mod macos_integration_tests {
             None => panic!("No foreground window found"),
         };
 
-        let result = CommonWindowApi::move_to_edge(&wm, window_id, Edge::Left);
+        let result = wm.move_to_edge(window_id, Edge::Left);
         assert!(result.is_ok());
 
         thread::sleep(Duration::from_millis(300));
@@ -113,13 +112,13 @@ mod macos_integration_tests {
             None => panic!("No foreground window found"),
         };
 
-        let result1 = CommonWindowApi::toggle_topmost(&wm, window_id);
+        let result1 = wm.toggle_topmost(window_id);
         assert!(result1.is_ok());
         let is_topmost1 = result1.unwrap();
 
         thread::sleep(Duration::from_millis(200));
 
-        let result2 = CommonWindowApi::toggle_topmost(&wm, window_id);
+        let result2 = wm.toggle_topmost(window_id);
         assert!(result2.is_ok());
         let is_topmost2 = result2.unwrap();
 

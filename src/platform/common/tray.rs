@@ -5,7 +5,6 @@
 //!
 //! MockTrayApi and related types are used by integration tests (compiled as
 //! a separate crate), so they appear dead to the library build.
-#![allow(dead_code)]
 
 use crate::platform::traits::{AppCommand, MenuAction};
 use anyhow::Result;
@@ -191,94 +190,6 @@ impl<T: TrayApi + Default + 'static> Default for TrayManager<T> {
             tray: None,
             command_sender: sender,
             running: false,
-        }
-    }
-}
-
-/// Legacy API-wrapper TrayManager methods (for backward compatibility).
-///
-/// These methods operate on the `api` directly without lifecycle management.
-/// Prefer using `start()/stop()/notify()` for new code.
-impl<T: TrayApi> TrayManager<T> {
-    /// Create a TrayManager from an existing API instance.
-    ///
-    /// This is a legacy constructor that does not set up a command channel.
-    /// The returned `command_sender` will silently drop all sent commands
-    /// because the receiver is discarded. Prefer `TrayManager::new()` which
-    /// returns `(Self, Receiver<AppCommand>)`.
-    #[allow(dead_code)]
-    pub fn from_api(api: T) -> Self {
-        let (sender, _) = channel();
-        // NOTE: command_sender will discard all messages — receiver is dropped.
-        // This constructor exists for backward compatibility with test code.
-        Self {
-            tray: Some(TrayIconWrapper::new(api)),
-            command_sender: sender,
-            running: false,
-        }
-    }
-
-    /// Get a reference to the underlying API (if tray is initialized)
-    pub fn api(&self) -> Option<&T> {
-        self.tray.as_ref().map(|w| &w.api)
-    }
-
-    /// Initialize tray icon with optional window handle
-    pub async fn init(&self, hwnd: Option<isize>) -> Result<()> {
-        if let Some(ref tray) = self.tray {
-            tray.api.register(hwnd).await
-        } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
-        }
-    }
-
-    /// Initialize with window handle (convenience for Windows)
-    pub async fn init_with_hwnd(&self, hwnd: isize) -> Result<()> {
-        self.init(Some(hwnd)).await
-    }
-
-    /// Initialize without window handle (convenience for macOS)
-    pub async fn init_no_handle(&self) -> Result<()> {
-        self.init(None).await
-    }
-
-    /// Cleanup tray icon
-    pub async fn cleanup(&self) -> Result<()> {
-        if let Some(ref tray) = self.tray {
-            tray.api.unregister().await
-        } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
-        }
-    }
-
-    /// Toggle active status and return new state
-    pub async fn toggle_active(&self) -> Result<bool> {
-        if let Some(ref tray) = self.tray {
-            let current = tray.api.is_active().await;
-            let new_state = !current;
-            tray.api.set_active(new_state).await?;
-            Ok(new_state)
-        } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
-        }
-    }
-
-    /// Get current active status
-    pub async fn is_active(&self) -> bool {
-        if let Some(ref tray) = self.tray {
-            tray.api.is_active().await
-        } else {
-            false
-        }
-    }
-
-    /// Show context menu and return selected action
-    pub async fn show_context_menu(&self) -> Result<MenuAction> {
-        if let Some(ref tray) = self.tray {
-            let selection = tray.api.show_menu().await?;
-            Ok(menu_id_to_action(selection))
-        } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
         }
     }
 }

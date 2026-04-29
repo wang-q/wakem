@@ -1,3 +1,4 @@
+use super::context::ContextCondition;
 use super::{Action, InputEvent, ModifierState};
 use serde::{Deserialize, Serialize};
 
@@ -156,10 +157,6 @@ impl Trigger {
         }
     }
 }
-
-// ContextCondition and wildcard_match are defined in types::context,
-// re-exported here for backward compatibility via the glob re-export in types::mod.
-pub use super::context::{wildcard_match, ContextCondition};
 
 #[cfg(test)]
 mod tests {
