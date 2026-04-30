@@ -16,10 +16,10 @@ use super::window_api::{RealWindowApi, WindowApi};
 #[allow(unused_imports)]
 pub use crate::types::{Alignment, Edge};
 // Import common window manager and shared types
+use crate::platform::common::window_manager::CommonWindowApi;
 use crate::platform::traits::{
     MonitorInfo, MonitorWorkArea, WindowFrame, WindowInfoProvider,
 };
-use crate::platform::window_manager_common::CommonWindowApi;
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]

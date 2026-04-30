@@ -56,37 +56,6 @@ pub use common::tray;
 #[allow(unused_imports)]
 pub use common::window_preset;
 
-// Backward compatibility modules - re-export from common
-pub mod window_manager_common {
-    pub use crate::platform::common::window_manager::*;
-}
-
-// Legacy re-exports (deprecated, use common::* instead)
-#[deprecated(since = "0.2.0", note = "Use `common::input_device` instead")]
-pub mod input_device_common {
-    pub use crate::platform::common::input_device::*;
-}
-
-#[deprecated(since = "0.2.0", note = "Use `common::launcher` instead")]
-pub mod launcher_common {
-    pub use crate::platform::common::launcher::*;
-}
-
-#[deprecated(since = "0.2.0", note = "Use `common::output_helpers` instead")]
-pub mod output_helpers {
-    pub use crate::platform::common::output_helpers::*;
-}
-
-#[deprecated(since = "0.2.0", note = "Use `common::tray` instead")]
-pub mod tray_common {
-    pub use crate::platform::common::tray::*;
-}
-
-#[deprecated(since = "0.2.0", note = "Use `common::window_preset` instead")]
-pub mod window_preset_common {
-    pub use crate::platform::common::window_preset::*;
-}
-
 // Platform-specific type aliases for easier cross-platform code
 #[cfg(target_os = "windows")]
 pub mod platform_types {

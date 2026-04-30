@@ -1,11 +1,11 @@
 //! macOS input device implementation using CGEventTap
 //!
 //! This module provides a macOS input device using CGEventTap.
-//! Uses the generic [InputDevice] from [input_device_common] to share code
+//! Uses the generic [InputDevice] from [common::input_device] to share code
 //! with the Windows implementation.
 #![cfg(target_os = "macos")]
 
-use crate::platform::input_device_common::{InputDevice, PlatformInputDevice};
+use crate::platform::common::input_device::{InputDevice, PlatformInputDevice};
 use crate::platform::traits::{InputDeviceConfig, InputDeviceTrait};
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;

@@ -16,7 +16,7 @@ pub mod window_manager;
 pub mod window_preset;
 
 // Re-export common types
-pub use crate::platform::launcher_common::Launcher;
+pub use crate::platform::common::launcher::Launcher;
 pub use crate::platform::traits::InputDeviceConfig;
 
 // Re-export input device

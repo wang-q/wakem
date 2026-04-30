@@ -416,7 +416,7 @@ impl KeyMapper {
         preset_manager: Option<&mut crate::platform::windows::WindowPresetManager>,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
-        use crate::platform::window_manager_common::CommonWindowApi;
+        use crate::platform::common::window_manager::CommonWindowApi;
         use crate::types::{MonitorDirection, WindowAction};
         use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
@@ -710,8 +710,8 @@ impl KeyMapper {
         wm: RealMacosWindowManager,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
+        use crate::platform::common::window_manager::CommonWindowManager;
         use crate::platform::traits::WindowManagerTrait;
-        use crate::platform::window_manager_common::CommonWindowManager;
         use crate::types::{MonitorDirection, WindowAction};
 
         info!(?action, "execute_window_action_internal called");

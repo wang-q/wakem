@@ -24,10 +24,10 @@ use objc::{class, msg_send, sel, sel_impl};
 
 // Re-export shared tray types
 pub use crate::platform::traits::{AppCommand, MenuAction};
-// Import unified TrayApi trait from tray_common
-pub use crate::platform::tray_common::TrayApi;
-// Re-export menu ID constants from tray_common
-use crate::platform::tray_common::menu_ids;
+// Import unified TrayApi trait from common::tray
+pub use crate::platform::common::tray::TrayApi;
+// Re-export menu ID constants from common::tray
+use crate::platform::common::tray::menu_ids;
 
 /// Global callback storage for menu actions
 thread_local! {
@@ -53,7 +53,7 @@ fn call_global_callback(cmd: AppCommand) {
     });
 }
 
-/// Menu item tag constants (from tray_common::menu_ids, cast to i64 for Cocoa)
+/// Menu item tag constants (from common::tray::menu_ids, cast to i64 for Cocoa)
 const MENU_TAG_TOGGLE: i64 = menu_ids::TOGGLE_ACTIVE as i64;
 const MENU_TAG_RELOAD: i64 = menu_ids::RELOAD as i64;
 const MENU_TAG_OPEN_CONFIG: i64 = menu_ids::OPEN_CONFIG as i64;
@@ -338,9 +338,9 @@ impl TrayApi for RealTrayApi {
     }
 }
 
-// Re-export TrayIconWrapper and TrayManager from tray_common
-pub use crate::platform::tray_common::TrayIconWrapper;
-pub use crate::platform::tray_common::TrayManager;
+// Re-export TrayIconWrapper and TrayManager from common::tray
+pub use crate::platform::common::tray::TrayIconWrapper;
+pub use crate::platform::common::tray::TrayManager;
 
 /// Type aliases for convenience
 pub type RealTrayManager = TrayManager<RealTrayApi>;
@@ -408,8 +408,8 @@ pub fn stop_tray() {
     debug!("Stop signal sent to tray loop");
 }
 
-// Re-export unified MockTrayApi from tray_common
-pub use crate::platform::tray_common::MockTrayApi;
+// Re-export unified MockTrayApi from common::tray
+pub use crate::platform::common::tray::MockTrayApi;
 
 #[cfg(test)]
 mod tests {

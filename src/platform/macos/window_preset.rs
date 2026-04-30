@@ -1,12 +1,12 @@
 //! macOS window preset management
 #![cfg(target_os = "macos")]
 
+use crate::platform::common::window_preset::{
+    WindowPresetApi, WindowPresetManager as CommonWindowPresetManager,
+};
 use crate::platform::macos::window_api::{MacosWindowApi, RealMacosWindowApi};
 use crate::platform::macos::window_manager::MacosWindowManager;
 use crate::platform::traits::WindowInfo;
-use crate::platform::window_preset_common::{
-    WindowPresetApi, WindowPresetManager as CommonWindowPresetManager,
-};
 use anyhow::Result;
 
 impl<A: MacosWindowApi + Clone> WindowPresetApi for MacosWindowManager<A> {

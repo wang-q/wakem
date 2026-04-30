@@ -2,10 +2,10 @@
 //!
 //! Wraps the low-level Raw Input device from [crate::platform::windows::input]
 //! behind the [InputDeviceTrait] interface. Uses the generic [InputDevice]
-//! from [input_device_common] to share code with macOS implementation.
+//! from [common::input_device] to share code with macOS implementation.
 #![cfg(target_os = "windows")]
 
-use crate::platform::input_device_common::{InputDevice, PlatformInputDevice};
+use crate::platform::common::input_device::{InputDevice, PlatformInputDevice};
 use crate::platform::traits::InputDeviceTrait;
 use crate::types::InputEvent;
 use anyhow::Result;

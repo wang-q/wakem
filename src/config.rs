@@ -12,7 +12,7 @@ use crate::constants::{
 };
 use crate::types::{ContextCondition, MacroStep, MappingRule};
 
-use crate::platform::launcher_common::Launcher;
+use crate::platform::common::launcher::Launcher;
 
 /// Global configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

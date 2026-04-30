@@ -9,7 +9,7 @@ use crate::platform::traits::{MonitorInfo, WindowId, WindowInfo, WindowManagerTr
 use anyhow::Result;
 use tracing::debug;
 
-use crate::platform::window_manager_common::CommonWindowApi;
+use crate::platform::common::window_manager::CommonWindowApi;
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]

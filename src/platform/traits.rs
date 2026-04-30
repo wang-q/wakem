@@ -4,7 +4,7 @@
 //! by each platform-specific module (Windows, macOS, Linux).
 
 #[allow(unused_imports)]
-use crate::platform::output_helpers::char_to_vk;
+use crate::platform::common::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
 
@@ -80,7 +80,7 @@ pub trait OutputDeviceTrait: Send {
         scan_code: u16,
         virtual_key: u16,
     ) -> Result<()> {
-        use crate::platform::output_helpers::modifier_vk;
+        use crate::platform::common::output_helpers::modifier_vk;
 
         if modifiers.shift {
             self.send_key(0, modifier_vk::SHIFT, false)?;

@@ -40,8 +40,8 @@ const WM_RBUTTONUP: u32 = 0x0205;
 
 // Re-export shared tray types from platform::traits
 pub use crate::platform::traits::AppCommand;
-// Re-export menu ID constants from tray_common
-pub use crate::platform::tray_common::menu_ids;
+// Re-export menu ID constants from common::tray
+pub use crate::platform::common::tray::menu_ids;
 
 /// Callback type for command handling
 type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
@@ -522,8 +522,8 @@ impl Drop for TrayIcon {
     }
 }
 
-// Re-export shared TrayApi trait from tray_common
-pub use crate::platform::tray_common::TrayApi;
+// Re-export shared TrayApi trait from common::tray
+pub use crate::platform::common::tray::TrayApi;
 
 /// Real tray icon API implementation
 #[allow(dead_code)]
@@ -631,14 +631,14 @@ impl TrayApi for RealTrayApi {
 }
 
 /// Mock tray icon API implementation - for testing
-// Re-export unified MockTrayApi and shared TrayManager from tray_common
+// Re-export unified MockTrayApi and shared TrayManager from common::tray
 // (used by integration tests in tests/platform_windows_tray.rs)
 #[allow(unused_imports)]
-pub use crate::platform::tray_common::MockTrayApi;
+pub use crate::platform::common::tray::MockTrayApi;
 
-// Re-export shared TrayManager from tray_common
+// Re-export shared TrayManager from common::tray
 #[allow(unused_imports)]
-pub use crate::platform::tray_common::TrayManager;
+pub use crate::platform::common::tray::TrayManager;
 
 #[cfg(test)]
 mod tests {

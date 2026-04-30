@@ -1,10 +1,10 @@
 //! Windows window preset implementation
 #![cfg(target_os = "windows")]
 
-use crate::platform::traits::WindowInfo;
-use crate::platform::window_preset_common::{
+use crate::platform::common::window_preset::{
     WindowPresetApi, WindowPresetManager as CommonWindowPresetManager,
 };
+use crate::platform::traits::WindowInfo;
 use crate::platform::windows::window_api::WindowApi;
 use crate::platform::windows::window_manager::WindowManager;
 use anyhow::Result;

@@ -189,13 +189,13 @@ macro_rules! impl_window_api_base_inner {
 /// `WindowPresetManager` (= `WindowPresetManager<WindowManager<RealWindowApi>>`).
 ///
 /// This macro requires `RealWindowApi` and `WindowManager` to be in scope
-/// (the latter via `use crate::platform::window_manager_common::WindowManager`).
+/// (the latter via `use crate::platform::common::window_manager::WindowManager`).
 ///
 /// # Example
 ///
 /// ```ignore
 /// // In platform/windows/window_manager.rs:
-/// use crate::platform::window_manager_common::WindowManager;
+/// use crate::platform::common::window_manager::WindowManager;
 /// use super::window_api::RealWindowApi;
 ///
 /// crate::impl_window_manager_types!();
@@ -210,9 +210,9 @@ macro_rules! impl_window_manager_types {
     () => {
         /// Type alias for the real window manager using native platform APIs
         pub type RealWindowManager =
-            $crate::platform::window_manager_common::WindowManager<RealWindowApi>;
+            $crate::platform::common::window_manager::WindowManager<RealWindowApi>;
 
-        impl $crate::platform::window_manager_common::WindowManager<RealWindowApi> {
+        impl $crate::platform::common::window_manager::WindowManager<RealWindowApi> {
             pub fn new() -> Self {
                 Self::with_api(RealWindowApi::new())
             }
@@ -226,13 +226,13 @@ macro_rules! impl_window_manager_types {
 
         /// Window preset manager type for this platform
         pub type WindowPresetManager =
-            $crate::platform::window_preset_common::WindowPresetManager<
-                $crate::platform::window_manager_common::WindowManager<RealWindowApi>,
+            $crate::platform::common::window_preset::WindowPresetManager<
+                $crate::platform::common::window_manager::WindowManager<RealWindowApi>,
             >;
 
         impl Default for WindowPresetManager {
             fn default() -> Self {
-                Self::new($crate::platform::window_manager_common::WindowManager::<
+                Self::new($crate::platform::common::window_manager::WindowManager::<
                     RealWindowApi,
                 >::new())
             }

@@ -2,8 +2,8 @@
 
 #[cfg(all(test, target_os = "windows"))]
 mod tray_tests {
+    use wakem::platform::common::tray::menu_ids;
     use wakem::platform::traits::MenuAction;
-    use wakem::platform::tray_common::menu_ids;
     use wakem::platform::windows::tray::{MockTrayApi, TrayApi, TrayManager};
 
     #[tokio::test]
