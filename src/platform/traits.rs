@@ -5,7 +5,6 @@
 //!
 //! Shared data types are defined in [`super::types`] and re-exported here.
 
-#[allow(unused_imports)]
 use crate::platform::common::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;

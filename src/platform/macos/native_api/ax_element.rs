@@ -587,13 +587,6 @@ fn set_minimized_attribute(window_element: &AXElement, minimized: bool) -> Resul
     check_ax_error(error, "set_minimized")
 }
 
-/// Check if window is focused
-///
-/// Queries `kAXFocusedAttribute`.
-pub fn is_focused(window_element: &AXElement) -> Result<bool> {
-    get_boolean_attribute(window_element, "AXFocused")
-}
-
 /// Get window title
 ///
 /// Queries `kAXTitleAttribute`.

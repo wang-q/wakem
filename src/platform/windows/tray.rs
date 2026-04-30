@@ -626,19 +626,10 @@ impl TrayApi for RealTrayApi {
     fn set_menu_selections(&self, _selections: Vec<u32>) {}
 }
 
-/// Mock tray icon API implementation - for testing
-// Re-export unified MockTrayApi and shared TrayManager from common::tray
-// (used by integration tests in tests/platform_windows_tray.rs)
-#[allow(unused_imports)]
-pub use crate::platform::common::tray::MockTrayApi;
-
-// Re-export shared TrayManager from common::tray
-#[allow(unused_imports)]
-pub use crate::platform::common::tray::TrayManager;
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::common::tray::MockTrayApi;
     use crate::platform::traits::MenuAction;
 
     #[test]

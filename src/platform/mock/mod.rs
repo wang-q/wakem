@@ -5,10 +5,6 @@
 
 pub mod mock_window_api;
 
-// Re-export commonly used types for convenience
-#[allow(unused_imports)]
-pub use mock_window_api::{MockWindowApi, MockWindowState, WindowApiCall};
-
 use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,

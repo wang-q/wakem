@@ -35,47 +35,6 @@ pub mod windows;
 #[cfg(target_os = "macos")]
 pub mod macos;
 
-// Re-export common types for convenience
-#[allow(unused_imports)]
-pub use common::{
-    input_device::{InputDevice, InputDeviceBase, PlatformInputDevice},
-    launcher::Launcher,
-    output_helpers::char_to_vk,
-    tray::{
-        menu_id_to_action, menu_ids, MockTrayApi, TrayApi, TrayIconWrapper, TrayManager,
-    },
-    window_preset::{WindowPresetApi, WindowPresetManager},
-};
-
-// Backward compatibility: re-export from common modules
-#[allow(unused_imports)]
-pub use common::input_device;
-#[allow(unused_imports)]
-pub use common::launcher;
-#[allow(unused_imports)]
-pub use common::tray;
-#[allow(unused_imports)]
-pub use common::window_preset;
-
-// Platform-specific type aliases for easier cross-platform code
-#[cfg(target_os = "windows")]
-pub mod platform_types {
-    #![allow(unused_imports)]
-    pub use super::windows::{
-        Launcher, RawInputDevice as InputDevice, SendInputDevice as OutputDevice,
-        WindowManager, WindowPresetManager,
-    };
-}
-
-#[cfg(target_os = "macos")]
-pub mod platform_types {
-    #![allow(unused_imports)]
-    pub use super::macos::{
-        InputDevice, InputDeviceConfig, Launcher, MacosOutputDevice as OutputDevice,
-        WindowManager, WindowPresetManager,
-    };
-}
-
 /// Current platform's factory type
 ///
 /// Use `CurrentPlatform::create_*()` to create platform-specific objects

@@ -13,16 +13,12 @@ use windows_core::BOOL;
 
 // Import Edge and Alignment from types
 use super::window_api::{RealWindowApi, WindowApi};
-#[allow(unused_imports)]
-pub use crate::types::{Alignment, Edge};
-// Import common window manager and shared types
 use crate::platform::common::window_manager::CommonWindowApi;
 use crate::platform::traits::{
     ForegroundWindowOperations, MonitorInfo, MonitorOperations, WindowFrame, WindowId,
     WindowInfo, WindowInfoProvider, WindowManagerTrait, WindowOperations,
     WindowStateQueries,
 };
-#[allow(unused_imports)]
 use crate::platform::types::MonitorWorkArea;
 
 /// Monitor direction (for moving between displays)
@@ -195,23 +191,6 @@ impl<A: WindowApi> WindowManager<A> {
             frame,
             work_area,
         })
-    }
-
-    /// Get debug info string
-    pub fn get_debug_info(&self) -> Result<String> {
-        let info = self.get_foreground_window_info()?;
-
-        Ok(format!(
-            "Window: {}\nID: {:?}\nPosition: [{}, {}]\nSize: {} x {}\nMonitor: [{} x {}]",
-            info.title,
-            info.hwnd,
-            info.frame.x,
-            info.frame.y,
-            info.frame.width,
-            info.frame.height,
-            info.work_area.width,
-            info.work_area.height
-        ))
     }
 
     /// Set window position and size
@@ -885,6 +864,7 @@ impl RealWindowManager {
 mod tests {
     use super::super::MockWindowApi;
     use super::*;
+    use crate::types::{Alignment, Edge};
 
     fn test_hwnd(value: usize) -> HWND {
         HWND(value as *mut core::ffi::c_void)

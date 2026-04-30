@@ -82,7 +82,6 @@ impl ContextCondition {
 }
 
 /// Context information (current active window, etc.)
-#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct ContextInfo {
     pub window_class: String,

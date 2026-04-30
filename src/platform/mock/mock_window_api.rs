@@ -4,16 +4,13 @@
 //! in unit tests without platform dependencies.
 
 use crate::platform::common::window_manager::CommonWindowApi;
-#[allow(unused_imports)]
 use crate::platform::mock::MockWindowId;
-#[allow(unused_imports)]
-use crate::platform::traits::WindowInfoProvider;
-#[allow(unused_imports)]
+#[cfg(test)]
+use crate::platform::traits::WindowApiBase;
 use crate::platform::traits::{
-    ForegroundWindowOperations, MonitorInfo, MonitorOperations, WindowApiBase,
-    WindowFrame, WindowId, WindowManagerTrait, WindowOperations, WindowStateQueries,
+    ForegroundWindowOperations, MonitorInfo, MonitorOperations, WindowFrame, WindowId,
+    WindowManagerTrait, WindowOperations, WindowStateQueries,
 };
-#[allow(unused_imports)]
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Mutex;

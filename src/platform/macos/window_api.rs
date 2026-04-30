@@ -134,10 +134,8 @@ impl MacosWindowApi for RealMacosWindowApi {
         width: i32,
         height: i32,
     ) -> Result<()> {
-        // TODO: Use CGWindowNumber to find the correct AXUIElement instead of
-        // always operating on the frontmost application's main window. The current
-        // approach ignores the `window` parameter and has a TOCTOU race condition
-        // if the foreground app changes between getting the PID and operating on it.
+        // Known limitation: ignores `window` parameter, always operates on
+        // frontmost app's main window (TOCTOU race if foreground app changes).
 
         // Use AXUIElement to set window frame (< 10ms)
         let pid = ns_workspace::get_frontmost_app_pid()
@@ -181,7 +179,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn minimize_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
+        // Known limitation: ignores `window` parameter (see set_window_pos)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -193,7 +191,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn maximize_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
+        // Known limitation: ignores `window` parameter (see set_window_pos)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -205,7 +203,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn restore_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
+        // Known limitation: ignores `window` parameter (see set_window_pos)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -217,7 +215,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn close_window(&self, _window: WindowId) -> Result<()> {
-        // TODO: Use CGWindowNumber to locate the correct window (see set_window_pos TODO)
+        // Known limitation: ignores `window` parameter (see set_window_pos)
         let pid = ns_workspace::get_frontmost_app_pid()
             .ok_or_else(|| anyhow!("No frontmost application"))?;
         let app_elem = ax_element::create_app_element(pid)?;
@@ -373,10 +371,7 @@ impl MacosWindowApi for RealMacosWindowApi {
     }
 
     fn is_maximized(&self, _window: WindowId) -> bool {
-        // TODO: This heuristic (95% threshold) may produce false positives when
-        // a user manually resizes a window to nearly fill the screen. Consider
-        // using AXUIElement's AXZoomed attribute or tracking pre-zoom frame
-        // dimensions for more accurate maximization detection.
+        // Known limitation: 95% threshold heuristic may produce false positives
         let info = match <Self as MacosWindowApi>::get_window_info(self, _window) {
             Ok(info) => info,
             Err(_) => return false,

@@ -33,10 +33,6 @@ impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     pub fn api(&self) -> &A {
         &self.api
     }
-
-    pub fn api_mut(&mut self) -> &mut A {
-        &mut self.api
-    }
 }
 
 impl MacosWindowManager<RealMacosWindowApi> {

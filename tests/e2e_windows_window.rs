@@ -764,27 +764,6 @@ mod integration_tests {
             }
         }
     }
-
-    // ==================== Debug Info Test ====================
-
-    #[test]
-    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_get_debug_info() {
-        setup();
-
-        let _pid = launch_test_window();
-        wait_for_window_stable();
-
-        let wm = WindowManager::new();
-
-        let debug_info = wm.get_debug_info();
-        assert!(debug_info.is_ok(), "Should get debug info");
-
-        let info = debug_info.unwrap();
-        assert!(!info.is_empty(), "Debug info should not be empty");
-
-        teardown();
-    }
 }
 
 #[cfg(not(target_os = "windows"))]
