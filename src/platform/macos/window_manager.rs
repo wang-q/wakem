@@ -11,6 +11,15 @@ use tracing::debug;
 
 use crate::platform::window_manager_common::CommonWindowApi;
 
+/// Monitor direction (for moving between displays)
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
+pub enum MonitorDirection {
+    Next,
+    Prev,
+    Index(i32),
+}
+
 /// Generic macOS window manager using MacosWindowApi trait
 #[derive(Clone)]
 pub struct MacosWindowManager<A: MacosWindowApi + Clone> {
@@ -154,10 +163,7 @@ impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager
 
 impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     #[cfg(not(test))]
-    pub fn switch_to_next_window_of_same_process(
-        &self,
-        _window: WindowId,
-    ) -> Result<()> {
+    pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
@@ -179,10 +185,7 @@ impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     }
 
     #[cfg(test)]
-    pub fn switch_to_next_window_of_same_process(
-        &self,
-        _window: WindowId,
-    ) -> Result<()> {
+    pub fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         debug!("[TEST MODE] switch_to_next_window_of_same_process called");
         Ok(())
     }
@@ -372,6 +375,6 @@ mod tests {
     fn test_switch_same_process() {
         let mock = MockMacosWindowApi::new();
         let mgr = MacosWindowManager::<MockMacosWindowApi>::new(mock);
-        mgr.switch_to_next_window_of_same_process(1).unwrap();
+        mgr.switch_to_next_window_of_same_process().unwrap();
     }
 }

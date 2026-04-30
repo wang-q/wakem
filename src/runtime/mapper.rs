@@ -745,7 +745,7 @@ impl KeyMapper {
                 CommonWindowManager::set_native_ratio(&wm, window)?;
             }
             WindowAction::SwitchToNextWindow => {
-                wm.switch_to_next_window_of_same_process(window)?;
+                wm.switch_to_next_window_of_same_process()?;
             }
             WindowAction::MoveToMonitor(direction) => {
                 let monitor_index = match direction {
