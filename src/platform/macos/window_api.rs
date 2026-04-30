@@ -247,33 +247,53 @@ impl MacosWindowApi for RealMacosWindowApi {
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         let mut monitors = std::vec::Vec::new();
         let display_ids = CGDisplay::active_displays().unwrap_or_default();
-
         let screen_height = ns_workspace::get_main_display_height();
 
-        for display_id in display_ids {
-            let bounds = unsafe { CGDisplayBounds(display_id) };
-            // Convert CG coordinates (bottom-left origin) to Windows-style (top-left origin)
-            let windows_y =
-                (screen_height - bounds.origin.y - bounds.size.height) as i32;
-            monitors.push(MonitorInfo {
-                x: bounds.origin.x as i32,
-                y: windows_y,
-                width: bounds.size.width as i32,
-                height: bounds.size.height as i32,
-            });
+        for (idx, display_id) in display_ids.iter().enumerate() {
+            if let Some((x, y, width, height)) =
+                ns_workspace::get_screen_visible_frame(idx)
+            {
+                monitors.push(MonitorInfo {
+                    x,
+                    y,
+                    width,
+                    height,
+                });
+            } else {
+                let bounds = unsafe { CGDisplayBounds(*display_id) };
+                let windows_y =
+                    (screen_height - bounds.origin.y - bounds.size.height) as i32;
+                monitors.push(MonitorInfo {
+                    x: bounds.origin.x as i32,
+                    y: windows_y,
+                    width: bounds.size.width as i32,
+                    height: bounds.size.height as i32,
+                });
+            }
         }
 
         if monitors.is_empty() {
-            let main = CGDisplay::main();
-            let bounds = unsafe { CGDisplayBounds(main.id) };
-            let windows_y =
-                (screen_height - bounds.origin.y - bounds.size.height) as i32;
-            monitors.push(MonitorInfo {
-                x: bounds.origin.x as i32,
-                y: windows_y,
-                width: bounds.size.width as i32,
-                height: bounds.size.height as i32,
-            });
+            if let Some((x, y, width, height)) =
+                ns_workspace::get_screen_visible_frame(0)
+            {
+                monitors.push(MonitorInfo {
+                    x,
+                    y,
+                    width,
+                    height,
+                });
+            } else {
+                let main = CGDisplay::main();
+                let bounds = unsafe { CGDisplayBounds(main.id) };
+                let windows_y =
+                    (screen_height - bounds.origin.y - bounds.size.height) as i32;
+                monitors.push(MonitorInfo {
+                    x: bounds.origin.x as i32,
+                    y: windows_y,
+                    width: bounds.size.width as i32,
+                    height: bounds.size.height as i32,
+                });
+            }
         }
 
         monitors

@@ -67,12 +67,12 @@ pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
         };
 
         if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
-            let monitor_rect = &monitor_info.rcMonitor;
+            let work_area = &monitor_info.rcWork;
             data.monitors.push(MonitorInfo {
-                x: monitor_rect.left,
-                y: monitor_rect.top,
-                width: monitor_rect.right - monitor_rect.left,
-                height: monitor_rect.bottom - monitor_rect.top,
+                x: work_area.left,
+                y: work_area.top,
+                width: work_area.right - work_area.left,
+                height: work_area.bottom - work_area.top,
             });
         }
 

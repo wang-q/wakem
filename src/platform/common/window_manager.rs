@@ -26,6 +26,30 @@ fn find_monitor_for_point(
         .or_else(|| monitors.first())
 }
 
+/// Find the next ratio in the cycle after the current one.
+///
+/// Uses "find closest match" instead of exact float comparison to avoid
+/// floating-point precision issues caused by integer truncation in
+/// `set_window_pos`. For example, on a 1366px monitor, `1366 * 0.6 = 819.6`
+/// truncates to `819`, and `819 / 1366 = 0.59956...` which won't match `0.6`
+/// with a tight threshold. Finding the closest ratio ensures we always advance
+/// by exactly one step in the cycle.
+fn find_next_ratio(ratios: &[f32], current: f32) -> f32 {
+    let closest_idx = ratios
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| {
+            (current - **a)
+                .abs()
+                .partial_cmp(&(current - **b).abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+
+    ratios[(closest_idx + 1) % ratios.len()]
+}
+
 /// Trait for window API operations needed by common window manager
 #[allow(dead_code)]
 pub trait CommonWindowApi {
@@ -285,13 +309,7 @@ impl CommonWindowManager {
 
         let current_ratio = info.width() as f32 / monitor.width as f32;
 
-        let mut next_ratio = WIDTH_RATIOS[0];
-        for (i, ratio) in WIDTH_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.01 {
-                next_ratio = WIDTH_RATIOS[(i + 1) % WIDTH_RATIOS.len()];
-                break;
-            }
-        }
+        let next_ratio = find_next_ratio(&WIDTH_RATIOS, current_ratio);
 
         let new_width = (monitor.width as f32 * next_ratio) as i32;
         let new_x = match align {
@@ -321,13 +339,7 @@ impl CommonWindowManager {
 
         let current_ratio = info.height() as f32 / monitor.height as f32;
 
-        let mut next_ratio = HEIGHT_RATIOS[0];
-        for (i, ratio) in HEIGHT_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.01 {
-                next_ratio = HEIGHT_RATIOS[(i + 1) % HEIGHT_RATIOS.len()];
-                break;
-            }
-        }
+        let next_ratio = find_next_ratio(&HEIGHT_RATIOS, current_ratio);
 
         let new_height = (monitor.height as f32 * next_ratio) as i32;
         let new_y = match align {
@@ -543,5 +555,129 @@ mod tests {
 
         let m = find_monitor_for_point(&monitors, -100, -100).unwrap();
         assert_eq!(m.x, 0);
+    }
+
+    #[test]
+    fn test_find_next_ratio_exact_match() {
+        let ratios: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
+        assert!((find_next_ratio(&ratios, 0.75) - 0.6).abs() < 0.001);
+        assert!((find_next_ratio(&ratios, 0.6) - 0.5).abs() < 0.001);
+        assert!((find_next_ratio(&ratios, 0.5) - 0.4).abs() < 0.001);
+        assert!((find_next_ratio(&ratios, 0.4) - 0.25).abs() < 0.001);
+        assert!((find_next_ratio(&ratios, 0.25) - 0.75).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_find_next_ratio_float_truncation() {
+        let ratios: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
+
+        // Simulate 1366px monitor: 1366 * 0.6 = 819.6 -> truncated to 819
+        // 819 / 1366 = 0.59956... which should still match 0.6
+        let truncated_ratio = 819.0_f32 / 1366.0_f32;
+        assert!((find_next_ratio(&ratios, truncated_ratio) - 0.5).abs() < 0.001);
+
+        // Simulate 1366px monitor: 1366 * 0.75 = 1024.5 -> truncated to 1024
+        // 1024 / 1366 = 0.7498... which should still match 0.75
+        let truncated_ratio = 1024.0_f32 / 1366.0_f32;
+        assert!((find_next_ratio(&ratios, truncated_ratio) - 0.6).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_find_next_ratio_non_standard() {
+        let ratios: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
+
+        // Non-standard ratio (e.g., user manually resized) should find closest
+        // 0.55 is closest to 0.5 (distance 0.05) vs 0.6 (distance 0.05)
+        // With equal distance, min_by picks the first one found (0.75 -> index 0)
+        // Actually 0.55: |0.55-0.75|=0.20, |0.55-0.6|=0.05, |0.55-0.5|=0.05
+        // Closest is either 0.6 or 0.5 (tie), min_by is stable -> picks 0.6
+        let next = find_next_ratio(&ratios, 0.55);
+        // Should advance from closest (0.6) to next (0.5)
+        assert!((next - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_find_next_ratio_height_cycle() {
+        let ratios: [f32; 3] = [0.75, 0.5, 0.25];
+        assert!((find_next_ratio(&ratios, 0.75) - 0.5).abs() < 0.001);
+        assert!((find_next_ratio(&ratios, 0.5) - 0.25).abs() < 0.001);
+        assert!((find_next_ratio(&ratios, 0.25) - 0.75).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_find_next_ratio_no_double_skip() {
+        let ratios: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
+
+        // Simulate the full cycle on a 1920px monitor
+        // Each step should advance by exactly one position
+        let monitor_width = 1920.0_f32;
+
+        // Start at 75% (1440px)
+        let w1 = (monitor_width * 0.75) as i32; // 1440
+        let r1 = w1 as f32 / monitor_width; // 0.75
+        let next1 = find_next_ratio(&ratios, r1);
+        assert!((next1 - 0.6).abs() < 0.001, "Step 1: 0.75 -> 0.6");
+
+        // After setting to 60% (1152px)
+        let w2 = (monitor_width * next1) as i32; // 1152
+        let r2 = w2 as f32 / monitor_width; // 0.6
+        let next2 = find_next_ratio(&ratios, r2);
+        assert!((next2 - 0.5).abs() < 0.001, "Step 2: 0.6 -> 0.5");
+
+        // After setting to 50% (960px)
+        let w3 = (monitor_width * next2) as i32; // 960
+        let r3 = w3 as f32 / monitor_width; // 0.5
+        let next3 = find_next_ratio(&ratios, r3);
+        assert!((next3 - 0.4).abs() < 0.001, "Step 3: 0.5 -> 0.4");
+
+        // After setting to 40% (768px)
+        let w4 = (monitor_width * next3) as i32; // 768
+        let r4 = w4 as f32 / monitor_width; // 0.4
+        let next4 = find_next_ratio(&ratios, r4);
+        assert!((next4 - 0.25).abs() < 0.001, "Step 4: 0.4 -> 0.25");
+
+        // After setting to 25% (480px) - wraps back
+        let w5 = (monitor_width * next4) as i32; // 480
+        let r5 = w5 as f32 / monitor_width; // 0.25
+        let next5 = find_next_ratio(&ratios, r5);
+        assert!((next5 - 0.75).abs() < 0.001, "Step 5: 0.25 -> 0.75 (wrap)");
+    }
+
+    #[test]
+    fn test_find_next_ratio_odd_resolution() {
+        let ratios: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
+
+        // Test with 1366x768 (common laptop resolution)
+        let monitor_width = 1366.0_f32;
+
+        // 75% of 1366 = 1024.5 -> truncated to 1024
+        let w1 = (monitor_width * 0.75) as i32;
+        let r1 = w1 as f32 / monitor_width;
+        let next1 = find_next_ratio(&ratios, r1);
+        assert!((next1 - 0.6).abs() < 0.001, "1366: 75% -> 60%");
+
+        // 60% of 1366 = 819.6 -> truncated to 819
+        let w2 = (monitor_width * next1) as i32;
+        let r2 = w2 as f32 / monitor_width;
+        let next2 = find_next_ratio(&ratios, r2);
+        assert!((next2 - 0.5).abs() < 0.001, "1366: 60% -> 50%");
+
+        // 50% of 1366 = 683.0
+        let w3 = (monitor_width * next2) as i32;
+        let r3 = w3 as f32 / monitor_width;
+        let next3 = find_next_ratio(&ratios, r3);
+        assert!((next3 - 0.4).abs() < 0.001, "1366: 50% -> 40%");
+
+        // 40% of 1366 = 546.4 -> truncated to 546
+        let w4 = (monitor_width * next3) as i32;
+        let r4 = w4 as f32 / monitor_width;
+        let next4 = find_next_ratio(&ratios, r4);
+        assert!((next4 - 0.25).abs() < 0.001, "1366: 40% -> 25%");
+
+        // 25% of 1366 = 341.5 -> truncated to 341
+        let w5 = (monitor_width * next4) as i32;
+        let r5 = w5 as f32 / monitor_width;
+        let next5 = find_next_ratio(&ratios, r5);
+        assert!((next5 - 0.75).abs() < 0.001, "1366: 25% -> 75% (wrap)");
     }
 }

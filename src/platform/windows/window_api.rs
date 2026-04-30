@@ -219,12 +219,12 @@ impl WindowApi for RealWindowApi {
                 return None;
             }
 
-            let rect = &monitor_info.rcMonitor;
+            let work_area = &monitor_info.rcWork;
             Some(MonitorInfo {
-                x: rect.left,
-                y: rect.top,
-                width: rect.right - rect.left,
-                height: rect.bottom - rect.top,
+                x: work_area.left,
+                y: work_area.top,
+                width: work_area.right - work_area.left,
+                height: work_area.bottom - work_area.top,
             })
         }
     }

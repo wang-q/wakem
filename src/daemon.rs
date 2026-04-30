@@ -98,6 +98,10 @@ pub struct ServerState {
     /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
     /// Dynamically extracted from remap rules where target is a modifier combo
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
+    /// Set of currently pressed keys (scan_code, virtual_key).
+    /// Used to filter key repeat events (Windows sends repeated WM_KEYDOWN
+    /// while a key is held). Only the first press triggers an action.
+    pressed_keys: Arc<RwLock<std::collections::HashSet<(u16, u16)>>>,
     /// Shutdown signal for graceful shutdown (shared with run_server)
     shutdown_signal: ShutdownSignal,
 }
@@ -126,6 +130,7 @@ impl ServerState {
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            pressed_keys: Arc::new(RwLock::new(std::collections::HashSet::new())),
             shutdown_signal,
         }
     }
@@ -154,6 +159,7 @@ impl ServerState {
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            pressed_keys: Arc::new(RwLock::new(std::collections::HashSet::new())),
             shutdown_signal,
         }
     }
@@ -434,6 +440,28 @@ impl ServerState {
                 if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
                 {
                     debug!("Filtered non-hyper key release event");
+                    // Remove from pressed_keys on release
+                    self.pressed_keys
+                        .write()
+                        .await
+                        .remove(&(key_event.scan_code, key_event.virtual_key));
+                    return;
+                }
+            }
+        }
+
+        // Filter out key repeat events (Windows sends repeated WM_KEYDOWN while held).
+        // Only the first press should trigger an action; subsequent repeats are suppressed.
+        if let InputEvent::Key(ref key_event) = event {
+            if key_event.state == KeyState::Pressed {
+                let key_id = (key_event.scan_code, key_event.virtual_key);
+                let mut pressed = self.pressed_keys.write().await;
+                if !pressed.insert(key_id) {
+                    debug!(
+                        scan_code = key_event.scan_code,
+                        virtual_key = key_event.virtual_key,
+                        "Filtered key repeat event"
+                    );
                     return;
                 }
             }
