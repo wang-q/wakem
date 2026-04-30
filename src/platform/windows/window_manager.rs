@@ -18,8 +18,12 @@ pub use crate::types::{Alignment, Edge};
 // Import common window manager and shared types
 use crate::platform::common::window_manager::CommonWindowApi;
 use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, WindowFrame, WindowInfoProvider,
+    ForegroundWindowOperations, MonitorInfo, MonitorOperations, WindowFrame, WindowId,
+    WindowInfo, WindowInfoProvider, WindowManagerTrait, WindowOperations,
+    WindowStateQueries,
 };
+#[allow(unused_imports)]
+use crate::platform::types::MonitorWorkArea;
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]
@@ -39,6 +43,16 @@ fn window_frame_from_rect(rect: &RECT) -> WindowFrame {
         rect.right - rect.left,
         rect.bottom - rect.top,
     )
+}
+
+#[allow(dead_code)]
+fn hwnd_to_window_id(hwnd: HWND) -> WindowId {
+    hwnd.0 as usize
+}
+
+#[allow(dead_code)]
+fn window_id_to_hwnd(id: WindowId) -> HWND {
+    HWND(id as *mut core::ffi::c_void)
 }
 
 /// Enumerate all monitors using EnumDisplayMonitors.
@@ -333,6 +347,110 @@ impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
         self.api.set_topmost(window, topmost)
     }
 }
+
+impl<A: WindowApi + Send + Sync + 'static> WindowOperations for WindowManager<A> {
+    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
+        let hwnd = window_id_to_hwnd(window);
+        if !self.api.is_window(hwnd) {
+            anyhow::bail!("Invalid window handle");
+        }
+        let title = self.api.get_window_title(hwnd).unwrap_or_default();
+        let frame = self
+            .api
+            .get_window_rect(hwnd)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get window rect"))?;
+        Ok(WindowInfo {
+            id: window,
+            title,
+            process_name: String::new(),
+            executable_path: None,
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: frame.height,
+        })
+    }
+
+    fn set_window_pos(
+        &self,
+        window: WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        let frame = WindowFrame::new(x, y, width, height);
+        self.set_window_frame(hwnd, &frame)
+    }
+
+    fn minimize_window(&self, window: WindowId) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.minimize_window(hwnd)
+    }
+
+    fn maximize_window(&self, window: WindowId) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.maximize_window(hwnd)
+    }
+
+    fn restore_window(&self, window: WindowId) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.restore_window(hwnd)
+    }
+
+    fn close_window(&self, window: WindowId) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.close_window(hwnd)
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.set_topmost(hwnd, topmost)
+    }
+}
+
+impl<A: WindowApi + Send + Sync + 'static> WindowStateQueries for WindowManager<A> {
+    fn is_window_valid(&self, window: WindowId) -> bool {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.is_window(hwnd)
+    }
+
+    fn is_minimized(&self, window: WindowId) -> bool {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.is_iconic(hwnd)
+    }
+
+    fn is_maximized(&self, window: WindowId) -> bool {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.is_zoomed(hwnd)
+    }
+
+    fn is_topmost(&self, window: WindowId) -> bool {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.is_topmost(hwnd)
+    }
+}
+
+impl<A: WindowApi + Send + Sync + 'static> MonitorOperations for WindowManager<A> {
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        <Self as CommonWindowApi>::get_monitors(self)
+    }
+
+    fn move_to_monitor(&self, _window: WindowId, _monitor_index: usize) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl<A: WindowApi + Send + Sync + 'static> ForegroundWindowOperations
+    for WindowManager<A>
+{
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.api.get_foreground_window().map(hwnd_to_window_id)
+    }
+}
+
+impl<A: WindowApi + Send + Sync + 'static> WindowManagerTrait for WindowManager<A> {}
 
 /// Features requiring real Windows API (cross-monitor movement, window switching, etc.)
 impl RealWindowManager {

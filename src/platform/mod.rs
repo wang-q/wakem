@@ -26,6 +26,7 @@ pub mod common;
 pub mod macros;
 pub mod mock;
 pub mod traits;
+pub mod types;
 
 // Platform-specific modules
 #[cfg(target_os = "windows")]

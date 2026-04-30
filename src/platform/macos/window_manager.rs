@@ -54,13 +54,9 @@ impl<A: MacosWindowApi + Clone + Default> Default for MacosWindowManager<A> {
     }
 }
 
-impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
+impl<A: MacosWindowApi + Clone + Send + Sync> WindowOperations
     for MacosWindowManager<A>
 {
-    fn get_foreground_window(&self) -> Option<WindowId> {
-        self.api.get_foreground_window()
-    }
-
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
         self.api.get_window_info(window)
     }
@@ -95,19 +91,11 @@ impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
         self.api.set_topmost(window, topmost)
     }
+}
 
-    fn is_topmost(&self, window: WindowId) -> bool {
-        self.api.is_topmost(window)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        self.api.get_monitors()
-    }
-
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
-        self.api.move_to_monitor(window, monitor_index)
-    }
-
+impl<A: MacosWindowApi + Clone + Send + Sync> WindowStateQueries
+    for MacosWindowManager<A>
+{
     fn is_window_valid(&self, window: WindowId) -> bool {
         self.api.is_window_valid(window)
     }
@@ -119,6 +107,35 @@ impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
     fn is_maximized(&self, window: WindowId) -> bool {
         self.api.is_maximized(window)
     }
+
+    fn is_topmost(&self, window: WindowId) -> bool {
+        self.api.is_topmost(window)
+    }
+}
+
+impl<A: MacosWindowApi + Clone + Send + Sync> MonitorOperations
+    for MacosWindowManager<A>
+{
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        self.api.get_monitors()
+    }
+
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        self.api.move_to_monitor(window, monitor_index)
+    }
+}
+
+impl<A: MacosWindowApi + Clone + Send + Sync> ForegroundWindowOperations
+    for MacosWindowManager<A>
+{
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.api.get_foreground_window()
+    }
+}
+
+impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
+    for MacosWindowManager<A>
+{
 }
 
 impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager<A> {

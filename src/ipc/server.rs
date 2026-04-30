@@ -18,7 +18,7 @@ use super::auth::{
 };
 use super::io::{read_message, send_message};
 use super::messages::{Message, Result};
-use super::rate_limit::ConnectionLimiter;
+use super::rate_limiter::ConnectionLimiter;
 use super::security::is_allowed_ip;
 use super::IpcError;
 

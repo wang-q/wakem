@@ -1,31 +1,16 @@
 //! Platform abstraction traits
 //!
-//! This module defines the cross-platform interfaces that can be implemented
-//! by each platform-specific module (Windows, macOS, Linux).
+//! This module defines the cross-platform interfaces implemented
+//! by each platform-specific module (Windows, macOS).
+//!
+//! Shared data types are defined in [`super::types`] and re-exported here.
 
 #[allow(unused_imports)]
 use crate::platform::common::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
 
-/// Input device configuration
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct InputDeviceConfig {
-    pub capture_keyboard: bool,
-    pub capture_mouse: bool,
-    pub block_legacy_input: bool,
-}
-
-impl Default for InputDeviceConfig {
-    fn default() -> Self {
-        Self {
-            capture_keyboard: true,
-            capture_mouse: true,
-            block_legacy_input: false,
-        }
-    }
-}
+pub use super::types::*;
 
 /// Input device trait - for capturing keyboard and mouse events
 #[allow(dead_code)]
@@ -137,209 +122,10 @@ pub trait OutputDeviceTrait: Send {
     fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()>;
 }
 
-/// Window identifier type (platform-specific)
-pub type WindowId = usize;
-
-/// Window information
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct WindowInfo {
-    pub id: WindowId,
-    pub title: String,
-    pub process_name: String,
-    pub executable_path: Option<String>,
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-/// Monitor information
-#[derive(Debug, Clone, Copy)]
-pub struct MonitorInfo {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-/// Monitor work area (usable screen area excluding taskbar/dock)
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-pub struct MonitorWorkArea {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-impl MonitorWorkArea {
-    #[allow(dead_code)]
-    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-}
-
-/// Trait for window information needed by common operations
-pub trait WindowInfoProvider {
-    fn x(&self) -> i32;
-    fn y(&self) -> i32;
-    fn width(&self) -> i32;
-    fn height(&self) -> i32;
-}
-
-/// Window frame with position and size
-#[derive(Debug, Clone, Copy)]
-pub struct WindowFrame {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-impl WindowFrame {
-    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn aspect_ratio(&self) -> f64 {
-        if self.height > 0 {
-            self.width as f64 / self.height as f64
-        } else {
-            0.0
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn is_valid(&self) -> bool {
-        self.width > 0 && self.height > 0
-    }
-
-    pub fn center_in(&self, monitor: &MonitorInfo) -> (i32, i32) {
-        let x = monitor.x + (monitor.width - self.width) / 2;
-        let y = monitor.y + (monitor.height - self.height) / 2;
-        (x, y)
-    }
-}
-
-impl WindowInfoProvider for WindowInfo {
-    fn x(&self) -> i32 {
-        self.x
-    }
-
-    fn y(&self) -> i32 {
-        self.y
-    }
-
-    fn width(&self) -> i32 {
-        self.width
-    }
-
-    fn height(&self) -> i32 {
-        self.height
-    }
-}
-
-/// Window state enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum WindowState {
-    Normal,
-    Minimized,
-    Maximized,
-    FullScreen,
-}
-
-/// Window operation types
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum WindowOperation {
-    Minimize,
-    Maximize,
-    Restore,
-    Close,
-    ToggleTopmost,
-}
-
-/// Application commands sent from tray menu
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppCommand {
-    ToggleActive,
-    ReloadConfig,
-    OpenConfigFolder,
-    Exit,
-}
-
-/// Unified platform window event type
-///
-/// This enum provides a cross-platform representation of window events
-/// that can be produced by both Windows (WinEventHook) and macOS
-/// (CGWindowList polling) window event hooks.
-///
-/// Platform implementations that cannot detect certain events simply
-/// won't emit them. For example, Windows currently only emits
-/// [PlatformWindowEvent::Activated].
-#[allow(clippy::enum_variant_names)]
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub enum PlatformWindowEvent {
-    WindowActivated {
-        process_name: String,
-        window_title: String,
-        window_id: usize,
-    },
-    WindowMinimized {
-        process_name: String,
-    },
-    WindowRestored {
-        process_name: String,
-    },
-    WindowMovedOrResized {
-        process_name: String,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    },
-    WindowCreated {
-        process_name: String,
-        window_title: String,
-    },
-    WindowClosed {
-        process_name: String,
-    },
-}
-
-/// Menu action results from user interaction
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum MenuAction {
-    None,
-    ToggleActive,
-    Reload,
-    OpenConfig,
-    Exit,
-}
-
 /// Base window API trait - shared operations across platforms
 ///
 /// This trait defines the common window operations that both Windows and macOS
-/// implement. Platform-specific traits (`MacosWindowApi`, `WindowApi`) extend
-/// this with their own methods.
-///
-/// The associated type `WindowId` abstracts the platform-specific window
-/// identifier (`HWND` on Windows, `CGWindowNumber` on macOS).
+/// implement. Platform-specific traits extend this with their own methods.
 #[allow(dead_code)]
 pub trait WindowApiBase {
     type WindowId: Copy + std::fmt::Debug;
@@ -365,10 +151,9 @@ pub trait WindowApiBase {
     fn is_maximized(&self, window: Self::WindowId) -> bool;
 }
 
-/// Window manager trait - high-level window operations
+/// Basic window manipulation operations
 #[allow(dead_code)]
-pub trait WindowManagerTrait: Send + Sync {
-    fn get_foreground_window(&self) -> Option<WindowId>;
+pub trait WindowOperations: Send + Sync {
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
     fn set_window_pos(
         &self,
@@ -383,76 +168,199 @@ pub trait WindowManagerTrait: Send + Sync {
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost(&self, window: WindowId) -> bool;
-    fn get_monitors(&self) -> Vec<MonitorInfo>;
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
+}
+
+/// Window state query operations
+#[allow(dead_code)]
+pub trait WindowStateQueries: Send + Sync {
     fn is_window_valid(&self, window: WindowId) -> bool;
     fn is_minimized(&self, window: WindowId) -> bool;
     fn is_maximized(&self, window: WindowId) -> bool;
+    fn is_topmost(&self, window: WindowId) -> bool;
 }
 
-/// Window context information (for context-aware mappings)
-#[derive(Debug, Clone, Default)]
+/// Monitor-related operations
 #[allow(dead_code)]
-pub struct WindowContext {
-    pub process_name: String,
-    pub window_class: String,
-    pub window_title: String,
-    pub executable_path: Option<String>,
+pub trait MonitorOperations: Send + Sync {
+    fn get_monitors(&self) -> Vec<MonitorInfo>;
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
 }
 
-impl WindowContext {
-    #[allow(dead_code)]
-    pub fn empty() -> Self {
-        Self::default()
+/// Foreground window operations
+#[allow(dead_code)]
+pub trait ForegroundWindowOperations: Send + Sync {
+    fn get_foreground_window(&self) -> Option<WindowId>;
+}
+
+/// Window manager trait - composed of fine-grained operation traits
+///
+/// This is a marker trait that combines all window operation traits.
+/// Implementors automatically satisfy this by implementing the
+/// constituent traits.
+#[allow(dead_code)]
+pub trait WindowManagerTrait:
+    WindowOperations
+    + WindowStateQueries
+    + MonitorOperations
+    + ForegroundWindowOperations
+    + Send
+    + Sync
+{
+}
+
+/// Extended window manager operations with default implementations
+///
+/// Provides high-level window management operations (center, half-screen,
+/// loop, fixed ratio, etc.) built on top of the basic
+/// [`WindowManagerTrait`] operations.
+#[allow(dead_code)]
+pub trait WindowManagerExt:
+    WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations
+{
+    fn move_to_center(&self, window: WindowId) -> Result<()> {
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if monitors.is_empty() {
+            anyhow::bail!("No monitors found");
+        }
+        let monitor = find_monitor_for_point(
+            &monitors,
+            info.x + info.width / 2,
+            info.y + info.height / 2,
+        );
+        let frame = WindowFrame::new(info.x, info.y, info.width, info.height);
+        let (new_x, new_y) = frame.center_in(&monitor);
+        self.set_window_pos(window, new_x, new_y, info.width, info.height)
     }
 
-    #[allow(dead_code)]
-    pub fn matches(
+    fn move_to_edge(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if monitors.is_empty() {
+            anyhow::bail!("No monitors found");
+        }
+        let monitor = find_monitor_for_point(
+            &monitors,
+            info.x + info.width / 2,
+            info.y + info.height / 2,
+        );
+        let (x, y) = match edge {
+            crate::types::Edge::Left => (monitor.x, monitor.y),
+            crate::types::Edge::Right => {
+                (monitor.x + monitor.width - info.width, monitor.y)
+            }
+            crate::types::Edge::Top => (monitor.x, monitor.y),
+            crate::types::Edge::Bottom => {
+                (monitor.x, monitor.y + monitor.height - info.height)
+            }
+        };
+        self.set_window_pos(window, x, y, info.width, info.height)
+    }
+
+    fn set_half_screen(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if monitors.is_empty() {
+            anyhow::bail!("No monitors found");
+        }
+        let monitor = find_monitor_for_point(
+            &monitors,
+            info.x + info.width / 2,
+            info.y + info.height / 2,
+        );
+        let (x, y, w, h) = match edge {
+            crate::types::Edge::Left => {
+                (monitor.x, monitor.y, monitor.width / 2, monitor.height)
+            }
+            crate::types::Edge::Right => (
+                monitor.x + monitor.width / 2,
+                monitor.y,
+                monitor.width / 2,
+                monitor.height,
+            ),
+            crate::types::Edge::Top => {
+                (monitor.x, monitor.y, monitor.width, monitor.height / 2)
+            }
+            crate::types::Edge::Bottom => (
+                monitor.x,
+                monitor.y + monitor.height / 2,
+                monitor.width,
+                monitor.height / 2,
+            ),
+        };
+        self.set_window_pos(window, x, y, w, h)
+    }
+
+    fn loop_width(
         &self,
-        process_name: Option<&str>,
-        window_class: Option<&str>,
-        window_title: Option<&str>,
-        executable_path: Option<&str>,
-    ) -> bool {
-        use crate::config::wildcard_match;
-
-        if let Some(pattern) = process_name {
-            if !wildcard_match(&self.process_name, pattern) {
-                return false;
-            }
-        }
-        if let Some(pattern) = window_class {
-            if !wildcard_match(&self.window_class, pattern) {
-                return false;
-            }
-        }
-        if let Some(pattern) = window_title {
-            if !wildcard_match(&self.window_title, pattern) {
-                return false;
-            }
-        }
-        if let Some(pattern) = executable_path {
-            match &self.executable_path {
-                Some(path) if !wildcard_match(path, pattern) => return false,
-                None => return false,
-                _ => {}
-            }
-        }
-        true
+        _window: WindowId,
+        _align: crate::types::Alignment,
+    ) -> Result<()> {
+        debug_assert!(
+            false,
+            "loop_width should be overridden by platform implementation"
+        );
+        Ok(())
     }
+
+    fn loop_height(
+        &self,
+        _window: WindowId,
+        _align: crate::types::Alignment,
+    ) -> Result<()> {
+        debug_assert!(
+            false,
+            "loop_height should be overridden by platform implementation"
+        );
+        Ok(())
+    }
+
+    fn set_fixed_ratio(
+        &self,
+        _window: WindowId,
+        _ratio: f32,
+        _scale_index: Option<u32>,
+    ) -> Result<()> {
+        debug_assert!(
+            false,
+            "set_fixed_ratio should be overridden by platform implementation"
+        );
+        Ok(())
+    }
+
+    fn set_native_ratio(
+        &self,
+        _window: WindowId,
+        _scale_index: Option<u32>,
+    ) -> Result<()> {
+        debug_assert!(
+            false,
+            "set_native_ratio should be overridden by platform implementation"
+        );
+        Ok(())
+    }
+}
+
+/// Find the monitor that contains the given point, falling back to the first monitor
+pub fn find_monitor_for_point(monitors: &[MonitorInfo], x: i32, y: i32) -> MonitorInfo {
+    for monitor in monitors {
+        if x >= monitor.x
+            && x < monitor.x + monitor.width
+            && y >= monitor.y
+            && y < monitor.y + monitor.height
+        {
+            return *monitor;
+        }
+    }
+    monitors.first().copied().unwrap_or(MonitorInfo {
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1080,
+    })
 }
 
 /// Macro to implement [WindowApiBase] by delegating to a platform-specific trait.
-///
-/// This eliminates the boilerplate of writing forwarding implementations
-/// for each platform's API struct where method names match 1:1.
-///
-/// # Usage
-///
-/// ```ignore
-/// impl_window_api_base_via!(RealMacosWindowApi, MacosWindowApi, WindowId);
-/// ```
 #[macro_export]
 macro_rules! impl_window_api_base_via {
     (

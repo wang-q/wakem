@@ -3,11 +3,15 @@
 //! Provides a mock implementation of WindowApiBase that can be used
 //! in unit tests without platform dependencies.
 
+use crate::platform::common::window_manager::CommonWindowApi;
 #[allow(unused_imports)]
 use crate::platform::mock::MockWindowId;
 #[allow(unused_imports)]
+use crate::platform::traits::WindowInfoProvider;
+#[allow(unused_imports)]
 use crate::platform::traits::{
-    MonitorInfo, WindowApiBase, WindowFrame, WindowId, WindowManagerTrait,
+    ForegroundWindowOperations, MonitorInfo, MonitorOperations, WindowApiBase,
+    WindowFrame, WindowId, WindowManagerTrait, WindowOperations, WindowStateQueries,
 };
 #[allow(unused_imports)]
 use anyhow::Result;
@@ -407,14 +411,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
     }
 }
 
-/// Implementation of WindowManagerTrait for MockWindowApi
-/// This allows using MockWindowApi in tests with window_actions module
-#[allow(dead_code)]
-impl WindowManagerTrait for MockWindowApi<usize> {
-    fn get_foreground_window(&self) -> Option<WindowId> {
-        *self.foreground_window.lock().unwrap()
-    }
-
+impl WindowOperations for MockWindowApi<usize> {
     fn get_window_info(
         &self,
         window: WindowId,
@@ -483,27 +480,9 @@ impl WindowManagerTrait for MockWindowApi<usize> {
         states.entry(window).or_default().topmost = topmost;
         Ok(())
     }
+}
 
-    fn is_topmost(&self, window: WindowId) -> bool {
-        self.window_states
-            .lock()
-            .unwrap()
-            .get(&window)
-            .map(|s| s.topmost)
-            .unwrap_or(false)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = *self.foreground_window.lock().unwrap();
-        fg.and_then(|w| self.monitor_info.lock().unwrap().get(&w).cloned())
-            .map(|info| vec![info])
-            .unwrap_or_default()
-    }
-
-    fn move_to_monitor(&self, _window: WindowId, _monitor_index: usize) -> Result<()> {
-        Ok(())
-    }
-
+impl WindowStateQueries for MockWindowApi<usize> {
     fn is_window_valid(&self, window: WindowId) -> bool {
         self.window_rects.lock().unwrap().contains_key(&window)
     }
@@ -524,5 +503,99 @@ impl WindowManagerTrait for MockWindowApi<usize> {
             .get(&window)
             .map(|s| s.maximized)
             .unwrap_or(false)
+    }
+
+    fn is_topmost(&self, window: WindowId) -> bool {
+        self.window_states
+            .lock()
+            .unwrap()
+            .get(&window)
+            .map(|s| s.topmost)
+            .unwrap_or(false)
+    }
+}
+
+impl MonitorOperations for MockWindowApi<usize> {
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        let fg = *self.foreground_window.lock().unwrap();
+        fg.and_then(|w| self.monitor_info.lock().unwrap().get(&w).cloned())
+            .map(|info| vec![info])
+            .unwrap_or_default()
+    }
+
+    fn move_to_monitor(&self, _window: WindowId, _monitor_index: usize) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl ForegroundWindowOperations for MockWindowApi<usize> {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        *self.foreground_window.lock().unwrap()
+    }
+}
+
+impl WindowManagerTrait for MockWindowApi<usize> {}
+
+impl CommonWindowApi for MockWindowApi<usize> {
+    type WindowId = WindowId;
+    type WindowInfo = crate::platform::traits::WindowInfo;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        <Self as ForegroundWindowOperations>::get_foreground_window(self)
+    }
+
+    fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo> {
+        <Self as WindowOperations>::get_window_info(self, window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        <Self as WindowOperations>::set_window_pos(self, window, x, y, width, height)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        <Self as WindowOperations>::minimize_window(self, window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        <Self as WindowOperations>::maximize_window(self, window)
+    }
+
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        <Self as WindowOperations>::restore_window(self, window)
+    }
+
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        <Self as WindowOperations>::close_window(self, window)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        <Self as MonitorOperations>::get_monitors(self)
+    }
+
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        <Self as WindowStateQueries>::is_window_valid(self, window)
+    }
+
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        <Self as WindowStateQueries>::is_maximized(self, window)
+    }
+
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        <Self as WindowStateQueries>::is_topmost(self, window)
+    }
+
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        <Self as WindowOperations>::set_topmost(self, window, topmost)
+    }
+
+    fn api(&self) -> &dyn std::any::Any {
+        self
     }
 }

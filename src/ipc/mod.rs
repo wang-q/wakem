@@ -14,7 +14,7 @@ pub mod client;
 pub mod discovery;
 pub mod io;
 pub mod messages;
-pub mod rate_limit;
+pub mod rate_limiter;
 pub mod security;
 pub mod server;
 

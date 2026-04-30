@@ -13,6 +13,7 @@ pub mod platform;
 pub mod runtime;
 pub mod runtime_util;
 pub mod shutdown;
+pub mod tray;
 pub mod types;
 
 pub use config::Config;
