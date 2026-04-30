@@ -9,10 +9,11 @@ use crate::types::{
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Input::{
-    GetRawInputData, RegisterRawInputDevices, RIDEV_INPUTSINK,
+    GetRawInputData, GetRegisteredRawInputDevices, RegisterRawInputDevices,
+    RAWINPUTDEVICE_FLAGS, RIDEV_INPUTSINK,
 };
 use windows::Win32::UI::Input::{
     RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
@@ -93,15 +94,15 @@ impl RawInputDevice {
     fn register_devices(hwnd: HWND) -> Result<()> {
         let devices = [
             RAWINPUTDEVICE {
-                usUsagePage: 0x01,        // Generic Desktop
-                usUsage: 0x06,            // Keyboard
-                dwFlags: RIDEV_INPUTSINK, // Don't use RIDEV_NOLEGACY to avoid interfering with tray menu
+                usUsagePage: 0x01,
+                usUsage: 0x06,
+                dwFlags: RIDEV_INPUTSINK,
                 hwndTarget: hwnd,
             },
             RAWINPUTDEVICE {
-                usUsagePage: 0x01,        // Generic Desktop
-                usUsage: 0x02,            // Mouse
-                dwFlags: RIDEV_INPUTSINK, // Don't use RIDEV_NOLEGACY to avoid interfering with tray menu
+                usUsagePage: 0x01,
+                usUsage: 0x02,
+                dwFlags: RIDEV_INPUTSINK,
                 hwndTarget: hwnd,
             },
         ];
@@ -111,6 +112,33 @@ impl RawInputDevice {
                 &devices,
                 std::mem::size_of::<RAWINPUTDEVICE>() as u32,
             )?;
+        }
+
+        let mut registered = [RAWINPUTDEVICE {
+            usUsagePage: 0,
+            usUsage: 0,
+            dwFlags: RAWINPUTDEVICE_FLAGS(0),
+            hwndTarget: HWND(std::ptr::null_mut()),
+        }; 2];
+        let mut count = 2u32;
+        unsafe {
+            let result = GetRegisteredRawInputDevices(
+                Some(registered.as_mut_ptr()),
+                &mut count,
+                std::mem::size_of::<RAWINPUTDEVICE>() as u32,
+            );
+            if result == u32::MAX {
+                warn!("GetRegisteredRawInputDevices failed");
+            } else {
+                debug!(
+                    "Verified {} registered devices: [0]=({:#06x},{:#06x}) [1]=({:#06x},{:#06x})",
+                    result,
+                    registered[0].usUsagePage,
+                    registered[0].usUsage,
+                    registered[1].usUsagePage,
+                    registered[1].usUsage,
+                );
+            }
         }
 
         debug!("Raw Input devices registered successfully");
@@ -174,7 +202,6 @@ impl RawInputDevice {
                 LRESULT(0)
             }
             WM_INPUT => {
-                // Process Raw Input
                 Self::handle_raw_input(lparam);
                 LRESULT(0)
             }
@@ -188,9 +215,9 @@ impl RawInputDevice {
 
     /// Handle Raw Input message
     unsafe fn handle_raw_input(lparam: LPARAM) {
-        const MAX_INPUT_SIZE: usize = 1024;
-        let mut raw_data: [u8; MAX_INPUT_SIZE] = [0; MAX_INPUT_SIZE];
-        let mut size: u32 = MAX_INPUT_SIZE as u32;
+        let mut raw_data: std::mem::MaybeUninit<RAWINPUT> =
+            std::mem::MaybeUninit::uninit();
+        let mut size: u32 = std::mem::size_of::<RAWINPUT>() as u32;
 
         let hrawinput: windows::Win32::UI::Input::HRAWINPUT =
             std::mem::transmute(lparam.0);
@@ -203,12 +230,14 @@ impl RawInputDevice {
         );
 
         if result == u32::MAX || result == 0 {
+            warn!("GetRawInputData failed: result={}", result);
             return;
         }
 
-        let raw = &*(raw_data.as_ptr() as *const RAWINPUT);
+        let raw = raw_data.assume_init_ref();
 
         let device_type = raw.header.dwType;
+        debug!("WM_INPUT received: device_type={}", device_type);
 
         if device_type == RIM_TYPEKEYBOARD.0 {
             let keyboard = &raw.data.keyboard;
