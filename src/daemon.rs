@@ -62,9 +62,13 @@ pub struct ServerState {
 impl ServerState {
     pub fn new(shutdown_signal: ShutdownSignal) -> Self {
         let window_manager = CurrentPlatform::create_window_manager();
-        let mut mapper = KeyMapper::with_window_manager(window_manager);
+        let notification_service = CurrentPlatform::create_notification_service();
         let window_preset_manager = CurrentPlatform::create_window_preset_manager();
-        mapper.set_window_preset_manager(window_preset_manager);
+        let mapper = KeyMapper::with_window_manager(
+            Box::new(window_manager),
+            Some(Box::new(notification_service)),
+            Some(Box::new(window_preset_manager)),
+        );
 
         Self {
             config: Arc::new(RwLock::new(ConfigState::default())),

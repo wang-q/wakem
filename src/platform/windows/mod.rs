@@ -20,10 +20,9 @@ use std::sync::Arc;
 pub use crate::platform::common::launcher::Launcher;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
-pub use tray::TrayIcon;
 pub use window_api::RealWindowApi;
 pub use window_event_hook::WindowEventHook;
-pub use window_manager::{MonitorDirection, WindowManager};
+pub use window_manager::WindowManager;
 
 /// Concrete window manager type for Windows platform
 pub type WindowsWindowManager = WindowManager<RealWindowApi>;

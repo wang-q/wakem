@@ -136,16 +136,6 @@ impl ForegroundWindowOperations for MacosWindowManager<RealMacosWindowApi> {
 
 impl WindowManagerTrait for MacosWindowManager<RealMacosWindowApi> {}
 
-#[cfg(test)]
-impl ForegroundWindowOperations for MacosWindowManager<super::window_api::MockMacosWindowApi> {
-    fn get_foreground_window(&self) -> Option<WindowId> {
-        self.api.get_foreground_window()
-    }
-}
-
-#[cfg(test)]
-impl WindowManagerTrait for MacosWindowManager<super::window_api::MockMacosWindowApi> {}
-
 impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager<A> {
     type WindowId = WindowId;
     type WindowInfo = WindowInfo;

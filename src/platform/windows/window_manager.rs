@@ -426,13 +426,6 @@ impl ForegroundWindowOperations for WindowManager<RealWindowApi> {
     }
 }
 
-#[cfg(test)]
-impl ForegroundWindowOperations for WindowManager<super::window_api::MockWindowApi> {
-    fn get_foreground_window(&self) -> Option<WindowId> {
-        self.api.get_foreground_window().map(hwnd_to_window_id)
-    }
-}
-
 impl MonitorOperations for WindowManager<RealWindowApi> {
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         <Self as CommonWindowApi>::get_monitors(self)
@@ -449,20 +442,6 @@ impl MonitorOperations for WindowManager<RealWindowApi> {
 }
 
 impl WindowManagerTrait for WindowManager<RealWindowApi> {}
-
-#[cfg(test)]
-impl MonitorOperations for WindowManager<super::window_api::MockWindowApi> {
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        <Self as CommonWindowApi>::get_monitors(self)
-    }
-
-    fn move_to_monitor(&self, _window: WindowId, _monitor_index: usize) -> Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-impl WindowManagerTrait for WindowManager<super::window_api::MockWindowApi> {}
 
 /// Features requiring real Windows API (cross-monitor movement, window switching, etc.)
 impl RealWindowManager {
