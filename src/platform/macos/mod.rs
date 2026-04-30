@@ -90,14 +90,6 @@ impl PlatformUtilities for MacosPlatform {
     fn get_modifier_state() -> crate::types::ModifierState {
         get_modifier_state()
     }
-
-    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
-        get_process_name_by_pid(pid)
-    }
-
-    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
-        get_executable_path_by_pid(pid)
-    }
 }
 
 impl ContextProvider for MacosPlatform {
@@ -190,7 +182,9 @@ impl NotificationService for MacosNotificationService {
         )
     }
 
-    fn initialize(&self) {}
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 impl ApplicationControl for MacosPlatform {

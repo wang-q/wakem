@@ -12,8 +12,8 @@ use crate::constants::{
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
-    InputDeviceTrait, LauncherTrait, OutputDeviceTrait, PlatformFactory,
-    WindowPresetManagerTrait,
+    InputDeviceTrait, LauncherTrait, NotificationService, OutputDeviceTrait,
+    PlatformFactory, WindowPresetManagerTrait,
 };
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -35,25 +35,16 @@ struct ConfigState {
     loaded: bool,
 }
 
-impl std::ops::Deref for ConfigState {
-    type Target = Config;
-    fn deref(&self) -> &Self::Target {
-        &self.config
-    }
-}
-
-impl std::ops::DerefMut for ConfigState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.config
-    }
-}
-
 /// Server state
 ///
-/// Performance optimization notes:
-/// - Use RwLock instead of Mutex (for read-heavy scenarios)
-/// - Group related states to reduce lock count
-/// - Use Arc to share config and rules to avoid repeated cloning
+/// Lock acquisition order (must be consistent to prevent deadlocks):
+/// 1. auth_key            2. mapper              3. hyper_key_map
+/// 4. window_preset_mgr   5. layer_manager       6. config
+/// 7. output_device       8. launcher            9. notification_service
+/// 10. pressed_keys       11. active_hyper_keys
+///
+/// IMPORTANT: Always acquire locks in ascending order. Never acquire an
+/// earlier-numbered lock while holding a later-numbered one.
 pub struct ServerState {
     config: Arc<RwLock<ConfigState>>,
     mapper: Arc<RwLock<KeyMapper>>,
@@ -61,9 +52,9 @@ pub struct ServerState {
     output_device: Arc<Mutex<Box<dyn OutputDeviceTrait + Send + Sync>>>,
     launcher: Arc<Mutex<Box<dyn LauncherTrait + Send + Sync>>>,
     window_preset_manager: Arc<RwLock<Box<dyn WindowPresetManagerTrait>>>,
+    notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
     active: Arc<AtomicBool>,
     macro_recorder: Arc<MacroRecorder>,
-    message_window_hwnd: Arc<RwLock<Option<isize>>>,
     auth_key: Arc<RwLock<String>>,
     active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
@@ -89,9 +80,11 @@ impl ServerState {
             window_preset_manager: Arc::new(RwLock::new(Box::new(
                 CurrentPlatform::create_window_preset_manager(),
             ))),
+            notification_service: Arc::new(Mutex::new(Box::new(
+                CurrentPlatform::create_notification_service(),
+            ))),
             active: Arc::new(AtomicBool::new(true)),
             macro_recorder: Arc::new(MacroRecorder::new()),
-            message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
@@ -230,7 +223,7 @@ impl ServerState {
         // Get current instance ID and config file path
         let (_instance_id, config_path) = {
             let config = self.config.read().await;
-            let id = config.network.instance_id;
+            let id = config.config.network.instance_id;
             let path = resolve_config_file_path(None, id);
             (id, path)
         };
@@ -279,7 +272,7 @@ impl ServerState {
             // Get current instance ID and resolve default config file path
             let (_instance_id, resolved_path) = {
                 let config = self.config.read().await;
-                let id = config.network.instance_id;
+                let id = config.config.network.instance_id;
                 let path = resolve_config_file_path(None, id);
                 (id, path)
             };
@@ -296,7 +289,7 @@ impl ServerState {
 
         // Get current config and save
         let config = self.config.read().await;
-        match config.save_to_file(&config_path) {
+        match config.config.save_to_file(&config_path) {
             Ok(_) => {
                 info!("Configuration saved successfully");
                 Ok(())
@@ -423,14 +416,8 @@ impl ServerState {
         // Layer manager didn't handle, use base mapping engine (with context awareness) - use read lock
         let action = {
             let mapper = self.mapper.read().await;
-            #[cfg(target_os = "windows")]
             let context: Option<crate::platform::traits::WindowContext> =
-                crate::platform::windows::context::get_current();
-            #[cfg(target_os = "macos")]
-            let context: Option<crate::platform::traits::WindowContext> =
-                crate::platform::macos::context::get_current();
-            #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-            let context: Option<crate::platform::traits::WindowContext> = None;
+                <CurrentPlatform as crate::platform::traits::ContextProvider>::get_current_context();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
@@ -516,7 +503,7 @@ impl ServerState {
     /// Process wheel enhancement
     async fn process_wheel_enhancement(&self, delta: i32) -> Option<Action> {
         let config = self.config.read().await;
-        let wheel_config = &config.mouse.wheel;
+        let wheel_config = &config.config.mouse.wheel;
 
         // Get current modifier state
         let modifiers = get_current_modifier_state();
@@ -719,14 +706,18 @@ impl ServerState {
         let config_path = {
             let mut config = self.config.write().await;
             config
+                .config
                 .macros
                 .insert(macro_def.name.clone(), macro_def.steps.clone());
-            crate::config::resolve_config_file_path(None, config.network.instance_id)
+            crate::config::resolve_config_file_path(
+                None,
+                config.config.network.instance_id,
+            )
         };
 
         if let Some(config_path) = config_path {
             let config = self.config.read().await;
-            if let Err(e) = config.save_to_file(&config_path) {
+            if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -739,6 +730,7 @@ impl ServerState {
     pub async fn play_macro(&self, name: &str) -> Result<()> {
         let config = self.config.read().await;
         let steps = config
+            .config
             .macros
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Macro '{}' not found", name))?
@@ -770,24 +762,25 @@ impl ServerState {
     /// Get macro list
     pub async fn get_macros(&self) -> Vec<String> {
         let config = self.config.read().await;
-        config.macros.keys().cloned().collect()
+        config.config.macros.keys().cloned().collect()
     }
 
     /// Delete macro
     pub async fn delete_macro(&self, name: &str) -> Result<()> {
         let mut config = self.config.write().await;
-        if config.macros.remove(name).is_none() {
+        if config.config.macros.remove(name).is_none() {
             return Err(anyhow::anyhow!("Macro '{}' not found", name));
         }
 
         // Also remove bindings
-        config.macro_bindings.retain(|_, v| v != name);
+        config.config.macro_bindings.retain(|_, v| v != name);
 
         // Save to file (best effort - don't fail if file operations fail)
-        if let Some(config_path) =
-            crate::config::resolve_config_file_path(None, config.network.instance_id)
-        {
-            if let Err(e) = config.save_to_file(&config_path) {
+        if let Some(config_path) = crate::config::resolve_config_file_path(
+            None,
+            config.config.network.instance_id,
+        ) {
+            if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -801,20 +794,22 @@ impl ServerState {
         let mut config = self.config.write().await;
 
         // Check if macro exists
-        if !config.macros.contains_key(macro_name) {
+        if !config.config.macros.contains_key(macro_name) {
             return Err(anyhow::anyhow!("Macro '{}' not found", macro_name));
         }
 
         // Add binding
         config
+            .config
             .macro_bindings
             .insert(trigger.to_string(), macro_name.to_string());
 
         // Save to file (best effort - don't fail if file operations fail)
-        if let Some(config_path) =
-            crate::config::resolve_config_file_path(None, config.network.instance_id)
-        {
-            if let Err(e) = config.save_to_file(&config_path) {
+        if let Some(config_path) = crate::config::resolve_config_file_path(
+            None,
+            config.config.network.instance_id,
+        ) {
+            if let Err(e) = config.config.save_to_file(&config_path) {
                 warn!("Failed to save config to file: {}", e);
             }
         }
@@ -833,8 +828,14 @@ impl ServerState {
     /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
     #[cfg(target_os = "windows")]
     pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
-        let mut h = self.message_window_hwnd.write().await;
-        *h = Some(hwnd_value);
+        let service = self.notification_service.lock().await;
+        if let Some(win_service) = service
+            .as_any()
+            .downcast_ref::<crate::platform::windows::WindowsNotificationService>(
+        ) {
+            win_service.set_hwnd(hwnd_value);
+        }
+
         info!(
             "Message window handle registered: {:?}",
             HWND(hwnd_value as *mut std::ffi::c_void)
@@ -844,7 +845,6 @@ impl ServerState {
     /// Set message window handle (macOS version - no-op)
     #[cfg(target_os = "macos")]
     pub async fn set_message_window_hwnd(&self, _hwnd_value: isize) {
-        // macOS doesn't use HWND, this is a no-op
         info!("Message window handle registered (macOS)");
     }
 
@@ -854,85 +854,16 @@ impl ServerState {
         self.auth_key.read().await.clone()
     }
 
-    /// Show tray notification
-    #[cfg(target_os = "windows")]
+    /// Show notification via platform notification service
     pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        if let Some(hwnd_isize) = *self.message_window_hwnd.read().await {
-            // Show notification using tray icon (pass isize directly)
-            self.show_tray_notification(hwnd_isize, title, message)
-                .await?;
-        } else {
-            debug!("Message window not registered, skipping notification");
-        }
-        Ok(())
-    }
-
-    /// Show tray notification (macOS version)
-    #[cfg(target_os = "macos")]
-    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
-        use crate::platform::macos::native_api::notification::show_notification;
-
-        match show_notification(title, message) {
-            Ok(()) => {
-                info!("Notification shown: {} - {}", title, message);
-                Ok(())
-            }
+        let service = self.notification_service.lock().await;
+        match service.show(title, message) {
+            Ok(()) => Ok(()),
             Err(e) => {
                 warn!("Failed to show notification: {}", e);
                 Ok(())
             }
         }
-    }
-
-    /// Show notification using tray icon (internal method)
-    /// Takes isize instead of HWND to avoid Send issues
-    #[cfg(target_os = "windows")]
-    async fn show_tray_notification(
-        &self,
-        hwnd_value: isize,
-        title: &str,
-        message: &str,
-    ) -> Result<()> {
-        use windows::Win32::UI::Shell::{
-            NIF_INFO, NIM_MODIFY, NOTIFYICONDATAW, NOTIFY_ICON_INFOTIP_FLAGS,
-        };
-
-        // Create HWND from isize for API calls
-        let hwnd = HWND(hwnd_value as *mut std::ffi::c_void);
-
-        let mut nid = NOTIFYICONDATAW {
-            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-            hWnd: hwnd,
-            uID: 1, // Tray icon ID
-            uFlags: NIF_INFO,
-            ..Default::default()
-        };
-
-        // Convert title and message to wide strings
-        let title_wide: Vec<u16> =
-            title.encode_utf16().chain(std::iter::once(0)).collect();
-        let message_wide: Vec<u16> =
-            message.encode_utf16().chain(std::iter::once(0)).collect();
-
-        // Copy to struct (limit length)
-        let title_len = title_wide.len().min(64);
-        let message_len = message_wide.len().min(256);
-
-        nid.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
-        nid.szInfo[..message_len].copy_from_slice(&message_wide[..message_len]);
-
-        // Set notification type (0 = no icon)
-        nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
-
-        unsafe {
-            let result = windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid);
-            if !result.as_bool() {
-                return Err(anyhow::anyhow!("Failed to show notification"));
-            }
-        }
-
-        info!("Notification shown: {} - {}", title, message);
-        Ok(())
     }
 
     /// Trigger graceful shutdown
@@ -1121,20 +1052,7 @@ mod tests {
 
 /// Get current modifier key state
 fn get_current_modifier_state() -> ModifierState {
-    #[cfg(target_os = "windows")]
-    {
-        crate::platform::windows::get_modifier_state()
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        crate::platform::macos::get_modifier_state()
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        ModifierState::default()
-    }
+    <CurrentPlatform as crate::platform::traits::PlatformUtilities>::get_modifier_state()
 }
 
 /// Run server (legacy entry point, uses default config path)
@@ -1167,13 +1085,13 @@ pub async fn run_server_with_config(
     // Set instance ID
     {
         let mut config = state.config.write().await;
-        config.network.instance_id = instance_id;
+        config.config.network.instance_id = instance_id;
     }
 
     // Load configuration on startup (prefer preloaded config to avoid re-parsing)
     if let Some(cfg) = preloaded_config {
         let mut config = state.config.write().await;
-        config.network.instance_id = instance_id;
+        config.config.network.instance_id = instance_id;
         drop(config);
         state.load_config(cfg).await?;
         info!("Configuration loaded from preloaded config");
@@ -1183,7 +1101,7 @@ pub async fn run_server_with_config(
         match Config::from_file(&path) {
             Ok(cfg) => {
                 let mut config = state.config.write().await;
-                config.network.instance_id = instance_id;
+                config.config.network.instance_id = instance_id;
                 drop(config);
                 state.load_config(cfg).await?;
                 info!("Configuration loaded successfully from {:?}", path);
@@ -1208,9 +1126,9 @@ pub async fn run_server_with_config(
     let (message_tx, mut message_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
     let bind_address = {
         let mut config = state.config.write().await;
-        let addr = config.network.get_bind_address();
+        let addr = config.config.network.get_bind_address();
         // Ensure auth key exists (security requirement)
-        config.network.ensure_auth_key();
+        config.config.network.ensure_auth_key();
         addr
     };
 
@@ -1449,7 +1367,9 @@ pub async fn run_server_with_config(
                 let hook_shutdown_flag_inner = hook_shutdown_flag.clone();
                 let hook_handle = std::thread::spawn(move || {
                     let mut hook =
-                        crate::platform::windows::WindowEventHook::new(std_tx);
+                        <CurrentPlatform as PlatformFactory>::create_window_event_hook(
+                            std_tx,
+                        );
                     if let Err(e) = hook.start_with_shutdown(hook_shutdown_flag_inner) {
                         error!("Failed to start window event hook: {}", e);
                     } else {
@@ -1626,7 +1546,7 @@ impl ServerState {
     ) {
         let auto_apply = {
             let config = self.config.read().await;
-            config.window.auto_apply_preset
+            config.config.window.auto_apply_preset
         };
 
         if !auto_apply {
@@ -1794,7 +1714,10 @@ fn handle_tray_command(cmd: TrayAppCommand, state: Arc<ServerState>) {
             info!("Tray: Open config folder command received");
             // Get config path synchronously using try_read
             let config_path = state.config.try_read().ok().and_then(|config| {
-                crate::config::resolve_config_file_path(None, config.network.instance_id)
+                crate::config::resolve_config_file_path(
+                    None,
+                    config.config.network.instance_id,
+                )
             });
 
             if let Some(path) = config_path {

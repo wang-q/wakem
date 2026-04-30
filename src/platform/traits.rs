@@ -423,16 +423,9 @@ pub fn find_monitor_for_point(
 ///
 /// Provides common platform operations that are implemented differently
 /// on each platform (Windows, macOS).
-#[allow(dead_code)]
 pub trait PlatformUtilities {
     /// Get current modifier state
     fn get_modifier_state() -> ModifierState;
-
-    /// Get process name by PID
-    fn get_process_name_by_pid(pid: u32) -> Result<String>;
-
-    /// Get executable path by PID
-    fn get_executable_path_by_pid(pid: u32) -> Result<String>;
 }
 
 /// Trait for providing current window context information
@@ -440,7 +433,6 @@ pub trait PlatformUtilities {
 /// This trait abstracts the platform-specific implementation of obtaining
 /// the current foreground window's context (process name, window title, etc.).
 /// It enables core logic to access window context without direct platform API calls.
-#[allow(dead_code)]
 pub trait ContextProvider {
     /// Get the current foreground window context
     ///
@@ -454,13 +446,12 @@ pub trait ContextProvider {
 /// This trait provides a cross-platform abstraction for displaying
 /// system notifications (toast notifications on Windows, notification center
 /// on macOS). Implementations should handle platform-specific details internally.
-#[allow(dead_code)]
 pub trait NotificationService: Send + Sync {
     /// Show a notification with the given title and message
     fn show(&self, title: &str, message: &str) -> Result<()>;
 
-    /// Initialize the notification service with platform-specific context
-    fn initialize(&self) {}
+    /// Downcast support for platform-specific operations
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 /// Trait for window preset management
