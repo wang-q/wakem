@@ -1071,15 +1071,23 @@ impl ConfigPathCache {
     }
 
     /// Internal path resolution logic (unified across all platforms)
+    ///
+    /// Supports `WAKEM_CONFIG_DIR` environment variable for testing.
+    /// When set, uses that directory instead of the default config dir.
     fn resolve_config_path_internal(instance_id: u32) -> Option<std::path::PathBuf> {
-        let config_dir = dirs::config_dir()?;
-        let wakem_dir = config_dir.join("wakem");
+        // Check for test environment variable first
+        let config_dir = if let Ok(test_dir) = std::env::var("WAKEM_CONFIG_DIR") {
+            std::path::PathBuf::from(test_dir)
+        } else {
+            dirs::config_dir()?.join("wakem")
+        };
+
         let filename = if instance_id == 0 {
             "config.toml".to_string()
         } else {
             format!("config-instance{}.toml", instance_id)
         };
-        Some(wakem_dir.join(filename))
+        Some(config_dir.join(filename))
     }
 }
 

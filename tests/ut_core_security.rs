@@ -1,7 +1,7 @@
 // Security module extension tests - IP address validation and security boundary conditions
 
 use std::net::{IpAddr, Ipv4Addr};
-use wakem::ipc::{is_allowed_ip, is_private_ip};
+use wakem::ipc::security::{is_allowed_ip, is_private_ip};
 
 // ==================== RFC 1918 private address range complete tests ====================
 

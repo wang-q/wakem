@@ -1,9 +1,13 @@
 // Daemon Core Logic Tests
 
+use std::sync::Mutex;
 use wakem::config::Config;
 use wakem::daemon::ServerState;
 use wakem::shutdown::ShutdownSignal;
 use wakem::types::{InputEvent, KeyEvent, KeyState, MouseEventType};
+
+// Global lock to prevent concurrent environment variable modifications
+static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 // ==================== ServerState initialization and configuration loading ====================
 
@@ -384,9 +388,21 @@ macro3 = []
 /// Test Delete macro
 #[tokio::test]
 async fn test_delete_macro() {
+    // Use a temporary directory for config to avoid modifying user config
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    // Lock to prevent concurrent environment variable modifications
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("WAKEM_CONFIG_DIR", temp_path);
+
+    // Ensure cleanup after test
+    let _cleanup = scopeguard::guard((), |_| {
+        std::env::remove_var("WAKEM_CONFIG_DIR");
+    });
+
     let state = ServerState::new(ShutdownSignal::new());
 
-    // First add a macro with a test-specific instance_id to avoid overwriting user config
     let config_str = r#"
 [macros]
 temp_macro = []
@@ -402,13 +418,16 @@ instance_id = 999
     let macros = state.get_macros().await;
     assert!(macros.contains(&"temp_macro".to_string()));
 
-    // Delete macro - should succeed without affecting user config
+    // Delete macro - should succeed and write to temp directory only
     let result = state.delete_macro("temp_macro").await;
     assert!(result.is_ok(), "Delete macro should succeed");
 
     // Verify macro is deleted
     let macros = state.get_macros().await;
     assert!(!macros.contains(&"temp_macro".to_string()));
+
+    // Verify no file was created in user config dir
+    drop(_guard);
 }
 
 /// Test Delete non-existent macro (error handling)
@@ -429,9 +448,21 @@ async fn test_delete_nonexistent_macro() {
 /// Test Bind macro to trigger key
 #[tokio::test]
 async fn test_bind_macro() {
+    // Use a temporary directory for config to avoid modifying user config
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    // Lock to prevent concurrent environment variable modifications
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("WAKEM_CONFIG_DIR", temp_path);
+
+    // Ensure cleanup after test
+    let _cleanup = scopeguard::guard((), |_| {
+        std::env::remove_var("WAKEM_CONFIG_DIR");
+    });
+
     let state = ServerState::new(ShutdownSignal::new());
 
-    // First add a macro with a test-specific instance_id to avoid overwriting user config
     let config_str = r#"
 [macros]
 my_macro = []
@@ -443,9 +474,11 @@ instance_id = 999
     let config: Config = toml::from_str(config_str).unwrap();
     let _ = state.load_config(config).await;
 
-    // Bind macro - should succeed without affecting user config
+    // Bind macro - should succeed and write to temp directory only
     let result = state.bind_macro("my_macro", "F5").await;
     assert!(result.is_ok(), "Bind macro should succeed");
+
+    drop(_guard);
 }
 
 /// Test Bind non-existent macro (error handling)

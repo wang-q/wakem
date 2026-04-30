@@ -19,36 +19,49 @@ pub mod security;
 pub mod server;
 
 // Re-export commonly used types
-pub use auth::{
-    compute_response, generate_challenge, verify_response, zero_string,
-    AUTH_RESULT_FAILURE, AUTH_RESULT_SUCCESS, CHALLENGE_SIZE, RESPONSE_SIZE,
-};
 pub use client::IpcClient;
-pub use discovery::{discover_instances, InstanceInfo};
-pub use io::{get_instance_address, get_instance_port, read_message, send_message, BASE_PORT};
-pub use messages::{IpcError, Message, Result};
-pub use rate_limit::ConnectionLimiter;
-pub use security::{is_allowed_ip, is_private_ip};
+pub use discovery::discover_instances;
+pub use io::{get_instance_address, get_instance_port};
+pub use messages::{IpcError, Message};
 pub use server::IpcServer;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ipc::auth::{
+        compute_response, generate_challenge, verify_response, CHALLENGE_SIZE,
+        RESPONSE_SIZE,
+    };
+    use crate::ipc::security::is_private_ip;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
     fn test_private_ip() {
-        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
-        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1))));
-        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))));
-        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
-        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(169, 254, 0, 1))));
+        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(
+            10, 0, 0, 1
+        ))));
+        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(
+            172, 16, 0, 1
+        ))));
+        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(
+            192, 168, 1, 1
+        ))));
+        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(
+            127, 0, 0, 1
+        ))));
+        assert!(is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(
+            169, 254, 0, 1
+        ))));
     }
 
     #[test]
     fn test_public_ip() {
-        assert!(!is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))));
-        assert!(!is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1))));
+        assert!(!is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(
+            8, 8, 8, 8
+        ))));
+        assert!(!is_private_ip(std::net::IpAddr::V4(Ipv4Addr::new(
+            1, 1, 1, 1
+        ))));
     }
 
     #[test]

@@ -102,6 +102,12 @@ proptest = "1.4"
 # Benchmarking
 criterion = "0.5"
 
+# Temporary directories for testing
+tempfile = "3.10"
+
+# RAII guards for cleanup
+scopeguard = "1.2"
+
 [[bench]]
 name = "basic_benchmarks"
 harness = false

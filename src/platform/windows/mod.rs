@@ -14,6 +14,7 @@ pub use crate::platform::launcher_common::Launcher;
 pub use input_device::RawInputDevice;
 pub use output_device::SendInputDevice;
 pub use tray::{run_tray_message_loop, stop_tray, TrayIcon};
+#[allow(unused_imports)]
 pub use window_api::RealWindowApi;
 pub use window_event_hook::WindowEventHook;
 pub use window_manager::{MonitorDirection, WindowManager};

@@ -70,7 +70,10 @@ mod tests {
 
     #[test]
     fn test_get_instance_address() {
-        assert_eq!(get_instance_address(0), format!("127.0.0.1:{}", IPC_BASE_PORT));
+        assert_eq!(
+            get_instance_address(0),
+            format!("127.0.0.1:{}", IPC_BASE_PORT)
+        );
         assert_eq!(
             get_instance_address(1),
             format!("127.0.0.1:{}", IPC_BASE_PORT + 1)

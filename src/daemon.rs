@@ -38,18 +38,18 @@ use crate::platform::windows::{
 #[cfg(all(target_os = "macos", not(test)))]
 use crate::platform::macos::{
     AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, MacosOutputDevice as OutputDevice, RealMacosWindowApi,
-    WindowManager, WindowPresetManager,
+    Launcher, MacosOutputDevice as OutputDevice, RealMacosWindowApi, WindowManager,
+    WindowPresetManager,
 };
 
 // Platform-specific imports for test code (macOS)
-#[cfg(all(target_os = "macos", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
 #[cfg(all(target_os = "macos", test))]
 use crate::platform::macos::{
     AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
     Launcher, RealMacosWindowApi, WindowManager, WindowPresetManager,
 };
+#[cfg(all(target_os = "macos", test))]
+use crate::platform::mock::MockOutputDevice as OutputDevice;
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
@@ -319,23 +319,34 @@ impl ServerState {
     }
 
     /// Save current configuration to file
-    pub async fn save_config_to_file(&self) -> Result<()> {
+    ///
+    /// If `path` is provided, saves to that path; otherwise saves to the default
+    /// config file path based on instance_id.
+    pub async fn save_config_to_file(
+        &self,
+        path: Option<&std::path::Path>,
+    ) -> Result<()> {
         use crate::config::resolve_config_file_path;
 
         info!("Saving configuration to file...");
 
-        // Get current instance ID and config file path
-        let (_instance_id, config_path) = {
-            let config = self.config.read().await;
-            let id = config.network.instance_id;
-            let path = resolve_config_file_path(None, id);
-            (id, path)
-        };
+        // Determine config file path
+        let config_path = if let Some(p) = path {
+            p.to_path_buf()
+        } else {
+            // Get current instance ID and resolve default config file path
+            let (_instance_id, resolved_path) = {
+                let config = self.config.read().await;
+                let id = config.network.instance_id;
+                let path = resolve_config_file_path(None, id);
+                (id, path)
+            };
 
-        let config_path = match config_path {
-            Some(path) => path,
-            None => {
-                return Err(anyhow::anyhow!("Config file path not found"));
+            match resolved_path {
+                Some(path) => path,
+                None => {
+                    return Err(anyhow::anyhow!("Config file path not found"));
+                }
             }
         };
 
@@ -1535,7 +1546,7 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
                 error: e.to_string(),
             },
         },
-        Message::SaveConfig => match state.save_config_to_file().await {
+        Message::SaveConfig => match state.save_config_to_file(None).await {
             Ok(_) => Message::ConfigLoaded,
             Err(e) => Message::ConfigError {
                 error: e.to_string(),

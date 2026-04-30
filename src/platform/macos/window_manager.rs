@@ -54,7 +54,9 @@ impl<A: MacosWindowApi + Clone + Default> Default for MacosWindowManager<A> {
     }
 }
 
-impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait for MacosWindowManager<A> {
+impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
+    for MacosWindowManager<A>
+{
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
     }
@@ -158,8 +160,6 @@ impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager
         self.api.set_topmost(window, topmost)
     }
 }
-
-
 
 impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     #[cfg(not(test))]

@@ -13,8 +13,8 @@ use tokio::time::{timeout, Duration as TokioDuration};
 use tracing::{debug, error, info, warn};
 
 use super::auth::{
-    generate_challenge, verify_response, zero_string, AUTH_RESULT_FAILURE, AUTH_RESULT_SUCCESS,
-    RESPONSE_SIZE,
+    generate_challenge, verify_response, zero_string, AUTH_RESULT_FAILURE,
+    AUTH_RESULT_SUCCESS, RESPONSE_SIZE,
 };
 use super::io::{read_message, send_message};
 use super::messages::{Message, Result};

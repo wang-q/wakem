@@ -93,13 +93,14 @@ impl Launcher {
 
         match cmd.spawn() {
             Ok(child) => {
-                info!("Open command launched successfully for: {} (pid: {:?})", path, child.id());
+                info!(
+                    "Open command launched successfully for: {} (pid: {:?})",
+                    path,
+                    child.id()
+                );
                 Ok(())
             }
-            Err(e) => Err(anyhow::anyhow!(
-                "Failed to open path {}: {}",
-                path, e
-            )),
+            Err(e) => Err(anyhow::anyhow!("Failed to open path {}: {}", path, e)),
         }
     }
 }
