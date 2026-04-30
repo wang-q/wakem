@@ -14,7 +14,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::client::DaemonClient;
 use crate::config;
-use crate::platform::traits::AppCommand;
+use crate::platform::traits::{AppCommand, ApplicationControl, TrayLifecycle};
 
 /// Try to reconnect to daemon after connection loss
 async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u32) {
@@ -229,92 +229,6 @@ pub fn open_config_folder_sync(instance_id: u32) -> Result<()> {
     Ok(())
 }
 
-/// Wait for daemon thread to shutdown with timeout
-#[cfg(target_os = "windows")]
-fn wait_for_daemon_shutdown(
-    handle: std::thread::JoinHandle<()>,
-    timeout: std::time::Duration,
-) -> Result<(), ()> {
-    use std::sync::mpsc::channel;
-    use std::thread;
-
-    let (tx, rx) = channel();
-
-    thread::spawn(move || {
-        let _ = handle.join();
-        let _ = tx.send(());
-    });
-
-    match rx.recv_timeout(timeout) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(()),
-    }
-}
-
-/// Force kill the daemon process for a specific instance
-#[cfg(target_os = "windows")]
-fn force_kill_daemon(instance_id: u32) {
-    use std::process::Command;
-    use std::process::Stdio;
-
-    let window_title = if instance_id == 0 {
-        "wakemd".to_string()
-    } else {
-        format!("wakemd-instance{}", instance_id)
-    };
-
-    let output = Command::new("taskkill")
-        .args(["/F", "/FI", &format!("WINDOWTITLE eq {}", window_title)])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
-
-    match output {
-        Ok(result) if result.status.success() => {
-            info!("Successfully killed daemon instance {}", instance_id);
-            return;
-        }
-        _ => {
-            debug!("Could not kill by window title, trying alternative method");
-        }
-    }
-
-    warn!(
-        "Falling back to killing wakem.exe by instance ID {}. This may affect other instances if PowerShell is unavailable.",
-        instance_id
-    );
-    let ps_script = if instance_id == 0 {
-        r#"Get-Process wakem -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -notmatch '--instance' } | Stop-Process -Force"#.to_string()
-    } else {
-        format!(
-            r#"Get-Process wakem -ErrorAction SilentlyContinue | Where-Object {{ $_.CommandLine -match '--instance {}' }} | Stop-Process -Force"#,
-            instance_id
-        )
-    };
-
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
-
-    match output {
-        Ok(result) if result.status.success() => {
-            info!(
-                "Successfully killed daemon instance {} via PowerShell",
-                instance_id
-            );
-        }
-        _ => {
-            error!(
-                "Failed to kill daemon instance {} via PowerShell",
-                instance_id
-            );
-            error!("You may need to manually stop the process");
-        }
-    }
-}
-
 /// Run tokio runtime in background thread for Windows tray
 #[cfg(target_os = "windows")]
 fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
@@ -324,7 +238,7 @@ fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
         cmd_rx,
         instance_id,
         || {
-            crate::platform::windows::stop_tray();
+            crate::platform::windows::WindowsPlatform::stop_tray();
         },
         open_config_folder_sync,
     ));
@@ -397,15 +311,12 @@ pub fn run_tray_sync(
     auto_start_daemon: bool,
     detach_console: bool,
 ) -> Result<()> {
-    use crate::platform::windows::run_tray_message_loop;
-    use windows::Win32::System::Console::FreeConsole;
+    use crate::platform::windows::WindowsPlatform;
 
     info!("wakem starting (instance {})...", instance_id);
 
     if detach_console {
-        unsafe {
-            let _ = FreeConsole();
-        }
+        WindowsPlatform::detach_console();
     }
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
@@ -430,9 +341,9 @@ pub fn run_tray_sync(
         None
     };
 
-    let tray_result = run_tray_message_loop(move |cmd| {
+    let tray_result = WindowsPlatform::run_tray_message_loop(Box::new(move |cmd| {
         let _ = cmd_tx_for_tray.blocking_send(cmd);
-    });
+    }));
 
     let _ = cmd_tx.blocking_send(AppCommand::Exit);
     info!("Waiting for tokio thread to exit...");
@@ -441,11 +352,16 @@ pub fn run_tray_sync(
 
     if let Some(handle) = daemon_handle {
         info!("Waiting for daemon to shutdown...");
-        match wait_for_daemon_shutdown(handle, std::time::Duration::from_secs(10)) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = handle.join();
+            let _ = tx.send(());
+        });
+        match rx.recv_timeout(std::time::Duration::from_secs(10)) {
             Ok(_) => info!("Daemon shutdown successfully"),
             Err(_) => {
                 error!("Daemon shutdown timed out after 10 seconds, forcing exit...");
-                force_kill_daemon(instance_id);
+                let _ = WindowsPlatform::force_kill_instance(instance_id);
             }
         }
     }

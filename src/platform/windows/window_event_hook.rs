@@ -23,6 +23,8 @@ pub struct WindowEventHook {
     shutdown_flag: Arc<AtomicBool>,
 }
 
+unsafe impl Send for WindowEventHook {}
+
 impl WindowEventHook {
     /// Create new window event hook
     pub fn new(event_tx: Sender<PlatformWindowEvent>) -> Self {

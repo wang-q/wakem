@@ -75,3 +75,13 @@ pub mod platform_types {
         WindowManager, WindowPresetManager,
     };
 }
+
+/// Current platform's factory type
+///
+/// Use `CurrentPlatform::create_*()` to create platform-specific objects
+/// without conditional compilation in business logic.
+#[cfg(target_os = "windows")]
+pub type CurrentPlatform = windows::WindowsPlatform;
+
+#[cfg(target_os = "macos")]
+pub type CurrentPlatform = macos::MacosPlatform;

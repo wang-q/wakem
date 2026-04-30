@@ -94,20 +94,30 @@ impl Default for InputDeviceBase {
 pub struct InputDevice<T> {
     pub base: InputDeviceBase,
     pub inner: Option<T>,
+    #[allow(dead_code)]
+    pub config: InputDeviceConfig,
 }
 
 #[allow(dead_code)]
 impl<T> InputDevice<T> {
     /// Create a new input device with default config
-    pub fn new(_config: InputDeviceConfig) -> Result<Self> {
+    pub fn new(config: InputDeviceConfig) -> Result<Self> {
         let base = InputDeviceBase::new();
-        Ok(Self { base, inner: None })
+        Ok(Self {
+            base,
+            inner: None,
+            config,
+        })
     }
 
     /// Create an input device with custom sender
     pub fn with_sender(event_sender: Sender<InputEvent>) -> Result<Self> {
         let base = InputDeviceBase::with_sender(event_sender);
-        Ok(Self { base, inner: None })
+        Ok(Self {
+            base,
+            inner: None,
+            config: InputDeviceConfig::default(),
+        })
     }
 
     /// Get the event sender

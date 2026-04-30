@@ -11,7 +11,10 @@ use crate::constants::{
     WINDOW_PRESET_APPLY_DELAY_MS,
 };
 use crate::ipc::{IpcServer, Message};
-use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
+use crate::platform::traits::{
+    InputDeviceTrait, LauncherTrait, OutputDeviceTrait, PlatformFactory,
+    WindowPresetManagerTrait,
+};
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
@@ -20,39 +23,30 @@ use crate::types::{
 
 use crate::runtime::{KeyMapper, LayerManager};
 
-// Platform-specific imports for production code
-#[cfg(all(target_os = "windows", not(test)))]
-use crate::platform::windows::{
-    Launcher, RawInputDevice, SendInputDevice as OutputDevice, WindowManager,
-    WindowPresetManager,
-};
-
-#[cfg(all(target_os = "windows", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
-#[cfg(all(target_os = "windows", test))]
-use crate::platform::windows::{
-    Launcher, RawInputDevice, WindowManager, WindowPresetManager,
-};
-
-// Platform-specific imports for production code (macOS)
-#[cfg(all(target_os = "macos", not(test)))]
-use crate::platform::macos::{
-    AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, MacosOutputDevice as OutputDevice, RealMacosWindowApi, WindowManager,
-    WindowPresetManager,
-};
-
-// Platform-specific imports for test code (macOS)
-#[cfg(all(target_os = "macos", test))]
-use crate::platform::macos::{
-    AppCommand as TrayAppCommand, InputDevice as RawInputDevice, InputDeviceConfig,
-    Launcher, RealMacosWindowApi, WindowManager, WindowPresetManager,
-};
-#[cfg(all(target_os = "macos", test))]
-use crate::platform::mock::MockOutputDevice as OutputDevice;
+use crate::platform::CurrentPlatform;
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HWND;
+
+/// Combined config state to reduce lock count
+#[derive(Default)]
+struct ConfigState {
+    config: Config,
+    loaded: bool,
+}
+
+impl std::ops::Deref for ConfigState {
+    type Target = Config;
+    fn deref(&self) -> &Self::Target {
+        &self.config
+    }
+}
+
+impl std::ops::DerefMut for ConfigState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.config
+    }
+}
 
 /// Server state
 ///
@@ -61,99 +55,41 @@ use windows::Win32::Foundation::HWND;
 /// - Group related states to reduce lock count
 /// - Use Arc to share config and rules to avoid repeated cloning
 pub struct ServerState {
-    /// Current configuration (read-heavy, write-rare)
-    config: Arc<RwLock<Config>>,
-    /// Key mapping engine (read-heavy: read on every event, write only on config change)
+    config: Arc<RwLock<ConfigState>>,
     mapper: Arc<RwLock<KeyMapper>>,
-    /// Layer manager (read-heavy)
     layer_manager: Arc<RwLock<LayerManager>>,
-    /// Output device (write-heavy: every action needs to write)
-    output_device: Arc<Mutex<OutputDevice>>,
-    /// Program launcher (write-heavy: needs mutex when launching programs)
-    launcher: Arc<Mutex<Launcher>>,
-    /// Window preset manager (balanced read/write) - Windows only
-    #[cfg(target_os = "windows")]
-    window_preset_manager: Arc<RwLock<WindowPresetManager>>,
-    /// Window manager - macOS only
-    #[cfg(target_os = "macos")]
-    #[allow(dead_code)]
-    window_manager: Arc<RwLock<crate::platform::macos::WindowManager>>,
-    /// Whether mapping is enabled (frequently read, rarely written)
+    output_device: Arc<Mutex<Box<dyn OutputDeviceTrait + Send + Sync>>>,
+    launcher: Arc<Mutex<Box<dyn LauncherTrait + Send + Sync>>>,
+    window_preset_manager: Arc<RwLock<Box<dyn WindowPresetManagerTrait>>>,
     active: Arc<AtomicBool>,
-    /// Whether config has been loaded
-    config_loaded: Arc<RwLock<bool>>,
-    /// Macro recorder (has internal synchronization)
     macro_recorder: Arc<MacroRecorder>,
-    /// Message window handle (for sending notifications)
-    /// Stored as isize for Send/Sync safety (HWND is *mut c_void which is not Send)
-    #[allow(dead_code)]
     message_window_hwnd: Arc<RwLock<Option<isize>>>,
-    /// Auth key (stored separately, supports dynamic updates)
     auth_key: Arc<RwLock<String>>,
-    /// Active hyper keys and their contributed modifier states
-    /// Tracks which hyper keys are currently pressed and what modifiers they inject.
-    /// This allows correct per-key release behavior: releasing one hyper key only
-    /// removes its own modifier contributions, not all virtual modifiers.
     active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
-    /// Hyper key mapping: (scan_code, virtual_key) -> modifiers to inject
-    /// Dynamically extracted from remap rules where target is a modifier combo
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
-    /// Set of currently pressed keys (scan_code, virtual_key).
-    /// Used to filter key repeat events (Windows sends repeated WM_KEYDOWN
-    /// while a key is held). Only the first press triggers an action.
     pressed_keys: Arc<RwLock<std::collections::HashSet<(u16, u16)>>>,
-    /// Shutdown signal for graceful shutdown (shared with run_server)
     shutdown_signal: ShutdownSignal,
 }
 
 impl ServerState {
-    #[cfg(target_os = "windows")]
     pub fn new(shutdown_signal: ShutdownSignal) -> Self {
-        let window_manager = WindowManager::new();
+        let window_manager = CurrentPlatform::create_window_manager();
         let mut mapper = KeyMapper::with_window_manager(window_manager);
-        let window_preset_manager = WindowPresetManager::new(WindowManager::new());
+        let window_preset_manager = CurrentPlatform::create_window_preset_manager();
         mapper.set_window_preset_manager(window_preset_manager);
 
         Self {
-            config: Arc::new(RwLock::new(Config::default())),
+            config: Arc::new(RwLock::new(ConfigState::default())),
             mapper: Arc::new(RwLock::new(mapper)),
             layer_manager: Arc::new(RwLock::new(LayerManager::new())),
-            output_device: Arc::new(Mutex::new(OutputDevice::new())),
-            launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_preset_manager: Arc::new(RwLock::new(WindowPresetManager::new(
-                WindowManager::new(),
+            output_device: Arc::new(Mutex::new(Box::new(
+                CurrentPlatform::create_output_device(),
+            ))),
+            launcher: Arc::new(Mutex::new(Box::new(CurrentPlatform::create_launcher()))),
+            window_preset_manager: Arc::new(RwLock::new(Box::new(
+                CurrentPlatform::create_window_preset_manager(),
             ))),
             active: Arc::new(AtomicBool::new(true)),
-            config_loaded: Arc::new(RwLock::new(false)),
-            macro_recorder: Arc::new(MacroRecorder::new()),
-            message_window_hwnd: Arc::new(RwLock::new(None)),
-            auth_key: Arc::new(RwLock::new(String::new())),
-            active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            pressed_keys: Arc::new(RwLock::new(std::collections::HashSet::new())),
-            shutdown_signal,
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    pub fn new(shutdown_signal: ShutdownSignal) -> Self {
-        let window_manager = WindowManager::new(RealMacosWindowApi::new());
-        let mapper = KeyMapper::with_window_manager(window_manager);
-
-        // NOTE: Common fields are duplicated with Windows version above.
-        // Platform-specific fields: mapper (different constructor), window_manager (macOS only).
-        // Windows-specific: window_preset_manager.
-        Self {
-            config: Arc::new(RwLock::new(Config::default())),
-            mapper: Arc::new(RwLock::new(mapper)),
-            layer_manager: Arc::new(RwLock::new(LayerManager::new())),
-            output_device: Arc::new(Mutex::new(OutputDevice::new())),
-            launcher: Arc::new(Mutex::new(Launcher::new())),
-            window_manager: Arc::new(RwLock::new(WindowManager::new(
-                RealMacosWindowApi::new(),
-            ))),
-            active: Arc::new(AtomicBool::new(true)),
-            config_loaded: Arc::new(RwLock::new(false)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             message_window_hwnd: Arc::new(RwLock::new(None)),
             auth_key: Arc::new(RwLock::new(String::new())),
@@ -272,13 +208,13 @@ impl ServerState {
         // 5. Finally update config (ensure all components are ready)
         {
             let mut cfg = self.config.write().await;
-            *cfg = config;
+            cfg.config = config;
         }
 
         // 6. Mark config as loaded
         {
-            let mut loaded = self.config_loaded.write().await;
-            *loaded = true;
+            let mut cfg = self.config.write().await;
+            cfg.loaded = true;
         }
 
         info!("Configuration loaded successfully");
@@ -749,7 +685,7 @@ impl ServerState {
     pub async fn get_status(&self) -> (bool, bool) {
         (
             self.active.load(Ordering::Acquire),
-            *self.config_loaded.read().await,
+            self.config.read().await.loaded,
         )
     }
 
@@ -818,7 +754,7 @@ impl ServerState {
         drop(config); // Release read lock
 
         let output_device = self.output_device.lock().await;
-        MacroPlayer::play_macro(&output_device, &macro_def, None).await?;
+        MacroPlayer::play_macro(&**output_device, &macro_def, None).await?;
 
         // Show playback complete notification
         let _ = self
@@ -1311,16 +1247,17 @@ pub async fn run_server_with_config(
         let raw_input_shutdown_for_bridge = raw_input_shutdown.clone();
 
         #[cfg(target_os = "windows")]
-        let raw_input_handle =
-            std::thread::spawn(move || match RawInputDevice::with_sender(std_tx) {
+        let raw_input_handle = std::thread::spawn(move || {
+            match <CurrentPlatform as PlatformFactory>::create_input_device(
+                crate::platform::traits::InputDeviceConfig::default(),
+                Some(std_tx),
+            ) {
                 Ok(mut device) => {
-                    // Register the device to initialize Raw Input
                     if let Err(e) = device.register() {
                         error!("Failed to register Raw Input device: {}", e);
                         return;
                     }
                     info!("Raw Input device initialized and registered");
-                    // Run until shutdown signal
                     while !raw_input_shutdown.load(Ordering::SeqCst) {
                         if let Err(e) = device.run_once() {
                             error!("Raw Input error: {}", e);
@@ -1332,14 +1269,17 @@ pub async fn run_server_with_config(
                 Err(e) => {
                     error!("Failed to create Raw Input device: {}", e);
                 }
-            });
+            }
+        });
 
         #[cfg(target_os = "macos")]
         let raw_input_handle = std::thread::spawn(move || {
-            match RawInputDevice::new(InputDeviceConfig::default()) {
+            match <CurrentPlatform as PlatformFactory>::create_input_device(
+                crate::platform::traits::InputDeviceConfig::default(),
+                Some(std_tx),
+            ) {
                 Ok(mut device) => {
                     info!("Raw Input device initialized");
-                    // Run until shutdown signal
                     while !raw_input_shutdown.load(Ordering::SeqCst) {
                         if let Err(e) = device.run_once() {
                             error!("Raw Input error: {}", e);
@@ -1693,27 +1633,28 @@ impl ServerState {
             return;
         }
 
-        if let crate::platform::traits::PlatformWindowEvent::WindowActivated {
+        let crate::platform::traits::PlatformWindowEvent::WindowActivated {
+            process_name,
+            window_title,
             window_id,
-            ..
-        } = event
-        {
-            tokio::time::sleep(tokio::time::Duration::from_millis(
-                WINDOW_PRESET_APPLY_DELAY_MS,
-            ))
-            .await;
+        } = event;
+        debug!(
+            "Window activated: process='{}', title='{}'",
+            process_name, window_title
+        );
+        tokio::time::sleep(tokio::time::Duration::from_millis(
+            WINDOW_PRESET_APPLY_DELAY_MS,
+        ))
+        .await;
 
-            let preset_manager = self.window_preset_manager.read().await;
-            let hwnd =
-                windows::Win32::Foundation::HWND(window_id as *mut std::ffi::c_void);
-            match preset_manager.apply_preset_for_window_by_id(hwnd) {
-                Ok(true) => {
-                    debug!("Auto-applied preset to window {:?}", hwnd);
-                }
-                Ok(false) => {}
-                Err(e) => {
-                    debug!("Failed to auto-apply preset: {}", e);
-                }
+        let preset_manager = self.window_preset_manager.read().await;
+        match preset_manager.apply_preset_for_window_by_id(window_id) {
+            Ok(true) => {
+                debug!("Auto-applied preset to window {}", window_id);
+            }
+            Ok(false) => {}
+            Err(e) => {
+                debug!("Failed to auto-apply preset: {}", e);
             }
         }
     }

@@ -15,32 +15,31 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-// Re-export common types
+use crate::platform::traits::{
+    ApplicationControl, ContextProvider, LauncherTrait, NotificationService,
+    PlatformFactory, PlatformUtilities, TrayLifecycle, WindowEventHookTrait,
+    WindowPresetManagerTrait,
+};
+use std::sync::Arc;
+
 pub use crate::platform::common::launcher::Launcher;
 pub use crate::platform::traits::InputDeviceConfig;
 
-// Re-export input device
 pub use input_device::MacosInputDeviceExt;
-/// InputDevice type alias for macOS
 pub type InputDevice = MacosInputDeviceExt;
 
-// Re-export output device
 pub use output_device::MacosOutputDevice;
 
-// Re-export tray types
 pub use tray::{
     run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, RealTrayApi,
     TrayIconWrapper as TrayIcon, TrayManager,
 };
 
-// Re-export window API types
 pub use window_api::{MacosWindowApi, RealMacosWindowApi};
 pub use window_event_hook::MacosWindowEventHook;
 
-// Re-export window manager types
 pub use window_manager::{MacosWindowManager, RealMacosWindowManager as WindowManager};
 
-// Re-export window preset types
 pub use window_preset::WindowPresetManager;
 
 #[cfg(test)]
@@ -72,4 +71,209 @@ pub fn get_modifier_state() -> crate::types::ModifierState {
     }
 
     modifiers
+}
+
+pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
+    ns_workspace::get_process_name_by_pid(pid)
+}
+
+pub fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
+    ns_workspace::get_executable_path_by_pid(pid)
+}
+
+// ---- Trait implementations ----
+
+/// Zero-sized type for implementing class-method traits on macOS
+pub struct MacosPlatform;
+
+impl PlatformUtilities for MacosPlatform {
+    fn get_modifier_state() -> crate::types::ModifierState {
+        get_modifier_state()
+    }
+
+    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
+        get_process_name_by_pid(pid)
+    }
+
+    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
+        get_executable_path_by_pid(pid)
+    }
+}
+
+impl ContextProvider for MacosPlatform {
+    fn get_current_context() -> Option<crate::platform::traits::WindowContext> {
+        context::get_current()
+    }
+}
+
+impl TrayLifecycle for MacosPlatform {
+    fn run_tray_message_loop(
+        callback: Box<dyn Fn(crate::platform::traits::AppCommand) + Send>,
+    ) -> anyhow::Result<()> {
+        tray::run_tray_message_loop(callback)
+    }
+
+    fn stop_tray() {
+        tray::stop_tray()
+    }
+}
+
+impl WindowEventHookTrait for MacosWindowEventHook {
+    fn start_with_shutdown(
+        &mut self,
+        shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
+    ) -> anyhow::Result<()> {
+        self.start_with_shutdown(shutdown_flag)
+    }
+
+    fn stop(&mut self) {
+        self.stop()
+    }
+
+    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool> {
+        self.shutdown_flag()
+    }
+}
+
+impl LauncherTrait for Launcher {
+    fn launch(&self, action: &crate::types::LaunchAction) -> anyhow::Result<()> {
+        self.launch(action)
+    }
+}
+
+impl WindowPresetManagerTrait for WindowPresetManager {
+    fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>) {
+        self.load_presets(presets)
+    }
+
+    fn save_preset(&mut self, name: String) -> anyhow::Result<()> {
+        self.save_preset(name)
+    }
+
+    fn load_preset(&self, name: &str) -> anyhow::Result<()> {
+        self.load_preset(name)
+    }
+
+    fn get_foreground_window_info(
+        &self,
+    ) -> Option<anyhow::Result<crate::platform::traits::WindowInfo>> {
+        self.get_foreground_window_info()
+    }
+
+    fn apply_preset_for_window_by_id(
+        &self,
+        window_id: crate::platform::traits::WindowId,
+    ) -> anyhow::Result<bool> {
+        self.apply_preset_for_window_by_id(window_id)
+    }
+}
+
+/// macOS notification service using Notification Center
+pub struct MacosNotificationService;
+
+impl MacosNotificationService {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for MacosNotificationService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NotificationService for MacosNotificationService {
+    fn show(&self, title: &str, message: &str) -> anyhow::Result<()> {
+        crate::platform::macos::native_api::notification::show_notification(
+            title, message,
+        )
+    }
+
+    fn initialize(&self) {}
+}
+
+impl ApplicationControl for MacosPlatform {
+    fn detach_console() {}
+
+    fn terminate_application() {
+        std::process::exit(0)
+    }
+
+    fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {
+        std::process::Command::new("open").arg(path).spawn()?;
+        Ok(())
+    }
+
+    fn force_kill_instance(instance_id: u32) -> anyhow::Result<()> {
+        use std::process::{Command, Stdio};
+
+        let process_name = if instance_id == 0 {
+            "wakemd".to_string()
+        } else {
+            format!("wakemd-instance{}", instance_id)
+        };
+
+        let output = Command::new("pkill")
+            .args(["-f", &process_name])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output();
+
+        match output {
+            Ok(result) if result.status.success() => {
+                tracing::info!("Successfully killed daemon instance {}", instance_id);
+                Ok(())
+            }
+            _ => {
+                anyhow::bail!("Failed to kill daemon instance {}", instance_id)
+            }
+        }
+    }
+}
+
+impl PlatformFactory for MacosPlatform {
+    type InputDevice = InputDevice;
+    type OutputDevice = MacosOutputDevice;
+    type WindowManager = WindowManager;
+    type WindowPresetManager = WindowPresetManager;
+    type NotificationService = MacosNotificationService;
+    type Launcher = Launcher;
+    type WindowEventHook = MacosWindowEventHook;
+
+    fn create_input_device(
+        config: InputDeviceConfig,
+        sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
+    ) -> anyhow::Result<Self::InputDevice> {
+        match sender {
+            Some(tx) => InputDevice::with_sender(tx),
+            None => InputDevice::new(config),
+        }
+    }
+
+    fn create_output_device() -> Self::OutputDevice {
+        MacosOutputDevice::new()
+    }
+
+    fn create_window_manager() -> Self::WindowManager {
+        WindowManager::new()
+    }
+
+    fn create_window_preset_manager() -> Self::WindowPresetManager {
+        WindowPresetManager::new(WindowManager::new())
+    }
+
+    fn create_notification_service() -> Self::NotificationService {
+        MacosNotificationService::new()
+    }
+
+    fn create_launcher() -> Self::Launcher {
+        Launcher::new()
+    }
+
+    fn create_window_event_hook(
+        sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
+    ) -> Self::WindowEventHook {
+        MacosWindowEventHook::new(sender)
+    }
 }
