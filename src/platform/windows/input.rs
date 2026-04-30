@@ -21,9 +21,17 @@ use windows::Win32::UI::Input::{
     RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, RegisterClassW, CS_HREDRAW,
-    CS_VREDRAW, CW_USEDEFAULT, MSG, WM_CREATE, WM_DESTROY, WM_INPUT, WM_QUIT, WNDCLASSW,
+    CallNextHookEx, CreateWindowExW, DefWindowProcW, DispatchMessageW, RegisterClassW,
+    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, WM_CREATE, WM_DESTROY, WM_INPUT,
+    WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSW,
     WS_EX_NOACTIVATE, WS_OVERLAPPEDWINDOW,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    MsgWaitForMultipleObjectsEx, PeekMessageW, MWMO_INPUTAVAILABLE, PM_REMOVE,
+    QS_ALLINPUT,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL,
 };
 
 thread_local! {
@@ -33,6 +41,7 @@ thread_local! {
 /// Raw Input device manager
 pub struct RawInputDevice {
     hwnd: HWND,
+    keyboard_hook: Option<windows::Win32::UI::WindowsAndMessaging::HHOOK>,
     running: bool,
 }
 
@@ -46,8 +55,11 @@ impl RawInputDevice {
 
         Self::register_devices(hwnd)?;
 
+        let keyboard_hook = Self::install_keyboard_hook()?;
+
         Ok(Self {
             hwnd,
+            keyboard_hook: Some(keyboard_hook),
             running: false,
         })
     }
@@ -145,6 +157,68 @@ impl RawInputDevice {
         Ok(())
     }
 
+    fn install_keyboard_hook() -> Result<windows::Win32::UI::WindowsAndMessaging::HHOOK>
+    {
+        unsafe {
+            let hook =
+                SetWindowsHookExW(WH_KEYBOARD_LL, Some(Self::keyboard_proc), None, 0)
+                    .map_err(|e| {
+                        anyhow::anyhow!("Failed to install keyboard hook: {}", e)
+                    })?;
+            debug!("Low-level keyboard hook installed");
+            Ok(hook)
+        }
+    }
+
+    unsafe extern "system" fn keyboard_proc(
+        code: i32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if code >= 0 {
+            let kb_struct = &*(lparam.0
+                as *const windows::Win32::UI::WindowsAndMessaging::KBDLLHOOKSTRUCT);
+
+            let is_key_down =
+                wparam.0 == WM_KEYDOWN as usize || wparam.0 == WM_SYSKEYDOWN as usize;
+            let is_key_up =
+                wparam.0 == WM_KEYUP as usize || wparam.0 == WM_SYSKEYUP as usize;
+
+            if is_key_down || is_key_up {
+                let state = if is_key_down {
+                    KeyState::Pressed
+                } else {
+                    KeyState::Released
+                };
+
+                let modifiers = Self::get_current_modifier_state();
+
+                let mut event = KeyEvent::new(
+                    kb_struct.scanCode as u16,
+                    kb_struct.vkCode as u16,
+                    state,
+                );
+                event.modifiers = modifiers;
+
+                debug!(
+                    "Keyboard hook: scan_code={:04X}, vk={:04X}, state={:?}, modifiers={:?}",
+                    kb_struct.scanCode,
+                    kb_struct.vkCode,
+                    state,
+                    modifiers
+                );
+
+                CURRENT_SENDER.with(|s| {
+                    if let Some(ref sender) = *s.borrow() {
+                        let _ = sender.send(InputEvent::Key(event));
+                    }
+                });
+            }
+        }
+
+        CallNextHookEx(None, code, wparam, lparam)
+    }
+
     /// Run one iteration of the message loop (non-blocking)
     /// Returns Ok(true) if should continue, Ok(false) if WM_QUIT received
     pub fn run_once(&mut self) -> Result<bool> {
@@ -155,26 +229,31 @@ impl RawInputDevice {
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
 
-            use windows::Win32::UI::WindowsAndMessaging::{
-                PeekMessageW, PM_REMOVE, WM_QUIT,
-            };
+            let wait_result =
+                MsgWaitForMultipleObjectsEx(None, 1, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
 
-            if PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).into() {
-                if msg.message == WM_QUIT {
-                    return Ok(false);
+            if wait_result.0 == 0 {
+                while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).into() {
+                    if msg.message == WM_QUIT {
+                        return Ok(false);
+                    }
+                    DispatchMessageW(&msg);
                 }
-                DispatchMessageW(&msg);
-                Ok(true)
-            } else {
-                std::thread::sleep(std::time::Duration::from_millis(1));
-                Ok(true)
             }
         }
+
+        Ok(true)
     }
 
     /// Stop message loop
     pub fn stop(&mut self) {
         self.running = false;
+        if let Some(hook) = self.keyboard_hook.take() {
+            unsafe {
+                let _ = UnhookWindowsHookEx(hook);
+            }
+            debug!("Keyboard hook uninstalled");
+        }
         let _ = unsafe {
             windows::Win32::UI::WindowsAndMessaging::PostMessageW(
                 Some(self.hwnd),
