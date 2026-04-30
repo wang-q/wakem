@@ -296,6 +296,19 @@ async fn test_process_input_event_mouse_button() {
 /// Test start and stop macro recording
 #[tokio::test]
 async fn test_start_stop_macro_recording() {
+    // Use a temporary directory for config to avoid modifying user config
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    // Lock to prevent concurrent environment variable modifications
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("WAKEM_CONFIG_DIR", temp_path);
+
+    // Ensure cleanup after test
+    let _cleanup = scopeguard::guard((), |_| {
+        std::env::remove_var("WAKEM_CONFIG_DIR");
+    });
+
     let state = ServerState::new(ShutdownSignal::new());
 
     // Start recording
@@ -317,6 +330,8 @@ async fn test_start_stop_macro_recording() {
         !state.is_recording_macro().await,
         "Should not be in recording state"
     );
+
+    drop(_guard);
 }
 
 /// Test play macro
@@ -433,6 +448,19 @@ instance_id = 999
 /// Test Delete non-existent macro (error handling)
 #[tokio::test]
 async fn test_delete_nonexistent_macro() {
+    // Use a temporary directory for config to avoid modifying user config
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    // Lock to prevent concurrent environment variable modifications
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("WAKEM_CONFIG_DIR", temp_path);
+
+    // Ensure cleanup after test
+    let _cleanup = scopeguard::guard((), |_| {
+        std::env::remove_var("WAKEM_CONFIG_DIR");
+    });
+
     let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
@@ -443,6 +471,8 @@ async fn test_delete_nonexistent_macro() {
         result.is_err(),
         "Delete non-existent macroshould return error"
     );
+
+    drop(_guard);
 }
 
 /// Test Bind macro to trigger key
@@ -484,6 +514,19 @@ instance_id = 999
 /// Test Bind non-existent macro (error handling)
 #[tokio::test]
 async fn test_bind_nonexistent_macro() {
+    // Use a temporary directory for config to avoid modifying user config
+    let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+    let temp_path = temp_dir.path().to_str().unwrap();
+
+    // Lock to prevent concurrent environment variable modifications
+    let _guard = ENV_LOCK.lock().unwrap();
+    std::env::set_var("WAKEM_CONFIG_DIR", temp_path);
+
+    // Ensure cleanup after test
+    let _cleanup = scopeguard::guard((), |_| {
+        std::env::remove_var("WAKEM_CONFIG_DIR");
+    });
+
     let state = ServerState::new(ShutdownSignal::new());
     let config = Config::default();
     let _ = state.load_config(config).await;
@@ -494,6 +537,8 @@ async fn test_bind_nonexistent_macro() {
         result.is_err(),
         "Bind non-existent macroshould return error"
     );
+
+    drop(_guard);
 }
 
 // ==================== State management ====================

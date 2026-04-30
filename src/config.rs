@@ -1021,20 +1021,35 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
 
 /// Config file path cache (reduces repeated file system I/O)
 ///
-/// Performance optimization: caches resolved config file paths to avoid checking file existence on every call
+/// Performance optimization: caches resolved config file paths to avoid checking file existence on every call.
+/// Also tracks the WAKEM_CONFIG_DIR environment variable to invalidate cache when it changes.
 struct ConfigPathCache {
     cache: Mutex<HashMap<u32, Option<std::path::PathBuf>>>,
+    last_env_var: Mutex<Option<String>>,
 }
 
 impl ConfigPathCache {
     fn new() -> Self {
         Self {
             cache: Mutex::new(HashMap::new()),
+            last_env_var: Mutex::new(std::env::var("WAKEM_CONFIG_DIR").ok()),
         }
     }
 
     fn get_or_resolve(&self, instance_id: u32) -> Option<std::path::PathBuf> {
-        // Check cache first (parking_lot::Mutex::lock() returns MutexGuard directly, not Result)
+        // Check if environment variable has changed
+        let current_env = std::env::var("WAKEM_CONFIG_DIR").ok();
+        let mut last_env = self.last_env_var.lock();
+
+        if *last_env != current_env {
+            // Environment variable changed, clear cache
+            let mut cache = self.cache.lock();
+            cache.clear();
+            *last_env = current_env;
+            debug!("WAKEM_CONFIG_DIR changed, cleared config path cache");
+        }
+
+        // Check cache first
         let mut cache = self.cache.lock();
         if let Some(cached) = cache.get(&instance_id) {
             debug!("Config path cache hit for instance {}", instance_id);
