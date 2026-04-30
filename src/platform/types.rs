@@ -151,6 +151,12 @@ pub struct WindowContext {
     pub executable_path: Option<String>,
 }
 
+/// Platform-specific initialization context for notification services
+#[derive(Debug, Clone, Default)]
+pub struct NotificationInitContext {
+    pub native_handle: Option<usize>,
+}
+
 impl WindowContext {
     pub fn empty() -> Self {
         Self::default()

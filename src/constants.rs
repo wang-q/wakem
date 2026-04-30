@@ -16,11 +16,17 @@ pub const IPC_CONNECTION_TIMEOUT_SECS: u64 = 5;
 /// IPC discovery timeout (milliseconds) - quick scan for active instances
 pub const IPC_DISCOVERY_TIMEOUT_MS: u64 = 100;
 
-/// IPC idle timeout (seconds) - 10 minutes, long enough for tray client connections
-pub const IPC_IDLE_TIMEOUT_SECS: u64 = 600;
+/// IPC idle timeout for short-lived connections (seconds) - for one-shot commands
+pub const IPC_IDLE_TIMEOUT_SHORT_SECS: u64 = 30;
+
+/// IPC idle timeout for long-lived connections (seconds) - for tray clients
+pub const IPC_IDLE_TIMEOUT_LONG_SECS: u64 = 600;
 
 /// IPC channel capacity
 pub const IPC_CHANNEL_CAPACITY: usize = 100;
+
+/// IPC protocol version (for version negotiation between client/server)
+pub const IPC_PROTOCOL_VERSION: u16 = 1;
 
 // ==================== Input Processing Related Constants ====================
 

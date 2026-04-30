@@ -1,8 +1,15 @@
 //! Authentication utilities for IPC.
 
+use crate::constants::AUTH_OPERATION_TIMEOUT_SECS;
 use hmac::{Hmac, Mac};
 use rand::RngCore;
 use sha2::Sha256;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use tokio::time::{timeout, Duration as TokioDuration};
+use tracing::debug;
+
+use super::IpcError;
 
 /// Challenge length (32 bytes)
 pub const CHALLENGE_SIZE: usize = 32;
@@ -55,16 +62,49 @@ pub fn verify_response(auth_key: &str, challenge: &[u8], response: &[u8]) -> boo
 }
 
 /// Zero out a String's memory contents using zeroize crate
-///
-/// This is used to clear sensitive data (e.g., authentication keys) from memory
-/// after use, preventing key material from lingering in heap memory where it
-/// could potentially be exposed through memory dumps or core dumps.
-///
-/// Uses the zeroize crate which provides secure memory clearing that is not
-/// optimized away by the compiler.
 pub fn zero_string(s: &mut String) {
     use zeroize::Zeroize;
     s.zeroize();
+}
+
+/// Perform challenge-response authentication (server side, with timeout)
+pub async fn server_perform_authentication(
+    stream: &mut TcpStream,
+    auth_key: &str,
+) -> crate::ipc::messages::Result<bool> {
+    let challenge = generate_challenge();
+
+    timeout(
+        TokioDuration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
+        stream.write_all(&challenge),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
+
+    let mut response = [0u8; RESPONSE_SIZE];
+    timeout(
+        TokioDuration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
+        stream.read_exact(&mut response),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
+
+    let auth_ok = verify_response(auth_key, &challenge, &response);
+
+    let result_byte = if auth_ok {
+        AUTH_RESULT_SUCCESS
+    } else {
+        AUTH_RESULT_FAILURE
+    };
+    timeout(
+        TokioDuration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
+        stream.write_all(&[result_byte]),
+    )
+    .await
+    .map_err(|_| IpcError::Timeout)??;
+
+    debug!("Server authentication completed, result: {}", auth_ok);
+    Ok(auth_ok)
 }
 
 #[cfg(test)]

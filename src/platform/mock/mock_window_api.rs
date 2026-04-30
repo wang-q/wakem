@@ -246,12 +246,12 @@ impl<Id: MockWindowId> Default for MockWindowApi<Id> {
 impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
     type WindowId = Id;
 
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+    fn get_foreground_window_inner(&self) -> Option<Self::WindowId> {
         self.log_operation(WindowApiCall::GetForegroundWindow);
         *self.foreground_window.lock().unwrap()
     }
 
-    fn set_window_pos(
+    fn set_window_pos_inner(
         &self,
         window: Self::WindowId,
         x: i32,
@@ -279,7 +279,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
         Ok(())
     }
 
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()> {
         self.log_operation(WindowApiCall::MinimizeWindow {
             window: window.to_usize(),
         });
@@ -288,7 +288,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
         Ok(())
     }
 
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()> {
         self.log_operation(WindowApiCall::MaximizeWindow {
             window: window.to_usize(),
         });
@@ -297,7 +297,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
         Ok(())
     }
 
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()> {
         self.log_operation(WindowApiCall::RestoreWindow {
             window: window.to_usize(),
         });
@@ -309,7 +309,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
         Ok(())
     }
 
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+    fn close_window_inner(&self, window: Self::WindowId) -> Result<()> {
         self.log_operation(WindowApiCall::CloseWindow {
             window: window.to_usize(),
         });
@@ -321,7 +321,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
         Ok(())
     }
 
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
         self.log_operation(WindowApiCall::SetTopmost {
             window: window.to_usize(),
             topmost,
@@ -331,7 +331,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
         Ok(())
     }
 
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
+    fn is_topmost_inner(&self, window: Self::WindowId) -> bool {
         self.window_states
             .lock()
             .unwrap()
@@ -347,7 +347,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
             .unwrap_or_default()
     }
 
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool {
         self.log_operation(WindowApiCall::IsWindow {
             window: window.to_usize(),
         });
@@ -357,7 +357,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
             .contains_key(&window.to_usize())
     }
 
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
+    fn is_minimized_inner(&self, window: Self::WindowId) -> bool {
         self.window_states
             .lock()
             .unwrap()
@@ -366,7 +366,7 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
             .unwrap_or(false)
     }
 
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
+    fn is_maximized_inner(&self, window: Self::WindowId) -> bool {
         self.window_states
             .lock()
             .unwrap()

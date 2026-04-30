@@ -148,7 +148,72 @@ impl Default for RealWindowApi {
     }
 }
 
-crate::impl_window_api_base_via!(RealWindowApi, WindowApi, HWND);
+impl crate::platform::traits::WindowApiBase for RealWindowApi {
+    type WindowId = HWND;
+
+    crate::impl_window_api_base_inner!();
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        WindowApi::get_monitors(self)
+    }
+}
+
+impl RealWindowApi {
+    pub fn get_foreground_window_inner(&self) -> Option<HWND> {
+        WindowApi::get_foreground_window(self)
+    }
+
+    pub fn set_window_pos_inner(
+        &self,
+        hwnd: HWND,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        WindowApi::set_window_pos(self, hwnd, x, y, width, height)
+    }
+
+    pub fn minimize_window_inner(&self, hwnd: HWND) -> Result<()> {
+        WindowApi::minimize_window(self, hwnd)
+    }
+
+    pub fn maximize_window_inner(&self, hwnd: HWND) -> Result<()> {
+        WindowApi::maximize_window(self, hwnd)
+    }
+
+    pub fn restore_window_inner(&self, hwnd: HWND) -> Result<()> {
+        WindowApi::restore_window(self, hwnd)
+    }
+
+    pub fn close_window_inner(&self, hwnd: HWND) -> Result<()> {
+        WindowApi::close_window(self, hwnd)
+    }
+
+    pub fn set_topmost_inner(&self, hwnd: HWND, topmost: bool) -> Result<()> {
+        WindowApi::set_topmost(self, hwnd, topmost)
+    }
+
+    pub fn is_topmost_inner(&self, hwnd: HWND) -> bool {
+        WindowApi::is_topmost(self, hwnd)
+    }
+
+    pub fn is_window_valid_inner(&self, hwnd: HWND) -> bool {
+        WindowApi::is_window_valid(self, hwnd)
+    }
+
+    pub fn is_minimized_inner(&self, hwnd: HWND) -> bool {
+        WindowApi::is_minimized(self, hwnd)
+    }
+
+    pub fn is_maximized_inner(&self, hwnd: HWND) -> bool {
+        WindowApi::is_maximized(self, hwnd)
+    }
+
+    pub fn get_monitors(&self) -> Vec<MonitorInfo> {
+        WindowApi::get_monitors(self)
+    }
+}
 
 impl WindowApi for RealWindowApi {
     fn get_foreground_window(&self) -> Option<HWND> {
@@ -559,11 +624,11 @@ use crate::platform::traits::WindowApiBase;
 impl WindowApiBase for MockWindowApi {
     type WindowId = HWND;
 
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+    fn get_foreground_window_inner(&self) -> Option<Self::WindowId> {
         WindowApi::get_foreground_window(self)
     }
 
-    fn set_window_pos(
+    fn set_window_pos_inner(
         &self,
         window: Self::WindowId,
         x: i32,
@@ -574,44 +639,44 @@ impl WindowApiBase for MockWindowApi {
         WindowApi::set_window_pos(self, window, x, y, width, height)
     }
 
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()> {
         WindowApi::minimize_window(self, window)
     }
 
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()> {
         WindowApi::maximize_window(self, window)
     }
 
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()> {
         WindowApi::restore_window(self, window)
     }
 
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+    fn close_window_inner(&self, window: Self::WindowId) -> Result<()> {
         WindowApi::close_window(self, window)
     }
 
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
         WindowApi::set_topmost(self, window, topmost)
     }
 
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
+    fn is_topmost_inner(&self, window: Self::WindowId) -> bool {
         WindowApi::is_topmost(self, window)
+    }
+
+    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_window_valid(self, window)
+    }
+
+    fn is_minimized_inner(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_minimized(self, window)
+    }
+
+    fn is_maximized_inner(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_maximized(self, window)
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         unsafe { super::window_manager::enumerate_all_monitors() }
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_window_valid(self, window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_minimized(self, window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_maximized(self, window)
     }
 }
 

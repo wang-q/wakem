@@ -52,7 +52,7 @@ pub struct ServerState {
     notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
     active: Arc<AtomicBool>,
     macro_recorder: Arc<MacroRecorder>,
-    auth_key: Arc<RwLock<String>>,
+    auth_key: Arc<RwLock<zeroize::Zeroizing<String>>>,
     active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     pressed_keys: Arc<RwLock<std::collections::HashSet<(u16, u16)>>>,
@@ -86,7 +86,7 @@ impl ServerState {
             ))),
             active: Arc::new(AtomicBool::new(true)),
             macro_recorder: Arc::new(MacroRecorder::new()),
-            auth_key: Arc::new(RwLock::new(String::new())),
+            auth_key: Arc::new(RwLock::new(zeroize::Zeroizing::new(String::new()))),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
             pressed_keys: Arc::new(RwLock::new(std::collections::HashSet::new())),
@@ -125,7 +125,9 @@ impl ServerState {
         // 1. Update auth key (stored separately from config)
         {
             let mut key = self.auth_key.write().await;
-            *key = config.network.auth_key.clone().unwrap_or_default();
+            *key = zeroize::Zeroizing::new(
+                config.network.auth_key.clone().unwrap_or_default(),
+            );
         }
 
         // 2. Update base mapping rules and context rules (merged into one write lock)
@@ -820,7 +822,10 @@ impl ServerState {
     /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
     pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
         let service = self.notification_service.lock().await;
-        service.set_message_window_handle(hwnd_value);
+        let ctx = crate::platform::traits::NotificationInitContext {
+            native_handle: Some(hwnd_value as usize),
+        };
+        service.initialize(&ctx);
         info!("Message window handle registered: {}", hwnd_value);
     }
 
@@ -1368,23 +1373,11 @@ pub async fn run_server_with_config(
         });
     }
 
-    // Start IPC server main loop (with shutdown signal check)
-    let mut ipc_shutdown = shutdown_for_tasks.clone();
+    // Start IPC server main loop (with shutdown signal)
+    let ipc_shutdown = shutdown_for_tasks.clone();
     tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                result = ipc_server.run() => {
-                    if let Err(e) = result {
-                        error!("IPC server error: {}", e);
-                        // Wait a short time before retrying after error
-                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    }
-                }
-                _ = ipc_shutdown.changed() => {
-                    info!("IPC server received shutdown signal");
-                    break;
-                }
-            }
+        if let Err(e) = ipc_server.run(ipc_shutdown).await {
+            error!("IPC server error: {}", e);
         }
         info!("IPC server task stopped");
     });

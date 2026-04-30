@@ -15,7 +15,7 @@ use tracing::debug;
 pub struct CommonWindowManager;
 
 /// Find the monitor that contains the given point, falling back to the first monitor.
-fn find_monitor_for_point(
+pub fn find_monitor_for_point(
     monitors: &[MonitorInfo],
     x: i32,
     y: i32,
@@ -34,7 +34,7 @@ fn find_monitor_for_point(
 /// truncates to `819`, and `819 / 1366 = 0.59956...` which won't match `0.6`
 /// with a tight threshold. Finding the closest ratio ensures we always advance
 /// by exactly one step in the cycle.
-fn find_next_ratio(ratios: &[f32], current: f32) -> f32 {
+pub fn find_next_ratio(ratios: &[f32], current: f32) -> f32 {
     let closest_idx = ratios
         .iter()
         .enumerate()

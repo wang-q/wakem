@@ -274,8 +274,10 @@ impl NotificationService for WindowsNotificationService {
         Ok(())
     }
 
-    fn set_message_window_handle(&self, hwnd: isize) {
-        self.set_hwnd(hwnd);
+    fn initialize(&self, ctx: &crate::platform::traits::NotificationInitContext) {
+        if let Some(handle) = ctx.native_handle {
+            self.set_hwnd(handle as isize);
+        }
     }
 }
 

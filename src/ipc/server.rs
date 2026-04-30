@@ -1,21 +1,19 @@
 //! IPC server implementation.
 
 use crate::constants::{
-    AUTH_OPERATION_TIMEOUT_SECS, IPC_CHANNEL_CAPACITY, IPC_IDLE_TIMEOUT_SECS,
+    IPC_CHANNEL_CAPACITY, IPC_IDLE_TIMEOUT_LONG_SECS, IPC_IDLE_TIMEOUT_SHORT_SECS,
+    IPC_PROTOCOL_VERSION,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
-use tokio::time::{timeout, Duration as TokioDuration};
 use tracing::{debug, error, info, warn};
+use zeroize::Zeroizing;
 
-use super::auth::{
-    generate_challenge, verify_response, zero_string, AUTH_RESULT_FAILURE,
-    AUTH_RESULT_SUCCESS, RESPONSE_SIZE,
-};
+use super::auth::server_perform_authentication;
 use super::io::{read_message, send_message};
 use super::messages::{Message, Result};
 use super::rate_limiter::ConnectionLimiter;
@@ -31,10 +29,8 @@ use super::IpcError;
 pub struct IpcServer {
     listener: Option<TcpListener>,
     bind_address: String,
-    /// Authentication key (using Arc<RwLock> for dynamic updates)
-    auth_key: Option<Arc<RwLock<String>>>,
+    auth_key: Option<Arc<RwLock<Zeroizing<String>>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
-    /// Connection rate limiter (prevent brute force attacks)
     rate_limiter: Arc<RwLock<ConnectionLimiter>>,
 }
 
@@ -42,7 +38,7 @@ impl IpcServer {
     /// Create new server (with dynamic key)
     pub fn new_with_dynamic_key(
         bind_address: impl Into<String>,
-        auth_key: Arc<RwLock<String>>,
+        auth_key: Arc<RwLock<Zeroizing<String>>>,
         message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
     ) -> Self {
         Self {
@@ -63,7 +59,7 @@ impl IpcServer {
         Self {
             listener: None,
             bind_address: bind_address.into(),
-            auth_key: auth_key.map(|k| Arc::new(RwLock::new(k))),
+            auth_key: auth_key.map(|k| Arc::new(RwLock::new(Zeroizing::new(k)))),
             message_tx,
             rate_limiter: Arc::new(RwLock::new(ConnectionLimiter::with_defaults())),
         }
@@ -77,49 +73,61 @@ impl IpcServer {
         Ok(())
     }
 
-    /// Run server main loop
-    pub async fn run(&mut self) -> Result<()> {
+    /// Run server main loop with shutdown support
+    pub async fn run(
+        &mut self,
+        mut shutdown: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<()> {
         let listener = self.listener.as_ref().ok_or(IpcError::ConnectionClosed)?;
 
         loop {
-            match listener.accept().await {
-                Ok((stream, addr)) => {
-                    debug!("New connection from {}", addr);
+            tokio::select! {
+                result = listener.accept() => {
+                    match result {
+                        Ok((stream, addr)) => {
+                            debug!("New connection from {}", addr);
 
-                    if !is_allowed_ip(addr.ip()) {
-                        warn!("Rejected connection from external IP: {}", addr);
-                        continue;
-                    }
+                            if !is_allowed_ip(addr.ip()) {
+                                warn!("Rejected connection from external IP: {}", addr);
+                                continue;
+                            }
 
-                    {
-                        let mut limiter = self.rate_limiter.write().await;
-                        if !limiter.check_rate_limit(addr.ip()) {
-                            warn!("Rate limit exceeded for IP: {}", addr);
-                            error!(
-                                "Security alert: Possible brute force attack from {}",
-                                addr
-                            );
-                            continue;
+                            {
+                                let mut limiter = self.rate_limiter.write().await;
+                                if !limiter.check_rate_limit(addr.ip()) {
+                                    warn!("Rate limit exceeded for IP: {}", addr);
+                                    error!(
+                                        "Security alert: Possible brute force attack from {}",
+                                        addr
+                                    );
+                                    continue;
+                                }
+                            }
+
+                            let auth_key = self.auth_key.clone();
+                            let message_tx = self.message_tx.clone();
+
+                            tokio::spawn(async move {
+                                if let Err(e) =
+                                    handle_connection(stream, addr, auth_key, message_tx).await
+                                {
+                                    debug!("Connection handler error: {}", e);
+                                }
+                            });
+                        }
+                        Err(e) => {
+                            error!("Failed to accept connection: {}", e);
+                            tokio::time::sleep(Duration::from_secs(1)).await;
                         }
                     }
-
-                    let auth_key = self.auth_key.clone();
-                    let message_tx = self.message_tx.clone();
-
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            handle_connection(stream, addr, auth_key, message_tx).await
-                        {
-                            debug!("Connection handler error: {}", e);
-                        }
-                    });
                 }
-                Err(e) => {
-                    error!("Failed to accept connection: {}", e);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                _ = shutdown.changed() => {
+                    info!("IPC server received shutdown signal");
+                    break;
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -127,34 +135,38 @@ impl IpcServer {
 async fn handle_connection(
     mut stream: TcpStream,
     addr: SocketAddr,
-    auth_key: Option<Arc<RwLock<String>>>,
+    auth_key: Option<Arc<RwLock<Zeroizing<String>>>>,
     message_tx: mpsc::Sender<(Message, mpsc::Sender<Message>)>,
 ) -> Result<()> {
     if let Some(key_arc) = auth_key {
-        let mut key = {
-            let key_guard = key_arc.read().await;
-            key_guard.clone()
-        };
-        if !key.is_empty() {
-            let auth_result = server_perform_authentication(&mut stream, &key).await;
-            zero_string(&mut key);
+        let key_guard = key_arc.read().await;
+        if !key_guard.is_empty() {
+            let auth_result =
+                server_perform_authentication(&mut stream, key_guard.as_str()).await;
             if !auth_result? {
                 warn!("Authentication failed for {}", addr);
                 return Err(IpcError::ConnectionRefused);
             }
             debug!("Authentication successful for {}", addr);
-        } else {
-            zero_string(&mut key);
+
+            let version_bytes = IPC_PROTOCOL_VERSION.to_be_bytes();
+            stream.write_all(&version_bytes).await?;
+            debug!("Sent protocol version {} to {}", IPC_PROTOCOL_VERSION, addr);
         }
+        drop(key_guard);
     }
 
     let (response_tx, mut response_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
+    let mut idle_timeout = IPC_IDLE_TIMEOUT_SHORT_SECS;
 
     loop {
         tokio::select! {
             result = read_message(&mut stream) => {
                 match result {
                     Ok(message) => {
+                        if matches!(message, Message::RegisterMessageWindow { .. }) {
+                            idle_timeout = IPC_IDLE_TIMEOUT_LONG_SECS;
+                        }
                         if message_tx.send((message, response_tx.clone())).await.is_err() {
                             break;
                         }
@@ -175,8 +187,8 @@ async fn handle_connection(
                 }
             }
 
-            _ = tokio::time::sleep(Duration::from_secs(IPC_IDLE_TIMEOUT_SECS)) => {
-                debug!("Connection timeout for {}", addr);
+            _ = tokio::time::sleep(Duration::from_secs(idle_timeout)) => {
+                debug!("Connection idle timeout ({}s) for {}", idle_timeout, addr);
                 break;
             }
         }
@@ -186,41 +198,28 @@ async fn handle_connection(
     Ok(())
 }
 
-/// Perform challenge-response authentication (server side, with timeout)
-async fn server_perform_authentication(
-    stream: &mut TcpStream,
-    auth_key: &str,
-) -> Result<bool> {
-    let challenge = generate_challenge();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::mpsc;
 
-    timeout(
-        TokioDuration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
-        stream.write_all(&challenge),
-    )
-    .await
-    .map_err(|_| IpcError::Timeout)??;
+    #[tokio::test]
+    #[ignore = "binds to real port, may conflict with running instances"]
+    async fn test_server_start() {
+        let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
+        let auth_key = Arc::new(RwLock::new(Zeroizing::new("test-key".to_string())));
+        let mut server =
+            IpcServer::new_with_dynamic_key("127.0.0.1:57428", auth_key, tx);
+        server.start().await.unwrap();
+    }
 
-    let mut response = [0u8; RESPONSE_SIZE];
-    timeout(
-        TokioDuration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
-        stream.read_exact(&mut response),
-    )
-    .await
-    .map_err(|_| IpcError::Timeout)??;
-
-    let auth_ok = verify_response(auth_key, &challenge, &response);
-
-    let result_byte = if auth_ok {
-        AUTH_RESULT_SUCCESS
-    } else {
-        AUTH_RESULT_FAILURE
-    };
-    timeout(
-        TokioDuration::from_secs(AUTH_OPERATION_TIMEOUT_SECS),
-        stream.write_all(&[result_byte]),
-    )
-    .await
-    .map_err(|_| IpcError::Timeout)??;
-
-    Ok(auth_ok)
+    #[tokio::test]
+    #[ignore = "binds to real port, may conflict with running instances"]
+    async fn test_server_start_with_dynamic_key() {
+        let (tx, _rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
+        let auth_key = Arc::new(RwLock::new(Zeroizing::new("test-key".to_string())));
+        let mut server =
+            IpcServer::new_with_dynamic_key("127.0.0.1:57429", auth_key, tx);
+        server.start().await.unwrap();
+    }
 }

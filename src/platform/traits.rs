@@ -126,11 +126,15 @@ pub trait OutputDeviceTrait: Send {
 ///
 /// This trait defines the common window operations that both Windows and macOS
 /// implement. Platform-specific traits extend this with their own methods.
+///
+/// The `_inner` methods are the platform-specific implementations.
+/// The public methods have default implementations that delegate to `_inner`.
+/// Platforms only need to implement the `_inner` methods.
 pub trait WindowApiBase {
-    type WindowId: Copy + std::fmt::Debug;
+    type WindowId: Copy + std::fmt::Debug + 'static;
 
-    fn get_foreground_window(&self) -> Option<Self::WindowId>;
-    fn set_window_pos(
+    fn get_foreground_window_inner(&self) -> Option<Self::WindowId>;
+    fn set_window_pos_inner(
         &self,
         window: Self::WindowId,
         x: i32,
@@ -138,16 +142,63 @@ pub trait WindowApiBase {
         width: i32,
         height: i32,
     ) -> Result<()>;
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
-    fn restore_window(&self, window: Self::WindowId) -> Result<()>;
-    fn close_window(&self, window: Self::WindowId) -> Result<()>;
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost(&self, window: Self::WindowId) -> bool;
+    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn close_window_inner(&self, window: Self::WindowId) -> Result<()>;
+    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost_inner(&self, window: Self::WindowId) -> bool;
+    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool;
+    fn is_minimized_inner(&self, window: Self::WindowId) -> bool;
+    fn is_maximized_inner(&self, window: Self::WindowId) -> bool;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
-    fn is_window_valid(&self, window: Self::WindowId) -> bool;
-    fn is_minimized(&self, window: Self::WindowId) -> bool;
-    fn is_maximized(&self, window: Self::WindowId) -> bool;
+
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        self.get_foreground_window_inner()
+    }
+    fn set_window_pos(
+        &self,
+        window: Self::WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        self.set_window_pos_inner(window, x, y, width, height)
+    }
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.minimize_window_inner(window)
+    }
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.maximize_window_inner(window)
+    }
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        self.restore_window_inner(window)
+    }
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        self.close_window_inner(window)
+    }
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+        self.set_topmost_inner(window, topmost)
+    }
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.is_topmost_inner(window)
+    }
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
+        self.is_window_valid_inner(window)
+    }
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
+        self.is_minimized_inner(window)
+    }
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
+        self.is_maximized_inner(window)
+    }
+    fn ensure_window_restored(&self, window: Self::WindowId) -> Result<()> {
+        if self.is_minimized(window) || self.is_maximized(window) {
+            self.restore_window(window)?;
+        }
+        Ok(())
+    }
 }
 
 /// Basic window manipulation operations
@@ -212,14 +263,19 @@ pub trait WindowManagerTrait:
 /// Provides high-level window management operations (center, half-screen,
 /// loop, fixed ratio, etc.) built on top of the basic
 /// [`WindowManagerTrait`] operations.
+///
+/// Default implementations delegate to [`common::window_manager`] for
+/// non-platform-specific logic.
 pub trait WindowManagerExt:
     WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations
 {
     fn move_to_center(&self, window: WindowId) -> Result<()> {
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
+            &monitors, info.x, info.y,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let new_x = monitor.x + (monitor.width - info.width) / 2;
         let new_y = monitor.y + (monitor.height - info.height) / 2;
         self.set_window_pos(window, new_x, new_y, info.width, info.height)
@@ -228,8 +284,10 @@ pub trait WindowManagerExt:
     fn move_to_edge(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
+            &monitors, info.x, info.y,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let (new_x, new_y) = match edge {
             crate::types::Edge::Left => (monitor.x, info.y),
             crate::types::Edge::Right => {
@@ -246,8 +304,10 @@ pub trait WindowManagerExt:
     fn set_half_screen(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
+            &monitors, info.x, info.y,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let (new_x, new_y, new_width, new_height) = match edge {
             crate::types::Edge::Left => {
                 (monitor.x, monitor.y, monitor.width / 2, monitor.height)
@@ -275,16 +335,15 @@ pub trait WindowManagerExt:
         const WIDTH_RATIOS: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
+            &monitors, info.x, info.y,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let current_ratio = info.width as f32 / monitor.width as f32;
-        let mut next_ratio = WIDTH_RATIOS[0];
-        for (i, ratio) in WIDTH_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.01 {
-                next_ratio = WIDTH_RATIOS[(i + 1) % WIDTH_RATIOS.len()];
-                break;
-            }
-        }
+        let next_ratio = crate::platform::common::window_manager::find_next_ratio(
+            &WIDTH_RATIOS,
+            current_ratio,
+        );
         let new_width = (monitor.width as f32 * next_ratio) as i32;
         let new_x = match align {
             crate::types::Alignment::Left => monitor.x,
@@ -302,16 +361,15 @@ pub trait WindowManagerExt:
         const HEIGHT_RATIOS: [f32; 3] = [0.75, 0.5, 0.25];
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
+            &monitors, info.x, info.y,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let current_ratio = info.height as f32 / monitor.height as f32;
-        let mut next_ratio = HEIGHT_RATIOS[0];
-        for (i, ratio) in HEIGHT_RATIOS.iter().enumerate() {
-            if (current_ratio - ratio).abs() < 0.01 {
-                next_ratio = HEIGHT_RATIOS[(i + 1) % HEIGHT_RATIOS.len()];
-                break;
-            }
-        }
+        let next_ratio = crate::platform::common::window_manager::find_next_ratio(
+            &HEIGHT_RATIOS,
+            current_ratio,
+        );
         let new_height = (monitor.height as f32 * next_ratio) as i32;
         let new_y = match align {
             crate::types::Alignment::Top => monitor.y,
@@ -330,8 +388,10 @@ pub trait WindowManagerExt:
         const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
         let info = self.get_window_info(window)?;
         let monitors = self.get_monitors();
-        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
+            &monitors, info.x, info.y,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let base_size = std::cmp::min(monitor.width, monitor.height);
         let base_width = (base_size as f32 * ratio) as i32;
         let base_height = base_size;
@@ -349,14 +409,10 @@ pub trait WindowManagerExt:
                 let current_scale = (info.width as f32 / base_width as f32
                     + info.height as f32 / base_height as f32)
                     / 2.0;
-                let mut next = SCALES[0];
-                for (i, scale) in SCALES.iter().enumerate() {
-                    if (current_scale - scale).abs() < 0.05 {
-                        next = SCALES[(i + 1) % SCALES.len()];
-                        break;
-                    }
-                }
-                next
+                crate::platform::common::window_manager::find_next_ratio(
+                    &SCALES,
+                    current_scale,
+                )
             }
         };
 
@@ -374,8 +430,10 @@ pub trait WindowManagerExt:
     ) -> Result<()> {
         let monitors = self.get_monitors();
         let info = self.get_window_info(window)?;
-        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
-            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
+            &monitors, info.x, info.y,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let ratio = monitor.width as f32 / monitor.height as f32;
         self.set_fixed_ratio(window, ratio, scale_index)
     }
@@ -396,24 +454,6 @@ impl<
             + ForegroundWindowOperations,
     > WindowManagerExt for T
 {
-}
-
-/// Find the monitor that contains the given point
-pub fn find_monitor_for_point(
-    monitors: &[MonitorInfo],
-    x: i32,
-    y: i32,
-) -> Option<MonitorInfo> {
-    for monitor in monitors {
-        if x >= monitor.x
-            && x < monitor.x + monitor.width
-            && y >= monitor.y
-            && y < monitor.y + monitor.height
-        {
-            return Some(*monitor);
-        }
-    }
-    None
 }
 
 /// Platform utility functions trait
@@ -447,8 +487,8 @@ pub trait NotificationService: Send + Sync {
     /// Show a notification with the given title and message
     fn show(&self, title: &str, message: &str) -> Result<()>;
 
-    /// Set the message window handle (Windows only, no-op on other platforms)
-    fn set_message_window_handle(&self, _hwnd: isize) {}
+    /// Initialize the notification service with platform-specific context
+    fn initialize(&self, _ctx: &NotificationInitContext) {}
 }
 
 /// Trait for window preset management
@@ -541,75 +581,6 @@ pub trait PlatformFactory {
     ) -> Self::WindowEventHook;
 }
 
-/// Macro to implement [WindowApiBase] by delegating to a platform-specific trait.
-#[macro_export]
-macro_rules! impl_window_api_base_via {
-    (
-        $(#[$meta:meta])*
-        $impl_type:ty, $inner_trait:path, $window_id:ty $(,)?
-    ) => {
-        $(#[$meta])*
-        impl $crate::platform::traits::WindowApiBase for $impl_type {
-            type WindowId = $window_id;
-
-            fn get_foreground_window(&self) -> Option<Self::WindowId> {
-                <$impl_type as $inner_trait>::get_foreground_window(self)
-            }
-
-            fn set_window_pos(
-                &self,
-                window: Self::WindowId,
-                x: i32,
-                y: i32,
-                width: i32,
-                height: i32,
-            ) -> ::anyhow::Result<()> {
-                <$impl_type as $inner_trait>::set_window_pos(self, window, x, y, width, height)
-            }
-
-            fn minimize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$impl_type as $inner_trait>::minimize_window(self, window)
-            }
-
-            fn maximize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$impl_type as $inner_trait>::maximize_window(self, window)
-            }
-
-            fn restore_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$impl_type as $inner_trait>::restore_window(self, window)
-            }
-
-            fn close_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$impl_type as $inner_trait>::close_window(self, window)
-            }
-
-            fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> ::anyhow::Result<()> {
-                <$impl_type as $inner_trait>::set_topmost(self, window, topmost)
-            }
-
-            fn is_topmost(&self, window: Self::WindowId) -> bool {
-                <$impl_type as $inner_trait>::is_topmost(self, window)
-            }
-
-            fn get_monitors(&self) -> Vec<$crate::platform::traits::MonitorInfo> {
-                <$impl_type as $inner_trait>::get_monitors(self)
-            }
-
-            fn is_window_valid(&self, window: Self::WindowId) -> bool {
-                <$impl_type as $inner_trait>::is_window_valid(self, window)
-            }
-
-            fn is_minimized(&self, window: Self::WindowId) -> bool {
-                <$impl_type as $inner_trait>::is_minimized(self, window)
-            }
-
-            fn is_maximized(&self, window: Self::WindowId) -> bool {
-                <$impl_type as $inner_trait>::is_maximized(self, window)
-            }
-        }
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -621,28 +592,5 @@ mod tests {
         assert!(ctx.window_class.is_empty());
         assert!(ctx.window_title.is_empty());
         assert!(ctx.executable_path.is_none());
-    }
-
-    #[test]
-    fn test_find_monitor_for_point() {
-        let monitors = vec![
-            MonitorInfo {
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1080,
-            },
-            MonitorInfo {
-                x: 1920,
-                y: 0,
-                width: 1920,
-                height: 1080,
-            },
-        ];
-
-        assert!(find_monitor_for_point(&monitors, 960, 540).is_some());
-        assert!(find_monitor_for_point(&monitors, 2880, 540).is_some());
-        assert!(find_monitor_for_point(&monitors, -1, -1).is_none());
-        assert!(find_monitor_for_point(&[], 0, 0).is_none());
     }
 }
