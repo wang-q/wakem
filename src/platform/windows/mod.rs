@@ -288,7 +288,7 @@ impl ApplicationControl for WindowsPlatform {
     }
 
     fn terminate_application() {
-        std::process::exit(0)
+        <Self as TrayLifecycle>::stop_tray()
     }
 
     fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {

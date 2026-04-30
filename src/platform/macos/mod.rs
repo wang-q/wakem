@@ -187,7 +187,7 @@ impl ApplicationControl for MacosPlatform {
     fn detach_console() {}
 
     fn terminate_application() {
-        std::process::exit(0)
+        <Self as TrayLifecycle>::stop_tray()
     }
 
     fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {

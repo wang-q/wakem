@@ -1,6 +1,8 @@
 use anyhow::Result;
 
 use crate::config;
+use crate::platform::traits::ApplicationControl;
+use crate::platform::CurrentPlatform;
 use crate::runtime_util::{run_async, run_with_client};
 
 /// Get server status
@@ -52,7 +54,6 @@ pub fn cmd_disable_sync(instance_id: u32) -> Result<()> {
 
 /// Open config folder
 pub fn cmd_config_sync(instance_id: u32) -> Result<()> {
-    // Get config file path and open its parent directory
     let config_path = config::resolve_config_file_path(None, instance_id)
         .ok_or_else(|| anyhow::anyhow!("Could not resolve config file path"))?;
 
@@ -60,21 +61,7 @@ pub fn cmd_config_sync(instance_id: u32) -> Result<()> {
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Could not get config directory"))?;
 
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(config_dir)
-            .spawn()
-            .map_err(|e| anyhow::anyhow!("Failed to open config folder: {}", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(config_dir)
-            .spawn()
-            .map_err(|e| anyhow::anyhow!("Failed to open config folder: {}", e))?;
-    }
+    CurrentPlatform::open_folder(config_dir)?;
 
     println!("Config folder opened: {}", config_dir.display());
     Ok(())

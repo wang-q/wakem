@@ -290,10 +290,9 @@ fn execute_window_action_impl(
         WindowAction::HalfScreen(edge) => wm.set_half_screen(window, *edge)?,
         WindowAction::LoopWidth(align) => wm.loop_width(window, *align)?,
         WindowAction::LoopHeight(align) => wm.loop_height(window, *align)?,
-        WindowAction::FixedRatio {
-            ratio,
-            scale_index,
-        } => wm.set_fixed_ratio(window, *ratio, Some(*scale_index))?,
+        WindowAction::FixedRatio { ratio, scale_index } => {
+            wm.set_fixed_ratio(window, *ratio, Some(*scale_index))?
+        }
         WindowAction::NativeRatio { scale_index } => {
             wm.set_native_ratio(window, Some(*scale_index))?
         }

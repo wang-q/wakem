@@ -1,12 +1,3 @@
-//! System tray entry point
-//!
-//! Extracted from `main.rs` to keep the CLI entry focused on argument parsing
-//! and command dispatch. This module handles:
-//!
-//! - Platform-specific tray initialization (Windows / macOS)
-//! - Async command handling between tray UI and daemon
-//! - Daemon lifecycle management (auto-start, reconnect, shutdown)
-
 use anyhow::Result;
 use std::thread;
 use tokio::sync::mpsc;
@@ -15,8 +6,8 @@ use tracing::{debug, error, info, warn};
 use crate::client::DaemonClient;
 use crate::config;
 use crate::platform::traits::{AppCommand, ApplicationControl, TrayLifecycle};
+use crate::platform::CurrentPlatform;
 
-/// Try to reconnect to daemon after connection loss
 async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u32) {
     use crate::constants::{DEFAULT_RETRY_DELAY_MS, MAX_RECONNECT_RETRIES};
 
@@ -53,11 +44,6 @@ async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u3
     *client_option = None;
 }
 
-/// Connect to daemon with retry logic and handle tray commands
-///
-/// This is the shared implementation for both Windows and macOS tray.
-/// `on_exit` is called when the Exit command is received (platform-specific cleanup).
-/// `open_config_folder` is the platform-specific function to open the config folder.
 pub async fn connect_and_handle_tray_commands(
     mut cmd_rx: mpsc::Receiver<AppCommand>,
     instance_id: u32,
@@ -194,82 +180,25 @@ pub async fn connect_and_handle_tray_commands(
     info!("Tokio runtime shutting down");
 }
 
-/// Open config folder - Windows sync version
-#[cfg(target_os = "windows")]
-pub fn open_config_folder_sync(instance_id: u32) -> Result<()> {
-    use std::process::Command;
-
+fn open_config_folder_sync(instance_id: u32) -> Result<()> {
     let config_path = config::resolve_config_file_path(None, instance_id)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| {
-            std::env::var("USERPROFILE")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_default()
-        });
+        .ok_or_else(|| anyhow::anyhow!("Could not resolve config directory"))?;
 
-    Command::new("explorer").arg(config_path).spawn()?;
-
-    Ok(())
+    CurrentPlatform::open_folder(&config_path)
 }
 
-/// Open config folder - macOS sync version
-#[cfg(target_os = "macos")]
-pub fn open_config_folder_sync(instance_id: u32) -> Result<()> {
-    use std::process::Command;
-
-    let config_path = config::resolve_config_file_path(None, instance_id)
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| {
-            std::env::var("HOME")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_default()
-        });
-
-    Command::new("open").arg(config_path).spawn()?;
-    Ok(())
-}
-
-/// Run tokio runtime in background thread for Windows tray
-#[cfg(target_os = "windows")]
 fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
     rt.block_on(connect_and_handle_tray_commands(
         cmd_rx,
         instance_id,
-        || {
-            crate::platform::windows::WindowsPlatform::stop_tray();
-        },
+        CurrentPlatform::terminate_application,
         open_config_folder_sync,
     ));
 }
 
-/// Run tokio runtime in background thread for macOS tray
-#[cfg(target_os = "macos")]
-fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-
-    rt.block_on(connect_and_handle_tray_commands(
-        cmd_rx,
-        instance_id,
-        || unsafe {
-            use cocoa::appkit::NSApplication;
-            use cocoa::base::nil;
-            use objc::runtime::Class;
-            use objc::{msg_send, sel, sel_impl};
-
-            let app_class = Class::get("NSApplication").unwrap();
-            let app: *mut objc::runtime::Object =
-                msg_send![app_class, sharedApplication];
-            if app != nil {
-                let _: () = msg_send![app, terminate: nil];
-            }
-        },
-        open_config_folder_sync,
-    ));
-}
-
-/// Check if daemon is running
 fn is_daemon_running(instance_id: u32) -> bool {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -285,7 +214,6 @@ fn is_daemon_running(instance_id: u32) -> bool {
     })
 }
 
-/// Start the daemon (used by tray auto-start)
 fn run_daemon(
     instance_id: u32,
     preloaded_config: Option<config::Config>,
@@ -302,21 +230,15 @@ fn run_daemon(
     })
 }
 
-/// Run system tray (Windows)
-///
-/// Tray message loop runs on main thread, tokio runs in background thread
-#[cfg(target_os = "windows")]
 pub fn run_tray_sync(
     instance_id: u32,
     auto_start_daemon: bool,
     detach_console: bool,
 ) -> Result<()> {
-    use crate::platform::windows::WindowsPlatform;
-
     info!("wakem starting (instance {})...", instance_id);
 
     if detach_console {
-        WindowsPlatform::detach_console();
+        CurrentPlatform::detach_console();
     }
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
@@ -341,7 +263,7 @@ pub fn run_tray_sync(
         None
     };
 
-    let tray_result = WindowsPlatform::run_tray_message_loop(Box::new(move |cmd| {
+    let tray_result = CurrentPlatform::run_tray_message_loop(Box::new(move |cmd| {
         let _ = cmd_tx_for_tray.blocking_send(cmd);
     }));
 
@@ -361,65 +283,11 @@ pub fn run_tray_sync(
             Ok(_) => info!("Daemon shutdown successfully"),
             Err(_) => {
                 error!("Daemon shutdown timed out after 10 seconds, forcing exit...");
-                let _ = WindowsPlatform::force_kill_instance(instance_id);
+                let _ = CurrentPlatform::force_kill_instance(instance_id);
             }
         }
     }
 
     info!("wakem shutdown complete");
     tray_result
-}
-
-/// Run system tray (macOS)
-///
-/// On macOS, NSApplication must run on the main thread, so we spawn tokio in a background thread
-#[cfg(target_os = "macos")]
-pub fn run_tray_sync(
-    instance_id: u32,
-    auto_start_daemon: bool,
-    _detach_console: bool,
-) -> Result<()> {
-    use crate::platform::macos::run_tray_event_loop;
-
-    info!("wakem starting (instance {})...", instance_id);
-
-    let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
-    let cmd_tx_for_tray = cmd_tx.clone();
-
-    let tokio_handle = thread::spawn(move || {
-        run_tokio_for_tray(cmd_rx, instance_id);
-    });
-
-    let daemon_handle = if auto_start_daemon {
-        Some(thread::spawn(move || {
-            if !is_daemon_running(instance_id) {
-                info!("Daemon not running, auto-starting...");
-                if let Err(e) = run_daemon(instance_id, None, None) {
-                    error!("Daemon exited with error: {}", e);
-                }
-            } else {
-                info!("Daemon already running");
-            }
-        }))
-    } else {
-        None
-    };
-
-    info!("Starting tray on main thread...");
-    if let Err(e) = run_tray_event_loop(move |cmd| {
-        let _ = cmd_tx_for_tray.blocking_send(cmd);
-    }) {
-        error!("Tray error: {}", e);
-    }
-
-    let _ = cmd_tx.blocking_send(AppCommand::Exit);
-    let _ = tokio_handle.join();
-
-    if let Some(handle) = daemon_handle {
-        info!("Waiting for daemon to shutdown...");
-        let _ = handle.join();
-    }
-
-    info!("wakem shutdown complete");
-    Ok(())
 }
