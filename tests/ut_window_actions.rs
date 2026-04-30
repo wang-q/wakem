@@ -5,8 +5,7 @@
 
 #[cfg(test)]
 mod tests {
-    use wakem::platform::mock::mock_window_api::{MockWindowApi, WindowApiCall};
-    use wakem::platform::traits::WindowManagerTrait;
+    use wakem::platform::mock::mock_window_api::MockWindowApi;
     use wakem::runtime::window_actions::execute_window_action;
     use wakem::types::{Alignment, Edge, MonitorDirection, WindowAction};
 

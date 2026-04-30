@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::Result;
 use clap::Parser;
 use tracing::{debug, info};
@@ -108,8 +110,6 @@ fn run_daemon(
 
 /// Open config folder - sync version (used by cmd_config_sync)
 fn open_config_folder_sync(instance_id: u32) -> Result<()> {
-    use std::process::Command;
-
     let config_path = config::resolve_config_file_path(None, instance_id)
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| {
@@ -118,7 +118,9 @@ fn open_config_folder_sync(instance_id: u32) -> Result<()> {
                 .unwrap_or_default()
         });
 
-    Command::new("explorer").arg(config_path).spawn()?;
+    <platform::CurrentPlatform as platform::traits::ApplicationControl>::open_folder(
+        &config_path,
+    )?;
 
     Ok(())
 }

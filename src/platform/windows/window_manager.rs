@@ -27,30 +27,16 @@ use crate::platform::types::MonitorWorkArea;
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub enum MonitorDirection {
     Next,
     Prev,
     Index(i32),
 }
 
-/// Create WindowFrame from RECT
-#[allow(dead_code)]
-fn window_frame_from_rect(rect: &RECT) -> WindowFrame {
-    WindowFrame::new(
-        rect.left,
-        rect.top,
-        rect.right - rect.left,
-        rect.bottom - rect.top,
-    )
-}
-
-#[allow(dead_code)]
 fn hwnd_to_window_id(hwnd: HWND) -> WindowId {
     hwnd.0 as usize
 }
 
-#[allow(dead_code)]
 fn window_id_to_hwnd(id: WindowId) -> HWND {
     HWND(id as *mut core::ffi::c_void)
 }
@@ -135,7 +121,6 @@ impl WindowInfoProvider for WindowsWindowInfo {
 }
 
 /// Window manager (generic version)
-#[allow(dead_code)]
 pub struct WindowManager<A: WindowApi> {
     api: A,
 }
@@ -158,7 +143,6 @@ impl Default for WindowManager<RealWindowApi> {
     }
 }
 
-#[allow(dead_code)]
 impl<A: WindowApi> WindowManager<A> {
     /// Create a window manager with specified API implementation
     pub fn with_api(api: A) -> Self {
@@ -432,7 +416,42 @@ impl<A: WindowApi + Send + Sync + 'static> WindowStateQueries for WindowManager<
     }
 }
 
-impl<A: WindowApi + Send + Sync + 'static> MonitorOperations for WindowManager<A> {
+impl ForegroundWindowOperations for WindowManager<RealWindowApi> {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.api.get_foreground_window().map(hwnd_to_window_id)
+    }
+
+    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
+        RealWindowManager::switch_to_next_window_of_same_process(self)
+    }
+}
+
+#[cfg(test)]
+impl ForegroundWindowOperations for WindowManager<super::window_api::MockWindowApi> {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.api.get_foreground_window().map(hwnd_to_window_id)
+    }
+}
+
+impl MonitorOperations for WindowManager<RealWindowApi> {
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        <Self as CommonWindowApi>::get_monitors(self)
+    }
+
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        RealWindowManager::move_to_monitor(
+            self,
+            hwnd,
+            MonitorDirection::Index(monitor_index as i32),
+        )
+    }
+}
+
+impl WindowManagerTrait for WindowManager<RealWindowApi> {}
+
+#[cfg(test)]
+impl MonitorOperations for WindowManager<super::window_api::MockWindowApi> {
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         <Self as CommonWindowApi>::get_monitors(self)
     }
@@ -442,15 +461,8 @@ impl<A: WindowApi + Send + Sync + 'static> MonitorOperations for WindowManager<A
     }
 }
 
-impl<A: WindowApi + Send + Sync + 'static> ForegroundWindowOperations
-    for WindowManager<A>
-{
-    fn get_foreground_window(&self) -> Option<WindowId> {
-        self.api.get_foreground_window().map(hwnd_to_window_id)
-    }
-}
-
-impl<A: WindowApi + Send + Sync + 'static> WindowManagerTrait for WindowManager<A> {}
+#[cfg(test)]
+impl WindowManagerTrait for WindowManager<super::window_api::MockWindowApi> {}
 
 /// Features requiring real Windows API (cross-monitor movement, window switching, etc.)
 impl RealWindowManager {

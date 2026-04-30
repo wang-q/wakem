@@ -2,7 +2,6 @@
 
 /// Input device configuration
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct InputDeviceConfig {
     pub capture_keyboard: bool,
     pub capture_mouse: bool,
@@ -25,7 +24,6 @@ pub type WindowId = usize;
 /// Window information
 #[derive(Debug, Clone)]
 pub struct WindowInfo {
-    #[allow(dead_code)]
     pub id: WindowId,
     pub title: String,
     pub process_name: String,
@@ -48,9 +46,7 @@ pub struct MonitorInfo {
 /// Monitor work area (excludes taskbar/Dock). Used on macOS; Windows uses MonitorInfo directly.
 #[derive(Debug, Clone, Copy)]
 pub struct MonitorWorkArea {
-    #[allow(dead_code)]
     pub x: i32,
-    #[allow(dead_code)]
     pub y: i32,
     pub width: i32,
     pub height: i32,
@@ -81,7 +77,6 @@ impl WindowFrame {
         (x, y)
     }
 
-    #[allow(dead_code)]
     pub fn aspect_ratio(&self) -> f64 {
         if self.height > 0 {
             self.width as f64 / self.height as f64
@@ -90,7 +85,6 @@ impl WindowFrame {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_valid(&self) -> bool {
         self.width > 0 && self.height > 0
     }
@@ -158,12 +152,10 @@ pub struct WindowContext {
 }
 
 impl WindowContext {
-    #[allow(dead_code)]
     pub fn empty() -> Self {
         Self::default()
     }
 
-    #[allow(dead_code)]
     pub fn matches(
         &self,
         process_name: Option<&str>,

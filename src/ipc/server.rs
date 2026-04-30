@@ -55,7 +55,6 @@ impl IpcServer {
     }
 
     /// Create new server (static key, backward compatible)
-    #[allow(dead_code)]
     pub fn new(
         bind_address: impl Into<String>,
         auth_key: Option<String>,

@@ -142,7 +142,6 @@ impl LayerManager {
     }
 
     /// Get list of currently active layers
-    #[allow(dead_code)]
     pub fn get_active_layers(&self) -> Vec<String> {
         self.stack
             .get_active_layers()
@@ -152,13 +151,11 @@ impl LayerManager {
     }
 
     /// Check if layer is active
-    #[allow(dead_code)]
     pub fn is_layer_active(&self, name: &str) -> bool {
         self.stack.is_layer_active(name)
     }
 
     /// Deactivate all layers
-    #[allow(dead_code)]
     pub fn clear_layers(&mut self) {
         self.stack.clear_active_layers();
     }

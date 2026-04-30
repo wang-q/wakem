@@ -17,7 +17,6 @@ use tracing::{debug, info};
 /// Each platform implements this trait to provide window query and
 /// manipulation primitives. The common manager then builds all
 /// higher-level preset operations on top of these primitives.
-#[allow(dead_code)]
 pub trait WindowPresetApi {
     type WindowId: Copy;
 
@@ -40,14 +39,12 @@ pub trait WindowPresetApi {
 /// Manages a collection of [WindowPreset] definitions and saved presets,
 /// providing save/load/apply operations that work identically on all
 /// platforms through the [WindowPresetApi] trait.
-#[allow(dead_code)]
 pub struct WindowPresetManager<A: WindowPresetApi> {
     api: A,
     presets: Vec<WindowPreset>,
     saved_presets: HashMap<String, (i32, i32, i32, i32)>,
 }
 
-#[allow(dead_code)]
 impl<A: WindowPresetApi> WindowPresetManager<A> {
     pub fn new(api: A) -> Self {
         Self {

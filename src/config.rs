@@ -211,7 +211,6 @@ impl Config {
     }
 
     /// Save configuration to file
-    #[allow(dead_code)]
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
@@ -397,7 +396,6 @@ pub struct NetworkConfig {
 
 impl NetworkConfig {
     /// Get instance communication port
-    #[allow(dead_code)]
     pub fn get_port(&self) -> u16 {
         crate::ipc::get_instance_port(self.instance_id)
     }
@@ -486,7 +484,6 @@ pub struct WindowPreset {
 }
 
 impl WindowPreset {
-    #[allow(dead_code)]
     pub fn matches(
         &self,
         process_name: &str,
@@ -521,7 +518,6 @@ impl WindowPreset {
             || self.title_pattern.is_some()
     }
 
-    #[allow(dead_code)]
     fn wildcard_match(text: &str, pattern: &str) -> bool {
         wildcard_match(text, pattern)
     }
@@ -1070,7 +1066,6 @@ impl ConfigPathCache {
     }
 
     /// Invalidate cache for specified instance
-    #[allow(dead_code)]
     fn invalidate(&self, instance_id: u32) {
         let mut cache = self.cache.lock();
         cache.remove(&instance_id);
@@ -1078,7 +1073,6 @@ impl ConfigPathCache {
     }
 
     /// Clear all cache
-    #[allow(dead_code)]
     fn clear(&self) {
         let mut cache = self.cache.lock();
         cache.clear();
@@ -1138,13 +1132,11 @@ pub fn resolve_config_file_path(
 /// Invalidate config file path cache
 ///
 /// Call this function after config file is moved, renamed, or deleted
-#[allow(dead_code)]
 pub fn invalidate_config_path_cache(instance_id: u32) {
     CONFIG_PATH_CACHE.invalidate(instance_id);
 }
 
 /// Clear all config file path cache
-#[allow(dead_code)]
 pub fn clear_config_path_cache() {
     CONFIG_PATH_CACHE.clear();
 }

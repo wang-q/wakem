@@ -53,7 +53,6 @@ impl DaemonClient {
     }
 
     /// Check if connected
-    #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         self.client.is_some()
     }
@@ -210,7 +209,6 @@ impl DaemonClient {
     }
 
     /// Register message window handle
-    #[allow(dead_code)]
     pub async fn register_message_window(&mut self, hwnd: usize) -> Result<()> {
         let response = self
             .send_receive(&Message::RegisterMessageWindow { hwnd })

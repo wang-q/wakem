@@ -27,20 +27,17 @@ impl MappingRule {
         }
     }
 
-    #[allow(dead_code)]
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_context(mut self, context: ContextCondition) -> Self {
         self.context = Some(context);
         self
     }
 
     /// Check if input event matches this rule
-    #[allow(dead_code)]
     pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
         if !self.enabled {
             return false;

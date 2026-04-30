@@ -15,7 +15,6 @@ use tracing::debug;
 ///
 /// All window operations are dispatched through [`CommonWindowApi`], which
 /// provides both basic and advanced window management operations.
-#[allow(dead_code)]
 pub fn execute_window_action<A: CommonWindowApi>(
     api: &A,
     action: &WindowAction,
@@ -119,7 +118,6 @@ pub fn execute_window_action<A: CommonWindowApi>(
     Ok(())
 }
 
-#[allow(dead_code)]
 fn execute_move_to_monitor<A: CommonWindowApi>(
     api: &A,
     window_id: A::WindowId,
@@ -172,7 +170,6 @@ fn execute_move_to_monitor<A: CommonWindowApi>(
     Ok(())
 }
 
-#[allow(dead_code)]
 fn find_monitor_index_for_point(
     monitors: &[crate::platform::traits::MonitorInfo],
     x: i32,

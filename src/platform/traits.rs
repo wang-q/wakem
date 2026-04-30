@@ -10,11 +10,11 @@ use crate::platform::common::output_helpers::char_to_vk;
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
 use std::sync::Arc;
+use tracing::debug;
 
 pub use super::types::*;
 
 /// Input device trait - for capturing keyboard and mouse events
-#[allow(dead_code)]
 pub trait InputDeviceTrait: Send {
     fn register(&mut self) -> Result<()>;
     fn unregister(&mut self);
@@ -127,7 +127,6 @@ pub trait OutputDeviceTrait: Send {
 ///
 /// This trait defines the common window operations that both Windows and macOS
 /// implement. Platform-specific traits extend this with their own methods.
-#[allow(dead_code)]
 pub trait WindowApiBase {
     type WindowId: Copy + std::fmt::Debug;
 
@@ -153,7 +152,6 @@ pub trait WindowApiBase {
 }
 
 /// Basic window manipulation operations
-#[allow(dead_code)]
 pub trait WindowOperations: Send + Sync {
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
     fn set_window_pos(
@@ -172,7 +170,6 @@ pub trait WindowOperations: Send + Sync {
 }
 
 /// Window state query operations
-#[allow(dead_code)]
 pub trait WindowStateQueries: Send + Sync {
     fn is_window_valid(&self, window: WindowId) -> bool;
     fn is_minimized(&self, window: WindowId) -> bool;
@@ -181,16 +178,18 @@ pub trait WindowStateQueries: Send + Sync {
 }
 
 /// Monitor-related operations
-#[allow(dead_code)]
 pub trait MonitorOperations: Send + Sync {
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
 }
 
 /// Foreground window operations
-#[allow(dead_code)]
 pub trait ForegroundWindowOperations: Send + Sync {
     fn get_foreground_window(&self) -> Option<WindowId>;
+    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
+        debug!("SwitchToNextWindow: not implemented on this platform");
+        Ok(())
+    }
 }
 
 /// Window manager trait - composed of fine-grained operation traits
@@ -198,12 +197,12 @@ pub trait ForegroundWindowOperations: Send + Sync {
 /// This is a marker trait that combines all window operation traits.
 /// Implementors automatically satisfy this by implementing the
 /// constituent traits.
-#[allow(dead_code)]
 pub trait WindowManagerTrait:
     WindowOperations
     + WindowStateQueries
     + MonitorOperations
     + ForegroundWindowOperations
+    + WindowManagerExt
     + Send
     + Sync
 {
@@ -214,7 +213,6 @@ pub trait WindowManagerTrait:
 /// Provides high-level window management operations (center, half-screen,
 /// loop, fixed ratio, etc.) built on top of the basic
 /// [`WindowManagerTrait`] operations.
-#[allow(dead_code)]
 pub trait WindowManagerExt:
     WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations
 {
@@ -450,15 +448,14 @@ pub trait NotificationService: Send + Sync {
     /// Show a notification with the given title and message
     fn show(&self, title: &str, message: &str) -> Result<()>;
 
-    /// Downcast support for platform-specific operations
-    fn as_any(&self) -> &dyn std::any::Any;
+    /// Set the message window handle (Windows only, no-op on other platforms)
+    fn set_message_window_handle(&self, _hwnd: isize) {}
 }
 
 /// Trait for window preset management
 ///
 /// Provides a cross-platform abstraction for managing window presets
 /// (saving, loading, and auto-applying window positions/sizes).
-#[allow(dead_code)]
 pub trait WindowPresetManagerTrait: Send + Sync {
     fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>);
     fn save_preset(&mut self, name: String) -> Result<()>;
@@ -472,7 +469,6 @@ pub trait WindowPresetManagerTrait: Send + Sync {
 /// Provides a cross-platform abstraction for monitoring window events
 /// such as foreground window changes. Windows uses SetWinEventHook,
 /// macOS uses CGWindowList polling.
-#[allow(dead_code)]
 pub trait WindowEventHookTrait: Send {
     fn start_with_shutdown(
         &mut self,
@@ -486,7 +482,6 @@ pub trait WindowEventHookTrait: Send {
 ///
 /// Provides a cross-platform abstraction for launching programs
 /// and opening files/folders.
-#[allow(dead_code)]
 pub trait LauncherTrait: Send {
     fn launch(&self, action: &crate::types::LaunchAction) -> Result<()>;
 }
@@ -495,7 +490,6 @@ pub trait LauncherTrait: Send {
 ///
 /// Provides a cross-platform abstraction for running the system tray
 /// message loop and stopping it.
-#[allow(dead_code)]
 pub trait TrayLifecycle {
     fn run_tray_message_loop(callback: Box<dyn Fn(AppCommand) + Send>) -> Result<()>;
     fn stop_tray();
@@ -505,7 +499,6 @@ pub trait TrayLifecycle {
 ///
 /// Provides a cross-platform abstraction for application lifecycle
 /// operations that differ between platforms.
-#[allow(dead_code)]
 pub trait ApplicationControl {
     fn detach_console();
     fn terminate_application();
@@ -520,7 +513,6 @@ pub trait ApplicationControl {
 ///
 /// Associated types allow compile-time type safety while maintaining
 /// platform abstraction.
-#[allow(dead_code)]
 pub trait PlatformFactory {
     type InputDevice: InputDeviceTrait;
     type OutputDevice: OutputDeviceTrait + Send + Sync;

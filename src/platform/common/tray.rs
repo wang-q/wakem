@@ -17,7 +17,6 @@ use tracing::{info, warn};
 /// Platform-specific methods (set_tooltip, set_icon, show, hide) have
 /// default no-op implementations so only platforms that need them override.
 #[async_trait]
-#[allow(dead_code)]
 pub trait TrayApi: Send + Sync {
     /// Register tray icon.
     ///
@@ -94,14 +93,12 @@ pub trait TrayApi: Send + Sync {
 /// Previously, Windows and macOS had separate `TrayManager` definitions.
 /// This unified version combines the API wrapper from the Windows version
 /// with the lifecycle management from the macOS version.
-#[allow(dead_code)]
 pub struct TrayManager<T: TrayApi> {
     tray: Option<TrayIconWrapper<T>>,
     command_sender: Sender<AppCommand>,
     running: bool,
 }
 
-#[allow(dead_code)]
 impl<T: TrayApi + Default + 'static> TrayManager<T> {
     /// Create a new TrayManager with default API and a command channel.
     ///
@@ -198,7 +195,6 @@ impl<T: TrayApi + Default + 'static> Default for TrayManager<T> {
 ///
 /// These methods operate on the `api` directly without lifecycle management.
 /// Prefer using `start()/stop()/notify()` for new code.
-#[allow(dead_code)]
 impl<T: TrayApi> TrayManager<T> {
     /// Create a TrayManager from an existing API instance.
     ///
@@ -287,7 +283,6 @@ pub mod menu_ids {
 }
 
 /// Convert menu ID to MenuAction
-#[allow(dead_code)]
 pub fn menu_id_to_action(id: u32) -> MenuAction {
     match id {
         menu_ids::TOGGLE_ACTIVE => MenuAction::ToggleActive,
@@ -303,12 +298,10 @@ pub fn menu_id_to_action(id: u32) -> MenuAction {
 /// Wraps any [TrayApi] implementation and exposes ergonomic methods
 /// for common operations (register without hwnd, show_menu returning
 /// [MenuAction], etc.). Previously duplicated in `macos/tray.rs`.
-#[allow(dead_code)]
 pub struct TrayIconWrapper<T: TrayApi> {
     pub api: T,
 }
 
-#[allow(dead_code)]
 impl<T: TrayApi> TrayIconWrapper<T> {
     pub fn new(api: T) -> Self {
         Self { api }
@@ -361,13 +354,11 @@ impl<T: TrayApi> TrayIconWrapper<T> {
 /// Replaces platform-specific `MockTrayApi` definitions that were previously
 /// duplicated across `macos/tray.rs` and `windows/tray.rs`.
 /// Uses `std::sync::Mutex` for synchronous locking compatible with both platforms.
-#[allow(dead_code)]
 pub struct MockTrayApi {
     state: std::sync::Mutex<MockTrayState>,
 }
 
 #[derive(Default)]
-#[allow(dead_code)]
 struct MockTrayState {
     registered: bool,
     hwnd: isize,
@@ -386,7 +377,6 @@ impl Default for MockTrayApi {
     }
 }
 
-#[allow(dead_code)]
 impl MockTrayApi {
     pub fn new() -> Self {
         Self {

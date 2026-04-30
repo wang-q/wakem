@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum WindowApiCall {
     GetForegroundWindow,
     GetWindowRect {
@@ -60,14 +59,12 @@ pub enum WindowApiCall {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-#[allow(dead_code)]
 pub struct MockWindowState {
     minimized: bool,
     maximized: bool,
     topmost: bool,
 }
 
-#[allow(dead_code)]
 pub struct MockWindowApi<Id: MockWindowId> {
     pub foreground_window: Mutex<Option<Id>>,
     pub window_rects: Mutex<HashMap<usize, WindowFrame>>,
@@ -81,7 +78,6 @@ pub struct MockWindowApi<Id: MockWindowId> {
 unsafe impl<Id: MockWindowId> Send for MockWindowApi<Id> {}
 unsafe impl<Id: MockWindowId> Sync for MockWindowApi<Id> {}
 
-#[allow(dead_code)]
 impl<Id: MockWindowId> MockWindowApi<Id> {
     pub fn new() -> Self {
         Self {
@@ -133,34 +129,6 @@ impl<Id: MockWindowId> MockWindowApi<Id> {
             .unwrap()
             .get(&window.to_usize())
             .copied()
-    }
-
-    fn set_window_pos_inner(
-        &self,
-        window: Id,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        self.log_operation(WindowApiCall::SetWindowPos {
-            window: window.to_usize(),
-            x,
-            y,
-            width,
-            height,
-        });
-
-        let mut rects = self.window_rects.lock().unwrap();
-        rects.insert(window.to_usize(), WindowFrame::new(x, y, width, height));
-
-        let mut states = self.window_states.lock().unwrap();
-        if let Some(state) = states.get_mut(&window.to_usize()) {
-            state.minimized = false;
-            state.maximized = false;
-        }
-
-        Ok(())
     }
 
     pub fn get_monitor_info(&self, window: Id) -> Option<MonitorInfo> {

@@ -275,8 +275,8 @@ impl NotificationService for WindowsNotificationService {
         Ok(())
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+    fn set_message_window_handle(&self, hwnd: isize) {
+        self.set_hwnd(hwnd);
     }
 }
 

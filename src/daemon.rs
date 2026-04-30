@@ -25,9 +25,6 @@ use crate::runtime::{KeyMapper, LayerManager};
 
 use crate::platform::CurrentPlatform;
 
-#[cfg(target_os = "windows")]
-use windows::Win32::Foundation::HWND;
-
 /// Combined config state to reduce lock count
 #[derive(Default)]
 struct ConfigState {
@@ -151,8 +148,7 @@ impl ServerState {
             );
         }
 
-        // 3. Update window preset manager (Windows only)
-        #[cfg(target_os = "windows")]
+        // 3. Update window preset manager
         {
             let mut preset_manager = self.window_preset_manager.write().await;
             preset_manager.load_presets(config.window.presets.clone());
@@ -564,13 +560,6 @@ impl ServerState {
             Action::Window(window_action) => {
                 info!(?window_action, "Executing window action");
                 let mut mapper = self.mapper.write().await;
-                #[cfg(target_os = "macos")]
-                {
-                    debug!(
-                        has_window_manager = mapper.window_manager.is_some(),
-                        "Checking window manager availability"
-                    );
-                }
                 mapper.execute_action(&Action::Window(window_action))?;
                 info!("Window action executed successfully");
             }
@@ -701,6 +690,11 @@ impl ServerState {
         Ok(macro_def)
     }
 
+    /// Check if recording macro
+    pub async fn is_recording_macro(&self) -> bool {
+        self.macro_recorder.is_recording().await
+    }
+
     /// Save macro to config
     async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
         let config_path = {
@@ -818,40 +812,12 @@ impl ServerState {
         Ok(())
     }
 
-    /// Check if recording macro
-    #[allow(dead_code)]
-    pub async fn is_recording_macro(&self) -> bool {
-        self.macro_recorder.is_recording().await
-    }
-
     /// Set message window handle
     /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
-    #[cfg(target_os = "windows")]
     pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
         let service = self.notification_service.lock().await;
-        if let Some(win_service) = service
-            .as_any()
-            .downcast_ref::<crate::platform::windows::WindowsNotificationService>(
-        ) {
-            win_service.set_hwnd(hwnd_value);
-        }
-
-        info!(
-            "Message window handle registered: {:?}",
-            HWND(hwnd_value as *mut std::ffi::c_void)
-        );
-    }
-
-    /// Set message window handle (macOS version - no-op)
-    #[cfg(target_os = "macos")]
-    pub async fn set_message_window_hwnd(&self, _hwnd_value: isize) {
-        info!("Message window handle registered (macOS)");
-    }
-
-    /// Get current auth key (for IPC authentication)
-    #[allow(dead_code)]
-    pub async fn get_auth_key(&self) -> String {
-        self.auth_key.read().await.clone()
+        service.set_message_window_handle(hwnd_value);
+        info!("Message window handle registered: {}", hwnd_value);
     }
 
     /// Show notification via platform notification service
@@ -875,12 +841,6 @@ impl ServerState {
     /// Subscribe to shutdown signal (for external listeners)
     pub fn subscribe_shutdown(&self) -> tokio::sync::watch::Receiver<bool> {
         self.shutdown_signal.subscribe()
-    }
-
-    /// Check if shutdown has been requested
-    #[allow(dead_code)]
-    pub fn is_shutdown_requested(&self) -> bool {
-        self.shutdown_signal.is_shutdown()
     }
 }
 
@@ -1055,17 +1015,6 @@ fn get_current_modifier_state() -> ModifierState {
     <CurrentPlatform as crate::platform::traits::PlatformUtilities>::get_modifier_state()
 }
 
-/// Run server (legacy entry point, uses default config path)
-///
-/// Improvement: integrated graceful shutdown mechanism, supports safe exit of all background tasks
-#[allow(dead_code)]
-pub async fn run_server(
-    instance_id: u32,
-    preloaded_config: Option<Config>,
-) -> Result<()> {
-    run_server_with_config(instance_id, preloaded_config, None).await
-}
-
 /// Run server with optional config path
 ///
 /// Improvement: integrated graceful shutdown mechanism, supports safe exit of all background tasks
@@ -1164,7 +1113,6 @@ pub async fn run_server_with_config(
         let raw_input_shutdown = raw_input_shutdown_flag_clone;
         let raw_input_shutdown_for_bridge = raw_input_shutdown.clone();
 
-        #[cfg(target_os = "windows")]
         let raw_input_handle = std::thread::spawn(move || {
             match <CurrentPlatform as PlatformFactory>::create_input_device(
                 crate::platform::traits::InputDeviceConfig::default(),
@@ -1172,42 +1120,20 @@ pub async fn run_server_with_config(
             ) {
                 Ok(mut device) => {
                     if let Err(e) = device.register() {
-                        error!("Failed to register Raw Input device: {}", e);
+                        error!("Failed to register input device: {}", e);
                         return;
                     }
-                    info!("Raw Input device initialized and registered");
+                    info!("Input device initialized and registered");
                     while !raw_input_shutdown.load(Ordering::SeqCst) {
                         if let Err(e) = device.run_once() {
-                            error!("Raw Input error: {}", e);
+                            error!("Input device error: {}", e);
                             break;
                         }
                     }
-                    info!("Raw Input thread shutting down");
+                    info!("Input device thread shutting down");
                 }
                 Err(e) => {
-                    error!("Failed to create Raw Input device: {}", e);
-                }
-            }
-        });
-
-        #[cfg(target_os = "macos")]
-        let raw_input_handle = std::thread::spawn(move || {
-            match <CurrentPlatform as PlatformFactory>::create_input_device(
-                crate::platform::traits::InputDeviceConfig::default(),
-                Some(std_tx),
-            ) {
-                Ok(mut device) => {
-                    info!("Raw Input device initialized");
-                    while !raw_input_shutdown.load(Ordering::SeqCst) {
-                        if let Err(e) = device.run_once() {
-                            error!("Raw Input error: {}", e);
-                            break;
-                        }
-                    }
-                    info!("Raw Input thread shutting down");
-                }
-                Err(e) => {
-                    error!("Failed to create Raw Input device: {}", e);
+                    error!("Failed to create input device: {}", e);
                 }
             }
         });
@@ -1341,14 +1267,11 @@ pub async fn run_server_with_config(
         info!("Input processing task stopped");
     });
 
-    // Create shutdown flag for window event bridge thread (Windows only)
-    #[cfg(target_os = "windows")]
+    // Create shutdown flag for window event bridge thread
     let window_shutdown_flag = Arc::new(AtomicBool::new(false));
-    #[cfg(target_os = "windows")]
     let window_shutdown_flag_clone = window_shutdown_flag.clone();
 
-    // Start window event listener (for auto-applying presets) - Windows only
-    #[cfg(target_os = "windows")]
+    // Start window event listener (for auto-applying presets)
     {
         let mut window_event_rx = {
             let (tx, rx) = tokio::sync::mpsc::channel::<
@@ -1488,13 +1411,6 @@ pub async fn run_server_with_config(
         info!("Message handler task stopped");
     });
 
-    // Tray is handled by the client on macOS, not the daemon
-    // This is because macOS requires tray to be created on the main thread
-    #[cfg(target_os = "macos")]
-    {
-        info!("Tray is managed by wakem client on macOS");
-    }
-
     info!("Server is running (press Ctrl+C for graceful shutdown)");
 
     // Subscribe to state shutdown signal for external shutdown requests
@@ -1515,7 +1431,6 @@ pub async fn run_server_with_config(
 
     // Signal bridge threads to exit
     input_shutdown_flag_stored.store(true, Ordering::SeqCst);
-    #[cfg(target_os = "windows")]
     window_shutdown_flag.store(true, Ordering::SeqCst);
 
     // Wait a short time for tasks to clean up
@@ -1537,8 +1452,7 @@ pub async fn run_server_with_config(
     Ok(())
 }
 
-/// Handle window events (Windows only)
-#[cfg(target_os = "windows")]
+/// Handle window events
 impl ServerState {
     async fn handle_window_event(
         &self,

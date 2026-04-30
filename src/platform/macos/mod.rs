@@ -181,10 +181,6 @@ impl NotificationService for MacosNotificationService {
             title, message,
         )
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 impl ApplicationControl for MacosPlatform {

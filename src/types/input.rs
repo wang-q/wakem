@@ -34,14 +34,12 @@ impl KeyEvent {
     }
 
     /// Set modifier key state (for building events)
-    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
     /// Mark as injected event (for simulated input)
-    #[allow(dead_code)]
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self
@@ -107,14 +105,12 @@ impl MouseEvent {
     }
 
     /// Set modifier key state (for building events)
-    #[allow(dead_code)]
     pub fn with_modifiers(mut self, modifiers: ModifierState) -> Self {
         self.modifiers = modifiers;
         self
     }
 
     /// Mark as injected event (for simulated input)
-    #[allow(dead_code)]
     pub fn injected(mut self) -> Self {
         self.is_injected = true;
         self

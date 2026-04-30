@@ -51,7 +51,6 @@ fn find_next_ratio(ratios: &[f32], current: f32) -> f32 {
 }
 
 /// Trait for window API operations needed by common window manager
-#[allow(dead_code)]
 pub trait CommonWindowApi {
     type WindowId: Copy;
     type WindowInfo: WindowInfoProvider;
@@ -148,7 +147,6 @@ pub trait CommonWindowApi {
     }
 
     /// Toggle window topmost state, returns the new state
-    #[allow(dead_code)]
     fn toggle_topmost(&self, window: Self::WindowId) -> Result<bool>
     where
         Self: Sized,
@@ -455,7 +453,6 @@ impl CommonWindowManager {
     }
 
     /// Toggle window topmost state
-    #[allow(dead_code)]
     pub fn toggle_topmost<A, W, I>(api: &A, window: W) -> Result<bool>
     where
         A: CommonWindowApi<WindowId = W, WindowInfo = I>,

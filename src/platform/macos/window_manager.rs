@@ -13,7 +13,6 @@ use crate::platform::common::window_manager::CommonWindowApi;
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub enum MonitorDirection {
     Next,
     Prev,
@@ -125,18 +124,27 @@ impl<A: MacosWindowApi + Clone + Send + Sync> MonitorOperations
     }
 }
 
-impl<A: MacosWindowApi + Clone + Send + Sync> ForegroundWindowOperations
-    for MacosWindowManager<A>
-{
+impl ForegroundWindowOperations for MacosWindowManager<RealMacosWindowApi> {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.api.get_foreground_window()
+    }
+
+    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
+        MacosWindowManager::switch_to_next_window_of_same_process(self)
+    }
+}
+
+impl WindowManagerTrait for MacosWindowManager<RealMacosWindowApi> {}
+
+#[cfg(test)]
+impl ForegroundWindowOperations for MacosWindowManager<super::window_api::MockMacosWindowApi> {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
     }
 }
 
-impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
-    for MacosWindowManager<A>
-{
-}
+#[cfg(test)]
+impl WindowManagerTrait for MacosWindowManager<super::window_api::MockMacosWindowApi> {}
 
 impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager<A> {
     type WindowId = WindowId;

@@ -20,30 +20,25 @@ pub struct ContextCondition {
 }
 
 impl ContextCondition {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
 
-    #[allow(dead_code)]
     pub fn with_window_class(mut self, class: impl Into<String>) -> Self {
         self.window_class = Some(class.into());
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_process_name(mut self, name: impl Into<String>) -> Self {
         self.process_name = Some(name.into());
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_window_title(mut self, title: impl Into<String>) -> Self {
         self.window_title = Some(title.into());
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_executable_path(mut self, path: impl Into<String>) -> Self {
         self.executable_path = Some(path.into());
         self
@@ -87,8 +82,8 @@ impl ContextCondition {
 }
 
 /// Context information (current active window, etc.)
-#[derive(Debug, Clone, Default)]
 #[allow(dead_code)]
+#[derive(Debug, Clone, Default)]
 pub struct ContextInfo {
     pub window_class: String,
     pub process_name: String,

@@ -46,7 +46,6 @@ impl ModifierState {
     }
 
     /// Check if no modifier keys are pressed
-    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }
@@ -57,7 +56,6 @@ impl ModifierState {
     /// where `modifier_state` has only the relevant modifier bit set,
     /// and `pressed` echoes back the input parameter for convenience.
     /// Returns `None` for non-modifier keys.
-    #[allow(dead_code)]
     pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)> {
         let mut state = Self::new();
         match key {
@@ -74,7 +72,6 @@ impl ModifierState {
     ///
     /// Returns `Some(Self)` with the relevant modifier bit set to true,
     /// or `None` for non-modifier keys.
-    #[allow(dead_code)]
     pub fn from_virtual_key_only(key: u16) -> Option<Self> {
         let mut state = Self::new();
         match key {
@@ -88,7 +85,6 @@ impl ModifierState {
     }
 
     /// Merge another modifier key state (OR logic, only sets bits)
-    #[allow(dead_code)]
     pub fn merge(&mut self, other: &ModifierState) {
         self.shift |= other.shift;
         self.ctrl |= other.ctrl;

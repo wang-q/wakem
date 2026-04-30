@@ -25,7 +25,6 @@ pub struct InputDeviceBase {
     pub event_sender: Sender<InputEvent>,
 }
 
-#[allow(dead_code)]
 impl InputDeviceBase {
     pub fn new() -> Self {
         let (sender, receiver) = channel();
@@ -94,11 +93,9 @@ impl Default for InputDeviceBase {
 pub struct InputDevice<T> {
     pub base: InputDeviceBase,
     pub inner: Option<T>,
-    #[allow(dead_code)]
     pub config: InputDeviceConfig,
 }
 
-#[allow(dead_code)]
 impl<T> InputDevice<T> {
     /// Create a new input device with default config
     pub fn new(config: InputDeviceConfig) -> Result<Self> {
@@ -141,7 +138,6 @@ impl<T> InputDevice<T> {
 ///
 /// Implement this trait for platform-specific inner device types
 /// to enable the generic [InputDevice] to work with them.
-#[allow(dead_code)]
 pub trait PlatformInputDevice: Sized + Send {
     /// Create the platform-specific device with a sender
     fn create(sender: Sender<InputEvent>) -> Result<Self>;

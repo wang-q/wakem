@@ -55,7 +55,6 @@ impl Layer {
     ///
     /// Matches if all specified (non-zero) fields match the input.
     /// At least one of activation_key or activation_vk must be non-zero.
-    #[allow(dead_code)]
     pub fn is_activation_key(&self, scan_code: u16, vk: u16) -> bool {
         let scan_ok = self.activation_key == 0 || self.activation_key == scan_code;
         let vk_ok = self.activation_vk == 0 || self.activation_vk == vk;

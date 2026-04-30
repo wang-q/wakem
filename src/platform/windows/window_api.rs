@@ -17,7 +17,6 @@ use crate::platform::traits::{MonitorInfo, MonitorWorkArea, WindowFrame};
 
 /// API call log entry (for MockWindowApi testing)
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum WindowApiCall {
     GetForegroundWindow,
     GetWindowRect {
@@ -62,7 +61,6 @@ pub enum WindowApiCall {
 
 /// Window state (Windows-specific implementation details)
 #[derive(Debug, Clone, Copy, Default)]
-#[allow(dead_code)]
 pub struct WindowStateDetail {
     pub minimized: bool,
     pub maximized: bool,
@@ -70,7 +68,6 @@ pub struct WindowStateDetail {
 }
 
 /// Windows API abstract interface
-#[allow(dead_code)]
 pub trait WindowApi {
     /// Get foreground window handle
     fn get_foreground_window(&self) -> Option<HWND>;
@@ -137,10 +134,8 @@ pub trait WindowApi {
 }
 
 /// Real Windows API implementation
-#[allow(dead_code)]
 pub struct RealWindowApi;
 
-#[allow(dead_code)]
 impl RealWindowApi {
     pub fn new() -> Self {
         Self
@@ -370,7 +365,6 @@ pub struct MockWindowApi {
 }
 
 #[cfg(test)]
-#[allow(dead_code)]
 impl MockWindowApi {
     pub fn new() -> Self {
         Self {

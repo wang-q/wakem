@@ -88,12 +88,10 @@ macro_rules! impl_test_output_device {
 ///
 /// Uses `Arc<Mutex<>>` for thread-safe interior mutability, consistent
 /// with [MockOutputDevice].
-#[allow(dead_code)]
 pub struct MockInputDevice {
     state: Arc<Mutex<MockInputState>>,
 }
 
-#[allow(dead_code)]
 struct MockInputState {
     events: VecDeque<InputEvent>,
     running: bool,
@@ -101,7 +99,6 @@ struct MockInputState {
     captured_events: Vec<InputEvent>,
 }
 
-#[allow(dead_code)]
 impl MockInputDevice {
     pub fn new() -> Self {
         Self {
@@ -255,7 +252,6 @@ impl InputDeviceTrait for MockInputDevice {
 
 /// Mock output event for testing
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub enum MockOutputEvent {
     /// Key event
     Key {
@@ -272,12 +268,10 @@ pub enum MockOutputEvent {
 }
 
 /// Mock output device for testing
-#[allow(dead_code)]
 pub struct MockOutputDevice {
     events: Arc<Mutex<Vec<MockOutputEvent>>>,
 }
 
-#[allow(dead_code)]
 impl MockOutputDevice {
     /// Create a new mock output device
     pub fn new() -> Self {
@@ -349,7 +343,6 @@ impl OutputDeviceTrait for MockOutputDevice {
 }
 
 /// Trait for mock window IDs used in testing
-#[allow(dead_code)]
 pub trait MockWindowId: Copy + Clone + std::fmt::Debug + Send + Sync + 'static {
     fn to_usize(self) -> usize;
     fn from_usize(id: usize) -> Self;

@@ -332,7 +332,6 @@ pub struct TrayIcon {
 // handles is undefined behavior.
 unsafe impl Send for TrayIcon {}
 
-#[allow(dead_code)]
 impl TrayIcon {
     /// Create new tray icon
     pub fn new() -> Self {
@@ -526,12 +525,10 @@ impl Drop for TrayIcon {
 pub use crate::platform::common::tray::TrayApi;
 
 /// Real tray icon API implementation
-#[allow(dead_code)]
 pub struct RealTrayApi {
     inner: Arc<Mutex<TrayIconInner>>,
 }
 
-#[allow(dead_code)]
 struct TrayIconInner {
     tray_icon: TrayIcon,
     hwnd: HWND,
@@ -560,7 +557,6 @@ impl Default for RealTrayApi {
     }
 }
 
-#[allow(dead_code)]
 impl RealTrayApi {
     pub fn new() -> Self {
         Self {

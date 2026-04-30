@@ -84,9 +84,7 @@ pub const MAX_RECONNECT_RETRIES: u32 = 3;
 pub const MAX_CONNECTION_RETRIES: u32 = 10;
 
 /// Short sleep duration for polling (milliseconds)
-#[allow(dead_code)]
 pub const POLLING_SLEEP_MS: u64 = 10;
 
 /// Medium sleep duration for polling (milliseconds)
-#[allow(dead_code)]
 pub const MEDIUM_POLLING_SLEEP_MS: u64 = 100;

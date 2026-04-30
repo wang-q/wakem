@@ -48,11 +48,6 @@ impl ShutdownSignal {
         self.receiver.clone()
     }
 
-    /// Check if shutdown signal has been received (non-blocking, no allocation)
-    pub fn is_shutdown(&self) -> bool {
-        *self.receiver.borrow()
-    }
-
     /// Trigger shutdown signal
     pub async fn shutdown(&self) {
         info!("Initiating graceful shutdown...");
@@ -66,7 +61,6 @@ impl ShutdownSignal {
     /// # Returns
     /// * `true` - Shutdown signal received
     /// * `false` - Channel closed without shutdown signal
-    #[allow(dead_code)]
     pub async fn wait_for_shutdown(&mut self) -> bool {
         self.receiver.changed().await.is_ok() && *self.receiver.borrow()
     }
@@ -76,7 +70,6 @@ impl ShutdownSignal {
     /// # Returns
     /// * `true` - Shutdown signal has been received
     /// * `false` - Shutdown signal not yet received
-    #[allow(dead_code)]
     pub fn is_shutdown_requested(&self) -> bool {
         *self.receiver.borrow()
     }
@@ -90,7 +83,6 @@ impl ShutdownSignal {
     /// * `Ok(T)` - Operation completed successfully
     /// * `Err(ShutdownError::Cancelled)` - Shutdown signal received, operation cancelled
     /// * `Err(ShutdownError::OperationFailed)` - Operation failed
-    #[allow(dead_code)]
     pub async fn run_until_shutdown<F, T, E>(
         &mut self,
         operation: F,
