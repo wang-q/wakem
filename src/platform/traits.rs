@@ -358,6 +358,7 @@ pub trait WindowApiBase {
     fn restore_window(&self, window: Self::WindowId) -> Result<()>;
     fn close_window(&self, window: Self::WindowId) -> Result<()>;
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost(&self, window: Self::WindowId) -> bool;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     fn is_window_valid(&self, window: Self::WindowId) -> bool;
     fn is_minimized(&self, window: Self::WindowId) -> bool;
@@ -382,6 +383,7 @@ pub trait WindowManagerTrait: Send + Sync {
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost(&self, window: WindowId) -> bool;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
     fn is_window_valid(&self, window: WindowId) -> bool;
@@ -494,6 +496,10 @@ macro_rules! impl_window_api_base_via {
 
             fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> ::anyhow::Result<()> {
                 <$impl_type as $inner_trait>::set_topmost(self, window, topmost)
+            }
+
+            fn is_topmost(&self, window: Self::WindowId) -> bool {
+                <$impl_type as $inner_trait>::is_topmost(self, window)
             }
 
             fn get_monitors(&self) -> Vec<$crate::platform::traits::MonitorInfo> {

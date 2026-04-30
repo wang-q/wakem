@@ -600,6 +600,10 @@ impl WindowApiBase for MockWindowApi {
         WindowApi::set_topmost(self, window, topmost)
     }
 
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        WindowApi::is_topmost(self, window)
+    }
+
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         unsafe { super::window_manager::enumerate_all_monitors() }
     }

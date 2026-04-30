@@ -362,6 +362,15 @@ impl<Id: MockWindowId> WindowApiBase for MockWindowApi<Id> {
         Ok(())
     }
 
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
+        self.window_states
+            .lock()
+            .unwrap()
+            .get(&window.to_usize())
+            .map(|s| s.topmost)
+            .unwrap_or(false)
+    }
+
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         let fg = self.get_foreground_window();
         fg.and_then(|window| self.get_monitor_info(window))
@@ -473,6 +482,15 @@ impl WindowManagerTrait for MockWindowApi<usize> {
         let mut states = self.window_states.lock().unwrap();
         states.entry(window).or_default().topmost = topmost;
         Ok(())
+    }
+
+    fn is_topmost(&self, window: WindowId) -> bool {
+        self.window_states
+            .lock()
+            .unwrap()
+            .get(&window)
+            .map(|s| s.topmost)
+            .unwrap_or(false)
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {

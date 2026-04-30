@@ -96,6 +96,10 @@ impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait
         self.api.set_topmost(window, topmost)
     }
 
+    fn is_topmost(&self, window: WindowId) -> bool {
+        self.api.is_topmost(window)
+    }
+
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         self.api.get_monitors()
     }

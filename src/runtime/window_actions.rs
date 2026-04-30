@@ -60,7 +60,7 @@ pub fn execute_window_action(
 
         // Z-order operations
         WindowAction::ToggleTopmost => {
-            let is_top = wm.is_window_valid(window_id); // Reuse as placeholder
+            let is_top = wm.is_topmost(window_id);
             wm.set_topmost(window_id, !is_top)?;
         }
 
