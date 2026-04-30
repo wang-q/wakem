@@ -10,7 +10,8 @@ use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowRect, IsIconic, IsWindow, IsZoomed, SetWindowPos,
-    ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
+    ShowWindow, HWND_TOP, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER,
+    SWP_NOSIZE, SWP_NOZORDER, SW_RESTORE,
 };
 
 use crate::platform::traits::{
@@ -633,10 +634,7 @@ impl WindowApiBase for MockWindowApi {
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = WindowApi::get_foreground_window(self);
-        fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
-            .map(|info| vec![info])
-            .unwrap_or_default()
+        unsafe { super::window_manager::enumerate_all_monitors() }
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {

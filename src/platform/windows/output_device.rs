@@ -120,7 +120,24 @@ impl OutputDeviceTrait for SendInputDevice {
             (MouseButton::Right, true) => MOUSEEVENTF_RIGHTUP,
             (MouseButton::Middle, false) => MOUSEEVENTF_MIDDLEDOWN,
             (MouseButton::Middle, true) => MOUSEEVENTF_MIDDLEUP,
-            _ => return Ok(()),
+            // MOUSEEVENTF_XDOWN = 0x0080, MOUSEEVENTF_XUP = 0x0100
+            // XBUTTON1 = 0x0001, XBUTTON2 = 0x0002
+            (MouseButton::X1, false) => {
+                input.Anonymous.mi.mouseData = 0x0001;
+                windows::Win32::UI::Input::KeyboardAndMouse::MOUSE_EVENT_FLAGS(0x0080)
+            }
+            (MouseButton::X1, true) => {
+                input.Anonymous.mi.mouseData = 0x0001;
+                windows::Win32::UI::Input::KeyboardAndMouse::MOUSE_EVENT_FLAGS(0x0100)
+            }
+            (MouseButton::X2, false) => {
+                input.Anonymous.mi.mouseData = 0x0002;
+                windows::Win32::UI::Input::KeyboardAndMouse::MOUSE_EVENT_FLAGS(0x0080)
+            }
+            (MouseButton::X2, true) => {
+                input.Anonymous.mi.mouseData = 0x0002;
+                windows::Win32::UI::Input::KeyboardAndMouse::MOUSE_EVENT_FLAGS(0x0100)
+            }
         };
 
         let result = unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
