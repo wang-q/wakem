@@ -6,7 +6,7 @@ use crate::platform::traits::WindowInfo;
 use crate::platform::window_preset_common::{WindowPresetApi, WindowPresetManager};
 use anyhow::Result;
 
-impl<A: MacosWindowApi> WindowPresetApi
+impl<A: MacosWindowApi + Clone> WindowPresetApi
     for crate::platform::macos::window_manager::MacosWindowManager<A>
 {
     type WindowId = crate::platform::traits::WindowId;

@@ -2,7 +2,7 @@ use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
 };
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, error, info};
 
 #[cfg(target_os = "windows")]
 use crate::platform::windows::window_manager::RealWindowManager;
@@ -707,109 +707,78 @@ impl KeyMapper {
     /// Execute window management action (macOS implementation)
     #[cfg(target_os = "macos")]
     fn execute_window_action_internal(
-        wm: &RealMacosWindowManager,
+        wm: RealMacosWindowManager,
         action: &crate::types::WindowAction,
     ) -> anyhow::Result<()> {
-        use crate::platform::window_manager_common::CommonWindowApi;
-        use crate::types::{Edge, MonitorDirection, WindowAction};
+        use crate::platform::traits::WindowManagerTrait;
+        use crate::platform::window_manager_common::CommonWindowManager;
+        use crate::types::{MonitorDirection, WindowAction};
 
         info!(?action, "execute_window_action_internal called");
+
+        // Get foreground window
+        let window = wm.get_foreground_window()
+            .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
+
         match action {
             WindowAction::Center => {
-                wm.get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::move_to_center(&wm, 1))??;
+                CommonWindowManager::move_to_center(&wm, window)?;
             }
             WindowAction::MoveToEdge(edge) => {
-                wm.get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::move_to_edge(&wm, 1, *edge))??;
+                CommonWindowManager::move_to_edge(&wm, window, *edge)?;
             }
             WindowAction::HalfScreen(edge) => {
-                wm.get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::set_half_screen(&wm, 1, *edge))??;
+                CommonWindowManager::set_half_screen(&wm, window, *edge)?;
             }
             WindowAction::LoopWidth(_) => {
                 use crate::types::Alignment;
-                wm.get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::loop_width(&wm, 1, Alignment::Left))??;
+                CommonWindowManager::loop_width(&wm, window, Alignment::Left)?;
             }
             WindowAction::LoopHeight(_) => {
                 use crate::types::Alignment;
-                wm.get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::loop_height(&wm, 1, Alignment::Top))??;
+                CommonWindowManager::loop_height(&wm, window, Alignment::Top)?;
             }
             WindowAction::FixedRatio { ratio, .. } => {
-                wm.get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::set_fixed_ratio(&wm, 1, *ratio))??;
+                CommonWindowManager::set_fixed_ratio(&wm, window, *ratio)?;
             }
             WindowAction::NativeRatio { .. } => {
-                wm.get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?
-                    .map(|_| CommonWindowApi::set_native_ratio(&wm, 1))??;
+                CommonWindowManager::set_native_ratio(&wm, window)?;
             }
             WindowAction::SwitchToNextWindow => {
-                wm.switch_to_next_window_of_same_process(1)?;
+                wm.switch_to_next_window_of_same_process(window)?;
             }
             WindowAction::MoveToMonitor(direction) => {
-                let _monitor_index = match direction {
+                let monitor_index = match direction {
                     MonitorDirection::Next | MonitorDirection::Index(_) => 1,
                     MonitorDirection::Prev => 0,
                 };
-                let _ = wm
-                    .get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
-                debug!("Move to monitor {} requested", _monitor_index);
+                wm.move_to_monitor(window, monitor_index)?;
             }
             WindowAction::Move { x, y } => {
-                let info = wm
-                    .get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))??;
-                use crate::platform::traits::WindowFrame;
-                let new_frame = WindowFrame::new(*x, *y, info.width, info.height);
-                wm.set_window_frame(1, &new_frame)?;
+                let info = <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
+                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, *x, *y, info.width, info.height)?;
             }
             WindowAction::Resize { width, height } => {
-                let info = wm
-                    .get_foreground_window_info()
-                    .ok_or_else(|| anyhow::anyhow!("No foreground window"))??;
-                use crate::platform::traits::WindowFrame;
-                let new_frame = WindowFrame::new(info.x, info.y, *width, *height);
-                wm.set_window_frame(1, &new_frame)?;
+                let info = <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window)?;
+                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::set_window_pos(&wm, window, info.x, info.y, *width, *height)?;
             }
             WindowAction::Minimize => {
-                use crate::platform::macos::window_api::MacosWindowApi;
-                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
-                    MacosWindowApi::minimize_window(wm.api(), window)?;
-                }
+                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::minimize_window(&wm, window)?;
             }
             WindowAction::Maximize => {
-                use crate::platform::macos::window_api::MacosWindowApi;
-                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
-                    MacosWindowApi::maximize_window(wm.api(), window)?;
-                }
+                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::maximize_window(&wm, window)?;
             }
             WindowAction::Restore => {
-                use crate::platform::macos::window_api::MacosWindowApi;
-                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
-                    MacosWindowApi::restore_window(wm.api(), window)?;
-                }
+                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::restore_window(&wm, window)?;
             }
             WindowAction::Close => {
-                use crate::platform::macos::window_api::MacosWindowApi;
-                if let Some(window) = MacosWindowApi::get_foreground_window(wm.api()) {
-                    MacosWindowApi::close_window(wm.api(), window)?;
-                }
+                <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::close_window(&wm, window)?;
             }
             WindowAction::ToggleTopmost => {
-                CommonWindowApi::toggle_topmost(&wm, 1)?;
+                CommonWindowManager::toggle_topmost(&wm, window)?;
             }
-            WindowAction::ShowDebugInfo => match wm.get_foreground_window_info() {
-                Some(Ok(info)) => {
+            WindowAction::ShowDebugInfo => match <RealMacosWindowManager as crate::platform::traits::WindowManagerTrait>::get_window_info(&wm, window) {
+                Ok(info) => {
                     let debug_info = format!(
                         "Window Debug Info:\n\
                              Position: ({}, {})\n\
@@ -825,11 +794,8 @@ impl KeyMapper {
                             debug!("Failed to show notification: {}", e);
                         }
                 }
-                Some(Err(e)) => {
+                Err(e) => {
                     debug!("Failed to get debug info: {}", e);
-                }
-                None => {
-                    debug!("No foreground window for debug info");
                 }
             },
             WindowAction::ShowNotification { title, message } => {
@@ -865,7 +831,7 @@ impl KeyMapper {
                 info!(?window_action, "Processing window action in mapper");
                 if let Some(ref wm) = self.window_manager {
                     info!("WindowManager found, executing window action");
-                    match Self::execute_window_action_internal(wm, window_action) {
+                    match Self::execute_window_action_internal(wm.clone(), window_action) {
                         Ok(()) => info!("Window action executed successfully"),
                         Err(e) => error!(error = %e, "Failed to execute window action"),
                     }
@@ -877,7 +843,6 @@ impl KeyMapper {
             | Action::Mouse(_)
             | Action::Launch(_)
             | Action::Sequence(_)
-            | Action::System(_)
             | Action::Delay { .. }
             | Action::None => {
                 // These actions are handled by other components

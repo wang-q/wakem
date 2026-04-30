@@ -12,11 +12,12 @@ use tracing::debug;
 use crate::platform::window_manager_common::CommonWindowApi;
 
 /// Generic macOS window manager using MacosWindowApi trait
-pub struct MacosWindowManager<A: MacosWindowApi> {
+#[derive(Clone)]
+pub struct MacosWindowManager<A: MacosWindowApi + Clone> {
     api: A,
 }
 
-impl<A: MacosWindowApi> MacosWindowManager<A> {
+impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     pub fn new(api: A) -> Self {
         Self { api }
     }
@@ -38,13 +39,13 @@ impl MacosWindowManager<RealMacosWindowApi> {
     }
 }
 
-impl<A: MacosWindowApi + Default> Default for MacosWindowManager<A> {
+impl<A: MacosWindowApi + Clone + Default> Default for MacosWindowManager<A> {
     fn default() -> Self {
         Self::new(A::default())
     }
 }
 
-impl<A: MacosWindowApi + Send + Sync> WindowManagerTrait for MacosWindowManager<A> {
+impl<A: MacosWindowApi + Clone + Send + Sync> WindowManagerTrait for MacosWindowManager<A> {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
     }
@@ -105,7 +106,7 @@ impl<A: MacosWindowApi + Send + Sync> WindowManagerTrait for MacosWindowManager<
     }
 }
 
-impl<A: MacosWindowApi + 'static> CommonWindowApi for MacosWindowManager<A> {
+impl<A: MacosWindowApi + Clone + 'static> CommonWindowApi for MacosWindowManager<A> {
     type WindowId = WindowId;
     type WindowInfo = WindowInfo;
 
@@ -149,7 +150,9 @@ impl<A: MacosWindowApi + 'static> CommonWindowApi for MacosWindowManager<A> {
     }
 }
 
-impl<A: MacosWindowApi> MacosWindowManager<A> {
+
+
+impl<A: MacosWindowApi + Clone> MacosWindowManager<A> {
     #[cfg(not(test))]
     pub fn switch_to_next_window_of_same_process(
         &self,

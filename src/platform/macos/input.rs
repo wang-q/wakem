@@ -166,6 +166,7 @@ fn clear_sender() {
 /// # Returns
 ///
 /// Returns the original event (pass-through mode). We don't modify or block events.
+#[cfg(not(test))]
 extern "C" fn event_tap_callback(
     _proxy: *const c_void,
     event: *const c_void,
@@ -184,7 +185,7 @@ extern "C" fn event_tap_callback(
 }
 
 #[cfg(test)]
-fn event_tap_callback(
+extern "C" fn event_tap_callback(
     _proxy: *const c_void,
     _event: *const c_void,
     _info: *const c_void,

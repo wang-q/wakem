@@ -15,18 +15,33 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
+// Re-export common types
 pub use crate::platform::launcher_common::Launcher;
-pub use input::CGEventTapDevice as MacosEventTap;
-pub use input_device::MacosInputDeviceExt as MacosInputDevice;
+pub use crate::platform::traits::InputDeviceConfig;
+
+// Re-export input device
+pub use input_device::MacosInputDeviceExt;
+/// InputDevice type alias for macOS
+pub type InputDevice = MacosInputDeviceExt;
+
+// Re-export output device
 pub use output_device::MacosOutputDevice;
+
+// Re-export tray types
 pub use tray::{
-    run_tray_event_loop, run_tray_message_loop, stop_tray, RealTrayApi,
+    run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, RealTrayApi,
     TrayIconWrapper as TrayIcon, TrayManager,
 };
+
+// Re-export window API types
 pub use window_api::{MacosWindowApi, RealMacosWindowApi};
 pub use window_event_hook::MacosWindowEventHook;
-pub use window_manager::{MacosWindowManager, RealMacosWindowManager};
-pub use window_preset::MacosWindowPresetManager;
+
+// Re-export window manager types
+pub use window_manager::{MacosWindowManager, RealMacosWindowManager as WindowManager};
+
+// Re-export window preset types
+pub use window_preset::MacosWindowPresetManager as WindowPresetManager;
 
 #[cfg(test)]
 pub use window_api::MockMacosWindowApi;

@@ -21,7 +21,7 @@ use crate::platform::mock::MockOutputDevice as OutputDevice;
 use crate::platform::macos::MacosOutputDevice as OutputDevice;
 
 #[cfg(all(target_os = "macos", test))]
-use crate::platform::macos::output_device::MockMacosOutputDevice as OutputDevice;
+use crate::platform::mock::MockOutputDevice as OutputDevice;
 
 pub struct MacroPlayer;
 
