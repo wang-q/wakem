@@ -273,7 +273,8 @@ pub fn wildcard_match(text: &str, pattern: &str) -> bool {
     }
 
     // Fast path: simple suffix match (e.g., "*.exe")
-    if pattern.starts_with('*') && !pattern[1..].contains('*') && !pattern.contains('?') {
+    if pattern.starts_with('*') && !pattern[1..].contains('*') && !pattern.contains('?')
+    {
         let suffix = &pattern[1..];
         return text.len() >= suffix.len()
             && text[text.len() - suffix.len()..].eq_ignore_ascii_case(suffix);

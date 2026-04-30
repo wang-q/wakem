@@ -48,26 +48,6 @@ pub struct Macro {
     pub description: Option<String>,
 }
 
-impl Macro {
-    /// Get step count
-    #[allow(dead_code)]
-    pub fn step_count(&self) -> usize {
-        self.steps.len()
-    }
-
-    /// Get total delay from Delay actions (milliseconds)
-    #[allow(dead_code)]
-    pub fn total_delay(&self) -> u64 {
-        self.steps
-            .iter()
-            .map(|s| match &s.action {
-                Action::Delay { milliseconds } => *milliseconds,
-                _ => s.delay_ms,
-            })
-            .sum()
-    }
-}
-
 /// Macro recorder
 #[allow(dead_code)]
 #[derive(Default)]
@@ -188,12 +168,6 @@ impl MacroRecorder {
     pub async fn is_recording(&self) -> bool {
         self.recording.read().await.is_some()
     }
-
-    /// Get current recording name
-    #[allow(dead_code)]
-    pub async fn current_macro_name(&self) -> Option<String> {
-        self.recording.read().await.as_ref().map(|r| r.name.clone())
-    }
 }
 
 /// Simplify delays: merge consecutive actions, only keep necessary delays
@@ -293,10 +267,6 @@ mod tests {
 
             recorder.start_recording("test-macro").await.unwrap();
             assert!(recorder.is_recording().await);
-            assert_eq!(
-                recorder.current_macro_name().await,
-                Some("test-macro".to_string())
-            );
 
             let macro_def = recorder.stop_recording().await.unwrap();
             assert!(!recorder.is_recording().await);

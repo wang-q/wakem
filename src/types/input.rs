@@ -51,12 +51,6 @@ impl KeyEvent {
     pub fn is_modifier(&self) -> bool {
         VirtualKey::new(self.virtual_key).is_modifier()
     }
-
-    /// Get modifier key identifier (if is modifier key)
-    #[allow(dead_code)]
-    pub fn modifier_identifier(&self) -> Option<&'static str> {
-        VirtualKey::new(self.virtual_key).modifier_name()
-    }
 }
 
 /// Mouse button
@@ -129,12 +123,6 @@ impl MouseEvent {
     /// Check if is button press event
     pub fn is_button_down(&self, button: MouseButton) -> bool {
         matches!(&self.event_type, MouseEventType::ButtonDown(b) if *b == button)
-    }
-
-    /// Check if is button release event
-    #[allow(dead_code)]
-    pub fn is_button_up(&self, button: MouseButton) -> bool {
-        matches!(&self.event_type, MouseEventType::ButtonUp(b) if *b == button)
     }
 }
 
@@ -424,16 +412,6 @@ mod tests {
         assert!(!event.is_button_down(MouseButton::Right));
     }
 
-    /// Test mouse button up event
-    #[test]
-    fn test_mouse_button_up_event() {
-        let event =
-            MouseEvent::new(MouseEventType::ButtonUp(MouseButton::Right), 100, 100);
-
-        assert!(event.is_button_up(MouseButton::Right));
-        assert!(!event.is_button_up(MouseButton::Left));
-    }
-
     /// Test mouse wheel event
     #[test]
     fn test_mouse_wheel_event() {
@@ -474,22 +452,6 @@ mod tests {
         assert!(alt.is_modifier());
         assert!(win.is_modifier());
         assert!(!a_key.is_modifier());
-    }
-
-    /// Test KeyEvent modifier identifier
-    #[test]
-    fn test_key_event_modifier_identifier() {
-        let shift = KeyEvent::new(0x2A, 0x10, KeyState::Pressed);
-        let ctrl = KeyEvent::new(0x1D, 0x11, KeyState::Pressed);
-        let alt = KeyEvent::new(0x38, 0x12, KeyState::Pressed);
-        let win = KeyEvent::new(0x5B, 0x5B, KeyState::Pressed);
-        let a_key = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
-
-        assert_eq!(shift.modifier_identifier(), Some("Shift"));
-        assert_eq!(ctrl.modifier_identifier(), Some("Control"));
-        assert_eq!(alt.modifier_identifier(), Some("Alt"));
-        assert_eq!(win.modifier_identifier(), Some("Meta"));
-        assert_eq!(a_key.modifier_identifier(), None);
     }
 
     /// Test KeyEvent with_modifiers
