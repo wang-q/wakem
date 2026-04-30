@@ -1023,6 +1023,166 @@ impl Default for ServerState {
     }
 }
 
+#[cfg(test)]
+impl ServerState {
+    /// Check if a key is currently in the pressed_keys set (test-only accessor)
+    pub async fn is_key_pressed(&self, scan_code: u16, virtual_key: u16) -> bool {
+        self.pressed_keys
+            .read()
+            .await
+            .contains(&(scan_code, virtual_key))
+    }
+
+    /// Get the number of currently pressed keys (test-only accessor)
+    pub async fn pressed_key_count(&self) -> usize {
+        self.pressed_keys.read().await.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::types::{InputEvent, KeyEvent, KeyState};
+
+    #[tokio::test]
+    async fn test_key_repeat_first_press_accepted() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let _ = state.load_config(Config::default()).await;
+
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        state.process_input_event(event).await;
+
+        assert!(
+            state.is_key_pressed(0x1E, 0x41).await,
+            "First press should add key to pressed_keys"
+        );
+        assert_eq!(state.pressed_key_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_key_repeat_filtered() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let _ = state.load_config(Config::default()).await;
+
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+
+        state.process_input_event(event.clone()).await;
+        assert!(state.is_key_pressed(0x1E, 0x41).await);
+
+        state.process_input_event(event.clone()).await;
+        state.process_input_event(event.clone()).await;
+        state.process_input_event(event.clone()).await;
+
+        assert_eq!(
+            state.pressed_key_count().await,
+            1,
+            "Repeated presses should not add duplicate entries"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_key_release_clears_pressed_state() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let _ = state.load_config(Config::default()).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        state.process_input_event(press).await;
+        assert!(state.is_key_pressed(0x1E, 0x41).await);
+
+        let release = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Released));
+        state.process_input_event(release).await;
+
+        assert!(
+            !state.is_key_pressed(0x1E, 0x41).await,
+            "Key release should remove key from pressed_keys"
+        );
+        assert_eq!(state.pressed_key_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_key_repress_after_release() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let _ = state.load_config(Config::default()).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        let release = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Released));
+
+        state.process_input_event(press.clone()).await;
+        assert!(state.is_key_pressed(0x1E, 0x41).await);
+
+        state.process_input_event(release).await;
+        assert!(!state.is_key_pressed(0x1E, 0x41).await);
+
+        state.process_input_event(press).await;
+        assert!(
+            state.is_key_pressed(0x1E, 0x41).await,
+            "Key should be tracked again after release+repress"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_different_keys_tracked_independently() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let _ = state.load_config(Config::default()).await;
+
+        let press_a = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        let press_b = InputEvent::Key(KeyEvent::new(0x30, 0x42, KeyState::Pressed));
+
+        state.process_input_event(press_a.clone()).await;
+        state.process_input_event(press_b.clone()).await;
+
+        assert!(state.is_key_pressed(0x1E, 0x41).await);
+        assert!(state.is_key_pressed(0x30, 0x42).await);
+        assert_eq!(state.pressed_key_count().await, 2);
+
+        state.process_input_event(press_a).await;
+        assert_eq!(
+            state.pressed_key_count().await,
+            2,
+            "Repeat of A should not add new entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_key_repeat_full_cycle() {
+        let state = ServerState::new(ShutdownSignal::new());
+        let _ = state.load_config(Config::default()).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        let release = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Released));
+
+        state.process_input_event(press.clone()).await;
+        assert!(
+            state.is_key_pressed(0x1E, 0x41).await,
+            "Step 1: first press"
+        );
+
+        state.process_input_event(press.clone()).await;
+        assert!(
+            state.is_key_pressed(0x1E, 0x41).await,
+            "Step 2: repeat (filtered)"
+        );
+        assert_eq!(state.pressed_key_count().await, 1);
+
+        state.process_input_event(press.clone()).await;
+        assert_eq!(
+            state.pressed_key_count().await,
+            1,
+            "Step 3: more repeats (filtered)"
+        );
+
+        state.process_input_event(release).await;
+        assert!(!state.is_key_pressed(0x1E, 0x41).await, "Step 4: release");
+
+        state.process_input_event(press).await;
+        assert!(
+            state.is_key_pressed(0x1E, 0x41).await,
+            "Step 5: repress after release"
+        );
+    }
+}
+
 /// Get current modifier key state
 fn get_current_modifier_state() -> ModifierState {
     #[cfg(target_os = "windows")]

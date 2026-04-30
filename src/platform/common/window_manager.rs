@@ -680,4 +680,462 @@ mod tests {
         let next5 = find_next_ratio(&ratios, r5);
         assert!((next5 - 0.75).abs() < 0.001, "1366: 25% -> 75% (wrap)");
     }
+
+    // ==================== Mock CommonWindowApi for integration tests ====================
+
+    use std::cell::RefCell;
+
+    #[derive(Clone, Copy)]
+    struct TestWindowInfo {
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    }
+
+    impl WindowInfoProvider for TestWindowInfo {
+        fn x(&self) -> i32 {
+            self.x
+        }
+        fn y(&self) -> i32 {
+            self.y
+        }
+        fn width(&self) -> i32 {
+            self.width
+        }
+        fn height(&self) -> i32 {
+            self.height
+        }
+    }
+
+    struct TestApi {
+        info: RefCell<TestWindowInfo>,
+        monitors: Vec<MonitorInfo>,
+        pos_log: RefCell<Vec<(i32, i32, i32, i32)>>,
+    }
+
+    impl TestApi {
+        fn new(monitor: MonitorInfo, window_width: i32, window_height: i32) -> Self {
+            Self {
+                info: RefCell::new(TestWindowInfo {
+                    x: monitor.x,
+                    y: monitor.y,
+                    width: window_width,
+                    height: window_height,
+                }),
+                monitors: vec![monitor],
+                pos_log: RefCell::new(Vec::new()),
+            }
+        }
+
+        fn last_pos(&self) -> (i32, i32, i32, i32) {
+            self.pos_log.borrow().last().copied().unwrap()
+        }
+    }
+
+    impl CommonWindowApi for TestApi {
+        type WindowId = ();
+        type WindowInfo = TestWindowInfo;
+
+        fn get_window_info(&self, _window: Self::WindowId) -> Result<Self::WindowInfo> {
+            Ok(*self.info.borrow())
+        }
+
+        fn set_window_pos(
+            &self,
+            _window: Self::WindowId,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+        ) -> Result<()> {
+            self.pos_log.borrow_mut().push((x, y, width, height));
+            *self.info.borrow_mut() = TestWindowInfo {
+                x,
+                y,
+                width,
+                height,
+            };
+            Ok(())
+        }
+
+        fn get_monitors(&self) -> Vec<MonitorInfo> {
+            self.monitors.clone()
+        }
+
+        fn is_window_valid(&self, _window: Self::WindowId) -> bool {
+            true
+        }
+
+        fn is_maximized(&self, _window: Self::WindowId) -> bool {
+            false
+        }
+
+        fn is_topmost(&self, _window: Self::WindowId) -> bool {
+            false
+        }
+
+        fn set_topmost(&self, _window: Self::WindowId, _topmost: bool) -> Result<()> {
+            Ok(())
+        }
+
+        fn api(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    // ==================== Loop cycle regression tests ====================
+
+    #[test]
+    fn test_loop_width_full_cycle_1920() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let api = TestApi::new(monitor, 1440, 1080);
+
+        let expected_widths = [1152, 960, 768, 480, 1440];
+        for (i, &expected_w) in expected_widths.iter().enumerate() {
+            CommonWindowManager::loop_width(&api, (), Alignment::Left).unwrap();
+            let (_, _, w, _) = api.last_pos();
+            assert_eq!(
+                w,
+                expected_w,
+                "Step {}: expected width {}, got {}",
+                i + 1,
+                expected_w,
+                w
+            );
+        }
+    }
+
+    #[test]
+    fn test_loop_width_full_cycle_1366() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1366,
+            height: 768,
+        };
+        let api = TestApi::new(monitor, 1024, 768);
+
+        let expected_widths = [819, 683, 546, 341, 1024];
+        for (i, &expected_w) in expected_widths.iter().enumerate() {
+            CommonWindowManager::loop_width(&api, (), Alignment::Left).unwrap();
+            let (_, _, w, _) = api.last_pos();
+            assert_eq!(
+                w,
+                expected_w,
+                "Step {}: expected width {}, got {}",
+                i + 1,
+                expected_w,
+                w
+            );
+        }
+    }
+
+    #[test]
+    fn test_loop_width_full_cycle_2560() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 2560,
+            height: 1440,
+        };
+        let api = TestApi::new(monitor, 1920, 1440);
+
+        let expected_widths = [1536, 1280, 1024, 640, 1920];
+        for (i, &expected_w) in expected_widths.iter().enumerate() {
+            CommonWindowManager::loop_width(&api, (), Alignment::Left).unwrap();
+            let (_, _, w, _) = api.last_pos();
+            assert_eq!(
+                w,
+                expected_w,
+                "Step {}: expected width {}, got {}",
+                i + 1,
+                expected_w,
+                w
+            );
+        }
+    }
+
+    #[test]
+    fn test_loop_width_right_alignment() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let api = TestApi::new(monitor, 1440, 1080);
+
+        CommonWindowManager::loop_width(&api, (), Alignment::Right).unwrap();
+        let (x, _, w, _) = api.last_pos();
+        assert_eq!(w, 1152);
+        assert_eq!(
+            x,
+            1920 - 1152,
+            "Right-aligned: x should be monitor.width - width"
+        );
+    }
+
+    #[test]
+    fn test_loop_height_full_cycle_1080() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let api = TestApi::new(monitor, 1920, 810);
+
+        let expected_heights = [540, 270, 810];
+        for (i, &expected_h) in expected_heights.iter().enumerate() {
+            CommonWindowManager::loop_height(&api, (), Alignment::Top).unwrap();
+            let (_, _, _, h) = api.last_pos();
+            assert_eq!(
+                h,
+                expected_h,
+                "Step {}: expected height {}, got {}",
+                i + 1,
+                expected_h,
+                h
+            );
+        }
+    }
+
+    #[test]
+    fn test_loop_height_full_cycle_768() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1366,
+            height: 768,
+        };
+        let api = TestApi::new(monitor, 1366, 576);
+
+        let expected_heights = [384, 192, 576];
+        for (i, &expected_h) in expected_heights.iter().enumerate() {
+            CommonWindowManager::loop_height(&api, (), Alignment::Top).unwrap();
+            let (_, _, _, h) = api.last_pos();
+            assert_eq!(
+                h,
+                expected_h,
+                "Step {}: expected height {}, got {}",
+                i + 1,
+                expected_h,
+                h
+            );
+        }
+    }
+
+    #[test]
+    fn test_loop_height_bottom_alignment() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let api = TestApi::new(monitor, 1920, 810);
+
+        CommonWindowManager::loop_height(&api, (), Alignment::Bottom).unwrap();
+        let (_, y, _, h) = api.last_pos();
+        assert_eq!(h, 540);
+        assert_eq!(
+            y,
+            1080 - 540,
+            "Bottom-aligned: y should be monitor.height - height"
+        );
+    }
+
+    #[test]
+    fn test_loop_width_no_double_skip_regression() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let api = TestApi::new(monitor, 1440, 1080);
+
+        let mut seen_widths = Vec::new();
+        for _ in 0..5 {
+            CommonWindowManager::loop_width(&api, (), Alignment::Left).unwrap();
+            let (_, _, w, _) = api.last_pos();
+            seen_widths.push(w);
+        }
+
+        assert_eq!(
+            seen_widths.len(),
+            seen_widths
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            "Each loop step should produce a unique width (no skipping): {:?}",
+            seen_widths
+        );
+    }
+
+    #[test]
+    fn test_loop_height_no_double_skip_regression() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let api = TestApi::new(monitor, 1920, 810);
+
+        let mut seen_heights = Vec::new();
+        for _ in 0..3 {
+            CommonWindowManager::loop_height(&api, (), Alignment::Top).unwrap();
+            let (_, _, _, h) = api.last_pos();
+            seen_heights.push(h);
+        }
+
+        assert_eq!(
+            seen_heights.len(),
+            seen_heights
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            "Each loop step should produce a unique height (no skipping): {:?}",
+            seen_heights
+        );
+    }
+
+    // ==================== Taskbar coverage regression tests ====================
+
+    #[test]
+    fn test_half_screen_bottom_within_work_area() {
+        let work_area = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let api = TestApi::new(work_area, 800, 600);
+
+        CommonWindowManager::set_half_screen(&api, (), Edge::Bottom).unwrap();
+        let (_x, y, _w, h) = api.last_pos();
+
+        assert_eq!(h, 1040 / 2, "Height should be half of work area");
+        assert_eq!(
+            y + h,
+            1040,
+            "Window bottom edge should align with work area bottom"
+        );
+        assert!(
+            y + h <= work_area.height,
+            "Window should not extend below work area: y={} h={} work_area_height={}",
+            y,
+            h,
+            work_area.height
+        );
+    }
+
+    #[test]
+    fn test_half_screen_top_within_work_area() {
+        let work_area = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let api = TestApi::new(work_area, 800, 600);
+
+        CommonWindowManager::set_half_screen(&api, (), Edge::Top).unwrap();
+        let (_x, y, _w, h) = api.last_pos();
+
+        assert_eq!(y, 0, "Top half should start at work area top");
+        assert_eq!(h, 1040 / 2, "Height should be half of work area");
+    }
+
+    #[test]
+    fn test_move_to_edge_bottom_within_work_area() {
+        let work_area = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let api = TestApi::new(work_area, 800, 600);
+
+        CommonWindowManager::move_to_edge(&api, (), Edge::Bottom).unwrap();
+        let (_, y, _, _) = api.last_pos();
+
+        assert_eq!(
+            y,
+            1040 - 600,
+            "Window should be positioned at work_area.height - window.height"
+        );
+    }
+
+    #[test]
+    fn test_loop_height_bottom_within_work_area() {
+        let work_area = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let api = TestApi::new(work_area, 1920, 780);
+
+        CommonWindowManager::loop_height(&api, (), Alignment::Bottom).unwrap();
+        let (_, y, _, h) = api.last_pos();
+
+        assert!(
+            y + h <= work_area.height,
+            "Window bottom edge should not exceed work area: y={} h={} work_area_height={}",
+            y,
+            h,
+            work_area.height
+        );
+    }
+
+    #[test]
+    fn test_work_area_with_taskbar_offset() {
+        let work_area = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let api = TestApi::new(work_area, 800, 600);
+
+        CommonWindowManager::set_half_screen(&api, (), Edge::Bottom).unwrap();
+        let (_, y, _, h) = api.last_pos();
+
+        assert!(
+            y + h <= 1040,
+            "Window should fit within 1040px work area (40px taskbar): y={} h={}",
+            y,
+            h
+        );
+    }
+
+    #[test]
+    fn test_half_screen_right_within_work_area() {
+        let work_area = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let api = TestApi::new(work_area, 800, 600);
+
+        CommonWindowManager::set_half_screen(&api, (), Edge::Right).unwrap();
+        let (x, _y, w, h) = api.last_pos();
+
+        assert_eq!(w, 1920 / 2, "Width should be half of work area");
+        assert_eq!(
+            x + w,
+            1920,
+            "Window right edge should align with work area right"
+        );
+        assert_eq!(h, 1040, "Height should be full work area height");
+    }
 }
