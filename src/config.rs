@@ -1113,6 +1113,10 @@ static CONFIG_PATH_CACHE: Lazy<ConfigPathCache> = Lazy::new(ConfigPathCache::new
 ///
 /// If a path is provided, use it; otherwise use default path (with caching)
 /// Supports instance config files (uses config-instanceN.toml when instance_id > 0)
+///
+/// # Test Mode
+/// When `WAKEM_CONFIG_DIR` environment variable is set, caching is bypassed
+/// to ensure tests always use the correct temporary directory.
 pub fn resolve_config_file_path(
     path: Option<&std::path::Path>,
     instance_id: u32,
@@ -1120,6 +1124,11 @@ pub fn resolve_config_file_path(
     // If explicit path provided, use directly (not cached)
     if let Some(p) = path {
         return Some(p.to_path_buf());
+    }
+
+    // In test mode (WAKEM_CONFIG_DIR set), bypass cache to avoid race conditions
+    if std::env::var("WAKEM_CONFIG_DIR").is_ok() {
+        return ConfigPathCache::resolve_config_path_internal(instance_id);
     }
 
     // Use cached path resolution
