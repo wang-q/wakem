@@ -58,7 +58,11 @@ impl<A: WindowPresetApi> WindowPresetManager<A> {
     }
 
     pub fn load_presets(&mut self, presets: Vec<WindowPreset>) {
-        info!("Loaded {} window presets", presets.len());
+        if !presets.is_empty() {
+            info!("Loaded {} window presets", presets.len());
+        } else {
+            debug!("No window presets to load");
+        }
         self.presets = presets;
     }
 

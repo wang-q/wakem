@@ -162,7 +162,7 @@ impl ServerState {
     ///
     /// Performance optimization: batch updates to reduce lock hold time
     #[tracing::instrument(skip(self, config), fields(
-        rules_count = config.get_all_rules().len(),
+        rules_count,
         layers_count = config.keyboard.layers.len(),
         presets_count = config.window.presets.len(),
         context_mappings_count = config.keyboard.context_mappings.len(),
@@ -194,6 +194,7 @@ impl ServerState {
 
         // 2. Update base mapping rules and context rules (merged into one write lock)
         let all_rules = config.get_all_rules();
+        tracing::Span::current().record("rules_count", all_rules.len());
         {
             let mut mapper = self.mapper.write().await;
             mapper.load_rules(all_rules.clone());
