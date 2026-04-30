@@ -256,6 +256,10 @@ impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     type WindowId = HWND;
     type WindowInfo = WindowsWindowInfo;
 
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
+        self.api.get_foreground_window()
+    }
+
     fn api(&self) -> &dyn std::any::Any {
         self
     }
@@ -274,6 +278,22 @@ impl<A: WindowApi + 'static> CommonWindowApi for WindowManager<A> {
     ) -> Result<()> {
         let frame = WindowFrame::new(x, y, width, height);
         self.set_window_frame(window, &frame)
+    }
+
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.api.minimize_window(window)
+    }
+
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
+        self.api.maximize_window(window)
+    }
+
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
+        self.api.restore_window(window)
+    }
+
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
+        self.api.close_window(window)
     }
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {

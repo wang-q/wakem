@@ -56,6 +56,8 @@ pub trait CommonWindowApi {
     type WindowId: Copy;
     type WindowInfo: WindowInfoProvider;
 
+    /// Get the foreground (active) window
+    fn get_foreground_window(&self) -> Option<Self::WindowId>;
     /// Get window information
     fn get_window_info(&self, window: Self::WindowId) -> Result<Self::WindowInfo>;
     /// Set window position and size
@@ -67,6 +69,14 @@ pub trait CommonWindowApi {
         width: i32,
         height: i32,
     ) -> Result<()>;
+    /// Minimize window
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
+    /// Maximize window
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
+    /// Restore window
+    fn restore_window(&self, window: Self::WindowId) -> Result<()>;
+    /// Close window
+    fn close_window(&self, window: Self::WindowId) -> Result<()>;
     /// Get all monitors
     fn get_monitors(&self) -> Vec<MonitorInfo>;
     /// Check if window is valid
@@ -737,6 +747,10 @@ mod tests {
         type WindowId = ();
         type WindowInfo = TestWindowInfo;
 
+        fn get_foreground_window(&self) -> Option<Self::WindowId> {
+            Some(())
+        }
+
         fn get_window_info(&self, _window: Self::WindowId) -> Result<Self::WindowInfo> {
             Ok(*self.info.borrow())
         }
@@ -756,6 +770,22 @@ mod tests {
                 width,
                 height,
             };
+            Ok(())
+        }
+
+        fn minimize_window(&self, _window: Self::WindowId) -> Result<()> {
+            Ok(())
+        }
+
+        fn maximize_window(&self, _window: Self::WindowId) -> Result<()> {
+            Ok(())
+        }
+
+        fn restore_window(&self, _window: Self::WindowId) -> Result<()> {
+            Ok(())
+        }
+
+        fn close_window(&self, _window: Self::WindowId) -> Result<()> {
             Ok(())
         }
 
