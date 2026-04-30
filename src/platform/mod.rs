@@ -1,39 +1,53 @@
 //! Platform abstraction layer
 //!
-//! This module provides a three-layer architecture for cross-platform support:
+//! This module provides cross-platform abstractions for:
+//! - Input device capture (keyboard/mouse)
+//! - Output device simulation (sending input events)
+//! - Window management
+//! - System tray integration
 //!
-//! 1. **Traits** (`traits.rs`): Platform-agnostic interfaces
-//! 2. **Common** (`common/`): Cross-platform implementations shared between platforms
-//! 3. **Platform-specific** (`windows/`, `macos/`): Platform-specific implementations
+//! ## Architecture
 //!
-//! # Module Organization
+//! The module is organized in three layers:
 //!
-//! - `traits.rs` - Core trait definitions (WindowApi, InputDevice, etc.)
-//! - `types.rs` - Shared platform types
-//! - `macros.rs` - Shared macros
-//! - `mock.rs` - Mock implementations for testing
-//! - `common/` - Cross-platform implementations
-//!   - `input_device.rs`
-//!   - `launcher.rs`
-//!   - `output_helpers.rs`
-//!   - `tray.rs`
-//!   - `window_preset.rs`
-//! - `windows/` - Windows-specific implementations
-//! - `macos/` - macOS-specific implementations
+//! 1. **Types & traits** (`types.rs`, `traits.rs`, `macros.rs`) — shared
+//!    data types, trait interfaces, and code-generation macros.
+//!
+//! 2. **Common implementations** (`common/`) — platform-agnostic
+//!    implementations that work across all supported platforms.
+//!
+//! 3. **Platform modules** (`windows/`, `macos/`) —
+//!    platform-specific code selected via conditional compilation.
+//!
+//! The module uses conditional compilation to select the appropriate
+//! platform-specific implementation via the [`CurrentPlatform`] type alias.
 
-// Core modules
-pub mod common;
+// ---------------------------------------------------------------------------
+// Layer 1: Types & traits (shared across all platforms)
+// ---------------------------------------------------------------------------
 pub mod macros;
-pub mod mock;
 pub mod traits;
 pub mod types;
 
-// Platform-specific modules
+// ---------------------------------------------------------------------------
+// Layer 2: Common implementations (platform-agnostic logic)
+// ---------------------------------------------------------------------------
+pub mod common;
+
+// ---------------------------------------------------------------------------
+// Layer 3: Platform-specific modules (selected via conditional compilation)
+// ---------------------------------------------------------------------------
+pub mod mock;
+
 #[cfg(target_os = "windows")]
 pub mod windows;
 
 #[cfg(target_os = "macos")]
 pub mod macos;
+
+// ---------------------------------------------------------------------------
+// Current platform type alias
+// ---------------------------------------------------------------------------
 
 /// Current platform's factory type
 ///

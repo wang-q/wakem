@@ -131,38 +131,15 @@ impl PlatformUtilities for WindowsPlatform {
 }
 
 impl ContextProvider for WindowsPlatform {
-    fn get_current_context() -> Option<crate::platform::traits::WindowContext> {
-        context::get_current()
-    }
+    crate::impl_context_provider!();
 }
 
 impl TrayLifecycle for WindowsPlatform {
-    fn run_tray_message_loop(
-        callback: Box<dyn Fn(crate::platform::traits::AppCommand) + Send>,
-    ) -> anyhow::Result<()> {
-        tray::run_tray_message_loop(callback)
-    }
-
-    fn stop_tray() {
-        tray::stop_tray()
-    }
+    crate::impl_tray_lifecycle!();
 }
 
 impl WindowEventHookTrait for WindowEventHook {
-    fn start_with_shutdown(
-        &mut self,
-        shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
-    ) -> anyhow::Result<()> {
-        self.start_with_shutdown(shutdown_flag)
-    }
-
-    fn stop(&mut self) {
-        self.stop()
-    }
-
-    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool> {
-        self.shutdown_flag()
-    }
+    crate::impl_window_event_hook!();
 }
 
 impl LauncherTrait for Launcher {
@@ -362,39 +339,14 @@ impl PlatformFactory for WindowsPlatform {
     type Launcher = Launcher;
     type WindowEventHook = WindowEventHook;
 
-    fn create_input_device(
-        config: crate::platform::traits::InputDeviceConfig,
-        sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
-    ) -> anyhow::Result<Self::InputDevice> {
-        match sender {
-            Some(tx) => RawInputDevice::with_sender(tx),
-            None => RawInputDevice::new(config),
-        }
-    }
-
-    fn create_output_device() -> Self::OutputDevice {
-        SendInputDevice::new()
-    }
-
-    fn create_window_manager() -> Self::WindowManager {
-        WindowManager::new()
-    }
-
-    fn create_window_preset_manager() -> Self::WindowPresetManager {
-        WindowPresetManager::new(WindowManager::new())
-    }
-
-    fn create_notification_service() -> Self::NotificationService {
-        WindowsNotificationService::new()
-    }
-
-    fn create_launcher() -> Self::Launcher {
-        Launcher::new()
-    }
-
-    fn create_window_event_hook(
-        sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
-    ) -> Self::WindowEventHook {
-        WindowEventHook::new(sender)
-    }
+    crate::impl_platform_factory_methods!(
+        Self,
+        RawInputDevice,
+        SendInputDevice,
+        WindowsWindowManager,
+        WindowPresetManager,
+        WindowsNotificationService,
+        Launcher,
+        WindowEventHook
+    );
 }

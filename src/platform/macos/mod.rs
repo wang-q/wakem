@@ -20,7 +20,6 @@ use crate::platform::traits::{
     PlatformFactory, PlatformUtilities, TrayLifecycle, WindowEventHookTrait,
     WindowPresetManagerTrait,
 };
-use std::sync::Arc;
 
 pub use crate::platform::common::launcher::Launcher;
 pub use crate::platform::traits::InputDeviceConfig;
@@ -93,38 +92,15 @@ impl PlatformUtilities for MacosPlatform {
 }
 
 impl ContextProvider for MacosPlatform {
-    fn get_current_context() -> Option<crate::platform::traits::WindowContext> {
-        context::get_current()
-    }
+    crate::impl_context_provider!();
 }
 
 impl TrayLifecycle for MacosPlatform {
-    fn run_tray_message_loop(
-        callback: Box<dyn Fn(crate::platform::traits::AppCommand) + Send>,
-    ) -> anyhow::Result<()> {
-        tray::run_tray_message_loop(callback)
-    }
-
-    fn stop_tray() {
-        tray::stop_tray()
-    }
+    crate::impl_tray_lifecycle!();
 }
 
 impl WindowEventHookTrait for MacosWindowEventHook {
-    fn start_with_shutdown(
-        &mut self,
-        shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
-    ) -> anyhow::Result<()> {
-        self.start_with_shutdown(shutdown_flag)
-    }
-
-    fn stop(&mut self) {
-        self.stop()
-    }
-
-    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool> {
-        self.shutdown_flag()
-    }
+    crate::impl_window_event_hook!();
 }
 
 impl LauncherTrait for Launcher {
@@ -160,20 +136,7 @@ impl WindowPresetManagerTrait for WindowPresetManager {
     }
 }
 
-/// macOS notification service using Notification Center
-pub struct MacosNotificationService;
-
-impl MacosNotificationService {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for MacosNotificationService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+crate::decl_notification_service!(MacosNotificationService);
 
 impl NotificationService for MacosNotificationService {
     fn show(&self, title: &str, message: &str) -> anyhow::Result<()> {
@@ -231,39 +194,14 @@ impl PlatformFactory for MacosPlatform {
     type Launcher = Launcher;
     type WindowEventHook = MacosWindowEventHook;
 
-    fn create_input_device(
-        config: InputDeviceConfig,
-        sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
-    ) -> anyhow::Result<Self::InputDevice> {
-        match sender {
-            Some(tx) => InputDevice::with_sender(tx),
-            None => InputDevice::new(config),
-        }
-    }
-
-    fn create_output_device() -> Self::OutputDevice {
-        MacosOutputDevice::new()
-    }
-
-    fn create_window_manager() -> Self::WindowManager {
-        WindowManager::new()
-    }
-
-    fn create_window_preset_manager() -> Self::WindowPresetManager {
-        WindowPresetManager::new(WindowManager::new())
-    }
-
-    fn create_notification_service() -> Self::NotificationService {
-        MacosNotificationService::new()
-    }
-
-    fn create_launcher() -> Self::Launcher {
-        Launcher::new()
-    }
-
-    fn create_window_event_hook(
-        sender: std::sync::mpsc::Sender<crate::platform::traits::PlatformWindowEvent>,
-    ) -> Self::WindowEventHook {
-        MacosWindowEventHook::new(sender)
-    }
+    crate::impl_platform_factory_methods!(
+        Self,
+        InputDevice,
+        MacosOutputDevice,
+        WindowManager,
+        WindowPresetManager,
+        MacosNotificationService,
+        Launcher,
+        MacosWindowEventHook
+    );
 }

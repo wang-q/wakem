@@ -74,6 +74,13 @@ pub trait CommonWindowApi {
     fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
     /// Restore window
     fn restore_window(&self, window: Self::WindowId) -> Result<()>;
+    /// Ensure window is restored (not minimized or maximized)
+    fn ensure_window_restored(&self, window: Self::WindowId) -> Result<()> {
+        if self.is_maximized(window) {
+            self.restore_window(window)?;
+        }
+        Ok(())
+    }
     /// Close window
     fn close_window(&self, window: Self::WindowId) -> Result<()>;
     /// Get all monitors
