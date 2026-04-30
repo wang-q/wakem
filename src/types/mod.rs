@@ -1,4 +1,5 @@
 pub mod action;
+pub mod context;
 pub mod input;
 pub mod key_codes;
 pub mod layer;
@@ -6,6 +7,7 @@ pub mod macros;
 pub mod mapping;
 
 pub use action::*;
+pub use context::*;
 pub use input::*;
 #[allow(unused_imports)]
 pub use key_codes::*;

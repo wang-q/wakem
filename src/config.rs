@@ -529,7 +529,7 @@ impl WindowPreset {
 
 /// Public wildcard matching function - delegates to types::mapping
 pub fn wildcard_match(text: &str, pattern: &str) -> bool {
-    crate::types::mapping::wildcard_match(text, pattern)
+    crate::types::context::wildcard_match(text, pattern)
 }
 
 /// Mouse configuration
