@@ -7,6 +7,9 @@ use std::num::NonZeroU16;
 /// - Distinguish between "has value" and "no value" (0 means invalid)
 /// - Prevent confusion with other u16 types
 /// - Provide semantic construction methods
+///
+/// Note: This type is currently used primarily in tests and for type safety documentation.
+/// The actual input handling code uses raw u16 values for performance reasons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub struct ScanCode(NonZeroU16);
