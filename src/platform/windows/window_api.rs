@@ -13,9 +13,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
 };
 
-use crate::platform::traits::{
-    MonitorInfo, MonitorWorkArea, WindowApiBase, WindowFrame,
-};
+use crate::platform::traits::{MonitorInfo, MonitorWorkArea, WindowFrame};
 
 /// API call log entry (for MockWindowApi testing)
 #[derive(Debug, Clone)]
@@ -113,6 +111,29 @@ pub trait WindowApi {
     fn is_topmost(&self, hwnd: HWND) -> bool;
     /// Ensure window is restored
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
+
+    /// Alias matching WindowApiBase::is_window_valid
+    fn is_window_valid(&self, hwnd: HWND) -> bool {
+        self.is_window(hwnd)
+    }
+
+    /// Alias matching WindowApiBase::is_minimized
+    fn is_minimized(&self, hwnd: HWND) -> bool {
+        self.is_iconic(hwnd)
+    }
+
+    /// Alias matching WindowApiBase::is_maximized
+    fn is_maximized(&self, hwnd: HWND) -> bool {
+        self.is_zoomed(hwnd)
+    }
+
+    /// Alias matching WindowApiBase::get_monitors
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        let fg = self.get_foreground_window();
+        fg.and_then(|hwnd| self.get_monitor_info(hwnd))
+            .map(|info| vec![info])
+            .unwrap_or_default()
+    }
 }
 
 /// Real Windows API implementation
@@ -132,63 +153,7 @@ impl Default for RealWindowApi {
     }
 }
 
-impl WindowApiBase for RealWindowApi {
-    type WindowId = HWND;
-
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        WindowApi::get_foreground_window(self)
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        WindowApi::set_window_pos(self, window, x, y, width, height)
-    }
-
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::minimize_window(self, window)
-    }
-
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::maximize_window(self, window)
-    }
-
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::restore_window(self, window)
-    }
-
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::close_window(self, window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        WindowApi::set_topmost(self, window, topmost)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = WindowApi::get_foreground_window(self);
-        fg.and_then(|hwnd| WindowApi::get_monitor_info(self, hwnd))
-            .map(|info| vec![info])
-            .unwrap_or_default()
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_window(self, window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_iconic(self, window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_zoomed(self, window)
-    }
-}
+crate::impl_window_api_base_via!(RealWindowApi, WindowApi, HWND);
 
 impl WindowApi for RealWindowApi {
     fn get_foreground_window(&self) -> Option<HWND> {
@@ -594,6 +559,9 @@ impl Default for MockWindowApi {
 }
 
 #[cfg(test)]
+use crate::platform::traits::WindowApiBase;
+
+#[cfg(test)]
 impl WindowApiBase for MockWindowApi {
     type WindowId = HWND;
 
@@ -637,15 +605,15 @@ impl WindowApiBase for MockWindowApi {
     }
 
     fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_window(self, window)
+        WindowApi::is_window_valid(self, window)
     }
 
     fn is_minimized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_iconic(self, window)
+        WindowApi::is_minimized(self, window)
     }
 
     fn is_maximized(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_zoomed(self, window)
+        WindowApi::is_maximized(self, window)
     }
 }
 

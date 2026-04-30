@@ -1,7 +1,13 @@
-//! Cross-platform mock implementations for testing
+//! Mock implementations for testing
 //!
 //! This module provides mock implementations of platform-specific traits
 //! that can be used for testing on any platform.
+
+pub mod mock_window_api;
+
+// Re-export commonly used types for convenience
+#[allow(unused_imports)]
+pub use mock_window_api::{MockWindowApi, MockWindowState, WindowApiCall};
 
 use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
 use crate::types::{
@@ -339,6 +345,23 @@ impl OutputDeviceTrait for MockOutputDevice {
             .unwrap()
             .push(MockOutputEvent::MouseWheel { delta, horizontal });
         Ok(())
+    }
+}
+
+/// Trait for mock window IDs used in testing
+#[allow(dead_code)]
+pub trait MockWindowId: Copy + Clone + std::fmt::Debug + Send + Sync + 'static {
+    fn to_usize(self) -> usize;
+    fn from_usize(id: usize) -> Self;
+}
+
+impl MockWindowId for usize {
+    fn to_usize(self) -> usize {
+        self
+    }
+
+    fn from_usize(id: usize) -> Self {
+        id
     }
 }
 

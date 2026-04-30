@@ -455,14 +455,14 @@ impl WindowContext {
 macro_rules! impl_window_api_base_via {
     (
         $(#[$meta:meta])*
-        $impl_type:ty, $inner_trait:ty, $window_id:ty $(,)?
+        $impl_type:ty, $inner_trait:path, $window_id:ty $(,)?
     ) => {
         $(#[$meta])*
         impl $crate::platform::traits::WindowApiBase for $impl_type {
             type WindowId = $window_id;
 
             fn get_foreground_window(&self) -> Option<Self::WindowId> {
-                <$inner_trait>::get_foreground_window(self)
+                <$impl_type as $inner_trait>::get_foreground_window(self)
             }
 
             fn set_window_pos(
@@ -473,43 +473,43 @@ macro_rules! impl_window_api_base_via {
                 width: i32,
                 height: i32,
             ) -> ::anyhow::Result<()> {
-                <$inner_trait>::set_window_pos(self, window, x, y, width, height)
+                <$impl_type as $inner_trait>::set_window_pos(self, window, x, y, width, height)
             }
 
             fn minimize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$inner_trait>::minimize_window(self, window)
+                <$impl_type as $inner_trait>::minimize_window(self, window)
             }
 
             fn maximize_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$inner_trait>::maximize_window(self, window)
+                <$impl_type as $inner_trait>::maximize_window(self, window)
             }
 
             fn restore_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$inner_trait>::restore_window(self, window)
+                <$impl_type as $inner_trait>::restore_window(self, window)
             }
 
             fn close_window(&self, window: Self::WindowId) -> ::anyhow::Result<()> {
-                <$inner_trait>::close_window(self, window)
+                <$impl_type as $inner_trait>::close_window(self, window)
             }
 
             fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> ::anyhow::Result<()> {
-                <$inner_trait>::set_topmost(self, window, topmost)
+                <$impl_type as $inner_trait>::set_topmost(self, window, topmost)
             }
 
             fn get_monitors(&self) -> Vec<$crate::platform::traits::MonitorInfo> {
-                <$inner_trait>::get_monitors(self)
+                <$impl_type as $inner_trait>::get_monitors(self)
             }
 
             fn is_window_valid(&self, window: Self::WindowId) -> bool {
-                <$inner_trait>::is_window_valid(self, window)
+                <$impl_type as $inner_trait>::is_window_valid(self, window)
             }
 
             fn is_minimized(&self, window: Self::WindowId) -> bool {
-                <$inner_trait>::is_minimized(self, window)
+                <$impl_type as $inner_trait>::is_minimized(self, window)
             }
 
             fn is_maximized(&self, window: Self::WindowId) -> bool {
-                <$inner_trait>::is_maximized(self, window)
+                <$impl_type as $inner_trait>::is_maximized(self, window)
             }
         }
     };

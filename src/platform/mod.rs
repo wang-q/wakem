@@ -23,6 +23,7 @@
 
 // Core modules
 pub mod common;
+pub mod macros;
 pub mod mock;
 pub mod traits;
 

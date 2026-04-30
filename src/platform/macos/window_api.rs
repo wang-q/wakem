@@ -80,60 +80,7 @@ impl RealMacosWindowApi {
     }
 }
 
-impl WindowApiBase for RealMacosWindowApi {
-    type WindowId = WindowId;
-
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        <Self as MacosWindowApi>::get_foreground_window(self)
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        <Self as MacosWindowApi>::set_window_pos(self, window, x, y, width, height)
-    }
-
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::minimize_window(self, window)
-    }
-
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::maximize_window(self, window)
-    }
-
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::restore_window(self, window)
-    }
-
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::close_window(self, window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        <Self as MacosWindowApi>::set_topmost(self, window, topmost)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        <Self as MacosWindowApi>::get_monitors(self)
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        <Self as MacosWindowApi>::is_window_valid(self, window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        <Self as MacosWindowApi>::is_minimized(self, window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        <Self as MacosWindowApi>::is_maximized(self, window)
-    }
-}
+crate::impl_window_api_base_via!(RealMacosWindowApi, MacosWindowApi, WindowId);
 
 impl MacosWindowApi for RealMacosWindowApi {
     fn get_foreground_window(&self) -> Option<WindowId> {
@@ -510,60 +457,7 @@ impl Default for MockMacosWindowApi {
 }
 
 #[cfg(test)]
-impl WindowApiBase for MockMacosWindowApi {
-    type WindowId = WindowId;
-
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        <Self as MacosWindowApi>::get_foreground_window(self)
-    }
-
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        <Self as MacosWindowApi>::set_window_pos(self, window, x, y, width, height)
-    }
-
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::minimize_window(self, window)
-    }
-
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::maximize_window(self, window)
-    }
-
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::restore_window(self, window)
-    }
-
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        <Self as MacosWindowApi>::close_window(self, window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        <Self as MacosWindowApi>::set_topmost(self, window, topmost)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        <Self as MacosWindowApi>::get_monitors(self)
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        <Self as MacosWindowApi>::is_window_valid(self, window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        <Self as MacosWindowApi>::is_minimized(self, window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        <Self as MacosWindowApi>::is_maximized(self, window)
-    }
-}
+crate::impl_window_api_base_via!(MockMacosWindowApi, MacosWindowApi, WindowId);
 
 #[cfg(test)]
 impl MacosWindowApi for MockMacosWindowApi {
