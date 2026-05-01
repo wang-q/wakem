@@ -82,10 +82,6 @@ impl<A: MacosWindowApi + Clone + Send + Sync> WindowOperations
     fn close_window(&self, window: WindowId) -> Result<()> {
         self.api.close_window(window)
     }
-
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
-        self.api.set_topmost(window, topmost)
-    }
 }
 
 impl<A: MacosWindowApi + Clone + Send + Sync> WindowStateQueries
@@ -123,6 +119,10 @@ impl<A: MacosWindowApi + Clone + Send + Sync> MonitorOperations
 impl ForegroundWindowOperations for MacosWindowManager<RealMacosWindowApi> {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window()
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        self.api.set_topmost(window, topmost)
     }
 
     fn switch_to_next_window_of_same_process(&self) -> Result<()> {

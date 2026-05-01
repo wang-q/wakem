@@ -6,6 +6,7 @@
 //! Shared data types are defined in [`super::types`] and re-exported here.
 
 use crate::platform::common::output_helpers::char_to_vk;
+use crate::types::key_codes::{VK_ALT, VK_CONTROL, VK_LMETA, VK_SHIFT};
 use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
 use anyhow::Result;
 use std::sync::Arc;
@@ -43,7 +44,7 @@ pub trait OutputDeviceTrait: Send {
             }
             KeyAction::TypeText(text) => self.send_text(text),
             KeyAction::Combo { modifiers, key } => {
-                self.send_combo(modifiers, key.0, key.1)
+                self.send_combo(modifiers, key.scan_code, key.virtual_key)
             }
             KeyAction::None => Ok(()),
         }
@@ -65,35 +66,33 @@ pub trait OutputDeviceTrait: Send {
         scan_code: u16,
         virtual_key: u16,
     ) -> Result<()> {
-        use crate::platform::common::output_helpers::modifier_vk;
-
         if modifiers.shift {
-            self.send_key(0, modifier_vk::SHIFT, false)?;
+            self.send_key(0, VK_SHIFT, false)?;
         }
         if modifiers.ctrl {
-            self.send_key(0, modifier_vk::CONTROL, false)?;
+            self.send_key(0, VK_CONTROL, false)?;
         }
         if modifiers.alt {
-            self.send_key(0, modifier_vk::ALT, false)?;
+            self.send_key(0, VK_ALT, false)?;
         }
         if modifiers.meta {
-            self.send_key(0, modifier_vk::META, false)?;
+            self.send_key(0, VK_LMETA, false)?;
         }
 
         self.send_key(scan_code, virtual_key, false)?;
         self.send_key(scan_code, virtual_key, true)?;
 
         if modifiers.meta {
-            self.send_key(0, modifier_vk::META, true)?;
+            self.send_key(0, VK_LMETA, true)?;
         }
         if modifiers.alt {
-            self.send_key(0, modifier_vk::ALT, true)?;
+            self.send_key(0, VK_ALT, true)?;
         }
         if modifiers.ctrl {
-            self.send_key(0, modifier_vk::CONTROL, true)?;
+            self.send_key(0, VK_CONTROL, true)?;
         }
         if modifiers.shift {
-            self.send_key(0, modifier_vk::SHIFT, true)?;
+            self.send_key(0, VK_SHIFT, true)?;
         }
 
         Ok(())
@@ -216,7 +215,6 @@ pub trait WindowOperations: Send + Sync {
     fn maximize_window(&self, window: WindowId) -> Result<()>;
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
 }
 
 /// Window state query operations
@@ -236,6 +234,7 @@ pub trait MonitorOperations: Send + Sync {
 /// Foreground window operations
 pub trait ForegroundWindowOperations: Send + Sync {
     fn get_foreground_window(&self) -> Option<WindowId>;
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
     fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         debug!("SwitchToNextWindow: not implemented on this platform");
         Ok(())

@@ -1,6 +1,37 @@
 use super::{now, DeviceType, KeyState, ModifierState, Timestamp, VirtualKey};
 use serde::{Deserialize, Serialize};
 
+/// Parsed key information (scan code + virtual key code)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyInfo {
+    pub scan_code: u16,
+    pub virtual_key: u16,
+}
+
+impl KeyInfo {
+    pub fn new(scan_code: u16, virtual_key: u16) -> Self {
+        Self {
+            scan_code,
+            virtual_key,
+        }
+    }
+}
+
+impl From<(u16, u16)> for KeyInfo {
+    fn from((scan_code, virtual_key): (u16, u16)) -> Self {
+        Self {
+            scan_code,
+            virtual_key,
+        }
+    }
+}
+
+impl From<KeyInfo> for (u16, u16) {
+    fn from(ki: KeyInfo) -> Self {
+        (ki.scan_code, ki.virtual_key)
+    }
+}
+
 /// Keyboard event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyEvent {

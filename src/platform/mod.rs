@@ -37,6 +37,7 @@ pub mod common;
 // ---------------------------------------------------------------------------
 // Layer 3: Platform-specific modules (selected via conditional compilation)
 // ---------------------------------------------------------------------------
+#[cfg(any(test, feature = "test-utils"))]
 pub mod mock;
 
 #[cfg(target_os = "windows")]

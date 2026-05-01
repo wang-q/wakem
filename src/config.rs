@@ -263,12 +263,12 @@ impl Config {
         let mut map = HashMap::new();
         for (key_str, target_str) in &self.keyboard.remap {
             if target_str.contains('+') && !target_str.contains("->") {
-                if let Ok((sc, vk)) = parse_key(key_str) {
+                if let Ok(key) = parse_key(key_str) {
                     if let Ok(modifiers) = parse_modifier_combo(target_str) {
-                        map.insert((sc, vk), modifiers);
+                        map.insert((key.scan_code, key.virtual_key), modifiers);
                         debug!(
-                            scan_code = sc,
-                            virtual_key = vk,
+                            scan_code = key.scan_code,
+                            virtual_key = key.virtual_key,
                             ?modifiers,
                             "Found hyper key mapping"
                         );
@@ -291,17 +291,18 @@ impl Config {
 
         // Parse activation key
         let activation_key = parse_key(&layer.activation_key)?;
-        let activation_trigger = Trigger::key(activation_key.0, activation_key.1);
+        let activation_trigger =
+            Trigger::key(activation_key.scan_code, activation_key.virtual_key);
 
         // Create layer switch action based on mode
         let layer_action = match layer.mode {
             LayerMode::Hold => Action::key(KeyAction::Press {
-                scan_code: activation_key.0,
-                virtual_key: activation_key.1,
+                scan_code: activation_key.scan_code,
+                virtual_key: activation_key.virtual_key,
             }),
             LayerMode::Toggle => Action::key(KeyAction::Click {
-                scan_code: activation_key.0,
-                virtual_key: activation_key.1,
+                scan_code: activation_key.scan_code,
+                virtual_key: activation_key.virtual_key,
             }),
         };
 
@@ -313,12 +314,15 @@ impl Config {
             if let Ok(from_key) = parse_key(from) {
                 // Check if it's a window management action
                 if let Ok(window_action) = parse_window_action(to) {
-                    let trigger = Trigger::key(from_key.0, from_key.1);
+                    let trigger = Trigger::key(from_key.scan_code, from_key.virtual_key);
                     let action = Action::window(window_action);
                     rules.push(MappingRule::new(trigger, action));
                 } else if let Ok(to_key) = parse_key(to) {
-                    let trigger = Trigger::key(from_key.0, from_key.1);
-                    let action = Action::key(KeyAction::click(to_key.0, to_key.1));
+                    let trigger = Trigger::key(from_key.scan_code, from_key.virtual_key);
+                    let action = Action::key(KeyAction::click(
+                        to_key.scan_code,
+                        to_key.virtual_key,
+                    ));
                     rules.push(MappingRule::new(trigger, action));
                 }
             }
@@ -602,7 +606,7 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
 
     // Check if it's a window management action
     if let Ok(window_action) = parse_window_action(to) {
-        let trigger = Trigger::key(from_key.0, from_key.1);
+        let trigger = Trigger::key(from_key.scan_code, from_key.virtual_key);
         let action = Action::window(window_action);
         return Ok(MappingRule::new(trigger, action));
     }
@@ -615,15 +619,15 @@ fn parse_key_mapping(from: &str, to: &str) -> anyhow::Result<MappingRule> {
         // Create a special Hyper key action that holds modifiers while key is held
         let action = create_hyper_key_action(&modifiers);
         return Ok(MappingRule::new(
-            Trigger::key(from_key.0, from_key.1),
+            Trigger::key(from_key.scan_code, from_key.virtual_key),
             action,
         ));
     }
 
     let to_key = parse_key(to)?;
 
-    let trigger = Trigger::key(from_key.0, from_key.1);
-    let action = Action::key(KeyAction::click(to_key.0, to_key.1));
+    let trigger = Trigger::key(from_key.scan_code, from_key.virtual_key);
+    let action = Action::key(KeyAction::click(to_key.scan_code, to_key.virtual_key));
 
     Ok(MappingRule::new(trigger, action))
 }
@@ -671,9 +675,15 @@ fn create_hyper_key_action(
 
     for (key_name, active) in modifier_keys {
         if active {
-            if let Ok((sc, vk)) = parse_key(key_name) {
-                press_actions.push(Action::key(KeyAction::press(sc, vk)));
-                release_actions.insert(0, Action::key(KeyAction::release(sc, vk)));
+            if let Ok(key) = parse_key(key_name) {
+                press_actions.push(Action::key(KeyAction::press(
+                    key.scan_code,
+                    key.virtual_key,
+                )));
+                release_actions.insert(
+                    0,
+                    Action::key(KeyAction::release(key.scan_code, key.virtual_key)),
+                );
             }
         }
     }
@@ -732,7 +742,11 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
     }
 
     let key = parse_key(key_name)?;
-    Ok(Trigger::key_with_modifiers(key.0, key.1, modifiers))
+    Ok(Trigger::key_with_modifiers(
+        key.scan_code,
+        key.virtual_key,
+        modifiers,
+    ))
 }
 
 /// Parse window management action
@@ -873,14 +887,14 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 
 /// Parse key name to scan code and virtual key code
 /// Uses match expression for O(1) lookup without heap allocation
-pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
+pub fn parse_key(name: &str) -> anyhow::Result<crate::types::KeyInfo> {
     let name_lower = name.to_lowercase();
 
     // Try keyboard-codes first (supports standard key names)
     if let Ok(key) = name_lower.parse::<Key>() {
         let win_code = key.to_code(Platform::Windows) as u16;
         if win_code != 0 || !name_lower.is_empty() {
-            return Ok((win_code, win_code));
+            return Ok(crate::types::KeyInfo::new(win_code, win_code));
         }
     }
 
@@ -890,120 +904,136 @@ pub fn parse_key(name: &str) -> anyhow::Result<(u16, u16)> {
     #[cfg(target_os = "windows")]
     match name_lower.as_str() {
         // Special keys
-        "capslock" | "caps" => Ok((0x3A, 0x14)),
-        "backspace" => Ok((0x0E, 0x08)),
-        "enter" | "return" => Ok((0x1C, 0x0D)),
-        "escape" | "esc" => Ok((0x01, 0x1B)),
-        "space" => Ok((0x39, 0x20)),
-        "tab" => Ok((0x0F, 0x09)),
-        "grave" | "backtick" => Ok((0x29, 0xC0)),
+        "capslock" | "caps" => Ok(crate::types::KeyInfo::new(0x3A, 0x14)),
+        "backspace" => Ok(crate::types::KeyInfo::new(0x0E, 0x08)),
+        "enter" | "return" => Ok(crate::types::KeyInfo::new(0x1C, 0x0D)),
+        "escape" | "esc" => Ok(crate::types::KeyInfo::new(0x01, 0x1B)),
+        "space" => Ok(crate::types::KeyInfo::new(0x39, 0x20)),
+        "tab" => Ok(crate::types::KeyInfo::new(0x0F, 0x09)),
+        "grave" | "backtick" => Ok(crate::types::KeyInfo::new(0x29, 0xC0)),
 
         // Arrow keys
-        "left" => Ok((0x4B, 0x25)),
-        "up" => Ok((0x48, 0x26)),
-        "right" => Ok((0x4D, 0x27)),
-        "down" => Ok((0x50, 0x28)),
+        "left" => Ok(crate::types::KeyInfo::new(0x4B, 0x25)),
+        "up" => Ok(crate::types::KeyInfo::new(0x48, 0x26)),
+        "right" => Ok(crate::types::KeyInfo::new(0x4D, 0x27)),
+        "down" => Ok(crate::types::KeyInfo::new(0x50, 0x28)),
 
         // Editing keys
-        "home" => Ok((0x47, 0x24)),
-        "end" => Ok((0x4F, 0x23)),
-        "pageup" => Ok((0x49, 0x21)),
-        "pagedown" => Ok((0x51, 0x22)),
-        "delete" | "del" | "forwarddelete" | "forwarddel" => Ok((0x53, 0x2E)),
-        "insert" | "ins" => Ok((0x52, 0x2D)),
+        "home" => Ok(crate::types::KeyInfo::new(0x47, 0x24)),
+        "end" => Ok(crate::types::KeyInfo::new(0x4F, 0x23)),
+        "pageup" => Ok(crate::types::KeyInfo::new(0x49, 0x21)),
+        "pagedown" => Ok(crate::types::KeyInfo::new(0x51, 0x22)),
+        "delete" | "del" | "forwarddelete" | "forwarddel" => {
+            Ok(crate::types::KeyInfo::new(0x53, 0x2E))
+        }
+        "insert" | "ins" => Ok(crate::types::KeyInfo::new(0x52, 0x2D)),
 
         // Modifier keys
-        "lshift" | "leftshift" => Ok((0x2A, 0xA0)),
-        "rshift" | "rightshift" => Ok((0x36, 0xA1)),
-        "lctrl" | "lcontrol" | "leftctrl" | "leftcontrol" => Ok((0x1D, 0xA2)),
-        "rctrl" | "rcontrol" | "rightctrl" | "rightcontrol" => Ok((0xE01D, 0xA3)),
-        "lalt" | "leftalt" => Ok((0x38, 0xA4)),
-        "ralt" | "rightalt" => Ok((0xE038, 0xA5)),
-        "lwin" | "lmeta" | "leftwin" | "leftmeta" => Ok((0xE05B, 0x5B)),
-        "rwin" | "rmeta" | "rightwin" | "rightmeta" => Ok((0xE05C, 0x5C)),
+        "lshift" | "leftshift" => Ok(crate::types::KeyInfo::new(0x2A, 0xA0)),
+        "rshift" | "rightshift" => Ok(crate::types::KeyInfo::new(0x36, 0xA1)),
+        "lctrl" | "lcontrol" | "leftctrl" | "leftcontrol" => {
+            Ok(crate::types::KeyInfo::new(0x1D, 0xA2))
+        }
+        "rctrl" | "rcontrol" | "rightctrl" | "rightcontrol" => {
+            Ok(crate::types::KeyInfo::new(0xE01D, 0xA3))
+        }
+        "lalt" | "leftalt" => Ok(crate::types::KeyInfo::new(0x38, 0xA4)),
+        "ralt" | "rightalt" => Ok(crate::types::KeyInfo::new(0xE038, 0xA5)),
+        "lwin" | "lmeta" | "leftwin" | "leftmeta" => {
+            Ok(crate::types::KeyInfo::new(0xE05B, 0x5B))
+        }
+        "rwin" | "rmeta" | "rightwin" | "rightmeta" => {
+            Ok(crate::types::KeyInfo::new(0xE05C, 0x5C))
+        }
 
         // Letter keys a-z
-        "a" => Ok((0x1E, 0x41)),
-        "b" => Ok((0x30, 0x42)),
-        "c" => Ok((0x2E, 0x43)),
-        "d" => Ok((0x20, 0x44)),
-        "e" => Ok((0x12, 0x45)),
-        "f" => Ok((0x21, 0x46)),
-        "g" => Ok((0x22, 0x47)),
-        "h" => Ok((0x23, 0x48)),
-        "i" => Ok((0x17, 0x49)),
-        "j" => Ok((0x24, 0x4A)),
-        "k" => Ok((0x25, 0x4B)),
-        "l" => Ok((0x26, 0x4C)),
-        "m" => Ok((0x32, 0x4D)),
-        "n" => Ok((0x31, 0x4E)),
-        "o" => Ok((0x18, 0x4F)),
-        "p" => Ok((0x19, 0x50)),
-        "q" => Ok((0x10, 0x51)),
-        "r" => Ok((0x13, 0x52)),
-        "s" => Ok((0x1F, 0x53)),
-        "t" => Ok((0x14, 0x54)),
-        "u" => Ok((0x16, 0x55)),
-        "v" => Ok((0x2F, 0x56)),
-        "w" => Ok((0x11, 0x57)),
-        "x" => Ok((0x2D, 0x58)),
-        "y" => Ok((0x15, 0x59)),
-        "z" => Ok((0x2C, 0x5A)),
+        "a" => Ok(crate::types::KeyInfo::new(0x1E, 0x41)),
+        "b" => Ok(crate::types::KeyInfo::new(0x30, 0x42)),
+        "c" => Ok(crate::types::KeyInfo::new(0x2E, 0x43)),
+        "d" => Ok(crate::types::KeyInfo::new(0x20, 0x44)),
+        "e" => Ok(crate::types::KeyInfo::new(0x12, 0x45)),
+        "f" => Ok(crate::types::KeyInfo::new(0x21, 0x46)),
+        "g" => Ok(crate::types::KeyInfo::new(0x22, 0x47)),
+        "h" => Ok(crate::types::KeyInfo::new(0x23, 0x48)),
+        "i" => Ok(crate::types::KeyInfo::new(0x17, 0x49)),
+        "j" => Ok(crate::types::KeyInfo::new(0x24, 0x4A)),
+        "k" => Ok(crate::types::KeyInfo::new(0x25, 0x4B)),
+        "l" => Ok(crate::types::KeyInfo::new(0x26, 0x4C)),
+        "m" => Ok(crate::types::KeyInfo::new(0x32, 0x4D)),
+        "n" => Ok(crate::types::KeyInfo::new(0x31, 0x4E)),
+        "o" => Ok(crate::types::KeyInfo::new(0x18, 0x4F)),
+        "p" => Ok(crate::types::KeyInfo::new(0x19, 0x50)),
+        "q" => Ok(crate::types::KeyInfo::new(0x10, 0x51)),
+        "r" => Ok(crate::types::KeyInfo::new(0x13, 0x52)),
+        "s" => Ok(crate::types::KeyInfo::new(0x1F, 0x53)),
+        "t" => Ok(crate::types::KeyInfo::new(0x14, 0x54)),
+        "u" => Ok(crate::types::KeyInfo::new(0x16, 0x55)),
+        "v" => Ok(crate::types::KeyInfo::new(0x2F, 0x56)),
+        "w" => Ok(crate::types::KeyInfo::new(0x11, 0x57)),
+        "x" => Ok(crate::types::KeyInfo::new(0x2D, 0x58)),
+        "y" => Ok(crate::types::KeyInfo::new(0x15, 0x59)),
+        "z" => Ok(crate::types::KeyInfo::new(0x2C, 0x5A)),
 
         // Number keys 0-9
-        "0" => Ok((0x0B, 0x30)),
-        "1" => Ok((0x02, 0x31)),
-        "2" => Ok((0x03, 0x32)),
-        "3" => Ok((0x04, 0x33)),
-        "4" => Ok((0x05, 0x34)),
-        "5" => Ok((0x06, 0x35)),
-        "6" => Ok((0x07, 0x36)),
-        "7" => Ok((0x08, 0x37)),
-        "8" => Ok((0x09, 0x38)),
-        "9" => Ok((0x0A, 0x39)),
+        "0" => Ok(crate::types::KeyInfo::new(0x0B, 0x30)),
+        "1" => Ok(crate::types::KeyInfo::new(0x02, 0x31)),
+        "2" => Ok(crate::types::KeyInfo::new(0x03, 0x32)),
+        "3" => Ok(crate::types::KeyInfo::new(0x04, 0x33)),
+        "4" => Ok(crate::types::KeyInfo::new(0x05, 0x34)),
+        "5" => Ok(crate::types::KeyInfo::new(0x06, 0x35)),
+        "6" => Ok(crate::types::KeyInfo::new(0x07, 0x36)),
+        "7" => Ok(crate::types::KeyInfo::new(0x08, 0x37)),
+        "8" => Ok(crate::types::KeyInfo::new(0x09, 0x38)),
+        "9" => Ok(crate::types::KeyInfo::new(0x0A, 0x39)),
 
         // Function keys F1-F12
-        "f1" => Ok((0x3B, 0x70)),
-        "f2" => Ok((0x3C, 0x71)),
-        "f3" => Ok((0x3D, 0x72)),
-        "f4" => Ok((0x3E, 0x73)),
-        "f5" => Ok((0x3F, 0x74)),
-        "f6" => Ok((0x40, 0x75)),
-        "f7" => Ok((0x41, 0x76)),
-        "f8" => Ok((0x42, 0x77)),
-        "f9" => Ok((0x43, 0x78)),
-        "f10" => Ok((0x44, 0x79)),
-        "f11" => Ok((0x57, 0x7A)),
-        "f12" => Ok((0x58, 0x7B)),
+        "f1" => Ok(crate::types::KeyInfo::new(0x3B, 0x70)),
+        "f2" => Ok(crate::types::KeyInfo::new(0x3C, 0x71)),
+        "f3" => Ok(crate::types::KeyInfo::new(0x3D, 0x72)),
+        "f4" => Ok(crate::types::KeyInfo::new(0x3E, 0x73)),
+        "f5" => Ok(crate::types::KeyInfo::new(0x3F, 0x74)),
+        "f6" => Ok(crate::types::KeyInfo::new(0x40, 0x75)),
+        "f7" => Ok(crate::types::KeyInfo::new(0x41, 0x76)),
+        "f8" => Ok(crate::types::KeyInfo::new(0x42, 0x77)),
+        "f9" => Ok(crate::types::KeyInfo::new(0x43, 0x78)),
+        "f10" => Ok(crate::types::KeyInfo::new(0x44, 0x79)),
+        "f11" => Ok(crate::types::KeyInfo::new(0x57, 0x7A)),
+        "f12" => Ok(crate::types::KeyInfo::new(0x58, 0x7B)),
 
         // Punctuation keys (US layout)
-        "comma" | "," => Ok((0x33, 0xBC)), // VK_OEM_COMMA
-        "period" | "." => Ok((0x34, 0xBE)), // VK_OEM_PERIOD
-        "semicolon" | ";" => Ok((0x27, 0xBA)), // VK_OEM_1
-        "quote" | "'" | "apostrophe" => Ok((0x28, 0xDE)), // VK_OEM_7
-        "bracketleft" | "[" => Ok((0x1A, 0xDB)), // VK_OEM_4
-        "bracketright" | "]" => Ok((0x1B, 0xDD)), // VK_OEM_6
-        "backslash" | "\\" => Ok((0x2B, 0xDC)), // VK_OEM_5
-        "minus" | "-" => Ok((0x0C, 0xBD)), // VK_OEM_MINUS
-        "equal" | "=" => Ok((0x0D, 0xBB)), // VK_OEM_PLUS
+        "comma" | "," => Ok(crate::types::KeyInfo::new(0x33, 0xBC)), // VK_OEM_COMMA
+        "period" | "." => Ok(crate::types::KeyInfo::new(0x34, 0xBE)), // VK_OEM_PERIOD
+        "semicolon" | ";" => Ok(crate::types::KeyInfo::new(0x27, 0xBA)), // VK_OEM_1
+        "quote" | "'" | "apostrophe" => Ok(crate::types::KeyInfo::new(0x28, 0xDE)), // VK_OEM_7
+        "bracketleft" | "[" => Ok(crate::types::KeyInfo::new(0x1A, 0xDB)), // VK_OEM_4
+        "bracketright" | "]" => Ok(crate::types::KeyInfo::new(0x1B, 0xDD)), // VK_OEM_6
+        "backslash" | "\\" => Ok(crate::types::KeyInfo::new(0x2B, 0xDC)),  // VK_OEM_5
+        "minus" | "-" => Ok(crate::types::KeyInfo::new(0x0C, 0xBD)), // VK_OEM_MINUS
+        "equal" | "=" => Ok(crate::types::KeyInfo::new(0x0D, 0xBB)), // VK_OEM_PLUS
 
         // Numpad keys
-        "numpad0" | "num0" => Ok((0x52, 0x60)),
-        "numpad1" | "num1" => Ok((0x4F, 0x61)),
-        "numpad2" | "num2" => Ok((0x50, 0x62)),
-        "numpad3" | "num3" => Ok((0x51, 0x63)),
-        "numpad4" | "num4" => Ok((0x4B, 0x64)),
-        "numpad5" | "num5" => Ok((0x4C, 0x65)),
-        "numpad6" | "num6" => Ok((0x4D, 0x66)),
-        "numpad7" | "num7" => Ok((0x47, 0x67)),
-        "numpad8" | "num8" => Ok((0x48, 0x68)),
-        "numpad9" | "num9" => Ok((0x49, 0x69)),
-        "numpaddot" | "numdot" | "numpaddecimal" => Ok((0x53, 0x6E)),
-        "numpadenter" | "numenter" => Ok((0x1C, 0x0C)),
-        "numpadadd" | "numplus" => Ok((0x4E, 0x6B)),
-        "numpadsub" | "numminus" => Ok((0x4A, 0x6D)),
-        "numpadmul" | "nummul" | "numpadmultiply" => Ok((0x37, 0x6A)),
-        "numpaddiv" | "numslash" | "numpaddivide" => Ok((0x35, 0x6F)),
+        "numpad0" | "num0" => Ok(crate::types::KeyInfo::new(0x52, 0x60)),
+        "numpad1" | "num1" => Ok(crate::types::KeyInfo::new(0x4F, 0x61)),
+        "numpad2" | "num2" => Ok(crate::types::KeyInfo::new(0x50, 0x62)),
+        "numpad3" | "num3" => Ok(crate::types::KeyInfo::new(0x51, 0x63)),
+        "numpad4" | "num4" => Ok(crate::types::KeyInfo::new(0x4B, 0x64)),
+        "numpad5" | "num5" => Ok(crate::types::KeyInfo::new(0x4C, 0x65)),
+        "numpad6" | "num6" => Ok(crate::types::KeyInfo::new(0x4D, 0x66)),
+        "numpad7" | "num7" => Ok(crate::types::KeyInfo::new(0x47, 0x67)),
+        "numpad8" | "num8" => Ok(crate::types::KeyInfo::new(0x48, 0x68)),
+        "numpad9" | "num9" => Ok(crate::types::KeyInfo::new(0x49, 0x69)),
+        "numpaddot" | "numdot" | "numpaddecimal" => {
+            Ok(crate::types::KeyInfo::new(0x53, 0x6E))
+        }
+        "numpadenter" | "numenter" => Ok(crate::types::KeyInfo::new(0x1C, 0x0C)),
+        "numpadadd" | "numplus" => Ok(crate::types::KeyInfo::new(0x4E, 0x6B)),
+        "numpadsub" | "numminus" => Ok(crate::types::KeyInfo::new(0x4A, 0x6D)),
+        "numpadmul" | "nummul" | "numpadmultiply" => {
+            Ok(crate::types::KeyInfo::new(0x37, 0x6A))
+        }
+        "numpaddiv" | "numslash" | "numpaddivide" => {
+            Ok(crate::types::KeyInfo::new(0x35, 0x6F))
+        }
 
         _ => Err(anyhow::anyhow!("Unknown key name: {}", name)),
     }
@@ -1173,12 +1203,21 @@ J = "Down"
 
     #[test]
     fn test_parse_key() {
-        assert_eq!(parse_key("capslock").unwrap(), (0x3A, 0x14));
-        assert_eq!(parse_key("a").unwrap(), (0x1E, 0x41));
-        assert_eq!(parse_key("1").unwrap(), (0x02, 0x31));
-        // Test Grave/Backtick key (Alt+` shortcut)
-        assert_eq!(parse_key("grave").unwrap(), (0x29, 0xC0));
-        assert_eq!(parse_key("backtick").unwrap(), (0x29, 0xC0));
+        let k = parse_key("capslock").unwrap();
+        assert_eq!(k.scan_code, 0x3A);
+        assert_eq!(k.virtual_key, 0x14);
+        let k = parse_key("a").unwrap();
+        assert_eq!(k.scan_code, 0x1E);
+        assert_eq!(k.virtual_key, 0x41);
+        let k = parse_key("1").unwrap();
+        assert_eq!(k.scan_code, 0x02);
+        assert_eq!(k.virtual_key, 0x31);
+        let k = parse_key("grave").unwrap();
+        assert_eq!(k.scan_code, 0x29);
+        assert_eq!(k.virtual_key, 0xC0);
+        let k = parse_key("backtick").unwrap();
+        assert_eq!(k.scan_code, 0x29);
+        assert_eq!(k.virtual_key, 0xC0);
     }
 
     #[test]

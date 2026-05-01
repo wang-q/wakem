@@ -169,7 +169,7 @@ impl LayerManager {
     ) -> anyhow::Result<Layer> {
         use crate::config::parse_key;
 
-        let (scan, vk) = parse_key(activation_key)?;
+        let (scan, vk) = parse_key(activation_key)?.into();
         let mut layer = Layer::new(name, scan, vk).with_mode(mode);
 
         for (from, to) in mappings {
@@ -177,8 +177,8 @@ impl LayerManager {
             let to_key = parse_key(to)?;
 
             layer.add_mapping(
-                Trigger::key(from_key.0, from_key.1),
-                Action::key(KeyAction::click(to_key.0, to_key.1)),
+                Trigger::key(from_key.scan_code, from_key.virtual_key),
+                Action::key(KeyAction::click(to_key.scan_code, to_key.virtual_key)),
             );
         }
 

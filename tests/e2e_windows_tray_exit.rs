@@ -98,7 +98,9 @@ async fn send_ipc_shutdown(instance_id: u32) -> bool {
     let mut client = DaemonClient::new();
     let address = get_instance_address(instance_id);
 
-    match tokio::time::timeout(Duration::from_secs(5), client.connect(&address, None)).await {
+    match tokio::time::timeout(Duration::from_secs(5), client.connect(&address, None))
+        .await
+    {
         Ok(Ok(())) => {
             info!("Connected to daemon, sending shutdown...");
             match client.shutdown().await {
@@ -200,7 +202,10 @@ fn test_tray_exit_with_daemon_via_ipc() {
 
     info!("Waiting for tray to exit...");
     let tray_exited = wait_for_exit(&mut tray, TRAY_EXIT_TIMEOUT);
-    assert!(tray_exited, "Tray process should exit after daemon shuts down");
+    assert!(
+        tray_exited,
+        "Tray process should exit after daemon shuts down"
+    );
 
     cleanup_process(&mut daemon, "daemon");
     cleanup_process(&mut tray, "tray");

@@ -31,7 +31,7 @@ pub enum KeyState {
 }
 
 /// Modifier key state
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModifierState {
     pub shift: bool,
     pub ctrl: bool,
@@ -78,10 +78,10 @@ impl ModifierState {
     /// Apply modifier state from a virtual key event (sets on press, clears on release)
     pub fn apply_from_virtual_key(&mut self, key: u16, pressed: bool) -> bool {
         match key {
-            0x10 | 0xA0 | 0xA1 => self.shift = pressed,
-            0x11 | 0xA2 | 0xA3 => self.ctrl = pressed,
-            0x12 | 0xA4 | 0xA5 => self.alt = pressed,
-            0x5B | 0x5C => self.meta = pressed,
+            VK_SHIFT | VK_LSHIFT | VK_RSHIFT => self.shift = pressed,
+            VK_CONTROL | VK_LCONTROL | VK_RCONTROL => self.ctrl = pressed,
+            VK_ALT | VK_LALT | VK_RALT => self.alt = pressed,
+            VK_LMETA | VK_RMETA => self.meta = pressed,
             _ => return false,
         }
         true

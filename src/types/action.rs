@@ -14,7 +14,7 @@ pub enum KeyAction {
     /// Key combination (e.g., Ctrl+C)
     Combo {
         modifiers: super::ModifierState,
-        key: (u16, u16), // (scan_code, virtual_key)
+        key: super::KeyInfo,
     },
     /// No operation
     None,
@@ -69,7 +69,7 @@ impl KeyAction {
     ) -> Self {
         Self::Combo {
             modifiers,
-            key: (scan_code, virtual_key),
+            key: super::KeyInfo::new(scan_code, virtual_key),
         }
     }
 }
@@ -344,7 +344,8 @@ mod tests {
         let action = KeyAction::combo(modifiers, 0x1E, 0x41);
         if let KeyAction::Combo { modifiers: m, key } = action {
             assert!(m.ctrl);
-            assert_eq!(key, (0x1E, 0x41));
+            assert_eq!(key.scan_code, 0x1E);
+            assert_eq!(key.virtual_key, 0x41);
         }
     }
 

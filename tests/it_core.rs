@@ -88,10 +88,10 @@ instance_id = 256
 fn test_parse_key_consistency() {
     for ch in 'a'..='z' {
         let name = ch.to_string();
-        let (scan_code, virtual_key) =
+        let key_info =
             parse_key(&name).unwrap_or_else(|_| panic!("Failed to parse key: {}", name));
-        assert!(scan_code > 0 && scan_code <= 0xFF);
-        assert!(virtual_key > 0 && virtual_key <= 0xFF);
+        assert!(key_info.scan_code > 0 && key_info.scan_code <= 0xFF);
+        assert!(key_info.virtual_key > 0 && key_info.virtual_key <= 0xFF);
     }
 
     for ch in '0'..='9' {

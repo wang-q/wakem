@@ -37,19 +37,14 @@ clap = { version = "4.4", features = ["derive"] }
 # Other
 indexmap = "2.0"
 once_cell = "1.19"
-lazy_static = "1.4"
 dirs = "5"
-libc = "0.2"  # For native API calls (pid_t, c_char, proc_pidpath)
-regex = "1.10"
+libc = "0.2"
 
 # Crypto (for network auth)
 hmac = "0.12"
 sha2 = "0.10"
 rand = "0.8"
 zeroize = { version = "1.7", features = ["derive"] }
-
-# Time
-chrono = { version = "0.4", features = ["serde"] }
 
 # Keyboard code mapping (cross-platform)
 keyboard-codes = { version = "0.3", features = ["serde", "phf"] }
@@ -59,8 +54,8 @@ async-trait = "0.1"
 
 [features]
 default = []
-# Workaround for objc crate using deprecated cargo-clippy cfg
 cargo-clippy = []
+test-utils = []
 
 # Platform-specific dependencies
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -105,8 +100,9 @@ criterion = "0.5"
 # Temporary directories for testing
 tempfile = "3.10"
 
-# RAII guards for cleanup
-scopeguard = "1.2"
+[[test]]
+name = "ut_window_actions"
+required-features = ["test-utils"]
 
 [[bench]]
 name = "basic_benchmarks"

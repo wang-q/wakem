@@ -251,13 +251,13 @@ impl KeyMapper {
 
         if let Ok(to_key) = parse_key(to) {
             return Ok((
-                from_key.0,
-                Action::key(KeyAction::click(to_key.0, to_key.1)),
+                from_key.scan_code,
+                Action::key(KeyAction::click(to_key.scan_code, to_key.virtual_key)),
             ));
         }
 
         if let Ok(window_action) = crate::config::parse_window_action(to) {
-            return Ok((from_key.0, Action::window(window_action)));
+            return Ok((from_key.scan_code, Action::window(window_action)));
         }
 
         Err(anyhow::anyhow!(

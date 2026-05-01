@@ -102,9 +102,9 @@ proptest! {
         let result = parse_key(&name);
         prop_assert!(result.is_ok());
 
-        if let Ok((scan_code, virtual_key)) = result {
-            prop_assert!(scan_code > 0 && scan_code <= 0xFF);
-            prop_assert!(virtual_key > 0 && virtual_key <= 0xFF);
+        if let Ok(key_info) = result {
+            prop_assert!(key_info.scan_code > 0 && key_info.scan_code <= 0xFF);
+            prop_assert!(key_info.virtual_key > 0 && key_info.virtual_key <= 0xFF);
         }
     }
 }

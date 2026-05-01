@@ -102,32 +102,32 @@ fn test_parse_all_letter_keys() {
     use wakem::config::parse_key;
 
     let letter_keys = vec![
-        ("a", (0x1E, 0x41)),
-        ("b", (0x30, 0x42)),
-        ("c", (0x2E, 0x43)),
-        ("d", (0x20, 0x44)),
-        ("e", (0x12, 0x45)),
-        ("f", (0x21, 0x46)),
-        ("g", (0x22, 0x47)),
-        ("h", (0x23, 0x48)),
-        ("i", (0x17, 0x49)),
-        ("j", (0x24, 0x4A)),
-        ("k", (0x25, 0x4B)),
-        ("l", (0x26, 0x4C)),
-        ("m", (0x32, 0x4D)),
-        ("n", (0x31, 0x4E)),
-        ("o", (0x18, 0x4F)),
-        ("p", (0x19, 0x50)),
-        ("q", (0x10, 0x51)),
-        ("r", (0x13, 0x52)),
-        ("s", (0x1F, 0x53)),
-        ("t", (0x14, 0x54)),
-        ("u", (0x16, 0x55)),
-        ("v", (0x2F, 0x56)),
-        ("w", (0x11, 0x57)),
-        ("x", (0x2D, 0x58)),
-        ("y", (0x15, 0x59)),
-        ("z", (0x2C, 0x5A)),
+        ("a", wakem::types::KeyInfo::new(0x1E, 0x41)),
+        ("b", wakem::types::KeyInfo::new(0x30, 0x42)),
+        ("c", wakem::types::KeyInfo::new(0x2E, 0x43)),
+        ("d", wakem::types::KeyInfo::new(0x20, 0x44)),
+        ("e", wakem::types::KeyInfo::new(0x12, 0x45)),
+        ("f", wakem::types::KeyInfo::new(0x21, 0x46)),
+        ("g", wakem::types::KeyInfo::new(0x22, 0x47)),
+        ("h", wakem::types::KeyInfo::new(0x23, 0x48)),
+        ("i", wakem::types::KeyInfo::new(0x17, 0x49)),
+        ("j", wakem::types::KeyInfo::new(0x24, 0x4A)),
+        ("k", wakem::types::KeyInfo::new(0x25, 0x4B)),
+        ("l", wakem::types::KeyInfo::new(0x26, 0x4C)),
+        ("m", wakem::types::KeyInfo::new(0x32, 0x4D)),
+        ("n", wakem::types::KeyInfo::new(0x31, 0x4E)),
+        ("o", wakem::types::KeyInfo::new(0x18, 0x4F)),
+        ("p", wakem::types::KeyInfo::new(0x19, 0x50)),
+        ("q", wakem::types::KeyInfo::new(0x10, 0x51)),
+        ("r", wakem::types::KeyInfo::new(0x13, 0x52)),
+        ("s", wakem::types::KeyInfo::new(0x1F, 0x53)),
+        ("t", wakem::types::KeyInfo::new(0x14, 0x54)),
+        ("u", wakem::types::KeyInfo::new(0x16, 0x55)),
+        ("v", wakem::types::KeyInfo::new(0x2F, 0x56)),
+        ("w", wakem::types::KeyInfo::new(0x11, 0x57)),
+        ("x", wakem::types::KeyInfo::new(0x2D, 0x58)),
+        ("y", wakem::types::KeyInfo::new(0x15, 0x59)),
+        ("z", wakem::types::KeyInfo::new(0x2C, 0x5A)),
     ];
 
     for (name, expected) in letter_keys {
@@ -146,16 +146,16 @@ fn test_parse_all_number_keys() {
     use wakem::config::parse_key;
 
     let number_keys = vec![
-        ("0", (0x0B, 0x30)),
-        ("1", (0x02, 0x31)),
-        ("2", (0x03, 0x32)),
-        ("3", (0x04, 0x33)),
-        ("4", (0x05, 0x34)),
-        ("5", (0x06, 0x35)),
-        ("6", (0x07, 0x36)),
-        ("7", (0x08, 0x37)),
-        ("8", (0x09, 0x38)),
-        ("9", (0x0A, 0x39)),
+        ("0", wakem::types::KeyInfo::new(0x0B, 0x30)),
+        ("1", wakem::types::KeyInfo::new(0x02, 0x31)),
+        ("2", wakem::types::KeyInfo::new(0x03, 0x32)),
+        ("3", wakem::types::KeyInfo::new(0x04, 0x33)),
+        ("4", wakem::types::KeyInfo::new(0x05, 0x34)),
+        ("5", wakem::types::KeyInfo::new(0x06, 0x35)),
+        ("6", wakem::types::KeyInfo::new(0x07, 0x36)),
+        ("7", wakem::types::KeyInfo::new(0x08, 0x37)),
+        ("8", wakem::types::KeyInfo::new(0x09, 0x38)),
+        ("9", wakem::types::KeyInfo::new(0x0A, 0x39)),
     ];
 
     for (name, expected) in number_keys {
@@ -170,18 +170,18 @@ fn test_parse_function_keys_f1_f12() {
     use wakem::config::parse_key;
 
     let func_keys = vec![
-        ("f1", (0x3B, 0x70)),
-        ("f2", (0x3C, 0x71)),
-        ("f3", (0x3D, 0x72)),
-        ("f4", (0x3E, 0x73)),
-        ("f5", (0x3F, 0x74)),
-        ("f6", (0x40, 0x75)),
-        ("f7", (0x41, 0x76)),
-        ("f8", (0x42, 0x77)),
-        ("f9", (0x43, 0x78)),
-        ("f10", (0x44, 0x79)),
-        ("f11", (0x57, 0x7A)),
-        ("f12", (0x58, 0x7B)),
+        ("f1", wakem::types::KeyInfo::new(0x3B, 0x70)),
+        ("f2", wakem::types::KeyInfo::new(0x3C, 0x71)),
+        ("f3", wakem::types::KeyInfo::new(0x3D, 0x72)),
+        ("f4", wakem::types::KeyInfo::new(0x3E, 0x73)),
+        ("f5", wakem::types::KeyInfo::new(0x3F, 0x74)),
+        ("f6", wakem::types::KeyInfo::new(0x40, 0x75)),
+        ("f7", wakem::types::KeyInfo::new(0x41, 0x76)),
+        ("f8", wakem::types::KeyInfo::new(0x42, 0x77)),
+        ("f9", wakem::types::KeyInfo::new(0x43, 0x78)),
+        ("f10", wakem::types::KeyInfo::new(0x44, 0x79)),
+        ("f11", wakem::types::KeyInfo::new(0x57, 0x7A)),
+        ("f12", wakem::types::KeyInfo::new(0x58, 0x7B)),
     ];
 
     for (name, expected) in func_keys {
@@ -191,7 +191,7 @@ fn test_parse_function_keys_f1_f12() {
 
     // Uppercase test
     let result = parse_key("F1").unwrap();
-    assert_eq!(result, (0x3B, 0x70));
+    assert_eq!(result, wakem::types::KeyInfo::new(0x3B, 0x70));
 }
 
 /// Test special keys (CapsLock, Enter, Escape, etc.)
@@ -200,18 +200,18 @@ fn test_parse_special_keys() {
     use wakem::config::parse_key;
 
     let special_keys = vec![
-        ("capslock", (0x3A, 0x14)),
-        ("backspace", (0x0E, 0x08)),
-        ("enter", (0x1C, 0x0D)),
-        ("escape", (0x01, 0x1B)),
-        ("space", (0x39, 0x20)),
-        ("tab", (0x0F, 0x09)),
-        ("delete", (0x53, 0x2E)),
-        ("insert", (0x52, 0x2D)),
-        ("home", (0x47, 0x24)),
-        ("end", (0x4F, 0x23)),
-        ("pageup", (0x49, 0x21)),
-        ("pagedown", (0x51, 0x22)),
+        ("capslock", wakem::types::KeyInfo::new(0x3A, 0x14)),
+        ("backspace", wakem::types::KeyInfo::new(0x0E, 0x08)),
+        ("enter", wakem::types::KeyInfo::new(0x1C, 0x0D)),
+        ("escape", wakem::types::KeyInfo::new(0x01, 0x1B)),
+        ("space", wakem::types::KeyInfo::new(0x39, 0x20)),
+        ("tab", wakem::types::KeyInfo::new(0x0F, 0x09)),
+        ("delete", wakem::types::KeyInfo::new(0x53, 0x2E)),
+        ("insert", wakem::types::KeyInfo::new(0x52, 0x2D)),
+        ("home", wakem::types::KeyInfo::new(0x47, 0x24)),
+        ("end", wakem::types::KeyInfo::new(0x4F, 0x23)),
+        ("pageup", wakem::types::KeyInfo::new(0x49, 0x21)),
+        ("pagedown", wakem::types::KeyInfo::new(0x51, 0x22)),
     ];
 
     for (name, expected) in special_keys {
@@ -226,10 +226,10 @@ fn test_parse_navigation_keys() {
     use wakem::config::parse_key;
 
     let nav_keys = vec![
-        ("left", (0x4B, 0x25)),
-        ("right", (0x4D, 0x27)),
-        ("up", (0x48, 0x26)),
-        ("down", (0x50, 0x28)),
+        ("left", wakem::types::KeyInfo::new(0x4B, 0x25)),
+        ("right", wakem::types::KeyInfo::new(0x4D, 0x27)),
+        ("up", wakem::types::KeyInfo::new(0x48, 0x26)),
+        ("down", wakem::types::KeyInfo::new(0x50, 0x28)),
     ];
 
     for (name, expected) in nav_keys {
@@ -244,14 +244,14 @@ fn test_parse_modifier_keys() {
     use wakem::config::parse_key;
 
     let modifier_keys = vec![
-        ("lshift", (0x2A, 0xA0)),
-        ("rshift", (0x36, 0xA1)),
-        ("lctrl", (0x1D, 0xA2)),
-        ("rctrl", (0xE01D, 0xA3)),
-        ("lalt", (0x38, 0xA4)),
-        ("ralt", (0xE038, 0xA5)),
-        ("lwin", (0xE05B, 0x5B)),
-        ("rwin", (0xE05C, 0x5C)),
+        ("lshift", wakem::types::KeyInfo::new(0x2A, 0xA0)),
+        ("rshift", wakem::types::KeyInfo::new(0x36, 0xA1)),
+        ("lctrl", wakem::types::KeyInfo::new(0x1D, 0xA2)),
+        ("rctrl", wakem::types::KeyInfo::new(0xE01D, 0xA3)),
+        ("lalt", wakem::types::KeyInfo::new(0x38, 0xA4)),
+        ("ralt", wakem::types::KeyInfo::new(0xE038, 0xA5)),
+        ("lwin", wakem::types::KeyInfo::new(0xE05B, 0x5B)),
+        ("rwin", wakem::types::KeyInfo::new(0xE05C, 0x5C)),
     ];
 
     for (name, expected) in modifier_keys {
@@ -279,15 +279,15 @@ fn test_parse_key_case_insensitive() {
     use wakem::config::parse_key;
 
     let cases = vec![
-        ("CapsLock", (0x3A, 0x14)),
-        ("CAPSLOCK", (0x3A, 0x14)),
-        ("capslock", (0x3A, 0x14)),
-        ("Enter", (0x1C, 0x0D)),
-        ("ENTER", (0x1C, 0x0D)),
-        ("enter", (0x1C, 0x0D)),
-        ("Space", (0x39, 0x20)),
-        ("SPACE", (0x39, 0x20)),
-        ("space", (0x39, 0x20)),
+        ("CapsLock", wakem::types::KeyInfo::new(0x3A, 0x14)),
+        ("CAPSLOCK", wakem::types::KeyInfo::new(0x3A, 0x14)),
+        ("capslock", wakem::types::KeyInfo::new(0x3A, 0x14)),
+        ("Enter", wakem::types::KeyInfo::new(0x1C, 0x0D)),
+        ("ENTER", wakem::types::KeyInfo::new(0x1C, 0x0D)),
+        ("enter", wakem::types::KeyInfo::new(0x1C, 0x0D)),
+        ("Space", wakem::types::KeyInfo::new(0x39, 0x20)),
+        ("SPACE", wakem::types::KeyInfo::new(0x39, 0x20)),
+        ("space", wakem::types::KeyInfo::new(0x39, 0x20)),
     ];
 
     for (name, expected) in cases {

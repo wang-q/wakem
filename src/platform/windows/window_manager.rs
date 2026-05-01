@@ -366,11 +366,6 @@ impl<A: WindowApi + Send + Sync + 'static> WindowOperations for WindowManager<A>
         let hwnd = window_id_to_hwnd(window);
         self.api.close_window(hwnd)
     }
-
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.set_topmost(hwnd, topmost)
-    }
 }
 
 impl<A: WindowApi + Send + Sync + 'static> WindowStateQueries for WindowManager<A> {
@@ -398,6 +393,11 @@ impl<A: WindowApi + Send + Sync + 'static> WindowStateQueries for WindowManager<
 impl ForegroundWindowOperations for WindowManager<RealWindowApi> {
     fn get_foreground_window(&self) -> Option<WindowId> {
         self.api.get_foreground_window().map(hwnd_to_window_id)
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        let hwnd = window_id_to_hwnd(window);
+        self.api.set_topmost(hwnd, topmost)
     }
 
     fn switch_to_next_window_of_same_process(&self) -> Result<()> {

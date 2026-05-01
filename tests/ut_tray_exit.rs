@@ -135,7 +135,9 @@ mod windows_stop_tray_tests {
         let handle = std::thread::spawn(|| {
             stop_tray();
         });
-        handle.join().expect("stop_tray should not panic from another thread");
+        handle
+            .join()
+            .expect("stop_tray should not panic from another thread");
     }
 
     #[test]

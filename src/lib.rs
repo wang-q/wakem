@@ -17,4 +17,3 @@ pub mod tray;
 pub mod types;
 
 pub use config::Config;
-pub use types::*;

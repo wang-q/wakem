@@ -439,12 +439,6 @@ impl WindowOperations for MockWindowApi<usize> {
         self.window_states.lock().unwrap().remove(&window);
         Ok(())
     }
-
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
-        let mut states = self.window_states.lock().unwrap();
-        states.entry(window).or_default().topmost = topmost;
-        Ok(())
-    }
 }
 
 impl WindowStateQueries for MockWindowApi<usize> {
@@ -496,6 +490,12 @@ impl MonitorOperations for MockWindowApi<usize> {
 impl ForegroundWindowOperations for MockWindowApi<usize> {
     fn get_foreground_window(&self) -> Option<WindowId> {
         *self.foreground_window.lock().unwrap()
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        let mut states = self.window_states.lock().unwrap();
+        states.entry(window).or_default().topmost = topmost;
+        Ok(())
     }
 }
 
@@ -557,7 +557,7 @@ impl CommonWindowApi for MockWindowApi<usize> {
     }
 
     fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        <Self as WindowOperations>::set_topmost(self, window, topmost)
+        <Self as ForegroundWindowOperations>::set_topmost(self, window, topmost)
     }
 
     fn api(&self) -> &dyn std::any::Any {
