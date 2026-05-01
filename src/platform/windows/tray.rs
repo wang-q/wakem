@@ -47,12 +47,13 @@ pub use crate::platform::common::tray::menu_ids;
 type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
 
 use std::cell::RefCell;
+use std::sync::OnceLock;
+
+static TRAY_HWND_GLOBAL: OnceLock<isize> = OnceLock::new();
 
 thread_local! {
     static TRAY_ICON: RefCell<Option<TrayIconData>> = const { RefCell::new(None) };
     static CMD_CALLBACK: RefCell<Option<CommandCallback>> = const { RefCell::new(None) };
-    static TRAY_HWND: RefCell<Option<HWND>> = const { RefCell::new(None) };
-    static MAIN_THREAD_ID: RefCell<Option<u32>> = const { RefCell::new(None) };
 }
 
 /// Tray icon data structure
@@ -168,7 +169,14 @@ unsafe extern "system" fn window_proc(
             LRESULT(0)
         }
         WM_DESTROY => {
-            debug!("Window destroyed");
+            TRAY_ICON.with(|t| {
+                if let Some(ref mut tray) = *t.borrow_mut() {
+                    unsafe {
+                        let _ = Shell_NotifyIconW(NIM_DELETE, &tray.data);
+                    }
+                }
+            });
+            debug!("Window destroyed, tray icon removed");
             PostQuitMessage(0);
             LRESULT(0)
         }
@@ -255,13 +263,7 @@ where
 
         debug!("Window created: {:?}", hwnd);
 
-        TRAY_HWND.with(|h| {
-            *h.borrow_mut() = Some(hwnd);
-        });
-        MAIN_THREAD_ID.with(|t| {
-            *t.borrow_mut() =
-                Some(windows::Win32::System::Threading::GetCurrentThreadId());
-        });
+        let _ = TRAY_HWND_GLOBAL.set(hwnd.0 as isize);
 
         let mut tray_data = TrayIconData::create();
         tray_data.register(hwnd);
@@ -293,29 +295,22 @@ where
 }
 
 /// Post a quit message to stop the message loop
+///
+/// Sends WM_CLOSE to the tray window, which triggers WM_DESTROY
+/// (which removes the tray icon and calls PostQuitMessage).
+///
+/// Safe to call from any thread — uses a global to find the HWND.
 pub fn stop_tray() {
-    unsafe {
-        TRAY_HWND.with(|h| {
-            if let Some(hwnd) = *h.borrow() {
-                let _ = windows::Win32::UI::WindowsAndMessaging::PostMessageW(
-                    Some(hwnd),
-                    windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
-                    WPARAM(0),
-                    LPARAM(0),
-                );
-            }
-        });
-
-        MAIN_THREAD_ID.with(|t| {
-            if let Some(thread_id) = *t.borrow() {
-                let _ = windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW(
-                    thread_id,
-                    windows::Win32::UI::WindowsAndMessaging::WM_QUIT,
-                    WPARAM(0),
-                    LPARAM(0),
-                );
-            }
-        });
+    if let Some(&hwnd_isize) = TRAY_HWND_GLOBAL.get() {
+        unsafe {
+            let hwnd = HWND(hwnd_isize as *mut std::ffi::c_void);
+            let _ = PostMessageW(
+                Some(hwnd),
+                windows::Win32::UI::WindowsAndMessaging::WM_CLOSE,
+                WPARAM(0),
+                LPARAM(0),
+            );
+        }
     }
 }
 

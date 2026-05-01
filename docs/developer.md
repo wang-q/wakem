@@ -1,6 +1,6 @@
 # wakem 开发文档
 
-本文档面向 wakem 开发者，包含架构设计、技术决策、扩展 API 和性能数据等内容。
+本文档面向 wakem 开发者，包含架构设计、技术决策、扩展 API 和测试等内容。
 
 ## Changelog
 
@@ -25,8 +25,6 @@ cargo llvm-cov
 pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/null; sleep 1; echo "已清理"
 ```
 
----
-
 ## 参考项目分析
 
 ### AutoHotkey 架构分析
@@ -49,37 +47,77 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 4. **线程中断控制** - `Critical` 和 `AllowInterruption` 机制
 5. **钩子状态管理** - 动态安装/卸载钩子，减少系统开销
 
----
+## 架构设计
 
-## 技术决策记录
+### 技术决策
 
-### 为什么选择 Rust?
+| 决策 | 理由 |
+|------|------|
+| **Rust** | 原生性能无 GC 暂停；编译时内存安全；windows-rs 提供完整 Win32 绑定；单文件分发 |
+| **TOML 配置** | 比 JSON 更友好支持注释；有明确类型系统；toml crate 成熟稳定；Rust 社区广泛使用 |
+| **客户端-服务端架构** | 权限分离（守护进程需管理员权限）；客户端崩溃不影响核心；支持远程控制；各组件可独立测试 |
+| **TCP 而非 Named Pipe** | 跨平台行为一致；端口区分实例更简单；天然支持网络通信；可用标准网络工具调试 |
 
-1. **性能** - 原生性能，无 GC 暂停
-2. **安全性** - 编译时内存安全保证
-3. **Windows 支持** - windows-rs crate 提供完整的 Windows API 绑定
-4. **单文件分发** - 可以编译为单个可执行文件
+### 平台抽象层
 
-### 为什么选择 TOML 配置?
+`src/platform/` 采用三层架构，将平台特异性代码与非平台特异性代码严格分离：
 
-1. **可读性** - 比 JSON 更友好，支持注释
-2. **类型安全** - 有明确的类型系统
-3. **Rust 生态** - toml crate 成熟稳定
-4. **用户熟悉** - Rust 社区广泛使用
+```
+Layer 1: Types & traits          Layer 2: Common logic           Layer 3: Platform modules
+┌─────────────────────────┐     ┌─────────────────────────┐     ┌─────────────────────────┐
+│ traits.rs               │     │ common/                 │     │ windows/                │
+│   WindowApiBase (_inner)│     │   window_manager.rs     │     │   window_api.rs         │
+│   WindowManagerExt      │     │   input_device.rs       │     │   window_manager.rs     │
+│   OutputDeviceTrait     │     │   output_helpers.rs     │     │   output_device.rs      │
+│   NotificationService   │     │   launcher.rs           │     │   tray.rs               │
+│   ...                   │     │   tray.rs               │     │   ...                   │
+│ types.rs                │     │   window_preset.rs      │     │ macos/                  │
+│   MonitorInfo           │     │                         │     │   window_api.rs         │
+│   WindowContext         │     │ 纯计算逻辑，无平台 API  │     │   ...                   │
+│   NotificationInitCtx   │     │ 调用                    │     │                         │
+│ macros.rs               │     │                         │     │ 仅保留平台 API 薄封装   │
+│   impl_*! 宏减少样板    │     │                         │     │ 使用宏减少重复代码      │
+└─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘
+         ↑                              ↑                               ↑
+    定义跨平台接口              提供默认实现和纯逻辑           平台特定的 API 调用
+```
 
-### 为什么采用客户端-服务端架构?
+**核心模式**：
 
-1. **权限分离** - 守护进程需要管理员权限，客户端不需要
-2. **稳定性** - 客户端崩溃不影响核心功能
-3. **灵活性** - 支持远程控制和多个客户端
-4. **可测试性** - 各组件可以独立测试
+- **`_inner` 模式**：`WindowApiBase` 的公共方法有默认实现，委托到 `_inner` 抽象方法。平台只需实现 `_inner` 方法（最小原子操作），公共逻辑由 trait 默认方法提供。
+- **宏减少样板**：`impl_platform_factory_methods!`、`impl_context_provider!`、`impl_tray_lifecycle!` 等宏让平台模块只保留平台特异性逻辑。
+- **`CommonWindowApi`**：`common/window_manager.rs` 提供高级窗口操作（居中、半屏、循环比例等）的跨平台实现，使用 `find_next_ratio` 修复浮点截断 bug。
 
-### 为什么使用 TCP 而非 Named Pipe?
+### 进程模型
 
-1. **跨平台兼容** - TCP 在所有平台上行为一致
-2. **多实例支持** - 通过端口区分实例更简单
-3. **远程控制** - 天然支持网络通信
-4. **调试便利** - 可以使用标准网络工具调试
+```
+wakem tray (主进程)
+├── 主线程: Windows 消息循环 (托盘图标 + 右键菜单)
+├── Tokio 线程: IPC 客户端 + 命令处理
+│   ├── 连接重试 (tokio::select! 同时监听 Exit 命令)
+│   └── 命令分发 (ToggleActive / ReloadConfig / Exit ...)
+└── [可选] Daemon 线程: 自动启动守护进程
+
+wakem daemon (守护进程)
+├── Tokio 异步运行时
+│   ├── IPC 服务器 (TCP + HMAC-SHA256 认证 + Zeroizing 密钥)
+│   ├── 配置热重载
+│   └── 输入映射引擎
+└── 平台钩子线程 (Raw Input / CGEvent)
+```
+
+**退出流程**：
+
+```
+用户点击 "Exit" → callback(AppCommand::Exit)
+  → cmd_tx.blocking_send(Exit)
+  → tokio 线程: on_exit() → stop_tray()
+    → PostMessageW(WM_CLOSE) [跨线程, 使用 OnceLock 存储 HWND]
+  → 主线程: WM_CLOSE → WM_DESTROY
+    → Shell_NotifyIconW(NIM_DELETE) [删除托盘图标]
+    → PostQuitMessage(0) [终止消息循环]
+  → 进程退出
+```
 
 ---
 
@@ -126,87 +164,68 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 
 ---
 
+## IPC 协议
+
+位置: `src/ipc/`
+
+### 安全特性
+
+| 特性 | 说明 |
+|------|------|
+| IP 白名单 | 仅允许本地连接 |
+| HMAC-SHA256 认证 | Challenge-response 机制，密钥用 `Zeroizing<String>` 保护 |
+| 连接限流 | 防止暴力破解 |
+| 双空闲超时 | SHORT(30s) 用于一次性命令，LONG(600s) 用于 tray 长连接 |
+| 协议版本 | `IPC_PROTOCOL_VERSION = 1`，连接时协商 |
+
+### 消息列表
+
+| 方向 | 消息 | 状态 | 说明 |
+|------|------|------|------|
+| C→S | `SetConfig` | ✅ | 发送配置到服务端 |
+| C→S | `ReloadConfig` | ✅ | 重新加载配置 |
+| C→S | `SaveConfig` | ✅ | 保存配置到文件 |
+| C→S | `GetStatus` | ✅ | 获取当前状态 |
+| C→S | `SetActive` | ✅ | 启用/禁用映射 |
+| C→S | `GetNextKeyInfo` | 预留 | 获取下一个按键信息（调试用） |
+| C→S | `StartMacroRecording` | ✅ | 开始录制宏 |
+| C→S | `StopMacroRecording` | ✅ | 停止录制宏 |
+| C→S | `PlayMacro` | ✅ | 播放宏 |
+| C→S | `GetMacros` | ✅ | 获取宏列表 |
+| C→S | `DeleteMacro` | ✅ | 删除宏 |
+| C→S | `BindMacro` | ✅ | 绑定宏到触发键 |
+| C→S | `RegisterMessageWindow` | ✅ | 注册消息窗口句柄 |
+| C→S | `Shutdown` | ✅ | 关闭守护进程 |
+| S→C | `StatusResponse` | ✅ | 状态响应 |
+| S→C | `ConfigLoaded` | ✅ | 配置已加载 |
+| S→C | `ConfigError` | ✅ | 配置加载错误 |
+| S→C | `NextKeyInfo` | 预留 | 下一个按键信息 |
+| S→C | `Error` | ✅ | 错误响应 |
+| S→C | `MacroRecordingResult` | ✅ | 宏录制结果 |
+| S→C | `MacrosList` | ✅ | 宏列表响应 |
+| S→C | `Success` | ✅ | 成功响应 |
+| 双向 | `Ping/Pong` | ✅ | 心跳检测 |
+
+---
+
 ## 预留扩展 API
 
-以下 API 和功能已在代码中定义但部分尚未完全使用，为未来扩展预留：
+以下 API 和功能已在代码中定义但部分尚未完全使用，为未来扩展预留。
 
-### 1. 触发器类型 (`Trigger`)
+### 触发器类型 (`Trigger`)
 
 位置: `src/types/mapping.rs`
 
 | 触发器类型 | 状态 | 说明 |
 |-----------|------|------|
-| `Key { ... }` | 已使用 | 键盘按键触发（支持扫描码/虚拟键码/修饰键） |
+| `Key { ... }` | ✅ | 键盘按键触发（支持扫描码/虚拟键码/修饰键） |
 | `MouseButton { ... }` | 已定义 | 鼠标按钮触发（可用于未来鼠标映射） |
 | `HotString { trigger }` | 预留 | 热字符串（文本扩展），类似 AutoHotkey 的 ::btw::be right back:: |
 | `Chord(Vec<Trigger>)` | 预留 | 组合触发（多个按键按顺序），如 `Ctrl,K,C` |
 | `Timer { interval_ms }` | 预留 | 定时触发器，用于定时执行任务 |
 | `Always` | 预留 | 总是触发的规则 |
 
-### 2. 鼠标按钮重映射
-
-位置: `src/config.rs` → `MouseConfig`
-
-`button_remap` 字段已定义但功能待实现。可用于将鼠标侧键映射为其他功能。
-
-### 3. 配置验证规则
-
-位置: `src/config.rs` → `Config::validate()`
-
-当前实现的验证规则：
-- 日志级别有效性检查（trace/debug/info/warn/error）
-- 端口范围检查（1024-65535）
-- 实例 ID 范围检查（0-255）
-- 宏绑定引用的宏存在性检查
-- 层激活键非空检查
-- 空宏步骤警告
-- 鼠标滚轮加速度范围检查（0.1-10.0）
-- 鼠标滚轮速度正数检查
-
-### 4. IPC 消息协议完整列表
-
-位置: `src/ipc/mod.rs` → `Message` 枚举
-
-| 消息方向 | 消息 | 状态 | 说明 |
-|---------|------|------|------|
-| C→S | `SetConfig` | 已使用 | 发送配置到服务端 |
-| C→S | `ReloadConfig` | 已使用 | 重新加载配置 |
-| C→S | `SaveConfig` | 已使用 | 保存配置到文件 |
-| C→S | `GetStatus` | 已使用 | 获取当前状态 |
-| C→S | `SetActive` | 已使用 | 启用/禁用映射 |
-| C→S | `GetNextKeyInfo` | 预留 | 获取下一个按键信息（用于调试） |
-| C→S | `StartMacroRecording` | 已使用 | 开始录制宏 |
-| C→S | `StopMacroRecording` | 已使用 | 停止录制宏 |
-| C→S | `PlayMacro` | 已使用 | 播放宏 |
-| C→S | `GetMacros` | 已使用 | 获取宏列表 |
-| C→S | `DeleteMacro` | 已使用 | 删除宏 |
-| C→S | `BindMacro` | 已使用 | 绑定宏到触发键 |
-| C→S | `RegisterMessageWindow` | 已使用 | 注册消息窗口句柄 |
-| C→S | `Shutdown` | 已使用 | 关闭守护进程 |
-| S→C | `StatusResponse` | 已使用 | 状态响应 |
-| S→C | `ConfigLoaded` | 已使用 | 配置已加载 |
-| S→C | `ConfigError` | 已使用 | 配置加载错误 |
-| S→C | `NextKeyInfo` | 预留 | 下一个按键信息 |
-| S→C | `Error` | 已使用 | 错误响应 |
-| S→C | `MacroRecordingResult` | 已使用 | 宏录制结果 |
-| S→C | `MacrosList` | 已使用 | 宏列表响应 |
-| S→C | `Success` | 已使用 | 成功响应 |
-| 双向 | `Ping/Pong` | 已使用 | 心跳检测 |
-
-### 5. 层管理 API
-
-位置: `src/types/layer.rs`, `src/runtime/layer_manager.rs`
-
-核心 API：
-- `Layer`: 层定义（名称、激活键、模式、映射规则）
-- `LayerStack`: 管理层激活/停用/Hold/Toggle
-- `LayerManager`: 处理输入事件的层分发
-
-层模式支持：
-- `Hold`: 按住激活，释放退出
-- `Toggle`: 按一次进入，再按一次退出
-
-### 6. 映射规则 API
+### 映射规则 API
 
 位置: `src/types/mapping.rs`
 
@@ -223,38 +242,169 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 - `window_title`: 窗口标题匹配（通配符）
 - `executable_path`: 可执行路径匹配（通配符）
 
-### 7. 通配符匹配实现细节
+### 层管理 API
+
+位置: `src/types/layer.rs`, `src/runtime/layer_manager.rs`
+
+- `Layer`: 层定义（名称、激活键、模式、映射规则）
+- `LayerStack`: 管理层激活/停用/Hold/Toggle
+- `LayerManager`: 处理输入事件的层分发
+
+层模式：`Hold`（按住激活，释放退出）、`Toggle`（按一次进入，再按退出）
+
+### 通配符匹配
 
 位置: `src/config.rs` → `wildcard_match()` 和 `WindowPreset::wildcard_match()`
 
-通配符匹配已完整实现：
 - `*` 匹配任意字符序列（连续 `*` 会被合并优化）
 - `?` 匹配单个字符
 - 大小写不敏感匹配
-- 动态规划算法确保正确性，时间复杂度 O(m*n)
+- 动态规划算法，时间复杂度 O(m*n)
+
+### 配置验证规则
+
+位置: `src/config.rs` → `Config::validate()`
+
+- 日志级别有效性（trace/debug/info/warn/error）
+- 端口范围（1024-65535）
+- 实例 ID 范围（0-255）
+- 宏绑定引用的宏存在性
+- 层激活键非空
+- 空宏步骤警告
+- 鼠标滚轮加速度范围（0.1-10.0）
+- 鼠标滚轮速度正数
+
+### 待实现扩展
+
+- **鼠标按钮重映射** — 完成 `MouseConfig.button_remap` 功能
+- **组合触发 (Chord)** — 实现顺序按键触发
+- **热字符串 (HotString)** — 实现文本扩展功能
+- **跨平台抽象层完善** — 为 macOS/Linux 移植做准备
 
 ---
 
-## 扩展建议
+## 测试
 
-- **鼠标按钮重映射** - 完成 `MouseConfig.button_remap` 功能
-- **组合触发 (Chord)** - 实现顺序按键触发
-- **热字符串 (HotString)** - 实现文本扩展功能
-- **跨平台抽象层完善** - 为 macOS/Linux 移植做准备
+### 单元测试
 
----
+```bash
+# 运行所有单元测试
+cargo test
 
-## 性能基准测试
+# 按前缀筛选
+cargo test ut_           # 单元测试
+cargo test it_           # 集成测试
+cargo test prop_         # 属性测试
+cargo test platform_     # 平台特定测试
+```
 
-使用 Criterion 框架进行性能测试，运行命令：`cargo bench`
+测试文件在 `tests/` 目录下，命名规范: `ut_<模块>.rs` / `it_<描述>.rs` / `prop_<描述>.rs` / `platform_<平台>_<描述>.rs`。
 
-### 测试环境
+### E2E 测试
 
-- OS: Windows 10/11, macOS
-- CPU: x86_64, ARM64 (Apple Silicon)
-- 编译: release + debuginfo (opt-level = 3)
+E2E 测试需要真实的桌面环境，默认 `#[ignore]`，不会影响常规 `cargo test`。
 
-### 基准测试结果
+```bash
+# 窗口管理
+cargo test --test e2e_windows_window -- --ignored --test-threads=1
+
+# 程序启动器
+cargo test --test e2e_windows_launcher -- --ignored --test-threads=1
+
+# 托盘退出行为
+cargo test --test e2e_windows_tray_exit -- --ignored --test-threads=1
+
+# 托盘退出 (PowerShell 辅助脚本，更完整)
+powershell -File scripts/e2e_tray_exit.ps1
+powershell -File scripts/e2e_tray_exit.ps1 -TestNoDaemon
+powershell -File scripts/e2e_tray_exit.ps1 -TestWithDaemon
+```
+
+#### 窗口管理测试
+
+> `tests/e2e_windows_window.rs` | 仅 Windows
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_get_foreground_window_info` | 获取前台窗口信息（标题、位置、大小、显示器工作区） |
+| `test_get_window_info_by_handle` | 通过句柄获取窗口信息 |
+| `test_get_debug_info` | 获取调试信息字符串 |
+| `test_move_to_center` | 窗口居中 |
+| `test_move_to_edge` | 窗口移动到边缘 |
+| `test_set_half_screen` | 半屏显示（左/右） |
+| `test_loop_width_cycle` | 循环调整宽度（多种预设比例） |
+| `test_loop_height_cycle` | 循环调整高度（多种预设比例） |
+| `test_set_fixed_ratio_16_9_and_4_3` | 固定比例窗口（16:9、4:3 等） |
+| `test_set_window_frame` | 绝对坐标移动和调整大小 |
+| `test_minimize_and_restore_window` | 最小化后还原 |
+| `test_maximize_and_restore_window` | 最大化后还原 |
+| `test_toggle_topmost` | 置顶/取消置顶切换 |
+| `test_close_window` | 关闭窗口 |
+| `test_switch_to_next_window_of_same_process` | 切换到同进程下一个窗口 |
+| `test_switch_cycles_through_three_windows` | 3 个窗口循环切换验证 |
+| `test_switch_cycles_through_four_windows` | 4 个窗口循环切换验证 |
+| `test_single_window_does_not_panic` | 单窗口时切换不报错 |
+| `test_get_app_visible_windows` | 获取应用可见窗口 |
+| `test_get_app_visible_windows_finds_notepad` | 窗口枚举能找到 Notepad |
+| `test_explorer_multi_process_window_enumeration` | Explorer 多进程窗口枚举 |
+
+#### 程序启动器测试
+
+> `tests/e2e_windows_launcher.rs` | 仅 Windows
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_launch_simple_program` | 启动计算器 (calc.exe) |
+| `test_launch_program_with_args` | 启动记事本并打开指定文件 |
+| `test_launcher_parse_command_and_launch` | `parse_command` -> `launch` 完整流程 |
+| `test_launch_program_with_multiple_args` | 多参数启动 (ping 命令) |
+| `test_launch_nonexistent_program` | 启动不存在的程序应返回错误 |
+| `test_launch_system_program_cmd` | 启动 cmd.exe 并执行命令 |
+
+#### 托盘退出行为测试
+
+> `tests/ut_tray_exit.rs` + `tests/e2e_windows_tray_exit.rs` | 仅 Windows
+
+验证托盘进程在不同场景下能否正常退出（包括图标消失）。
+
+**单元测试**（`cargo test --test ut_tray_exit`，自动运行）：
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_exit_during_connection_phase` | 连接阶段收到 Exit 命令立即退出 |
+| `test_exit_during_connection_phase_with_delay` | 重试中途收到 Exit 命令也能退出 |
+| `test_other_commands_ignored_during_connection` | 连接阶段其他命令不崩溃 |
+| `test_channel_close_exits_handler` | channel 关闭时正常退出（不调 on_exit） |
+| `test_stop_tray_callable_from_any_thread` | `stop_tray()` 跨线程可用（OnceLock 修复） |
+| `test_stop_tray_callable_without_init` | 未初始化时 `stop_tray()` 不 panic |
+
+**E2E 测试**（需要桌面会话，默认 `#[ignore]`）：
+
+| 测试名 | 说明 |
+|--------|------|
+| `test_tray_exit_without_daemon` | 无守护进程时 tray 退出 |
+| `test_tray_exit_with_daemon_via_ipc` | IPC shutdown 触发完整退出流程 |
+| `test_tray_restart_cycle` | 3 次重启不残留僵尸进程 |
+
+#### 待实现的 E2E 测试
+
+- `set_native_ratio()` — 原生比例窗口
+- `move_to_monitor(Index)` — 按索引移动显示器
+- `move_to_monitor_next()` / `move_to_monitor_prev()` — 跨显示器移动
+
+#### E2E 测试设计要点
+
+- 使用 `WindowManager` 调用真实 Windows API
+- 通过 `Command::new("notepad.exe").spawn()` 启动真实进程
+- `wait_for_window` 辅助函数轮询等待窗口出现（最长 5 秒超时）
+- 每个测试结束后自动 `taskkill /IM notepad.exe /F` 清理
+- `#[cfg(target_os = "windows")]` 条件编译，非 Windows 平台提供空占位测试
+
+### 性能基准
+
+使用 Criterion 框架，运行命令：`cargo bench`
+
+#### 基准测试结果
 
 | Benchmark | 平均时间 | 说明 |
 |-----------|---------|------|
@@ -268,22 +418,11 @@ pkill -f "wakem daemon" 2>/dev/null; sleep 1; pkill -9 -f "wakem daemon" 2>/dev/
 | `layer_stack_operations` | ~11.7 μs | 层栈激活/停用操作（10 次循环） |
 | `real_world_layer_operations` | ~1.32 μs | 真实场景层操作（10 次迭代） |
 
-### 性能分析
+**核心路径**：触发器匹配和规则匹配均在纳秒级 (~2ns)，窗口计算亚纳秒级 (270ps)。
+**序列化**：序列化 ~205ns / 反序列化 ~65ns，远低于网络延迟。
+**层管理**：10 次操作仅需 ~11.7μs（平均 1.17μs/次）。
 
-**核心路径性能优秀**:
-- 触发器匹配和规则匹配均在 **纳秒级** (~2ns)
-- 单次输入事件处理延迟极低，满足实时性要求
-- 窗口计算为 **亚纳秒级** (270ps)，几乎无开销
-
-**序列化开销可接受**:
-- JSON 序列化/反序列化用于 IPC 通信和配置持久化
-- 序列化 ~205ns / 反序列化 ~65ns，远低于网络延迟
-
-**层管理效率高**:
-- 10 次层操作仅需 ~11.7μs（平均 1.17μs/次）
-- 支持复杂的 Hold/Toggle 场景切换
-
-### 基准测试文件
+#### 基准测试文件
 
 ```
 benches/
@@ -291,103 +430,3 @@ benches/
 └── macos/
     └── macos_bench.rs     # macOS 专用基准 [macOS only]
 ```
-
-## 真实集成测试
-
-> 位置: `tests/e2e_windows_window.rs` | 仅 Windows 平台
-
-与 `tests/` 目录下的其他 mock 测试不同，真实集成测试会在**桌面启动真实窗口**并验证实际行为。
-
-所有测试默认 `#[ignore]`，不会影响常规 `cargo test`。
-
-### 运行方式
-
-```bash
-# 运行窗口管理真实集成测试
-cargo test --test e2e_windows_window -- --ignored --test-threads=1
-
-# 运行程序启动器真实集成测试
-cargo test --test e2e_windows_launcher -- --ignored --test-threads=1
-
-# 单个测试
-cargo test --test e2e_windows_window test_get_foreground_window_info -- --ignored --test-threads=1
-cargo test --test e2e_windows_launcher test_launch_simple_program -- --ignored --test-threads=1
-```
-
-### 测试用例列表
-
-#### 窗口信息获取
-
-| 测试名 | 说明 |
-|--------|------|
-| `test_get_foreground_window_info` | 获取前台窗口信息（标题、位置、大小、显示器工作区） |
-| `test_get_window_info_by_handle` | 通过句柄获取窗口信息 |
-| `test_get_debug_info` | 获取调试信息字符串 |
-
-#### 窗口位置与大小
-
-| 测试名 | 说明 |
-|--------|------|
-| `test_move_to_center` | 窗口居中 |
-| `test_move_to_edge` | 窗口移动到边缘 |
-| `test_set_half_screen` | 半屏显示（左/右） |
-| `test_loop_width_cycle` | 循环调整宽度（多种预设比例） |
-| `test_loop_height_cycle` | 循环调整高度（多种预设比例） |
-| `test_set_fixed_ratio_16_9_and_4_3` | 固定比例窗口（16:9、4:3 等） |
-| `test_set_window_frame` | 绝对坐标移动和调整大小 |
-
-#### 窗口状态控制
-
-| 测试名 | 说明 |
-|--------|------|
-| `test_minimize_and_restore_window` | 最小化后还原 |
-| `test_maximize_and_restore_window` | 最大化后还原 |
-| `test_toggle_topmost` | 置顶/取消置顶切换 |
-| `test_close_window` | 关闭窗口 |
-
-#### 同进程窗口切换（Alt+`）
-
-| 测试名 | 说明 |
-|--------|------|
-| `test_switch_to_next_window_of_same_process` | 切换到同进程下一个窗口 |
-| `test_switch_cycles_through_three_windows` | 3 个窗口循环切换验证 |
-| `test_switch_cycles_through_four_windows` | 4 个窗口循环切换验证 |
-| `test_single_window_does_not_panic` | 单窗口时切换不报错 |
-
-#### 窗口枚举
-
-| 测试名 | 说明 |
-|--------|------|
-| `test_get_app_visible_windows` | 获取应用可见窗口 |
-| `test_get_app_visible_windows_finds_notepad` | 窗口枚举能找到 Notepad |
-| `test_explorer_multi_process_window_enumeration` | Explorer 多进程窗口枚举（不含系统窗口） |
-
-#### 程序启动器 (Launcher)
-
-> 位置: `tests/e2e_windows_launcher.rs` | 仅 Windows 平台
-
-| 测试名 | 说明 |
-|--------|------|
-| `test_launch_simple_program` | 启动计算器 (calc.exe) |
-| `test_launch_program_with_args` | 启动记事本并打开指定文件 |
-| `test_launcher_parse_command_and_launch` | `parse_command` -> `launch` 完整流程 |
-| `test_launch_program_with_multiple_args` | 多参数启动 (ping 命令) |
-| `test_launch_nonexistent_program` | 启动不存在的程序应返回错误 |
-| `test_launch_system_program_cmd` | 启动 cmd.exe 并执行命令 |
-
-### 待实现测试
-
-以下 API 尚未覆盖，欢迎补充：
-
-- `set_native_ratio()` - 原生比例窗口
-- `move_to_monitor(Index)` - 按索引移动显示器
-- `move_to_monitor_next()` / `move_to_monitor_prev()` - 跨显示器移动
-
-### 设计要点
-
-- 使用 `WindowManager` 调用真实 Windows API
-- 通过 `Command::new("notepad.exe").spawn()` 启动真实进程
-- `wait_for_window` 辅助函数轮询等待窗口出现（最长 5 秒超时）
-- 每个测试结束后自动 `taskkill /IM notepad.exe /F` 清理
-- `#[cfg(target_os = "windows")]` 条件编译，非 Windows 平台提供空占位测试
-

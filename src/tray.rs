@@ -54,50 +54,83 @@ pub async fn connect_and_handle_tray_commands(
 
     info!("Tokio runtime started in background thread");
 
-    let mut client_option: Option<DaemonClient> = None;
+    let mut client_option: Option<DaemonClient>;
     let mut client = DaemonClient::new();
     let max_retries = MAX_CONNECTION_RETRIES;
     let retry_delay = tokio::time::Duration::from_millis(DEFAULT_RETRY_DELAY_MS);
 
-    for attempt in 1..=max_retries {
-        match client.connect_to_instance(instance_id).await {
-            Ok(_) => {
-                info!(
-                    "Connected to wakemd instance {} (attempt {}/{})",
-                    instance_id, attempt, max_retries
-                );
+    let mut attempt = 0u32;
+    let mut retry_delay_pin = tokio::time::Instant::now();
 
-                match client.get_status().await {
-                    Ok((active, loaded)) => {
-                        info!(
-                            "Daemon status: active={}, config_loaded={}",
-                            active, loaded
-                        );
+    loop {
+        tokio::select! {
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    Some(AppCommand::Exit) => {
+                        info!("Exit command received during connection phase");
+                        on_exit();
+                        return;
                     }
-                    Err(e) => {
-                        error!("Failed to get status: {}", e);
+                    Some(cmd) => {
+                        warn!("Ignoring {:?} - not connected to daemon yet", cmd);
+                    }
+                    None => {
+                        info!("Command channel closed");
+                        return;
                     }
                 }
-
-                client_option = Some(client);
-                break;
             }
-            Err(e) => {
-                if attempt < max_retries {
-                    debug!(
-                        "Connection attempt {}/{} failed, retrying in {:?}...",
-                        attempt, max_retries, retry_delay
-                    );
-                    tokio::time::sleep(retry_delay).await;
+            result = async {
+                if attempt > 0 && attempt < max_retries {
+                    tokio::time::sleep_until(retry_delay_pin).await;
+                }
+                if attempt >= max_retries {
+                    std::future::pending().await
                 } else {
-                    error!(
-                        "Failed to connect to daemon after {} attempts: {}",
-                        max_retries, e
-                    );
-                    error!(
-                        "Please make sure wakemd --instance {} is running",
-                        instance_id
-                    );
+                    attempt += 1;
+                    client.connect_to_instance(instance_id).await
+                }
+            }, if attempt < max_retries => {
+                match result {
+                    Ok(_) => {
+                        info!(
+                            "Connected to wakemd instance {} (attempt {}/{})",
+                            instance_id, attempt, max_retries
+                        );
+
+                        match client.get_status().await {
+                            Ok((active, loaded)) => {
+                                info!(
+                                    "Daemon status: active={}, config_loaded={}",
+                                    active, loaded
+                                );
+                            }
+                            Err(e) => {
+                                error!("Failed to get status: {}", e);
+                            }
+                        }
+
+                        client_option = Some(client);
+                        break;
+                    }
+                    Err(e) => {
+                        if attempt < max_retries {
+                            debug!(
+                                "Connection attempt {}/{} failed, retrying in {:?}...",
+                                attempt, max_retries, retry_delay
+                            );
+                            retry_delay_pin = tokio::time::Instant::now() + retry_delay;
+                        } else {
+                            error!(
+                                "Failed to connect to daemon after {} attempts: {}",
+                                max_retries, e
+                            );
+                            error!(
+                                "Please make sure wakemd --instance {} is running",
+                                instance_id
+                            );
+                        }
+                    }
                 }
             }
         }
