@@ -10,14 +10,14 @@ mod tray_tests {
         let api = MockTrayApi::new();
         assert!(!api.is_registered());
 
-        api.register(Some(12345)).await.unwrap();
+        api.register().await.unwrap();
         assert!(api.is_registered());
     }
 
     #[tokio::test]
     async fn test_mock_tray_api_unregister() {
         let api = MockTrayApi::new();
-        api.register(Some(12345)).await.unwrap();
+        api.register().await.unwrap();
         assert!(api.is_registered());
 
         api.unregister().await.unwrap();
@@ -83,7 +83,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         let manager = TrayManager::from_api(api);
 
-        manager.init(Some(12345)).await.unwrap();
+        manager.api().unwrap().register().await.unwrap();
         assert!(manager.api().unwrap().is_registered());
     }
 
@@ -92,7 +92,7 @@ mod tray_tests {
         let api = MockTrayApi::new();
         let manager = TrayManager::from_api(api);
 
-        manager.init(Some(12345)).await.unwrap();
+        manager.api().unwrap().register().await.unwrap();
         assert!(manager.api().unwrap().is_registered());
 
         manager.cleanup().await.unwrap();

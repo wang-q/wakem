@@ -822,7 +822,7 @@ impl ServerState {
     pub async fn set_native_handle(&self, handle: isize) {
         let service = self.notification_service.lock().await;
         let ctx = crate::platform::types::NotificationInitContext {
-            native_handle: Some(handle as usize),
+            platform_handle: Some(handle as usize),
         };
         service.initialize(&ctx);
         info!("Native handle registered: {}", handle);

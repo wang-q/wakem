@@ -1,15 +1,20 @@
 use std::fmt;
 
-/// Virtual key code (Windows VK_* identifier)
+/// Virtual key code using Windows VK_* values as internal representation.
+///
+/// The system uses Windows virtual key codes as the universal internal key
+/// identifier. Platform-specific output devices convert these to native codes
+/// at send time (e.g., macOS CGKeyCode via `virtual_key_to_keycode()`).
 ///
 /// Characteristics:
 /// - 0 means invalid/not specified
-/// - Non-zero values represent valid virtual key codes
+/// - Non-zero values represent Windows virtual key codes
 /// - Provides constant definitions for common keys
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct VirtualKey(u16);
 
 // === Modifier Key Scan Codes ===
+// These are Windows hardware scan codes used with KEYEVENTF_SCANCODE.
 
 /// Scan code for Ctrl key
 pub const SCAN_CODE_CTRL: u16 = 0x1D;
@@ -20,7 +25,7 @@ pub const SCAN_CODE_ALT: u16 = 0x38;
 /// Scan code for Meta/Win key
 pub const SCAN_CODE_META: u16 = 0x5B;
 
-// === Virtual Key Code Constants ===
+// === Virtual Key Code Constants (Windows VK_* values) ===
 
 pub const VK_SHIFT: u16 = 0x10;
 pub const VK_LSHIFT: u16 = 0xA0;

@@ -8,7 +8,10 @@ pub fn daemon_process_name(instance_id: u32) -> String {
     }
 }
 
-pub fn open_folder_with_opener(path: &std::path::Path, opener: &str) -> anyhow::Result<()> {
+pub fn open_folder_with_opener(
+    path: &std::path::Path,
+    opener: &str,
+) -> anyhow::Result<()> {
     std::process::Command::new(opener).arg(path).spawn()?;
     Ok(())
 }

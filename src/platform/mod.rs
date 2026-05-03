@@ -43,3 +43,13 @@ pub type CurrentPlatform = windows::WindowsPlatform;
 
 #[cfg(target_os = "macos")]
 pub type CurrentPlatform = macos::MacosPlatform;
+
+/// Convert a logical key name to the internal key code representation.
+///
+/// The system uses Windows virtual key codes as the internal representation.
+/// Platform-specific output devices convert these to native codes at send time
+/// (e.g., macOS CGKeyCode via `virtual_key_to_keycode()`).
+pub fn key_to_internal_code(key: &keyboard_codes::Key) -> u16 {
+    use keyboard_codes::KeyCodeMapper;
+    key.to_code(keyboard_codes::Platform::Windows) as u16
+}

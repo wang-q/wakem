@@ -2,8 +2,18 @@
 //!
 //! Contains shared logic used by all platform output device implementations,
 //! including cross-platform modifier key virtual key codes.
+//!
+//! ## Internal VK Convention
+//!
+//! All functions in this module return **Windows virtual key codes** as the
+//! internal key identifier. Platform-specific output devices convert these
+//! to native codes at send time (e.g., macOS CGKeyCode via
+//! `virtual_key_to_keycode()`).
 
-/// Convert ASCII character to virtual key code
+/// Convert ASCII character to Windows virtual key code
+///
+/// Returns Windows VK values as per the internal VK convention.
+/// macOS output devices convert these via `virtual_key_to_keycode()`.
 ///
 /// Supports basic US QWERTY layout characters:
 /// - Letters: a-z, A-Z

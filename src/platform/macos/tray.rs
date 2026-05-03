@@ -284,7 +284,7 @@ fn assert_main_thread() {
 
 #[async_trait::async_trait]
 impl TrayApi for RealTrayApi {
-    async fn register(&self, _hwnd: Option<isize>) -> Result<()> {
+    async fn register(&self) -> Result<()> {
         self.register_blocking()
     }
 
@@ -433,7 +433,7 @@ mod tests {
         let api = MockTrayApi::new();
         assert!(!api.is_registered());
 
-        api.register(None).await.unwrap();
+        api.register().await.unwrap();
         assert!(api.is_registered());
 
         api.unregister().await.unwrap();

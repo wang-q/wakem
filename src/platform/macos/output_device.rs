@@ -4,7 +4,7 @@
 //! Shared logic (char mapping, text input, key combos) is in [output_helpers].
 #![cfg(target_os = "macos")]
 
-use crate::platform::traits::OutputDeviceTrait;
+use crate::platform::traits::OutputDevice;
 use crate::types::MouseButton;
 use anyhow::Result;
 use tracing::debug;
@@ -36,7 +36,7 @@ impl Clone for MacosOutputDevice {
 }
 
 #[cfg(not(test))]
-impl OutputDeviceTrait for MacosOutputDevice {
+impl OutputDevice for MacosOutputDevice {
     fn send_key(&self, _scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
         use core_graphics::event::{CGEvent, CGEventTapLocation};
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};

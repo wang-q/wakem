@@ -25,9 +25,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     LoadCursorW, LookupIconIdFromDirectoryEx, PostMessageW, PostQuitMessage,
     RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage, CS_HREDRAW,
     CS_VREDRAW, CW_USEDEFAULT, HMENU, IDC_ARROW, LR_DEFAULTCOLOR, MF_SEPARATOR,
-    MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, WINDOW_STYLE,
-    WM_COMMAND, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
-    WS_EX_TOPMOST,
+    MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, WINDOW_STYLE, WM_COMMAND, WM_CREATE,
+    WM_DESTROY, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
 };
 
 /// Embedded icon resource
@@ -489,16 +488,22 @@ impl RealTrayApi {
             })),
         }
     }
+
+    pub fn set_hwnd(&self, hwnd: isize) {
+        if let Ok(mut inner) = self.inner.try_lock() {
+            inner.hwnd = HWND(hwnd as *mut std::ffi::c_void);
+        }
+    }
 }
 
 impl RealTrayApi {
-    pub async fn register(&self, hwnd: Option<isize>) -> Result<()> {
-        let hwnd = hwnd
-            .ok_or_else(|| anyhow::anyhow!("Windows tray registration requires hwnd"))?;
+    pub async fn register(&self) -> Result<()> {
         let mut inner = self.inner.lock().await;
-        let hwnd_ptr = HWND(hwnd as *mut std::ffi::c_void);
-        inner.hwnd = hwnd_ptr;
-        inner.tray_icon.register(hwnd_ptr)?;
+        if inner.hwnd.is_invalid() || inner.hwnd.0.is_null() {
+            return Err(anyhow::anyhow!("Windows tray registration requires hwnd; call set_hwnd() first"));
+        }
+        let hwnd = inner.hwnd;
+        inner.tray_icon.register(hwnd)?;
         inner.registered = true;
         Ok(())
     }

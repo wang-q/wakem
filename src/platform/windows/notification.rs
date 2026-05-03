@@ -71,7 +71,7 @@ impl WindowsNotificationService {
     }
 
     pub fn initialize(&self, ctx: &NotificationInitContext) {
-        if let Some(handle) = ctx.native_handle {
+        if let Some(handle) = ctx.platform_handle {
             self.set_hwnd(handle as isize);
         }
     }

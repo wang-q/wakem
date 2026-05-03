@@ -20,9 +20,9 @@ use tracing::{info, warn};
 pub trait TrayApi: Send + Sync {
     /// Register tray icon.
     ///
-    /// On Windows, pass `Some(hwnd)` for the message window handle.
-    /// On macOS, pass `None` (no handle needed).
-    async fn register(&self, hwnd: Option<isize>) -> Result<()>;
+    /// On Windows, call `set_hwnd()` before `register()` to provide
+    /// the message window handle. On macOS, no setup is needed.
+    async fn register(&self) -> Result<()>;
 
     /// Unregister tray icon
     async fn unregister(&self) -> Result<()>;
@@ -214,25 +214,6 @@ impl<T: TrayApi> TrayManager<T> {
         self.tray.as_ref().map(|w| &w.api)
     }
 
-    /// Initialize tray icon with optional window handle
-    pub async fn init(&self, hwnd: Option<isize>) -> Result<()> {
-        if let Some(ref tray) = self.tray {
-            tray.api.register(hwnd).await
-        } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
-        }
-    }
-
-    /// Initialize with window handle (convenience for Windows)
-    pub async fn init_with_hwnd(&self, hwnd: isize) -> Result<()> {
-        self.init(Some(hwnd)).await
-    }
-
-    /// Initialize without window handle (convenience for macOS)
-    pub async fn init_no_handle(&self) -> Result<()> {
-        self.init(None).await
-    }
-
     /// Cleanup tray icon
     pub async fn cleanup(&self) -> Result<()> {
         if let Some(ref tray) = self.tray {
@@ -308,7 +289,7 @@ impl<T: TrayApi> TrayIconWrapper<T> {
     }
 
     pub async fn register(&self) -> Result<()> {
-        self.api.register(None).await
+        self.api.register().await
     }
 
     pub async fn unregister(&self) -> Result<()> {
@@ -361,7 +342,6 @@ pub struct MockTrayApi {
 #[derive(Default)]
 struct MockTrayState {
     registered: bool,
-    hwnd: isize,
     active: bool,
     visible: bool,
     tooltip: String,
@@ -408,10 +388,9 @@ impl MockTrayApi {
 
 #[async_trait::async_trait]
 impl TrayApi for MockTrayApi {
-    async fn register(&self, hwnd: Option<isize>) -> Result<()> {
+    async fn register(&self) -> Result<()> {
         let mut s = self.state.lock().unwrap();
         s.registered = true;
-        s.hwnd = hwnd.unwrap_or(0);
         Ok(())
     }
 

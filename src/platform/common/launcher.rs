@@ -87,30 +87,6 @@ impl crate::platform::traits::Launcher for Launcher {
     }
 }
 
-/// Platform-specific extensions for macOS
-#[cfg(target_os = "macos")]
-impl Launcher {
-    /// Open a file or folder using the macOS `open` command
-    pub fn open(&self, path: &str) -> Result<()> {
-        info!("Opening path: {}", path);
-
-        let mut cmd = Command::new("open");
-        cmd.arg(path);
-
-        match cmd.spawn() {
-            Ok(child) => {
-                info!(
-                    "Open command launched successfully for: {} (pid: {:?})",
-                    path,
-                    child.id()
-                );
-                Ok(())
-            }
-            Err(e) => Err(anyhow::anyhow!("Failed to open path {}: {}", path, e)),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -7,7 +7,7 @@ use std::path::Path;
 use crate::platform::traits::PlatformUtilities;
 use tracing::debug;
 
-use keyboard_codes::{Key, KeyCodeMapper, Platform};
+use keyboard_codes::Key;
 
 use crate::constants::{
     DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
@@ -894,9 +894,9 @@ pub fn parse_key(name: &str) -> anyhow::Result<crate::types::KeyInfo> {
 
     // Try keyboard-codes first (supports standard key names)
     if let Ok(key) = name_lower.parse::<Key>() {
-        let win_code = key.to_code(Platform::Windows) as u16;
-        if win_code != 0 || !name_lower.is_empty() {
-            return Ok(crate::types::KeyInfo::new(win_code, win_code));
+        let code = crate::platform::key_to_internal_code(&key);
+        if code != 0 || !name_lower.is_empty() {
+            return Ok(crate::types::KeyInfo::new(code, code));
         }
     }
 

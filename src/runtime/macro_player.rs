@@ -7,7 +7,8 @@ use tracing::{debug, info};
 
 use crate::platform::traits::OutputDevice;
 use crate::types::key_codes::{
-    SCAN_CODE_ALT, SCAN_CODE_CTRL, SCAN_CODE_META, SCAN_CODE_SHIFT,
+    SCAN_CODE_ALT, SCAN_CODE_CTRL, SCAN_CODE_META, SCAN_CODE_SHIFT, VK_ALT, VK_CONTROL,
+    VK_LMETA, VK_SHIFT,
 };
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
@@ -88,28 +89,28 @@ impl MacroPlayer {
         if target.ctrl && !current.ctrl {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_CTRL,
-                virtual_key: 0x11,
+                virtual_key: VK_CONTROL,
             })?;
             current.ctrl = true;
         }
         if target.shift && !current.shift {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_SHIFT,
-                virtual_key: 0x10,
+                virtual_key: VK_SHIFT,
             })?;
             current.shift = true;
         }
         if target.alt && !current.alt {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_ALT,
-                virtual_key: 0x12,
+                virtual_key: VK_ALT,
             })?;
             current.alt = true;
         }
         if target.meta && !current.meta {
             output.send_key_action(&KeyAction::Press {
                 scan_code: SCAN_CODE_META,
-                virtual_key: 0x5B,
+                virtual_key: VK_LMETA,
             })?;
             current.meta = true;
         }
@@ -118,28 +119,28 @@ impl MacroPlayer {
         if current.meta && !target.meta {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_META,
-                virtual_key: 0x5B,
+                virtual_key: VK_LMETA,
             })?;
             current.meta = false;
         }
         if current.alt && !target.alt {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_ALT,
-                virtual_key: 0x12,
+                virtual_key: VK_ALT,
             })?;
             current.alt = false;
         }
         if current.shift && !target.shift {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_SHIFT,
-                virtual_key: 0x10,
+                virtual_key: VK_SHIFT,
             })?;
             current.shift = false;
         }
         if current.ctrl && !target.ctrl {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_CTRL,
-                virtual_key: 0x11,
+                virtual_key: VK_CONTROL,
             })?;
             current.ctrl = false;
         }
@@ -156,25 +157,25 @@ impl MacroPlayer {
         if current.meta {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_META,
-                virtual_key: 0x5B,
+                virtual_key: VK_LMETA,
             })?;
         }
         if current.alt {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_ALT,
-                virtual_key: 0x12,
+                virtual_key: VK_ALT,
             })?;
         }
         if current.shift {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_SHIFT,
-                virtual_key: 0x10,
+                virtual_key: VK_SHIFT,
             })?;
         }
         if current.ctrl {
             output.send_key_action(&KeyAction::Release {
                 scan_code: SCAN_CODE_CTRL,
-                virtual_key: 0x11,
+                virtual_key: VK_CONTROL,
             })?;
         }
 
