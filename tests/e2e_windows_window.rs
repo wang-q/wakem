@@ -18,6 +18,10 @@ mod integration_tests {
         cleanup_test_windows();
         thread::sleep(Duration::from_millis(100));
 
+        launch_notepad_without_cleanup()
+    }
+
+    fn launch_notepad_without_cleanup() -> u32 {
         let child = Command::new("notepad.exe")
             .spawn()
             .expect("Failed to launch notepad.exe");
@@ -662,12 +666,12 @@ mod integration_tests {
     fn test_switch_cycles_through_three_windows() {
         setup();
 
-        // Launch three notepad windows
-        let _pid1 = launch_test_window();
-        thread::sleep(Duration::from_millis(300));
-        let _pid2 = launch_test_window();
-        thread::sleep(Duration::from_millis(300));
-        let _pid3 = launch_test_window();
+        // Launch three notepad windows (without cleanup between launches)
+        let _pid1 = launch_notepad_without_cleanup();
+        thread::sleep(Duration::from_millis(500));
+        let _pid2 = launch_notepad_without_cleanup();
+        thread::sleep(Duration::from_millis(500));
+        let _pid3 = launch_notepad_without_cleanup();
         wait_for_window_stable();
 
         let wm = WindowsWindowManager::new();
@@ -696,14 +700,14 @@ mod integration_tests {
     fn test_switch_cycles_through_four_windows() {
         setup();
 
-        // Launch four notepad windows
-        let _pid1 = launch_test_window();
-        thread::sleep(Duration::from_millis(300));
-        let _pid2 = launch_test_window();
-        thread::sleep(Duration::from_millis(300));
-        let _pid3 = launch_test_window();
-        thread::sleep(Duration::from_millis(300));
-        let _pid4 = launch_test_window();
+        // Launch four notepad windows (without cleanup between launches)
+        let _pid1 = launch_notepad_without_cleanup();
+        thread::sleep(Duration::from_millis(500));
+        let _pid2 = launch_notepad_without_cleanup();
+        thread::sleep(Duration::from_millis(500));
+        let _pid3 = launch_notepad_without_cleanup();
+        thread::sleep(Duration::from_millis(500));
+        let _pid4 = launch_notepad_without_cleanup();
         wait_for_window_stable();
 
         let wm = WindowsWindowManager::new();
