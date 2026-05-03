@@ -1,4 +1,6 @@
-use crate::platform::traits::{NotificationService, WindowManager, WindowPresetManager};
+use crate::platform::traits::{
+    NotificationService, WindowManagerTrait, WindowPresetManager,
+};
 use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
     MonitorDirection, WindowAction,
@@ -16,7 +18,7 @@ pub struct KeyMapper {
     rules: Vec<MappingRule>,
     context_rules: Vec<ContextMappingRule>,
     enabled: bool,
-    pub(crate) window_manager: Option<Box<dyn WindowManager>>,
+    pub(crate) window_manager: Option<Box<dyn WindowManagerTrait>>,
     notification_service: Option<Box<dyn NotificationService>>,
     window_preset_manager: Option<Box<dyn WindowPresetManager>>,
 }
@@ -34,7 +36,7 @@ impl KeyMapper {
     }
 
     pub fn with_window_manager(
-        window_manager: Box<dyn WindowManager>,
+        window_manager: Box<dyn WindowManagerTrait>,
         notification_service: Option<Box<dyn NotificationService>>,
         window_preset_manager: Option<Box<dyn WindowPresetManager>>,
     ) -> Self {
@@ -273,79 +275,36 @@ impl Default for KeyMapper {
 }
 
 fn execute_window_action_impl(
-    wm: &dyn WindowManager,
+    wm: &dyn WindowManagerTrait,
     action: &WindowAction,
     notification_service: &Option<Box<dyn NotificationService>>,
     window_preset_manager: &mut Option<Box<dyn WindowPresetManager>>,
 ) -> anyhow::Result<()> {
-    use crate::platform::common::window_ops;
-
     let window = wm
         .get_foreground_window()
         .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
 
     match action {
         WindowAction::Center => {
-            let info = wm.get_window_info(window)?;
-            let monitors = wm.get_monitors();
-            if let Some((x, y)) = window_ops::calc_centered_pos(&info, &monitors) {
-                wm.set_window_pos(window, x, y, info.width, info.height)?;
-            }
+            wm.move_to_center(window)?;
         }
         WindowAction::MoveToEdge(edge) => {
-            let info = wm.get_window_info(window)?;
-            let monitors = wm.get_monitors();
-            if let Some((x, y)) = window_ops::calc_edge_pos(&info, &monitors, *edge) {
-                wm.set_window_pos(window, x, y, info.width, info.height)?;
-            }
+            wm.move_to_edge(window, *edge)?;
         }
         WindowAction::HalfScreen(edge) => {
-            let info = wm.get_window_info(window)?;
-            let monitors = wm.get_monitors();
-            if let Some((x, y, w, h)) =
-                window_ops::calc_half_screen(&info, &monitors, *edge)
-            {
-                wm.set_window_pos(window, x, y, w, h)?;
-            }
+            wm.set_half_screen(window, *edge)?;
         }
         WindowAction::LoopWidth(align) => {
-            let info = wm.get_window_info(window)?;
-            let monitors = wm.get_monitors();
-            if let Some((x, y, w, h)) =
-                window_ops::calc_looped_width(&info, &monitors, *align)
-            {
-                wm.set_window_pos(window, x, y, w, h)?;
-            }
+            wm.loop_width(window, *align)?;
         }
         WindowAction::LoopHeight(align) => {
-            let info = wm.get_window_info(window)?;
-            let monitors = wm.get_monitors();
-            if let Some((x, y, w, h)) =
-                window_ops::calc_looped_height(&info, &monitors, *align)
-            {
-                wm.set_window_pos(window, x, y, w, h)?;
-            }
+            wm.loop_height(window, *align)?;
         }
         WindowAction::FixedRatio { ratio, scale_index } => {
-            let info = wm.get_window_info(window)?;
-            let monitors = wm.get_monitors();
-            if let Some((x, y, w, h)) = window_ops::calc_fixed_ratio(
-                &info,
-                &monitors,
-                *ratio,
-                Some(*scale_index),
-            ) {
-                wm.set_window_pos(window, x, y, w, h)?;
-            }
+            wm.set_fixed_ratio(window, *ratio, Some(*scale_index))?;
         }
         WindowAction::NativeRatio { scale_index } => {
-            let info = wm.get_window_info(window)?;
-            let monitors = wm.get_monitors();
-            if let Some((x, y, w, h)) =
-                window_ops::calc_native_ratio(&info, &monitors, Some(*scale_index))
-            {
-                wm.set_window_pos(window, x, y, w, h)?;
-            }
+            wm.set_native_ratio(window, Some(*scale_index))?;
         }
         WindowAction::SwitchToNextWindow => {
             wm.switch_to_next_window_of_same_process()?;
@@ -366,8 +325,7 @@ fn execute_window_action_impl(
         WindowAction::Restore => wm.restore_window(window)?,
         WindowAction::Close => wm.close_window(window)?,
         WindowAction::ToggleTopmost => {
-            let current = wm.is_topmost(window);
-            wm.set_topmost(window, !current)?;
+            wm.toggle_topmost(window)?;
         }
         WindowAction::ShowDebugInfo => {
             show_debug_info(wm, window, notification_service);
@@ -391,7 +349,7 @@ fn execute_window_action_impl(
 }
 
 fn execute_move_to_monitor(
-    wm: &dyn WindowManager,
+    wm: &dyn WindowManagerTrait,
     window: crate::platform::types::WindowId,
     direction: &MonitorDirection,
 ) -> anyhow::Result<()> {
@@ -445,7 +403,7 @@ fn execute_move_to_monitor(
 }
 
 fn show_debug_info(
-    wm: &dyn WindowManager,
+    wm: &dyn WindowManagerTrait,
     window: crate::platform::types::WindowId,
     notification_service: &Option<Box<dyn NotificationService>>,
 ) {

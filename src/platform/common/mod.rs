@@ -8,5 +8,4 @@ pub mod launcher;
 pub mod output_helpers;
 pub mod tray;
 pub mod window_manager;
-pub mod window_ops;
 pub mod window_preset;

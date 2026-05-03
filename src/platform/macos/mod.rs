@@ -37,7 +37,7 @@ pub use tray::{
 pub use window_api::{MacosWindowApi, RealMacosWindowApi};
 pub use window_event_hook::MacosWindowEventHook;
 
-pub use window_manager::{MacosWindowManager, RealMacosWindowManager as WindowManager};
+pub use window_manager::WindowManager;
 
 pub use window_preset::WindowPresetManager;
 

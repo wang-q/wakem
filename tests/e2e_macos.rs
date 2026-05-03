@@ -5,7 +5,11 @@ mod macos_integration_tests {
     use std::process::Command;
     use std::thread;
     use std::time::Duration;
-    use wakem::platform::macos::window_manager::{MacosWindowManager, WindowId};
+    use wakem::platform::macos::WindowManager;
+    use wakem::platform::traits::WindowId;
+    use wakem::platform::traits::{
+        ForegroundWindowOperations, WindowOperations, WindowSwitching,
+    };
     use wakem::types::Edge;
 
     fn launch_test_window() {
@@ -13,10 +17,8 @@ mod macos_integration_tests {
         thread::sleep(Duration::from_secs(2));
     }
 
-    fn get_foreground_window_id(wm: &MacosWindowManager) -> Option<WindowId> {
-        wm.get_foreground_window_info()
-            .and_then(|r| r.ok())
-            .map(|info| info.id)
+    fn get_foreground_window_id(wm: &WindowManager) -> Option<WindowId> {
+        wm.get_foreground_window()
     }
 
     fn setup() {
@@ -33,16 +35,18 @@ mod macos_integration_tests {
     fn test_get_foreground_window_info() {
         setup();
 
-        let wm = MacosWindowManager::new_real();
-        let info = wm.get_foreground_window_info();
+        let wm = WindowManager::new();
+        let window_id = wm.get_foreground_window();
+        assert!(window_id.is_some());
 
-        assert!(info.is_some());
-        let result = info.unwrap();
-        assert!(result.is_ok());
-        let info = result.unwrap();
-        assert!(!info.title.is_empty());
-        assert!(info.width > 0);
-        assert!(info.height > 0);
+        if let Some(id) = window_id {
+            let info = wm.get_window_info(id);
+            assert!(info.is_ok());
+            let info = info.unwrap();
+            assert!(!info.title.is_empty());
+            assert!(info.width > 0);
+            assert!(info.height > 0);
+        }
 
         teardown();
     }
@@ -52,20 +56,21 @@ mod macos_integration_tests {
     fn test_move_to_center() {
         setup();
 
-        let wm = MacosWindowManager::new_real();
+        let wm = WindowManager::new();
         let window_id = match get_foreground_window_id(&wm) {
             Some(id) => id,
             None => panic!("No foreground window found"),
         };
 
-        let original = wm.get_foreground_window_info().and_then(|r| r.ok());
+        let original = wm.get_window_info(window_id).ok();
 
+        use wakem::platform::traits::WindowManagerExt;
         let result = wm.move_to_center(window_id);
         assert!(result.is_ok());
 
         thread::sleep(Duration::from_millis(300));
 
-        let new_info = wm.get_foreground_window_info().and_then(|r| r.ok());
+        let new_info = wm.get_window_info(window_id).ok();
 
         if let (Some(orig), Some(new)) = (original, new_info) {
             assert!(new.x != orig.x || new.y != orig.y);
@@ -79,18 +84,19 @@ mod macos_integration_tests {
     fn test_move_to_edge() {
         setup();
 
-        let wm = MacosWindowManager::new_real();
+        let wm = WindowManager::new();
         let window_id = match get_foreground_window_id(&wm) {
             Some(id) => id,
             None => panic!("No foreground window found"),
         };
 
+        use wakem::platform::traits::WindowManagerExt;
         let result = wm.move_to_edge(window_id, Edge::Left);
         assert!(result.is_ok());
 
         thread::sleep(Duration::from_millis(300));
 
-        let info = wm.get_foreground_window_info().and_then(|r| r.ok());
+        let info = wm.get_window_info(window_id).ok();
 
         if let Some(info) = info {
             assert!(info.x < 100);
@@ -104,12 +110,13 @@ mod macos_integration_tests {
     fn test_toggle_topmost() {
         setup();
 
-        let wm = MacosWindowManager::new_real();
+        let wm = WindowManager::new();
         let window_id = match get_foreground_window_id(&wm) {
             Some(id) => id,
             None => panic!("No foreground window found"),
         };
 
+        use wakem::platform::traits::WindowManagerExt;
         let result1 = wm.toggle_topmost(window_id);
         assert!(result1.is_ok());
         let is_topmost1 = result1.unwrap();
@@ -133,22 +140,10 @@ mod macos_integration_tests {
         let _ = Command::new("open").args(["-a", "Terminal"]).output();
         thread::sleep(Duration::from_secs(2));
 
-        let wm = MacosWindowManager::new_real();
+        let wm = WindowManager::new();
 
         let result = wm.switch_to_next_window_of_same_process();
         assert!(result.is_ok());
-
-        teardown();
-    }
-
-    #[test]
-    #[ignore = "Operates on real windows - run manually"]
-    fn test_get_debug_info() {
-        setup();
-
-        let wm = MacosWindowManager::new_real();
-        let debug_info = wm.get_debug_info();
-        assert!(!debug_info.is_empty());
 
         teardown();
     }

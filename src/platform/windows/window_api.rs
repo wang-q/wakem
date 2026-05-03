@@ -272,6 +272,36 @@ impl WindowApiBase for RealWindowApi {
     fn get_monitors_inner(&self) -> Vec<MonitorInfo> {
         unsafe { enumerate_all_monitors() }
     }
+
+    fn get_process_name_inner(&self, window: WindowId) -> Option<String> {
+        unsafe {
+            let hwnd = window_id_to_hwnd(window);
+            let mut pid: u32 = 0;
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                hwnd,
+                Some(&mut pid),
+            );
+            if pid == 0 {
+                return None;
+            }
+            super::get_process_name_by_pid(pid).ok()
+        }
+    }
+
+    fn get_executable_path_inner(&self, window: WindowId) -> Option<String> {
+        unsafe {
+            let hwnd = window_id_to_hwnd(window);
+            let mut pid: u32 = 0;
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                hwnd,
+                Some(&mut pid),
+            );
+            if pid == 0 {
+                return None;
+            }
+            super::get_executable_path_by_pid(pid).ok()
+        }
+    }
 }
 
 // ============================================================================

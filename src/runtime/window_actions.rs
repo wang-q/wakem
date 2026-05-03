@@ -3,16 +3,16 @@
 //! Extracted from [`KeyMapper`](super::KeyMapper) to keep the mapper focused on
 //! rule matching and event processing.
 
-use crate::platform::traits::WindowManager;
+use crate::platform::traits::WindowManagerTrait;
 use crate::platform::types::{MonitorInfo, WindowInfo};
 use crate::types::{MonitorDirection, WindowAction};
 use tracing::debug;
 
 /// Execute a window action using the provided window manager.
 ///
-/// All window operations are dispatched through [`WindowManager`] trait,
+/// All window operations are dispatched through [`WindowManagerTrait`] trait,
 /// which provides both basic and advanced window management operations.
-pub fn execute_window_action<W: WindowManager>(
+pub fn execute_window_action<W: WindowManagerTrait>(
     wm: &W,
     action: &WindowAction,
 ) -> anyhow::Result<()> {
@@ -114,7 +114,7 @@ pub fn execute_window_action<W: WindowManager>(
     Ok(())
 }
 
-fn execute_move_to_monitor<W: WindowManager>(
+fn execute_move_to_monitor<W: WindowManagerTrait>(
     wm: &W,
     window_id: usize,
     direction: &MonitorDirection,
@@ -221,11 +221,7 @@ mod tests {
         }
     }
 
-    impl WindowManager for TestWindowManager {
-        fn get_foreground_window(&self) -> Option<usize> {
-            Some(0)
-        }
-
+    impl WindowOperations for TestWindowManager {
         fn get_window_info(&self, _window: usize) -> anyhow::Result<WindowInfo> {
             let info = self.info.borrow();
             Ok(WindowInfo {
@@ -273,11 +269,9 @@ mod tests {
         fn close_window(&self, _window: usize) -> anyhow::Result<()> {
             Ok(())
         }
+    }
 
-        fn get_monitors(&self) -> Vec<MonitorInfo> {
-            self.monitors.clone()
-        }
-
+    impl WindowStateQueries for TestWindowManager {
         fn is_window_valid(&self, _window: usize) -> bool {
             true
         }
@@ -296,6 +290,18 @@ mod tests {
 
         fn set_topmost(&self, _window: usize, _topmost: bool) -> anyhow::Result<()> {
             Ok(())
+        }
+    }
+
+    impl MonitorOperations for TestWindowManager {
+        fn get_monitors(&self) -> Vec<MonitorInfo> {
+            self.monitors.clone()
+        }
+    }
+
+    impl ForegroundWindowOperations for TestWindowManager {
+        fn get_foreground_window(&self) -> Option<usize> {
+            Some(0)
         }
     }
 

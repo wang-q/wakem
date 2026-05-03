@@ -4,68 +4,23 @@
 use crate::platform::common::window_preset::{
     WindowPresetApi, WindowPresetManager as CommonWindowPresetManager,
 };
-use crate::platform::traits::WindowPresetManager as WindowPresetManagerTrait;
+use crate::platform::traits::{
+    ForegroundWindowOperations, WindowOperations,
+    WindowPresetManager as WindowPresetManagerTrait,
+};
 use crate::platform::types::{WindowId, WindowInfo};
 use crate::platform::windows::window_manager::WindowManager;
 use anyhow::Result;
-use windows::Win32::Foundation::HWND;
 
 impl WindowPresetApi for WindowManager {
-    type WindowId = HWND;
+    type WindowId = WindowId;
 
     fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-        unsafe {
-            let hwnd = GetForegroundWindow();
-            if hwnd.0.is_null() {
-                None
-            } else {
-                Some(hwnd)
-            }
-        }
+        ForegroundWindowOperations::get_foreground_window(self)
     }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
-        use crate::platform::traits::WindowOperations;
-
-        // Get window info using the trait methods
-        let window_id = window.0 as usize;
-
-        // Get title using Windows API directly since it's not in the trait
-        let title = unsafe {
-            let mut title_buffer = [0u16; 256];
-            let len = windows::Win32::UI::WindowsAndMessaging::GetWindowTextW(
-                window,
-                &mut title_buffer,
-            );
-            if len == 0 {
-                String::new()
-            } else {
-                String::from_utf16_lossy(&title_buffer[..len as usize])
-            }
-        };
-
-        // Get window rect using trait method
-        let info = WindowOperations::get_window_info(self, window_id)?;
-
-        let process_name = unsafe {
-            match get_window_process_id(window) {
-                Ok(pid) => super::get_process_name_by_pid(pid).unwrap_or_default(),
-                Err(_) => String::new(),
-            }
-        };
-        let executable_path = unsafe { get_window_executable_path(window).ok() };
-
-        Ok(WindowInfo {
-            id: window_id,
-            title,
-            process_name,
-            executable_path,
-            x: info.x,
-            y: info.y,
-            width: info.width,
-            height: info.height,
-        })
+        WindowOperations::get_window_info(self, window)
     }
 
     fn set_window_pos(
@@ -76,36 +31,16 @@ impl WindowPresetApi for WindowManager {
         w: i32,
         h: i32,
     ) -> Result<()> {
-        use crate::platform::traits::WindowOperations;
-        WindowOperations::set_window_pos(self, window.0 as usize, x, y, w, h)
+        WindowOperations::set_window_pos(self, window, x, y, w, h)
     }
 
     fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        use crate::platform::traits::WindowOperations;
-        WindowOperations::minimize_window(self, window.0 as usize)
+        WindowOperations::minimize_window(self, window)
     }
 
     fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        use crate::platform::traits::WindowOperations;
-        WindowOperations::maximize_window(self, window.0 as usize)
+        WindowOperations::maximize_window(self, window)
     }
-}
-
-unsafe fn get_window_process_id(hwnd: HWND) -> Result<u32> {
-    let mut pid: u32 = 0;
-    windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
-        hwnd,
-        Some(&mut pid),
-    );
-    if pid == 0 {
-        return Err(anyhow::anyhow!("Failed to get process ID"));
-    }
-    Ok(pid)
-}
-
-unsafe fn get_window_executable_path(hwnd: HWND) -> Result<String> {
-    let pid = get_window_process_id(hwnd)?;
-    super::get_executable_path_by_pid(pid)
 }
 
 pub type WindowPresetManager = CommonWindowPresetManager<WindowManager>;
@@ -134,7 +69,6 @@ impl WindowPresetManagerTrait for WindowPresetManager {
     }
 
     fn apply_preset_for_window_by_id(&self, window_id: WindowId) -> Result<bool> {
-        let hwnd = HWND(window_id as *mut core::ffi::c_void);
-        self.apply_preset_for_window_by_id(hwnd)
+        self.apply_preset_for_window_by_id(window_id)
     }
 }

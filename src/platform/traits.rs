@@ -157,6 +157,14 @@ pub trait WindowApiBase: Send + Sync {
     fn get_window_title_inner(&self, window: Self::WindowId) -> Option<String>;
     fn get_window_rect_inner(&self, window: Self::WindowId) -> Result<WindowFrame>;
     fn get_monitors_inner(&self) -> Vec<MonitorInfo>;
+    fn get_process_name_inner(&self, window: Self::WindowId) -> Option<String> {
+        let _ = window;
+        None
+    }
+    fn get_executable_path_inner(&self, window: Self::WindowId) -> Option<String> {
+        let _ = window;
+        None
+    }
 
     // === Default delegations to inner methods ===
     fn get_foreground_window(&self) -> Option<Self::WindowId> {
@@ -222,6 +230,14 @@ pub trait WindowApiBase: Send + Sync {
         self.get_monitors_inner()
     }
 
+    fn get_process_name(&self, window: Self::WindowId) -> Option<String> {
+        self.get_process_name_inner(window)
+    }
+
+    fn get_executable_path(&self, window: Self::WindowId) -> Option<String> {
+        self.get_executable_path_inner(window)
+    }
+
     /// Ensure window is restored (not minimized or maximized)
     fn ensure_window_restored(&self, window: Self::WindowId) -> Result<()> {
         if self.is_minimized(window) || self.is_maximized(window) {
@@ -268,12 +284,23 @@ pub trait ForegroundWindowOperations: Send + Sync {
     fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
 }
 
+/// Platform-specific window switching operations
+pub trait WindowSwitching: Send + Sync {
+    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
+        anyhow::bail!(
+            "switch_to_next_window_of_same_process not implemented on this platform"
+        )
+    }
+}
+
 /// Window manager trait - combines all window-related operations
 pub trait WindowManagerTrait:
     WindowOperations
     + WindowStateQueries
     + MonitorOperations
     + ForegroundWindowOperations
+    + WindowSwitching
+    + WindowManagerExt
     + Send
     + Sync
 {
@@ -285,63 +312,9 @@ impl<T> WindowManagerTrait for T where
         + WindowStateQueries
         + MonitorOperations
         + ForegroundWindowOperations
+        + WindowSwitching
+        + WindowManagerExt
 {
-}
-
-/// Legacy WindowManager trait - kept for backward compatibility
-///
-/// This trait is deprecated in favor of the more granular traits above.
-/// New code should use `WindowManagerTrait` or the specific component traits.
-pub trait WindowManager: Send + Sync {
-    fn get_foreground_window(&self) -> Option<WindowId>;
-    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
-    fn set_window_pos(
-        &self,
-        window: WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()>;
-    fn minimize_window(&self, window: WindowId) -> Result<()>;
-    fn maximize_window(&self, window: WindowId) -> Result<()>;
-    fn restore_window(&self, window: WindowId) -> Result<()>;
-    fn close_window(&self, window: WindowId) -> Result<()>;
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost(&self, window: WindowId) -> bool;
-    fn is_window_valid(&self, window: WindowId) -> bool;
-    fn is_minimized(&self, window: WindowId) -> bool;
-    fn is_maximized(&self, window: WindowId) -> bool;
-    fn get_monitors(&self) -> Vec<MonitorInfo>;
-
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
-        let _ = (window, monitor_index);
-        anyhow::bail!("move_to_monitor not implemented on this platform")
-    }
-
-    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
-        anyhow::bail!(
-            "switch_to_next_window_of_same_process not implemented on this platform"
-        )
-    }
-
-    fn move_to_center(&self, window: WindowId) -> Result<()>;
-    fn move_to_edge(&self, window: WindowId, edge: Edge) -> Result<()>;
-    fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()>;
-    fn loop_width(&self, window: WindowId, align: Alignment) -> Result<()>;
-    fn loop_height(&self, window: WindowId, align: Alignment) -> Result<()>;
-    fn set_fixed_ratio(
-        &self,
-        window: WindowId,
-        ratio: f32,
-        scale_index: Option<usize>,
-    ) -> Result<()>;
-    fn set_native_ratio(
-        &self,
-        window: WindowId,
-        scale_index: Option<usize>,
-    ) -> Result<()>;
-    fn toggle_topmost(&self, window: WindowId) -> Result<bool>;
 }
 
 /// Window manager extension trait - high-level window operations
@@ -349,26 +322,155 @@ pub trait WindowManager: Send + Sync {
 /// These methods combine basic operations to provide convenient
 /// high-level functionality like centering windows, moving to edges,
 /// and resizing with alignment.
+///
+/// All methods have default implementations built on the basic trait
+/// methods, so platforms only need to implement the component traits.
 pub trait WindowManagerExt:
     WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations
 {
-    fn move_to_center(&self, window: WindowId) -> Result<()>;
-    fn move_to_edge(&self, window: WindowId, edge: Edge) -> Result<()>;
-    fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()>;
-    fn loop_width(&self, window: WindowId, align: Alignment) -> Result<()>;
-    fn loop_height(&self, window: WindowId, align: Alignment) -> Result<()>;
+    fn move_to_center(&self, window: WindowId) -> Result<()> {
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let new_x = monitor.x + (monitor.width - info.width) / 2;
+        let new_y = monitor.y + (monitor.height - info.height) / 2;
+        self.set_window_pos(window, new_x, new_y, info.width, info.height)
+    }
+
+    fn move_to_edge(&self, window: WindowId, edge: Edge) -> Result<()> {
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let (new_x, new_y) = match edge {
+            Edge::Left => (monitor.x, info.y),
+            Edge::Right => (monitor.x + monitor.width - info.width, info.y),
+            Edge::Top => (info.x, monitor.y),
+            Edge::Bottom => (info.x, monitor.y + monitor.height - info.height),
+        };
+        self.set_window_pos(window, new_x, new_y, info.width, info.height)
+    }
+
+    fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()> {
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let (new_x, new_y, new_width, new_height) = match edge {
+            Edge::Left => (monitor.x, monitor.y, monitor.width / 2, monitor.height),
+            Edge::Right => {
+                let w = monitor.width / 2;
+                (monitor.x + monitor.width - w, monitor.y, w, monitor.height)
+            }
+            Edge::Top => (monitor.x, monitor.y, monitor.width, monitor.height / 2),
+            Edge::Bottom => {
+                let h = monitor.height / 2;
+                (monitor.x, monitor.y + monitor.height - h, monitor.width, h)
+            }
+        };
+        self.set_window_pos(window, new_x, new_y, new_width, new_height)
+    }
+
+    fn loop_width(&self, window: WindowId, align: Alignment) -> Result<()> {
+        const WIDTH_RATIOS: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let current_ratio = info.width as f32 / monitor.width as f32;
+        let next_ratio = find_next_ratio(&WIDTH_RATIOS, current_ratio);
+        let new_width = (monitor.width as f32 * next_ratio) as i32;
+        let new_x = match align {
+            Alignment::Left => monitor.x,
+            Alignment::Right => monitor.x + monitor.width - new_width,
+            _ => info.x,
+        };
+        self.set_window_pos(window, new_x, info.y, new_width, info.height)
+    }
+
+    fn loop_height(&self, window: WindowId, align: Alignment) -> Result<()> {
+        const HEIGHT_RATIOS: [f32; 3] = [0.75, 0.5, 0.25];
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let current_ratio = info.height as f32 / monitor.height as f32;
+        let next_ratio = find_next_ratio(&HEIGHT_RATIOS, current_ratio);
+        let new_height = (monitor.height as f32 * next_ratio) as i32;
+        let new_y = match align {
+            Alignment::Top => monitor.y,
+            Alignment::Bottom => monitor.y + monitor.height - new_height,
+            _ => info.y,
+        };
+        self.set_window_pos(window, info.x, new_y, info.width, new_height)
+    }
+
     fn set_fixed_ratio(
         &self,
         window: WindowId,
         ratio: f32,
         scale_index: Option<usize>,
-    ) -> Result<()>;
+    ) -> Result<()> {
+        const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let base_size = std::cmp::min(monitor.width, monitor.height);
+        let base_width = (base_size as f32 * ratio) as i32;
+        let base_height = base_size;
+        let next_scale = match scale_index {
+            Some(idx) if idx < SCALES.len() => SCALES[idx],
+            Some(idx) => {
+                anyhow::bail!(
+                    "Scale index {} out of range (0-{})",
+                    idx,
+                    SCALES.len() - 1
+                );
+            }
+            None => {
+                let current_scale = (info.width as f32 / base_width as f32
+                    + info.height as f32 / base_height as f32)
+                    / 2.0;
+                find_next_ratio(&SCALES, current_scale)
+            }
+        };
+        let new_width = (base_width as f32 * next_scale) as i32;
+        let new_height = (base_height as f32 * next_scale) as i32;
+        let new_x = monitor.x + (monitor.width - new_width) / 2;
+        let new_y = monitor.y + (monitor.height - new_height) / 2;
+        self.set_window_pos(window, new_x, new_y, new_width, new_height)
+    }
+
     fn set_native_ratio(
         &self,
         window: WindowId,
         scale_index: Option<usize>,
-    ) -> Result<()>;
-    fn toggle_topmost(&self, window: WindowId) -> Result<bool>;
+    ) -> Result<()> {
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        let monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
+        let ratio = monitor.width as f32 / monitor.height as f32;
+        self.set_fixed_ratio(window, ratio, scale_index)
+    }
+
+    fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
+        let current = self.is_topmost(window);
+        let new_state = !current;
+        self.set_topmost(window, new_state)?;
+        Ok(new_state)
+    }
+}
+
+impl<
+        T: WindowOperations
+            + WindowStateQueries
+            + MonitorOperations
+            + ForegroundWindowOperations,
+    > WindowManagerExt for T
+{
 }
 
 /// Find the monitor that contains the given point, falling back to the first monitor
@@ -461,7 +563,7 @@ pub trait ApplicationControl {
 pub trait PlatformFactory {
     type InputDevice: InputDevice;
     type OutputDevice: OutputDevice;
-    type WindowManager: WindowManager;
+    type WindowManager: WindowManagerTrait;
     type WindowPresetManager: WindowPresetManager;
     type NotificationService: NotificationService;
     type Launcher: Launcher;

@@ -7,8 +7,7 @@
 
 use crate::platform::traits::{
     find_monitor_for_point, find_next_ratio, ForegroundWindowOperations,
-    MonitorOperations, WindowApiBase, WindowManagerExt, WindowOperations,
-    WindowStateQueries,
+    MonitorOperations, WindowApiBase, WindowOperations, WindowStateQueries,
 };
 use crate::platform::types::{WindowFrame, WindowId, WindowInfo};
 use crate::types::{Alignment, Edge};
@@ -289,12 +288,14 @@ impl<A: WindowApiBase<WindowId = WindowId>> WindowOperations for WindowManager<A
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
         let title = self.api.get_window_title(window).unwrap_or_default();
         let rect = self.api.get_window_rect(window)?;
+        let process_name = self.api.get_process_name(window).unwrap_or_default();
+        let executable_path = self.api.get_executable_path(window);
 
         Ok(WindowInfo {
             id: window,
             title,
-            process_name: String::new(),
-            executable_path: None,
+            process_name,
+            executable_path,
             x: rect.x,
             y: rect.y,
             width: rect.width,
@@ -366,52 +367,31 @@ impl<A: WindowApiBase<WindowId = WindowId>> MonitorOperations for WindowManager<
         self.api.get_monitors()
     }
 
-    fn move_to_monitor(&self, _window: WindowId, _monitor_index: usize) -> Result<()> {
-        // Default implementation - platforms should override this
-        anyhow::bail!("move_to_monitor not implemented on this platform")
-    }
-}
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        let monitors = self.get_monitors();
+        if monitors.len() < 2 {
+            return Ok(());
+        }
+        if monitor_index >= monitors.len() {
+            anyhow::bail!("Invalid monitor index: {}", monitor_index);
+        }
 
-impl<A: WindowApiBase<WindowId = WindowId>> WindowManagerExt for WindowManager<A> {
-    fn move_to_center(&self, window: WindowId) -> Result<()> {
-        self.move_to_center(window)
-    }
+        let info = self.get_window_info(window)?;
+        let current_monitor = find_monitor_for_point(&monitors, info.x, info.y)
+            .ok_or_else(|| anyhow::anyhow!("No monitor found for window"))?;
+        let target_monitor = &monitors[monitor_index];
 
-    fn move_to_edge(&self, window: WindowId, edge: Edge) -> Result<()> {
-        self.move_to_edge(window, edge)
-    }
+        let rel_x = (info.x - current_monitor.x) as f32 / current_monitor.width as f32;
+        let rel_y = (info.y - current_monitor.y) as f32 / current_monitor.height as f32;
+        let rel_width = info.width as f32 / current_monitor.width as f32;
+        let rel_height = info.height as f32 / current_monitor.height as f32;
 
-    fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()> {
-        self.set_half_screen(window, edge)
-    }
+        let new_x = target_monitor.x + (rel_x * target_monitor.width as f32) as i32;
+        let new_y = target_monitor.y + (rel_y * target_monitor.height as f32) as i32;
+        let new_width = (rel_width * target_monitor.width as f32) as i32;
+        let new_height = (rel_height * target_monitor.height as f32) as i32;
 
-    fn loop_width(&self, window: WindowId, align: Alignment) -> Result<()> {
-        self.loop_width(window, align)
-    }
-
-    fn loop_height(&self, window: WindowId, align: Alignment) -> Result<()> {
-        self.loop_height(window, align)
-    }
-
-    fn set_fixed_ratio(
-        &self,
-        window: WindowId,
-        ratio: f32,
-        scale_index: Option<usize>,
-    ) -> Result<()> {
-        self.set_fixed_ratio(window, ratio, scale_index)
-    }
-
-    fn set_native_ratio(
-        &self,
-        window: WindowId,
-        scale_index: Option<usize>,
-    ) -> Result<()> {
-        self.set_native_ratio(window, scale_index)
-    }
-
-    fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
-        self.toggle_topmost(window)
+        self.set_window_pos(window, new_x, new_y, new_width, new_height)
     }
 }
 

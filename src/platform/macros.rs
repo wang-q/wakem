@@ -205,25 +205,3 @@ macro_rules! decl_notification_service {
         }
     };
 }
-
-/// Macro implementing the three inherent-method delegation methods for
-/// [`InputDeviceTrait`]. Both Windows and macOS `InputDevice<T>` wrappers
-/// expose inherent `poll_event`, `is_running`, and `stop` methods. This
-/// macro generates trait method bodies that delegate to those inherent
-/// methods.
-///
-/// [`InputDeviceTrait`]: crate::platform::traits::InputDeviceTrait
-#[macro_export]
-macro_rules! impl_input_device_delegation {
-    () => {
-        fn poll_event(&mut self) -> Option<$crate::types::InputEvent> {
-            self.poll_event()
-        }
-        fn is_running(&self) -> bool {
-            self.is_running()
-        }
-        fn stop(&mut self) {
-            self.stop();
-        }
-    };
-}
