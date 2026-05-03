@@ -493,9 +493,11 @@ pub trait TrayLifecycle {
 }
 
 /// Application control trait
-pub trait ApplicationControl {
+pub trait ApplicationControl: TrayLifecycle {
     fn detach_console();
-    fn terminate_application();
+    fn terminate_application() {
+        <Self as TrayLifecycle>::stop_tray()
+    }
     fn open_folder(path: &Path) -> Result<()>;
     fn force_kill_instance(instance_id: u32) -> Result<()>;
 }

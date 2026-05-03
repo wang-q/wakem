@@ -2,7 +2,7 @@
 #![cfg(target_os = "windows")]
 
 use crate::platform::common::app_control;
-use crate::platform::traits::{ApplicationControl, TrayLifecycle};
+use crate::platform::traits::ApplicationControl;
 use anyhow::Result;
 
 impl ApplicationControl for super::platform_utils::WindowsPlatform {
@@ -11,10 +11,6 @@ impl ApplicationControl for super::platform_utils::WindowsPlatform {
         unsafe {
             let _ = FreeConsole();
         }
-    }
-
-    fn terminate_application() {
-        <Self as TrayLifecycle>::stop_tray()
     }
 
     fn open_folder(path: &std::path::Path) -> Result<()> {
