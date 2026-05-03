@@ -18,6 +18,9 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
+#[cfg(test)]
+pub mod mock_window_api;
+
 use crate::platform::traits::{PlatformFactory, TrayLifecycle, WindowEventHookTrait};
 
 pub use crate::platform::common::launcher::Launcher;
@@ -36,7 +39,7 @@ pub use tray::{
     TrayIconWrapper as TrayIcon, TrayManager,
 };
 
-pub use window_api::{MacosWindowApi, RealMacosWindowApi};
+pub use window_api::RealMacosWindowApi;
 pub use window_event_hook::MacosWindowEventHook;
 
 pub use window_manager::WindowManager;
@@ -44,7 +47,7 @@ pub use window_manager::WindowManager;
 pub use window_preset::WindowPresetManager;
 
 #[cfg(test)]
-pub use window_api::MockMacosWindowApi;
+pub use mock_window_api::MockMacosWindowApi;
 
 pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
     platform_utils::get_process_name_by_pid(pid)

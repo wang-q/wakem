@@ -45,10 +45,6 @@ impl PlatformUtilities for MacosPlatform {
     fn get_modifier_state() -> crate::types::ModifierState {
         get_modifier_state()
     }
-
-    fn parse_key_fallback(_name: &str) -> Option<crate::types::KeyInfo> {
-        None
-    }
 }
 
 impl ContextProvider for MacosPlatform {

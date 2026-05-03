@@ -160,7 +160,7 @@ impl<A: WindowApiBase<WindowId = WindowId> + Send + Sync> WindowSwitching
     for WindowManager<A>
 {
     fn switch_to_next_window_of_same_process(&self) -> Result<()> {
-        self.api().switch_to_next_window_of_same_process_inner()
+        self.api().switch_to_next_window_of_same_process()
     }
 }
 

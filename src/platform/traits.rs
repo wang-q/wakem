@@ -135,54 +135,7 @@ pub trait OutputDevice: Send + Sync {
 pub trait WindowApiBase: Send + Sync {
     type WindowId: Copy + Send + 'static;
 
-    // === Required: platform-specific implementations (inner methods) ===
-    fn get_foreground_window_inner(&self) -> Option<Self::WindowId>;
-    fn set_window_pos_inner(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()>;
-    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn close_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost_inner(&self, window: Self::WindowId) -> bool;
-    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool;
-    fn is_minimized_inner(&self, window: Self::WindowId) -> bool;
-    fn is_maximized_inner(&self, window: Self::WindowId) -> bool;
-    fn get_window_title_inner(&self, window: Self::WindowId) -> Option<String>;
-    fn get_window_rect_inner(&self, window: Self::WindowId) -> Result<WindowFrame>;
-    fn get_monitors_inner(&self) -> Vec<MonitorInfo>;
-    fn get_monitor_work_area_inner(
-        &self,
-        monitor_index: usize,
-    ) -> Option<MonitorWorkArea> {
-        let _ = monitor_index;
-        None
-    }
-    fn get_process_name_inner(&self, window: Self::WindowId) -> Option<String> {
-        let _ = window;
-        None
-    }
-    fn get_executable_path_inner(&self, window: Self::WindowId) -> Option<String> {
-        let _ = window;
-        None
-    }
-    fn switch_to_next_window_of_same_process_inner(&self) -> Result<()> {
-        anyhow::bail!(
-            "switch_to_next_window_of_same_process not implemented on this platform"
-        )
-    }
-
-    // === Default delegations to inner methods ===
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        self.get_foreground_window_inner()
-    }
-
+    fn get_foreground_window(&self) -> Option<Self::WindowId>;
     fn set_window_pos(
         &self,
         window: Self::WindowId,
@@ -190,68 +143,36 @@ pub trait WindowApiBase: Send + Sync {
         y: i32,
         width: i32,
         height: i32,
-    ) -> Result<()> {
-        self.set_window_pos_inner(window, x, y, width, height)
-    }
-
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        self.minimize_window_inner(window)
-    }
-
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        self.maximize_window_inner(window)
-    }
-
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        self.restore_window_inner(window)
-    }
-
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        self.close_window_inner(window)
-    }
-
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        self.set_topmost_inner(window, topmost)
-    }
-
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
-        self.is_topmost_inner(window)
-    }
-
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.is_window_valid_inner(window)
-    }
-
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        self.is_minimized_inner(window)
-    }
-
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.is_maximized_inner(window)
-    }
-
-    fn get_window_title(&self, window: Self::WindowId) -> Option<String> {
-        self.get_window_title_inner(window)
-    }
-
-    fn get_window_rect(&self, window: Self::WindowId) -> Result<WindowFrame> {
-        self.get_window_rect_inner(window)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        self.get_monitors_inner()
-    }
+    ) -> Result<()>;
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
+    fn restore_window(&self, window: Self::WindowId) -> Result<()>;
+    fn close_window(&self, window: Self::WindowId) -> Result<()>;
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost(&self, window: Self::WindowId) -> bool;
+    fn is_window_valid(&self, window: Self::WindowId) -> bool;
+    fn is_minimized(&self, window: Self::WindowId) -> bool;
+    fn is_maximized(&self, window: Self::WindowId) -> bool;
+    fn get_window_title(&self, window: Self::WindowId) -> Option<String>;
+    fn get_window_rect(&self, window: Self::WindowId) -> Result<WindowFrame>;
+    fn get_monitors(&self) -> Vec<MonitorInfo>;
 
     fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
-        self.get_monitor_work_area_inner(monitor_index)
+        let _ = monitor_index;
+        None
     }
-
     fn get_process_name(&self, window: Self::WindowId) -> Option<String> {
-        self.get_process_name_inner(window)
+        let _ = window;
+        None
     }
-
     fn get_executable_path(&self, window: Self::WindowId) -> Option<String> {
-        self.get_executable_path_inner(window)
+        let _ = window;
+        None
+    }
+    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
+        anyhow::bail!(
+            "switch_to_next_window_of_same_process not implemented on this platform"
+        )
     }
 
     /// Ensure window is restored (not minimized or maximized)
@@ -554,7 +475,6 @@ pub trait PlatformUtilities {
     fn get_modifier_state() -> ModifierState;
     fn get_process_name_by_pid(pid: u32) -> Result<String>;
     fn get_executable_path_by_pid(pid: u32) -> Result<String>;
-    fn parse_key_fallback(name: &str) -> Option<crate::types::KeyInfo>;
 }
 
 /// Context provider trait

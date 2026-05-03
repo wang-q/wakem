@@ -898,9 +898,9 @@ pub fn parse_key(name: &str) -> anyhow::Result<crate::types::KeyInfo> {
         }
     }
 
-    // Platform-specific fallback
+    #[cfg(target_os = "windows")]
     if let Some(key_info) =
-        <crate::platform::CurrentPlatform as crate::platform::traits::PlatformUtilities>::parse_key_fallback(&name_lower)
+        crate::platform::windows::platform_utils::parse_key_fallback(&name_lower)
     {
         return Ok(key_info);
     }

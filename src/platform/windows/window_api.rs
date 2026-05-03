@@ -88,7 +88,7 @@ pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
 impl WindowApiBase for RealWindowApi {
     type WindowId = WindowId;
 
-    fn get_foreground_window_inner(&self) -> Option<Self::WindowId> {
+    fn get_foreground_window(&self) -> Option<Self::WindowId> {
         unsafe {
             let hwnd = GetForegroundWindow();
             if hwnd.0.is_null() {
@@ -99,7 +99,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn set_window_pos_inner(
+    fn set_window_pos(
         &self,
         window: Self::WindowId,
         x: i32,
@@ -122,7 +122,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()> {
+    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             ShowWindow(hwnd, windows::Win32::UI::WindowsAndMessaging::SW_MINIMIZE)
@@ -132,7 +132,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()> {
+    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             ShowWindow(hwnd, windows::Win32::UI::WindowsAndMessaging::SW_MAXIMIZE)
@@ -142,7 +142,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()> {
+    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             ShowWindow(hwnd, SW_RESTORE)
@@ -152,7 +152,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn close_window_inner(&self, window: Self::WindowId) -> Result<()> {
+    fn close_window(&self, window: Self::WindowId) -> Result<()> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
@@ -162,7 +162,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
+    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             use windows::Win32::UI::WindowsAndMessaging::{
@@ -178,7 +178,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn is_topmost_inner(&self, window: Self::WindowId) -> bool {
+    fn is_topmost(&self, window: Self::WindowId) -> bool {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             use windows::Win32::UI::WindowsAndMessaging::WS_EX_TOPMOST;
@@ -195,19 +195,19 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool {
+    fn is_window_valid(&self, window: Self::WindowId) -> bool {
         unsafe { IsWindow(Some(window_id_to_hwnd(window))).as_bool() }
     }
 
-    fn is_minimized_inner(&self, window: Self::WindowId) -> bool {
+    fn is_minimized(&self, window: Self::WindowId) -> bool {
         unsafe { IsIconic(window_id_to_hwnd(window)).as_bool() }
     }
 
-    fn is_maximized_inner(&self, window: Self::WindowId) -> bool {
+    fn is_maximized(&self, window: Self::WindowId) -> bool {
         unsafe { IsZoomed(window_id_to_hwnd(window)).as_bool() }
     }
 
-    fn get_window_title_inner(&self, window: Self::WindowId) -> Option<String> {
+    fn get_window_title(&self, window: Self::WindowId) -> Option<String> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             let mut title_buffer = [0u16; 256];
@@ -223,7 +223,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn get_window_rect_inner(&self, window: Self::WindowId) -> Result<WindowFrame> {
+    fn get_window_rect(&self, window: Self::WindowId) -> Result<WindowFrame> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             let mut rect = RECT::default();
@@ -237,19 +237,19 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn get_monitors_inner(&self) -> Vec<MonitorInfo> {
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
         unsafe { enumerate_all_monitors() }
     }
 
-    fn get_monitor_work_area_inner(
+    fn get_monitor_work_area(
         &self,
         monitor_index: usize,
     ) -> Option<crate::platform::types::MonitorWorkArea> {
-        let monitors = self.get_monitors_inner();
+        let monitors = self.get_monitors();
         monitors.get(monitor_index).map(|m| (*m).into())
     }
 
-    fn get_process_name_inner(&self, window: WindowId) -> Option<String> {
+    fn get_process_name(&self, window: WindowId) -> Option<String> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             let mut pid: u32 = 0;
@@ -264,7 +264,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn get_executable_path_inner(&self, window: WindowId) -> Option<String> {
+    fn get_executable_path(&self, window: WindowId) -> Option<String> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
             let mut pid: u32 = 0;
@@ -279,7 +279,7 @@ impl WindowApiBase for RealWindowApi {
         }
     }
 
-    fn switch_to_next_window_of_same_process_inner(&self) -> Result<()> {
+    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         unsafe {
             let current_hwnd = GetForegroundWindow();
             if current_hwnd.0.is_null() {
