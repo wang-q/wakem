@@ -181,64 +181,7 @@ macro_rules! impl_window_api_base_inner {
     };
 }
 
-/// Macro generating the standard `RealWindowManager` and `WindowPresetManager`
-/// type aliases with constructors.
-///
-/// Every platform that implements [`WindowApiBase`] needs a concrete
-/// `RealWindowManager` (= `WindowManager<RealWindowApi>`) and a
-/// `WindowPresetManager` (= `WindowPresetManager<WindowManager<RealWindowApi>>`).
-///
-/// This macro requires `RealWindowApi` and `WindowManager` to be in scope
-/// (the latter via `use crate::platform::common::window_manager::WindowManager`).
-///
-/// # Example
-///
-/// ```ignore
-/// // In platform/windows/window_manager.rs:
-/// use crate::platform::common::window_manager::WindowManager;
-/// use super::window_api::RealWindowApi;
-///
-/// crate::impl_window_manager_types!();
-///
-/// // Platform-specific extensions go below:
-/// impl RealWindowManager {
-///     pub fn platform_specific_method(&self) { ... }
-/// }
-/// ```
-#[macro_export]
-macro_rules! impl_window_manager_types {
-    () => {
-        /// Type alias for the real window manager using native platform APIs
-        pub type RealWindowManager =
-            $crate::platform::common::window_manager::WindowManager<RealWindowApi>;
 
-        impl $crate::platform::common::window_manager::WindowManager<RealWindowApi> {
-            pub fn new() -> Self {
-                Self::with_api(RealWindowApi::new())
-            }
-        }
-
-        impl Default for RealWindowManager {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        /// Window preset manager type for this platform
-        pub type WindowPresetManager =
-            $crate::platform::common::window_preset::WindowPresetManager<
-                $crate::platform::common::window_manager::WindowManager<RealWindowApi>,
-            >;
-
-        impl Default for WindowPresetManager {
-            fn default() -> Self {
-                Self::new($crate::platform::common::window_manager::WindowManager::<
-                    RealWindowApi,
-                >::new())
-            }
-        }
-    };
-}
 
 /// Macro declaring a unit-struct notification service with `new()` and
 /// `Default`. For use when the notification service does not need internal

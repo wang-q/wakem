@@ -10,12 +10,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows_core::BOOL;
 
-use crate::platform::common::window_ops;
 use crate::platform::traits::WindowManager as WindowManagerTrait;
-use crate::platform::types::WindowFrame;
-use crate::platform::types::{MonitorInfo, WindowId, WindowInfo};
+use crate::platform::types::{MonitorInfo, WindowFrame, WindowId, WindowInfo};
 use crate::platform::windows::window_api::WindowApi;
-use crate::types::{Alignment, Edge};
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]
@@ -589,103 +586,5 @@ impl WindowManagerTrait for WindowManager {
 
     fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         self.switch_to_next_window_of_same_process()
-    }
-}
-
-/// Extension methods for WindowManager
-impl WindowManager {
-    pub fn move_to_center(&self, window: WindowId) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-
-        if let Some((x, y)) = window_ops::calc_centered_pos(&info, &monitors) {
-            self.set_window_pos(window, x, y, info.width, info.height)?;
-        }
-        Ok(())
-    }
-
-    pub fn move_to_edge(&self, window: WindowId, edge: Edge) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-
-        if let Some((x, y)) = window_ops::calc_edge_pos(&info, &monitors, edge) {
-            self.set_window_pos(window, x, y, info.width, info.height)?;
-        }
-        Ok(())
-    }
-
-    pub fn set_half_screen(&self, window: WindowId, edge: Edge) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-
-        if let Some((x, y, w, h)) = window_ops::calc_half_screen(&info, &monitors, edge)
-        {
-            self.set_window_pos(window, x, y, w, h)?;
-        }
-        Ok(())
-    }
-
-    pub fn loop_width(&self, window: WindowId, align: Alignment) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-
-        if let Some((x, y, w, h)) =
-            window_ops::calc_looped_width(&info, &monitors, align)
-        {
-            self.set_window_pos(window, x, y, w, h)?;
-        }
-        Ok(())
-    }
-
-    pub fn loop_height(&self, window: WindowId, align: Alignment) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-
-        if let Some((x, y, w, h)) =
-            window_ops::calc_looped_height(&info, &monitors, align)
-        {
-            self.set_window_pos(window, x, y, w, h)?;
-        }
-        Ok(())
-    }
-
-    pub fn set_fixed_ratio(
-        &self,
-        window: WindowId,
-        ratio: f32,
-        scale_index: Option<usize>,
-    ) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-
-        if let Some((x, y, w, h)) =
-            window_ops::calc_fixed_ratio(&info, &monitors, ratio, scale_index)
-        {
-            self.set_window_pos(window, x, y, w, h)?;
-        }
-        Ok(())
-    }
-
-    pub fn set_native_ratio(
-        &self,
-        window: WindowId,
-        scale_index: Option<usize>,
-    ) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-
-        if let Some((x, y, w, h)) =
-            window_ops::calc_native_ratio(&info, &monitors, scale_index)
-        {
-            self.set_window_pos(window, x, y, w, h)?;
-        }
-        Ok(())
-    }
-
-    pub fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
-        let current = self.is_topmost(window);
-        let new_state = !current;
-        self.set_topmost(window, new_state)?;
-        Ok(new_state)
     }
 }

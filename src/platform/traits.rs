@@ -125,6 +125,7 @@ pub trait OutputDevice: Send + Sync {
 
 /// Window manager trait - unified interface for window operations
 pub trait WindowManager: Send + Sync {
+    // === Required: platform-specific implementations ===
     fn get_foreground_window(&self) -> Option<WindowId>;
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
     fn set_window_pos(
@@ -146,6 +147,7 @@ pub trait WindowManager: Send + Sync {
     fn is_maximized(&self, window: WindowId) -> bool;
     fn get_monitors(&self) -> Vec<MonitorInfo>;
 
+    // === Platform-specific extensions (with default bail) ===
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
         let _ = (window, monitor_index);
         anyhow::bail!("move_to_monitor not implemented on this platform")
@@ -155,6 +157,103 @@ pub trait WindowManager: Send + Sync {
         anyhow::bail!(
             "switch_to_next_window_of_same_process not implemented on this platform"
         )
+    }
+
+    // === Extension methods with default implementations ===
+    fn move_to_center(&self, window: WindowId) -> Result<()> {
+        use crate::platform::common::window_ops::calc_centered_pos;
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if let Some((x, y)) = calc_centered_pos(&info, &monitors) {
+            self.set_window_pos(window, x, y, info.width, info.height)?;
+        }
+        Ok(())
+    }
+
+    fn move_to_edge(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        use crate::platform::common::window_ops::calc_edge_pos;
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if let Some((x, y)) = calc_edge_pos(&info, &monitors, edge) {
+            self.set_window_pos(window, x, y, info.width, info.height)?;
+        }
+        Ok(())
+    }
+
+    fn set_half_screen(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        use crate::platform::common::window_ops::calc_half_screen;
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if let Some((x, y, w, h)) = calc_half_screen(&info, &monitors, edge) {
+            self.set_window_pos(window, x, y, w, h)?;
+        }
+        Ok(())
+    }
+
+    fn loop_width(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        use crate::platform::common::window_ops::calc_looped_width;
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if let Some((x, y, w, h)) = calc_looped_width(&info, &monitors, align) {
+            self.set_window_pos(window, x, y, w, h)?;
+        }
+        Ok(())
+    }
+
+    fn loop_height(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        use crate::platform::common::window_ops::calc_looped_height;
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if let Some((x, y, w, h)) = calc_looped_height(&info, &monitors, align) {
+            self.set_window_pos(window, x, y, w, h)?;
+        }
+        Ok(())
+    }
+
+    fn set_fixed_ratio(
+        &self,
+        window: WindowId,
+        ratio: f32,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        use crate::platform::common::window_ops::calc_fixed_ratio;
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if let Some((x, y, w, h)) =
+            calc_fixed_ratio(&info, &monitors, ratio, scale_index)
+        {
+            self.set_window_pos(window, x, y, w, h)?;
+        }
+        Ok(())
+    }
+
+    fn set_native_ratio(
+        &self,
+        window: WindowId,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        use crate::platform::common::window_ops::calc_native_ratio;
+        let info = self.get_window_info(window)?;
+        let monitors = self.get_monitors();
+        if let Some((x, y, w, h)) = calc_native_ratio(&info, &monitors, scale_index) {
+            self.set_window_pos(window, x, y, w, h)?;
+        }
+        Ok(())
+    }
+
+    fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
+        let current = self.is_topmost(window);
+        let new_state = !current;
+        self.set_topmost(window, new_state)?;
+        Ok(new_state)
     }
 }
 
