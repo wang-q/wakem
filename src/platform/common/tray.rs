@@ -257,6 +257,60 @@ pub mod menu_ids {
     pub const EXIT: u32 = 103;
 }
 
+/// Menu item definition for cross-platform tray menus
+pub struct MenuItemDef {
+    pub label: &'static str,
+    pub id: u32,
+    pub is_separator: bool,
+}
+
+/// Default tray menu items shared across platforms
+pub fn default_menu_items() -> Vec<MenuItemDef> {
+    vec![
+        MenuItemDef {
+            label: "Enable/Disable",
+            id: menu_ids::TOGGLE_ACTIVE,
+            is_separator: false,
+        },
+        MenuItemDef {
+            label: "",
+            id: 0,
+            is_separator: true,
+        },
+        MenuItemDef {
+            label: "Reload Config",
+            id: menu_ids::RELOAD,
+            is_separator: false,
+        },
+        MenuItemDef {
+            label: "Open Config Folder",
+            id: menu_ids::OPEN_CONFIG,
+            is_separator: false,
+        },
+        MenuItemDef {
+            label: "",
+            id: 0,
+            is_separator: true,
+        },
+        MenuItemDef {
+            label: "Exit",
+            id: menu_ids::EXIT,
+            is_separator: false,
+        },
+    ]
+}
+
+/// Convert menu ID to AppCommand
+pub fn menu_id_to_app_command(id: u32) -> Option<AppCommand> {
+    match id {
+        menu_ids::TOGGLE_ACTIVE => Some(AppCommand::ToggleActive),
+        menu_ids::RELOAD => Some(AppCommand::ReloadConfig),
+        menu_ids::OPEN_CONFIG => Some(AppCommand::OpenConfigFolder),
+        menu_ids::EXIT => Some(AppCommand::Exit),
+        _ => None,
+    }
+}
+
 /// Convert menu ID to MenuAction
 pub fn menu_id_to_action(id: u32) -> MenuAction {
     match id {

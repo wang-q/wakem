@@ -25,9 +25,9 @@ use objc::{class, msg_send, sel, sel_impl};
 // Re-export shared tray types
 pub use crate::platform::traits::{AppCommand, MenuAction};
 // Import unified TrayApi trait from common::tray
-pub use crate::platform::common::tray::TrayApi;
-// Re-export menu ID constants from common::tray
-use crate::platform::common::tray::menu_ids;
+use crate::platform::common::tray::{
+    default_menu_items, menu_id_to_app_command, TrayApi,
+};
 
 /// Global callback storage for menu actions
 thread_local! {
@@ -53,12 +53,6 @@ fn call_global_callback(cmd: AppCommand) {
     });
 }
 
-/// Menu item tag constants (from common::tray::menu_ids, cast to i64 for Cocoa)
-const MENU_TAG_TOGGLE: i64 = menu_ids::TOGGLE_ACTIVE as i64;
-const MENU_TAG_RELOAD: i64 = menu_ids::RELOAD as i64;
-const MENU_TAG_OPEN_CONFIG: i64 = menu_ids::OPEN_CONFIG as i64;
-const MENU_TAG_EXIT: i64 = menu_ids::EXIT as i64;
-
 /// Create a custom Objective-C class for handling menu actions
 fn create_menu_target_class() -> &'static Class {
     unsafe {
@@ -79,14 +73,9 @@ fn create_menu_target_class() -> &'static Class {
 extern "C" fn handle_menu_item(_this: &Object, _sel: Sel, sender: id) {
     unsafe {
         let tag: i64 = msg_send![sender, tag];
-        let cmd = match tag {
-            MENU_TAG_TOGGLE => AppCommand::ToggleActive,
-            MENU_TAG_RELOAD => AppCommand::ReloadConfig,
-            MENU_TAG_OPEN_CONFIG => AppCommand::OpenConfigFolder,
-            MENU_TAG_EXIT => AppCommand::Exit,
-            _ => return,
-        };
-        call_global_callback(cmd);
+        if let Some(cmd) = menu_id_to_app_command(tag as u32) {
+            call_global_callback(cmd);
+        }
     }
 }
 
@@ -106,33 +95,17 @@ unsafe fn create_context_menu(target: id) -> id {
     let menu: id = msg_send![class!(NSMenu), alloc];
     let menu: id = msg_send![menu, initWithTitle: NSString::alloc(nil).init_str("")];
 
-    // Disable auto-enable so items stay enabled
     let _: () = msg_send![menu, setAutoenablesItems: NO];
 
-    // Enable/Disable
-    let toggle_item = create_menu_item("Enable/Disable", MENU_TAG_TOGGLE, target);
-    let _: () = msg_send![menu, addItem: toggle_item];
-
-    // Separator
-    let separator: id = msg_send![class!(NSMenuItem), separatorItem];
-    let _: () = msg_send![menu, addItem: separator];
-
-    // Reload Config
-    let reload_item = create_menu_item("Reload Config", MENU_TAG_RELOAD, target);
-    let _: () = msg_send![menu, addItem: reload_item];
-
-    // Open Config Folder
-    let open_config_item =
-        create_menu_item("Open Config Folder", MENU_TAG_OPEN_CONFIG, target);
-    let _: () = msg_send![menu, addItem: open_config_item];
-
-    // Separator
-    let separator2: id = msg_send![class!(NSMenuItem), separatorItem];
-    let _: () = msg_send![menu, addItem: separator2];
-
-    // Exit
-    let exit_item = create_menu_item("Exit", MENU_TAG_EXIT, target);
-    let _: () = msg_send![menu, addItem: exit_item];
+    for item in default_menu_items() {
+        if item.is_separator {
+            let separator: id = msg_send![class!(NSMenuItem), separatorItem];
+            let _: () = msg_send![menu, addItem: separator];
+        } else {
+            let ns_item = create_menu_item(item.label, item.id as i64, target);
+            let _: () = msg_send![menu, addItem: ns_item];
+        }
+    }
 
     menu
 }

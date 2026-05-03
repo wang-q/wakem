@@ -77,6 +77,11 @@ impl MacroPlayer {
     }
 
     /// Ensure modifier state matches target (only press/release differences)
+    // NOTE: Uses Windows VK constants and scan_code=0. The system uses
+    // Windows virtual key codes as the internal representation; platform
+    // output devices convert these to native codes at send time. The
+    // scan_code=0 is acceptable because OutputDevice::send_key on macOS
+    // ignores scan_code and uses only virtual_key for CGEvent translation.
     async fn ensure_modifiers(
         output: &(dyn OutputDevice + Send + Sync),
         current: &mut ModifierState,

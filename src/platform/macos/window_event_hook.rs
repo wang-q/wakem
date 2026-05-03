@@ -23,19 +23,7 @@ pub struct MacosWindowEventHook {
 }
 
 impl MacosWindowEventHook {
-    pub fn new() -> Self {
-        let (sender, _) = channel();
-
-        Self {
-            event_sender: sender,
-            running: Arc::new(AtomicBool::new(false)),
-            shutdown_flag: Arc::new(AtomicBool::new(false)),
-            poll_interval_ms: 200,
-            thread_handle: None,
-        }
-    }
-
-    pub fn with_sender(event_sender: Sender<PlatformWindowEvent>) -> Self {
+    pub fn new(event_sender: Sender<PlatformWindowEvent>) -> Self {
         Self {
             event_sender,
             running: Arc::new(AtomicBool::new(false)),
@@ -177,7 +165,8 @@ impl MacosWindowEventHook {
 
 impl Default for MacosWindowEventHook {
     fn default() -> Self {
-        Self::new()
+        let (sender, _) = channel();
+        Self::new(sender)
     }
 }
 
@@ -228,14 +217,8 @@ mod tests {
 
     #[test]
     fn test_event_hook_creation() {
-        let hook = MacosWindowEventHook::new();
-        assert!(!hook.is_running());
-    }
-
-    #[test]
-    fn test_event_hook_with_sender() {
-        let (sender, _receiver) = channel::<PlatformWindowEvent>();
-        let hook = MacosWindowEventHook::with_sender(sender);
+        let (sender, _) = channel::<PlatformWindowEvent>();
+        let hook = MacosWindowEventHook::new(sender);
         assert!(!hook.is_running());
     }
 
@@ -249,7 +232,7 @@ mod tests {
     #[test]
     fn test_event_hook_start_stop() {
         let (sender, receiver) = channel::<PlatformWindowEvent>();
-        let mut hook = MacosWindowEventHook::with_sender(sender);
+        let mut hook = MacosWindowEventHook::new(sender);
 
         hook.start().unwrap();
         assert!(hook.is_running());
@@ -271,13 +254,15 @@ mod tests {
 
     #[test]
     fn test_shutdown_flag() {
-        let hook = MacosWindowEventHook::new();
+        let (sender, _) = channel::<PlatformWindowEvent>();
+        let hook = MacosWindowEventHook::new(sender);
         assert!(!hook.shutdown_flag().load(Ordering::SeqCst));
     }
 
     #[test]
     fn test_multiple_starts_ignored() {
-        let mut hook = MacosWindowEventHook::new();
+        let (sender, _) = channel::<PlatformWindowEvent>();
+        let mut hook = MacosWindowEventHook::new(sender);
         hook.start().unwrap();
         assert!(hook.is_running());
 

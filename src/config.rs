@@ -890,18 +890,17 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
 pub fn parse_key(name: &str) -> anyhow::Result<crate::types::KeyInfo> {
     let name_lower = name.to_lowercase();
 
-    // Try keyboard-codes first (supports standard key names)
+    if let Some(key_info) =
+        crate::platform::CurrentPlatform::parse_key_fallback(&name_lower)
+    {
+        return Ok(key_info);
+    }
+
     if let Ok(key) = name_lower.parse::<Key>() {
         let code = crate::platform::key_to_internal_code(&key);
         if code != 0 || !name_lower.is_empty() {
             return Ok(crate::types::KeyInfo::new(code, code));
         }
-    }
-
-    if let Some(key_info) =
-        crate::platform::CurrentPlatform::parse_key_fallback(&name_lower)
-    {
-        return Ok(key_info);
     }
 
     Err(anyhow::anyhow!("Unknown key name: {}", name))

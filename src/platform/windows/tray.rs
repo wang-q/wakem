@@ -38,7 +38,7 @@ const WM_LBUTTONUP: u32 = 0x0202;
 const WM_RBUTTONUP: u32 = 0x0205;
 
 // Re-export shared tray types from platform::types
-use crate::platform::common::tray::menu_ids;
+use crate::platform::common::tray::{default_menu_items, menu_id_to_app_command};
 pub use crate::platform::types::AppCommand;
 
 /// Callback type for command handling
@@ -126,12 +126,8 @@ unsafe extern "system" fn window_proc(
 
             CMD_CALLBACK.with(|c| {
                 if let Some(ref callback) = *c.borrow() {
-                    match id {
-                        menu_ids::TOGGLE_ACTIVE => callback(AppCommand::ToggleActive),
-                        menu_ids::RELOAD => callback(AppCommand::ReloadConfig),
-                        menu_ids::OPEN_CONFIG => callback(AppCommand::OpenConfigFolder),
-                        menu_ids::EXIT => callback(AppCommand::Exit),
-                        _ => {}
+                    if let Some(cmd) = menu_id_to_app_command(id) {
+                        callback(cmd);
                     }
                 }
             });
@@ -367,44 +363,25 @@ impl TrayIcon {
             let hmenu = CreatePopupMenu()
                 .map_err(|e| anyhow!("Failed to create menu: {}", e))?;
 
-            // Enable/Disable
-            AppendMenuW(
-                hmenu,
-                MF_STRING,
-                menu_ids::TOGGLE_ACTIVE as usize,
-                w!("Enable/Disable"),
-            )
-            .map_err(|_| anyhow!("Failed to append menu item"))?;
-
-            // Separator
-            AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null())
-                .map_err(|_| anyhow!("Failed to append separator"))?;
-
-            // Reload config
-            AppendMenuW(
-                hmenu,
-                MF_STRING,
-                menu_ids::RELOAD as usize,
-                w!("Reload Config"),
-            )
-            .map_err(|_| anyhow!("Failed to append menu item"))?;
-
-            // Open config folder
-            AppendMenuW(
-                hmenu,
-                MF_STRING,
-                menu_ids::OPEN_CONFIG as usize,
-                w!("Open Config Folder"),
-            )
-            .map_err(|_| anyhow!("Failed to append menu item"))?;
-
-            // Separator
-            AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null())
-                .map_err(|_| anyhow!("Failed to append separator"))?;
-
-            // Exit
-            AppendMenuW(hmenu, MF_STRING, menu_ids::EXIT as usize, w!("Exit"))
-                .map_err(|_| anyhow!("Failed to append menu item"))?;
+            for item in default_menu_items() {
+                if item.is_separator {
+                    AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null())
+                        .map_err(|_| anyhow!("Failed to append separator"))?;
+                } else {
+                    let label: Vec<u16> = item
+                        .label
+                        .encode_utf16()
+                        .chain(std::iter::once(0))
+                        .collect();
+                    AppendMenuW(
+                        hmenu,
+                        MF_STRING,
+                        item.id as usize,
+                        PCWSTR(label.as_ptr()),
+                    )
+                    .map_err(|_| anyhow!("Failed to append menu item"))?;
+                }
+            }
 
             Ok(hmenu)
         }

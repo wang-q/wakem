@@ -31,11 +31,11 @@ pub fn get_modifier_state() -> crate::types::ModifierState {
 }
 
 pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
-    super::native_api::ns_workspace::get_process_name_by_pid(pid)
+    <MacosPlatform as PlatformUtilities>::get_process_name_by_pid(pid)
 }
 
 pub fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
-    super::native_api::ns_workspace::get_executable_path_by_pid(pid)
+    <MacosPlatform as PlatformUtilities>::get_executable_path_by_pid(pid)
 }
 
 pub struct MacosPlatform;
@@ -43,6 +43,14 @@ pub struct MacosPlatform;
 impl PlatformUtilities for MacosPlatform {
     fn get_modifier_state() -> crate::types::ModifierState {
         get_modifier_state()
+    }
+
+    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
+        super::native_api::ns_workspace::get_process_name_by_pid(pid)
+    }
+
+    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
+        super::native_api::ns_workspace::get_executable_path_by_pid(pid)
     }
 }
 

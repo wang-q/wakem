@@ -413,6 +413,10 @@ impl ServerState {
         let action = {
             let mapper = self.mapper.read().await;
             let context: Option<crate::platform::types::WindowContext> =
+                // NOTE: Uses static dispatch via CurrentPlatform rather than
+                // dependency injection. Refactoring to instance methods on
+                // ServerState would enable mocking but requires changing the
+                // ContextProvider/PlatformUtilities traits from static to &self.
                 <crate::platform::CurrentPlatform as ContextProvider>::get_current_context();
             mapper.process_event_with_context(&event, context.as_ref())
         };
@@ -1014,6 +1018,8 @@ mod tests {
 }
 
 /// Get current modifier key state
+// NOTE: Uses static dispatch via CurrentPlatform rather than dependency
+// injection. See ContextProvider call above for the same limitation.
 fn get_current_modifier_state() -> ModifierState {
     crate::platform::CurrentPlatform::get_modifier_state()
 }
