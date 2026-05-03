@@ -81,6 +81,12 @@ impl Default for Launcher {
     }
 }
 
+impl crate::platform::traits::Launcher for Launcher {
+    fn launch(&self, action: &LaunchAction) -> Result<()> {
+        self.launch(action)
+    }
+}
+
 /// Platform-specific extensions for macOS
 #[cfg(target_os = "macos")]
 impl Launcher {

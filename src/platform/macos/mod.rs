@@ -18,9 +18,7 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-use crate::platform::traits::{
-    LauncherTrait, PlatformFactory, TrayLifecycle, WindowEventHookTrait,
-};
+use crate::platform::traits::{PlatformFactory, TrayLifecycle, WindowEventHookTrait};
 
 pub use crate::platform::common::launcher::Launcher;
 pub use crate::platform::traits::InputDeviceConfig;
@@ -62,12 +60,6 @@ impl TrayLifecycle for MacosPlatform {
 
 impl WindowEventHookTrait for MacosWindowEventHook {
     crate::impl_window_event_hook!();
-}
-
-impl LauncherTrait for Launcher {
-    fn launch(&self, action: &crate::types::LaunchAction) -> anyhow::Result<()> {
-        self.launch(action)
-    }
 }
 
 impl PlatformFactory for MacosPlatform {

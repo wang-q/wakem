@@ -258,6 +258,14 @@ impl<A: WindowApiBase<WindowId = WindowId> + Send + Sync + 'static>
     }
 }
 
+impl<A: WindowApiBase<WindowId = WindowId> + Default + Send + Sync + 'static> Default
+    for WindowPresetManager<crate::platform::common::window_manager::WindowManager<A>>
+{
+    fn default() -> Self {
+        Self::new(crate::platform::common::window_manager::WindowManager::new())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

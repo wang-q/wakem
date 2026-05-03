@@ -14,10 +14,7 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-use crate::platform::traits::{
-    Launcher as LauncherTrait, PlatformFactory, TrayLifecycle,
-};
-use anyhow::Result;
+use crate::platform::traits::{PlatformFactory, TrayLifecycle};
 
 pub use crate::platform::common::launcher::Launcher;
 pub use input_device::RawInputDevice;
@@ -52,12 +49,6 @@ impl PlatformFactory for WindowsPlatform {
         Launcher,
         WindowEventHook
     );
-}
-
-impl LauncherTrait for Launcher {
-    fn launch(&self, action: &crate::types::LaunchAction) -> Result<()> {
-        self.launch(action)
-    }
 }
 
 pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
