@@ -6,10 +6,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
 
 use crate::platform::traits::OutputDevice;
-use crate::types::key_codes::{
-    SCAN_CODE_ALT, SCAN_CODE_CTRL, SCAN_CODE_META, SCAN_CODE_SHIFT, VK_ALT, VK_CONTROL,
-    VK_LMETA, VK_SHIFT,
-};
+use crate::types::key_codes::{VK_ALT, VK_CONTROL, VK_LMETA, VK_SHIFT};
 use crate::types::{Action, KeyAction, Macro, ModifierState};
 
 pub struct MacroPlayer;
@@ -88,28 +85,28 @@ impl MacroPlayer {
         // Press modifiers that are in target but not in current
         if target.ctrl && !current.ctrl {
             output.send_key_action(&KeyAction::Press {
-                scan_code: SCAN_CODE_CTRL,
+                scan_code: 0,
                 virtual_key: VK_CONTROL,
             })?;
             current.ctrl = true;
         }
         if target.shift && !current.shift {
             output.send_key_action(&KeyAction::Press {
-                scan_code: SCAN_CODE_SHIFT,
+                scan_code: 0,
                 virtual_key: VK_SHIFT,
             })?;
             current.shift = true;
         }
         if target.alt && !current.alt {
             output.send_key_action(&KeyAction::Press {
-                scan_code: SCAN_CODE_ALT,
+                scan_code: 0,
                 virtual_key: VK_ALT,
             })?;
             current.alt = true;
         }
         if target.meta && !current.meta {
             output.send_key_action(&KeyAction::Press {
-                scan_code: SCAN_CODE_META,
+                scan_code: 0,
                 virtual_key: VK_LMETA,
             })?;
             current.meta = true;
@@ -118,28 +115,28 @@ impl MacroPlayer {
         // Release modifiers that are in current but not in target
         if current.meta && !target.meta {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_META,
+                scan_code: 0,
                 virtual_key: VK_LMETA,
             })?;
             current.meta = false;
         }
         if current.alt && !target.alt {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_ALT,
+                scan_code: 0,
                 virtual_key: VK_ALT,
             })?;
             current.alt = false;
         }
         if current.shift && !target.shift {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_SHIFT,
+                scan_code: 0,
                 virtual_key: VK_SHIFT,
             })?;
             current.shift = false;
         }
         if current.ctrl && !target.ctrl {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_CTRL,
+                scan_code: 0,
                 virtual_key: VK_CONTROL,
             })?;
             current.ctrl = false;
@@ -156,25 +153,25 @@ impl MacroPlayer {
     ) -> anyhow::Result<()> {
         if current.meta {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_META,
+                scan_code: 0,
                 virtual_key: VK_LMETA,
             })?;
         }
         if current.alt {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_ALT,
+                scan_code: 0,
                 virtual_key: VK_ALT,
             })?;
         }
         if current.shift {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_SHIFT,
+                scan_code: 0,
                 virtual_key: VK_SHIFT,
             })?;
         }
         if current.ctrl {
             output.send_key_action(&KeyAction::Release {
-                scan_code: SCAN_CODE_CTRL,
+                scan_code: 0,
                 virtual_key: VK_CONTROL,
             })?;
         }
@@ -808,28 +805,28 @@ mod tests {
     }
 
     #[test]
-    fn test_modifier_from_virtual_key_alt() {
+    fn test_modifier_from_internal_vk_alt() {
         // VK_SHIFT = 0x10
-        let (state, pressed) = ModifierState::from_virtual_key(0x10, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x10, true).unwrap();
         assert!(state.shift);
         assert!(pressed);
 
         // VK_CONTROL = 0x11
-        let (state, pressed) = ModifierState::from_virtual_key(0x11, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x11, true).unwrap();
         assert!(state.ctrl);
         assert!(pressed);
 
         // VK_MENU = 0x12 (Alt)
-        let (state, pressed) = ModifierState::from_virtual_key(0x12, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x12, true).unwrap();
         assert!(state.alt);
         assert!(pressed);
 
         // VK_LWIN = 0x5B (Meta)
-        let (state, pressed) = ModifierState::from_virtual_key(0x5B, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x5B, true).unwrap();
         assert!(state.meta);
         assert!(pressed);
 
         // Non-modifier key should return None
-        assert!(ModifierState::from_virtual_key(0x41, true).is_none());
+        assert!(ModifierState::from_internal_vk(0x41, true).is_none());
     }
 }

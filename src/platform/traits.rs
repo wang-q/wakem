@@ -56,9 +56,9 @@ pub trait OutputDevice: Send + Sync {
     }
 
     fn send_text(&self, text: &str) -> Result<()> {
-        use crate::platform::common::output_helpers::char_to_vk;
+        use crate::platform::common::output_helpers::char_to_internal_vk;
         for ch in text.chars() {
-            if let Some(vk) = char_to_vk(ch) {
+            if let Some(vk) = char_to_internal_vk(ch) {
                 self.send_key(0, vk, false)?;
                 self.send_key(0, vk, true)?;
             }

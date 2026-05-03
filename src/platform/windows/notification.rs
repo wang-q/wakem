@@ -5,6 +5,42 @@ use crate::platform::traits::NotificationService;
 use crate::platform::types::NotificationInitContext;
 use anyhow::Result;
 use std::sync::Arc;
+use windows::Win32::Foundation::HWND;
+use windows::Win32::UI::Shell::{
+    NIF_INFO, NIM_MODIFY, NOTIFYICONDATAW, NOTIFY_ICON_INFOTIP_FLAGS,
+};
+
+pub fn show_shell_notification(hwnd: HWND, title: &str, message: &str) -> Result<()> {
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: 1,
+        uFlags: NIF_INFO,
+        ..Default::default()
+    };
+
+    let title_wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    let message_wide: Vec<u16> =
+        message.encode_utf16().chain(std::iter::once(0)).collect();
+
+    let title_len = title_wide.len().min(64);
+    let message_len = message_wide.len().min(256);
+
+    nid.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
+    nid.szInfo[..message_len].copy_from_slice(&message_wide[..message_len]);
+
+    nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
+
+    unsafe {
+        let result = windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid);
+        if !result.as_bool() {
+            return Err(anyhow::anyhow!("Failed to show notification"));
+        }
+    }
+
+    tracing::info!("Notification shown: {} - {}", title, message);
+    Ok(())
+}
 
 pub struct WindowsNotificationService {
     hwnd: Arc<std::sync::RwLock<Option<isize>>>,
@@ -31,43 +67,8 @@ impl WindowsNotificationService {
             return Ok(());
         };
 
-        use windows::Win32::Foundation::HWND;
-        use windows::Win32::UI::Shell::{
-            NIF_INFO, NIM_MODIFY, NOTIFYICONDATAW, NOTIFY_ICON_INFOTIP_FLAGS,
-        };
-
         let hwnd = HWND(hwnd_value as *mut std::ffi::c_void);
-
-        let mut nid = NOTIFYICONDATAW {
-            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-            hWnd: hwnd,
-            uID: 1,
-            uFlags: NIF_INFO,
-            ..Default::default()
-        };
-
-        let title_wide: Vec<u16> =
-            title.encode_utf16().chain(std::iter::once(0)).collect();
-        let message_wide: Vec<u16> =
-            message.encode_utf16().chain(std::iter::once(0)).collect();
-
-        let title_len = title_wide.len().min(64);
-        let message_len = message_wide.len().min(256);
-
-        nid.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
-        nid.szInfo[..message_len].copy_from_slice(&message_wide[..message_len]);
-
-        nid.dwInfoFlags = NOTIFY_ICON_INFOTIP_FLAGS(0);
-
-        unsafe {
-            let result = windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid);
-            if !result.as_bool() {
-                return Err(anyhow::anyhow!("Failed to show notification"));
-            }
-        }
-
-        tracing::info!("Notification shown: {} - {}", title, message);
-        Ok(())
+        show_shell_notification(hwnd, title, message)
     }
 
     pub fn initialize(&self, ctx: &NotificationInitContext) {

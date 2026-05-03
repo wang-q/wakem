@@ -45,16 +45,20 @@ impl OutputDevice for SendInputDevice {
         unsafe {
             input.Anonymous.ki.wVk = VIRTUAL_KEY(virtual_key);
             input.Anonymous.ki.wScan = scan_code;
-            input.Anonymous.ki.dwFlags = KEYEVENTF_SCANCODE;
+            input.Anonymous.ki.dwFlags = Default::default();
+
+            if scan_code != 0 {
+                input.Anonymous.ki.dwFlags |= KEYEVENTF_SCANCODE;
+
+                let is_extended =
+                    matches!(scan_code, 0x36 | 0x2A | 0x1D | 0x38 | 0x5B | 0x5C | 0x5D);
+                if is_extended {
+                    input.Anonymous.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+                }
+            }
 
             if release {
                 input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
-            }
-
-            let is_extended =
-                matches!(scan_code, 0x36 | 0x2A | 0x1D | 0x38 | 0x5B | 0x5C | 0x5D);
-            if is_extended {
-                input.Anonymous.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
             }
 
             input.Anonymous.ki.time = 0;

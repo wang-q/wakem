@@ -15,9 +15,6 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 ///
 /// Encapsulates the common fields and logic shared across all platform
 /// input devices: modifier state tracking, event channel, and running flag.
-///
-/// Note: These fields are used by macOS implementation. Windows uses
-/// a different approach with RawInputDevice directly.
 pub struct InputDeviceBase {
     pub modifier_state: ModifierState,
     pub running: bool,
@@ -47,7 +44,7 @@ impl InputDeviceBase {
 
     pub fn update_modifier_state(&mut self, virtual_key: u16, pressed: bool) {
         self.modifier_state
-            .apply_from_virtual_key(virtual_key, pressed);
+            .apply_from_internal_vk(virtual_key, pressed);
     }
 
     pub fn try_recv_event(&mut self) -> Option<InputEvent> {
@@ -88,8 +85,6 @@ impl Default for InputDeviceBase {
 ///
 /// This struct combines [InputDeviceBase] with a platform-specific inner device
 /// to provide a unified input device interface.
-///
-/// Note: Used by macOS implementation. Windows uses RawInputDevice directly.
 pub struct InputDevice<T> {
     pub base: InputDeviceBase,
     pub inner: Option<T>,

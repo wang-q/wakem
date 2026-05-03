@@ -227,7 +227,7 @@ impl InputDevice for MockInputDevice {
             state.captured_events.push(e.clone());
 
             if let InputEvent::Key(key_event) = e {
-                state.modifier_state.apply_from_virtual_key(
+                state.modifier_state.apply_from_internal_vk(
                     key_event.virtual_key,
                     key_event.state == KeyState::Pressed,
                 );

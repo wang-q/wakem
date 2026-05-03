@@ -18,9 +18,6 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-#[cfg(test)]
-pub mod mock_window_api;
-
 use crate::platform::traits::{PlatformFactory, TrayLifecycle, WindowEventHook};
 
 pub use crate::platform::common::launcher::Launcher;
@@ -45,9 +42,6 @@ pub use window_event_hook::MacosWindowEventHook;
 pub use window_manager::WindowManager;
 
 pub use window_preset::WindowPresetManager;
-
-#[cfg(test)]
-pub use mock_window_api::MockMacosWindowApi;
 
 crate::impl_platform_utils_delegates!();
 

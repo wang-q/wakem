@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn test_modifier_state_from_vk_shift() {
         // VK_SHIFT = 0x10
-        let (state, pressed) = ModifierState::from_virtual_key(0x10, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x10, true).unwrap();
         assert!(state.shift);
         assert!(!state.ctrl);
         assert!(!state.alt);
@@ -283,15 +283,15 @@ mod tests {
         assert!(pressed);
 
         // VK_LSHIFT = 0xA0
-        let (state, _) = ModifierState::from_virtual_key(0xA0, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA0, true).unwrap();
         assert!(state.shift);
 
         // VK_RSHIFT = 0xA1
-        let (state, _) = ModifierState::from_virtual_key(0xA1, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA1, true).unwrap();
         assert!(state.shift);
 
         // Release state
-        let (_, pressed) = ModifierState::from_virtual_key(0x10, false).unwrap();
+        let (_, pressed) = ModifierState::from_internal_vk(0x10, false).unwrap();
         assert!(!pressed);
     }
 
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn test_modifier_state_from_vk_control() {
         // VK_CONTROL = 0x11
-        let (state, pressed) = ModifierState::from_virtual_key(0x11, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x11, true).unwrap();
         assert!(!state.shift);
         assert!(state.ctrl);
         assert!(!state.alt);
@@ -307,11 +307,11 @@ mod tests {
         assert!(pressed);
 
         // VK_LCONTROL = 0xA2
-        let (state, _) = ModifierState::from_virtual_key(0xA2, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA2, true).unwrap();
         assert!(state.ctrl);
 
         // VK_RCONTROL = 0xA3
-        let (state, _) = ModifierState::from_virtual_key(0xA3, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA3, true).unwrap();
         assert!(state.ctrl);
     }
 
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn test_modifier_state_from_vk_alt() {
         // VK_MENU = 0x12
-        let (state, pressed) = ModifierState::from_virtual_key(0x12, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x12, true).unwrap();
         assert!(!state.shift);
         assert!(!state.ctrl);
         assert!(state.alt);
@@ -327,11 +327,11 @@ mod tests {
         assert!(pressed);
 
         // VK_LMENU = 0xA4
-        let (state, _) = ModifierState::from_virtual_key(0xA4, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA4, true).unwrap();
         assert!(state.alt);
 
         // VK_RMENU = 0xA5
-        let (state, _) = ModifierState::from_virtual_key(0xA5, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA5, true).unwrap();
         assert!(state.alt);
     }
 
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn test_modifier_state_from_vk_meta() {
         // VK_LWIN = 0x5B
-        let (state, pressed) = ModifierState::from_virtual_key(0x5B, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x5B, true).unwrap();
         assert!(!state.shift);
         assert!(!state.ctrl);
         assert!(!state.alt);
@@ -347,7 +347,7 @@ mod tests {
         assert!(pressed);
 
         // VK_RWIN = 0x5C
-        let (state, _) = ModifierState::from_virtual_key(0x5C, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0x5C, true).unwrap();
         assert!(state.meta);
     }
 
@@ -355,11 +355,11 @@ mod tests {
     #[test]
     fn test_modifier_state_from_vk_non_modifier() {
         // 'A' key = 0x41
-        let result = ModifierState::from_virtual_key(0x41, true);
+        let result = ModifierState::from_internal_vk(0x41, true);
         assert!(result.is_none());
 
         // '1' key = 0x31
-        let result = ModifierState::from_virtual_key(0x31, true);
+        let result = ModifierState::from_internal_vk(0x31, true);
         assert!(result.is_none());
     }
 

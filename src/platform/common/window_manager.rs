@@ -138,19 +138,33 @@ impl<A: WindowApiBase<WindowId = WindowId>> MonitorOperations for WindowManager<
         }
 
         let info = self.get_window_info(window)?;
-        let current_monitor = find_monitor_for_point(&monitors, info.x, info.y)
+        let current_idx = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitor found for window"))?;
+        let current_idx = monitors
+            .iter()
+            .position(|m| m.x == current_idx.x && m.y == current_idx.y)
+            .ok_or_else(|| anyhow::anyhow!("Monitor index not found"))?;
+        let current_monitor = &monitors[current_idx];
         let target_monitor = &monitors[monitor_index];
 
-        let rel_x = (info.x - current_monitor.x) as f32 / current_monitor.width as f32;
-        let rel_y = (info.y - current_monitor.y) as f32 / current_monitor.height as f32;
-        let rel_width = info.width as f32 / current_monitor.width as f32;
-        let rel_height = info.height as f32 / current_monitor.height as f32;
+        let current_work = self
+            .api
+            .get_monitor_work_area(current_idx)
+            .unwrap_or_else(|| (*current_monitor).into());
+        let target_work = self
+            .api
+            .get_monitor_work_area(monitor_index)
+            .unwrap_or_else(|| (*target_monitor).into());
 
-        let new_x = target_monitor.x + (rel_x * target_monitor.width as f32) as i32;
-        let new_y = target_monitor.y + (rel_y * target_monitor.height as f32) as i32;
-        let new_width = (rel_width * target_monitor.width as f32) as i32;
-        let new_height = (rel_height * target_monitor.height as f32) as i32;
+        let rel_x = (info.x - current_work.x) as f32 / current_work.width as f32;
+        let rel_y = (info.y - current_work.y) as f32 / current_work.height as f32;
+        let rel_width = info.width as f32 / current_work.width as f32;
+        let rel_height = info.height as f32 / current_work.height as f32;
+
+        let new_x = target_work.x + (rel_x * target_work.width as f32) as i32;
+        let new_y = target_work.y + (rel_y * target_work.height as f32) as i32;
+        let new_width = (rel_width * target_work.width as f32) as i32;
+        let new_height = (rel_height * target_work.height as f32) as i32;
 
         self.set_window_pos(window, new_x, new_y, new_width, new_height)
     }

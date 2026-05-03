@@ -16,8 +16,8 @@ use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Shell::{
-    Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
-    NIM_MODIFY, NOTIFYICONDATAW,
+    Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE,
+    NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreateIconFromResourceEx, CreatePopupMenu, CreateWindowExW,
@@ -321,27 +321,8 @@ impl TrayIcon {
 
     /// Show balloon notification
     pub fn show_notification(&mut self, title: &str, message: &str) -> Result<()> {
-        self.data.uFlags = NIF_INFO;
+        super::notification::show_shell_notification(self.data.hWnd, title, message)?;
 
-        // Set title
-        let title_wide: Vec<u16> = title.encode_utf16().collect();
-        let title_len = title_wide.len().min(63);
-        self.data.szInfoTitle[..title_len].copy_from_slice(&title_wide[..title_len]);
-        self.data.szInfoTitle[title_len] = 0;
-
-        // Set message
-        let msg_wide: Vec<u16> = message.encode_utf16().collect();
-        let msg_len = msg_wide.len().min(255);
-        self.data.szInfo[..msg_len].copy_from_slice(&msg_wide[..msg_len]);
-        self.data.szInfo[msg_len] = 0;
-
-        unsafe {
-            Shell_NotifyIconW(NIM_MODIFY, &self.data)
-                .ok()
-                .map_err(|e| anyhow!("Failed to show notification: {}", e))?;
-        }
-
-        // Restore flags
         self.data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 
         Ok(())
@@ -500,7 +481,9 @@ impl RealTrayApi {
     pub async fn register(&self) -> Result<()> {
         let mut inner = self.inner.lock().await;
         if inner.hwnd.is_invalid() || inner.hwnd.0.is_null() {
-            return Err(anyhow::anyhow!("Windows tray registration requires hwnd; call set_hwnd() first"));
+            return Err(anyhow::anyhow!(
+                "Windows tray registration requires hwnd; call set_hwnd() first"
+            ));
         }
         let hwnd = inner.hwnd;
         inner.tray_icon.register(hwnd)?;

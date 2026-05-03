@@ -49,13 +49,18 @@ impl ModifierState {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }
 
-    /// Create modifier key state from virtual key code
+    /// Create modifier key state from internal VK code
+    ///
+    /// The system uses Windows virtual key codes as the universal internal
+    /// key identifier. This method interprets those codes to identify modifier
+    /// keys. Platform-specific input devices must convert native keycodes to
+    /// internal VK codes before calling this method.
     ///
     /// Returns `Some((modifier_state, pressed))` if the key is a modifier,
     /// where `modifier_state` has only the relevant modifier bit set,
     /// and `pressed` echoes back the input parameter for convenience.
     /// Returns `None` for non-modifier keys.
-    pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)> {
+    pub fn from_internal_vk(key: u16, pressed: bool) -> Option<(Self, bool)> {
         let mut state = Self::new();
         match key {
             0x10 | 0xA0 | 0xA1 => state.shift = pressed,
@@ -75,8 +80,8 @@ impl ModifierState {
         self.meta |= other.meta;
     }
 
-    /// Apply modifier state from a virtual key event (sets on press, clears on release)
-    pub fn apply_from_virtual_key(&mut self, key: u16, pressed: bool) -> bool {
+    /// Apply modifier state from an internal VK event (sets on press, clears on release)
+    pub fn apply_from_internal_vk(&mut self, key: u16, pressed: bool) -> bool {
         match key {
             VK_SHIFT | VK_LSHIFT | VK_RSHIFT => self.shift = pressed,
             VK_CONTROL | VK_LCONTROL | VK_RCONTROL => self.ctrl = pressed,
@@ -128,61 +133,61 @@ mod tests {
     /// Test ModifierState from virtual key - Shift
     #[test]
     fn test_modifier_state_from_vk_shift_alt() {
-        let (state, pressed) = ModifierState::from_virtual_key(0x10, true).unwrap();
+        let (state, pressed) = ModifierState::from_internal_vk(0x10, true).unwrap();
         assert!(state.shift);
         assert!(pressed);
 
-        let (state, _) = ModifierState::from_virtual_key(0xA0, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA0, true).unwrap();
         assert!(state.shift); // LSHIFT
 
-        let (state, _) = ModifierState::from_virtual_key(0xA1, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA1, true).unwrap();
         assert!(state.shift); // RSHIFT
 
         // Release state
-        let (_, pressed) = ModifierState::from_virtual_key(0x10, false).unwrap();
+        let (_, pressed) = ModifierState::from_internal_vk(0x10, false).unwrap();
         assert!(!pressed);
     }
 
     /// Test ModifierState from virtual key - Control
     #[test]
     fn test_modifier_state_from_vk_ctrl_alt() {
-        let (state, _) = ModifierState::from_virtual_key(0x11, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0x11, true).unwrap();
         assert!(state.ctrl);
 
-        let (state, _) = ModifierState::from_virtual_key(0xA2, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA2, true).unwrap();
         assert!(state.ctrl); // LCONTROL
 
-        let (state, _) = ModifierState::from_virtual_key(0xA3, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA3, true).unwrap();
         assert!(state.ctrl); // RCONTROL
     }
 
     /// Test ModifierState from virtual key - Alt
     #[test]
     fn test_modifier_state_from_vk_alt_alt() {
-        let (state, _) = ModifierState::from_virtual_key(0x12, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0x12, true).unwrap();
         assert!(state.alt);
 
-        let (state, _) = ModifierState::from_virtual_key(0xA4, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA4, true).unwrap();
         assert!(state.alt); // LMENU
 
-        let (state, _) = ModifierState::from_virtual_key(0xA5, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0xA5, true).unwrap();
         assert!(state.alt); // RMENU
     }
 
     /// Test ModifierState from virtual key - Meta/Win
     #[test]
     fn test_modifier_state_from_vk_meta_alt() {
-        let (state, _) = ModifierState::from_virtual_key(0x5B, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0x5B, true).unwrap();
         assert!(state.meta); // LWIN
 
-        let (state, _) = ModifierState::from_virtual_key(0x5C, true).unwrap();
+        let (state, _) = ModifierState::from_internal_vk(0x5C, true).unwrap();
         assert!(state.meta); // RWIN
     }
 
     /// Test unknown virtual key returns None
     #[test]
     fn test_modifier_state_from_vk_unknown_alt() {
-        let result = ModifierState::from_virtual_key(0x41, true); // 'A' key is not a modifier
+        let result = ModifierState::from_internal_vk(0x41, true); // 'A' key is not a modifier
         assert!(result.is_none());
     }
 
@@ -204,33 +209,33 @@ mod tests {
         assert!(!state1.meta);
     }
 
-    /// Test ModifierState apply_from_virtual_key (press and release)
+    /// Test ModifierState apply_from_internal_vk (press and release)
     #[test]
     fn test_modifier_state_apply_from_vk() {
         let mut state = ModifierState::default();
 
         // Press Ctrl
-        assert!(state.apply_from_virtual_key(0x11, true));
+        assert!(state.apply_from_internal_vk(0x11, true));
         assert!(state.ctrl);
         assert!(!state.shift);
 
         // Press Shift
-        assert!(state.apply_from_virtual_key(0x10, true));
+        assert!(state.apply_from_internal_vk(0x10, true));
         assert!(state.ctrl);
         assert!(state.shift);
 
         // Release Ctrl
-        assert!(state.apply_from_virtual_key(0x11, false));
+        assert!(state.apply_from_internal_vk(0x11, false));
         assert!(!state.ctrl);
         assert!(state.shift);
 
         // Release Shift
-        assert!(state.apply_from_virtual_key(0x10, false));
+        assert!(state.apply_from_internal_vk(0x10, false));
         assert!(!state.ctrl);
         assert!(!state.shift);
 
         // Non-modifier key returns false
-        assert!(!state.apply_from_virtual_key(0x41, true));
+        assert!(!state.apply_from_internal_vk(0x41, true));
     }
 
     /// Test ModifierState new()

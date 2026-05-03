@@ -13,18 +13,6 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct VirtualKey(u16);
 
-// === Modifier Key Scan Codes ===
-// These are Windows hardware scan codes used with KEYEVENTF_SCANCODE.
-
-/// Scan code for Ctrl key
-pub const SCAN_CODE_CTRL: u16 = 0x1D;
-/// Scan code for Shift key
-pub const SCAN_CODE_SHIFT: u16 = 0x2A;
-/// Scan code for Alt key
-pub const SCAN_CODE_ALT: u16 = 0x38;
-/// Scan code for Meta/Win key
-pub const SCAN_CODE_META: u16 = 0x5B;
-
 // === Virtual Key Code Constants (Windows VK_* values) ===
 
 pub const VK_SHIFT: u16 = 0x10;

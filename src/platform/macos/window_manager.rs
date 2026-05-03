@@ -11,10 +11,10 @@ pub type WindowManager =
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::macos::mock_window_api::MockMacosWindowApi;
+    use crate::platform::mock::mock_window_api::MockWindowApiBase;
 
     #[test]
     fn test_window_manager_creation() {
-        let _wm = WindowManager::with_api(MockMacosWindowApi::new());
+        let _wm = WindowManager::with_api(MockWindowApiBase::new());
     }
 }

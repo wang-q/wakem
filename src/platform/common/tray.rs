@@ -39,11 +39,6 @@ pub trait TrayApi: Send + Sync {
     /// Set active/enabled status
     async fn set_active(&self, active: bool) -> Result<()>;
 
-    /// Alias for set_active (macOS naming convention compatibility)
-    async fn set_active_status(&self, active: bool) -> Result<()> {
-        self.set_active(active).await
-    }
-
     /// Get active status. Default returns true.
     async fn is_active(&self) -> bool {
         true
@@ -115,15 +110,14 @@ impl<T: TrayApi + Default + 'static> TrayManager<T> {
     }
 
     /// Start the tray: register icon, set tooltip.
-    pub async fn start(&mut self) -> Result<()> {
+    pub async fn start(&mut self, tooltip: &str) -> Result<()> {
         if self.running {
             return Ok(());
         }
 
         let icon = TrayIconWrapper::new(T::default());
         icon.register().await?;
-        icon.set_tooltip("wakem - Window Adjust, Keyboard Enhance, Mouse")
-            .await?;
+        icon.set_tooltip(tooltip).await?;
 
         self.tray = Some(icon);
         self.running = true;
@@ -167,7 +161,7 @@ impl<T: TrayApi + Default + 'static> TrayManager<T> {
     /// Set the active status via the tray
     pub async fn set_active_status(&self, active: bool) -> Result<()> {
         if let Some(ref tray) = self.tray {
-            tray.set_active_status(active).await
+            tray.api.set_active(active).await
         } else {
             warn!("Cannot set active status: tray not initialized");
             Err(anyhow::anyhow!("Tray not initialized"))
@@ -322,7 +316,7 @@ impl<T: TrayApi> TrayIconWrapper<T> {
     }
 
     pub async fn set_active_status(&self, active: bool) -> Result<()> {
-        self.api.set_active_status(active).await
+        self.api.set_active(active).await
     }
 
     pub fn is_registered(&self) -> bool {
@@ -362,6 +356,7 @@ impl MockTrayApi {
         Self {
             state: std::sync::Mutex::new(MockTrayState {
                 active: true,
+                visible: true,
                 ..Default::default()
             }),
         }
@@ -488,5 +483,97 @@ mod tests {
         );
         assert_eq!(menu_id_to_action(menu_ids::EXIT), MenuAction::Exit);
         assert_eq!(menu_id_to_action(999), MenuAction::None);
+    }
+
+    #[test]
+    fn test_app_command_variants() {
+        assert_eq!(AppCommand::ToggleActive, AppCommand::ToggleActive);
+        assert_ne!(AppCommand::ToggleActive, AppCommand::Exit);
+    }
+
+    #[test]
+    fn test_menu_action_variants() {
+        assert_eq!(MenuAction::None, MenuAction::None);
+        assert_eq!(MenuAction::ToggleActive, MenuAction::ToggleActive);
+        assert_ne!(MenuAction::ToggleActive, MenuAction::Exit);
+    }
+
+    #[tokio::test]
+    async fn test_mock_tray_api_lifecycle() {
+        let api = MockTrayApi::new();
+        assert!(!api.is_registered());
+
+        api.register().await.unwrap();
+        assert!(api.is_registered());
+
+        api.unregister().await.unwrap();
+        assert!(!api.is_registered());
+    }
+
+    #[tokio::test]
+    async fn test_mock_notification() {
+        let api = MockTrayApi::new();
+        api.show_notification("Test Title", "Test Message")
+            .await
+            .unwrap();
+
+        let notifications = api.get_notifications();
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(
+            notifications[0],
+            ("Test Title".to_string(), "Test Message".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mock_tooltip() {
+        let api = MockTrayApi::new();
+        api.set_tooltip("My Tooltip").await.unwrap();
+        assert_eq!(api.get_tooltip(), "My Tooltip");
+    }
+
+    #[tokio::test]
+    async fn test_mock_show_hide() {
+        let api = MockTrayApi::new();
+        assert!(api.is_visible());
+
+        api.hide().await.unwrap();
+        assert!(!api.is_visible());
+
+        api.show().await.unwrap();
+        assert!(api.is_visible());
+    }
+
+    #[tokio::test]
+    async fn test_tray_icon_lifecycle() {
+        let api = MockTrayApi::new();
+        let icon = TrayIconWrapper::new(api);
+
+        assert!(!icon.is_registered());
+        icon.register().await.unwrap();
+        assert!(icon.is_registered());
+        icon.unregister().await.unwrap();
+        assert!(!icon.is_registered());
+    }
+
+    #[tokio::test]
+    async fn test_tray_manager_start_stop() {
+        type MockTrayManager = TrayManager<MockTrayApi>;
+        let (mut mgr, _) = MockTrayManager::new();
+
+        assert!(!mgr.is_running());
+        mgr.start("wakem").await.unwrap();
+        assert!(mgr.is_running());
+        mgr.stop().await.unwrap();
+        assert!(!mgr.is_running());
+    }
+
+    #[tokio::test]
+    async fn test_tray_manager_notify() {
+        type MockTrayManager = TrayManager<MockTrayApi>;
+        let (mut mgr, _) = MockTrayManager::new();
+        mgr.start("wakem").await.unwrap();
+
+        mgr.notify("Title", "Message").await.unwrap();
     }
 }

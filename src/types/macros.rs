@@ -65,7 +65,7 @@ impl MacroRecording {
     /// Update current modifier state based on event
     fn update_modifiers(&mut self, event: &InputEvent) {
         if let InputEvent::Key(key_event) = event {
-            self.current_modifiers.apply_from_virtual_key(
+            self.current_modifiers.apply_from_internal_vk(
                 key_event.virtual_key,
                 key_event.state == KeyState::Pressed,
             );
