@@ -9,6 +9,7 @@ use crate::config;
 use crate::platform::traits::{ApplicationControl, TrayLifecycle};
 use crate::platform::types::AppCommand;
 use crate::platform::CurrentPlatform;
+use crate::runtime_util;
 
 /// Heartbeat interval for checking daemon connection (milliseconds)
 const DAEMON_HEARTBEAT_INTERVAL_MS: u64 = 1000;
@@ -280,37 +281,6 @@ fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
     ));
 }
 
-fn is_daemon_running(instance_id: u32) -> bool {
-    let rt = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(_) => return false,
-    };
-
-    rt.block_on(async {
-        let mut client = DaemonClient::new();
-        client.connect_to_instance(instance_id).await.is_ok()
-    })
-}
-
-fn run_daemon(
-    instance_id: u32,
-    preloaded_config: Option<config::Config>,
-    config_path: Option<std::path::PathBuf>,
-) -> Result<()> {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?;
-
-    rt.block_on(async {
-        info!("Starting wakemd (instance {})...", instance_id);
-        crate::daemon::run_server_with_config(instance_id, preloaded_config, config_path)
-            .await
-    })
-}
-
 pub fn run_tray_sync(
     instance_id: u32,
     auto_start_daemon: bool,
@@ -331,9 +301,9 @@ pub fn run_tray_sync(
 
     let daemon_handle = if auto_start_daemon {
         Some(thread::spawn(move || {
-            if !is_daemon_running(instance_id) {
+            if !runtime_util::is_daemon_running(instance_id) {
                 info!("Daemon not running, auto-starting...");
-                if let Err(e) = run_daemon(instance_id, None, None) {
+                if let Err(e) = runtime_util::run_daemon(instance_id, None, None) {
                     error!("Daemon exited with error: {}", e);
                 }
             } else {

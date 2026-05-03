@@ -1106,7 +1106,7 @@ J = "Down"
                 ..
             }) = &actions[0]
             {
-                assert_eq!(*virtual_key, 0xA2); // VK_LCONTROL
+                assert_eq!(*virtual_key, crate::types::key_codes::VK_LCONTROL);
             } else {
                 panic!("Expected Ctrl Press as first action, got {:?}", actions[0]);
             }
@@ -1116,7 +1116,7 @@ J = "Down"
                 ..
             }) = &actions[1]
             {
-                assert_eq!(*virtual_key, 0xA4); // VK_LMENU (Alt)
+                assert_eq!(*virtual_key, crate::types::key_codes::VK_LALT);
             } else {
                 panic!("Expected Alt Press as second action, got {:?}", actions[1]);
             }
@@ -1126,7 +1126,7 @@ J = "Down"
                 ..
             }) = &actions[2]
             {
-                assert_eq!(*virtual_key, 0x5B); // VK_LWIN
+                assert_eq!(*virtual_key, crate::types::key_codes::VK_LMETA);
             } else {
                 panic!("Expected Win Press as third action, got {:?}", actions[2]);
             }
@@ -1148,7 +1148,7 @@ J = "Down"
                 ..
             }) = &actions[5]
             {
-                assert_eq!(*virtual_key, 0x5B); // VK_LWIN release
+                assert_eq!(*virtual_key, crate::types::key_codes::VK_LMETA);
             } else {
                 panic!("Expected Win Release as sixth action, got {:?}", actions[5]);
             }

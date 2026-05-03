@@ -48,15 +48,6 @@ impl RawInputDevice {
         let device = GenericInputDevice::with_sender(sender)?;
         Ok(Self { device })
     }
-
-    pub fn run_once(&mut self) -> Result<bool> {
-        if let Some(ref mut inner) = self.device.inner {
-            inner.run_once()
-        } else {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            Ok(true)
-        }
-    }
 }
 
 impl InputDevice for RawInputDevice {
@@ -95,6 +86,15 @@ impl InputDevice for RawInputDevice {
 
     fn stop(&mut self) {
         self.device.stop();
+    }
+
+    fn run_once(&mut self) -> Result<bool> {
+        if let Some(ref mut inner) = self.device.inner {
+            inner.run_once()
+        } else {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            Ok(true)
+        }
     }
 }
 

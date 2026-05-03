@@ -5,7 +5,7 @@ use tracing::{debug, info};
 use wakem::cli::{Cli, Commands};
 use wakem::commands;
 use wakem::config;
-use wakem::daemon;
+use wakem::runtime_util;
 use wakem::tray;
 
 fn init_logging(cli: &Cli) -> (Option<config::Config>, Option<std::path::PathBuf>) {
@@ -54,7 +54,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Some(Commands::Daemon) => {
-            run_daemon(cli.instance, preloaded_config, config_path)
+            runtime_util::run_daemon(cli.instance, preloaded_config, config_path)
         }
         Some(Commands::Status) => commands::cmd_status_sync(cli.instance),
         Some(Commands::Reload) => commands::cmd_reload_sync(cli.instance),
@@ -79,19 +79,4 @@ fn main() -> Result<()> {
         Some(Commands::Tray) => tray::run_tray_sync(cli.instance, false, false),
         None => tray::run_tray_sync(cli.instance, true, true),
     }
-}
-
-fn run_daemon(
-    instance_id: u32,
-    preloaded_config: Option<config::Config>,
-    config_path: Option<std::path::PathBuf>,
-) -> Result<()> {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?;
-
-    rt.block_on(async {
-        info!("Starting wakemd (instance {})...", instance_id);
-        daemon::run_server_with_config(instance_id, preloaded_config, config_path).await
-    })
 }

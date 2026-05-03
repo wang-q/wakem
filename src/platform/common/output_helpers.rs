@@ -1,14 +1,15 @@
-//! Platform-agnostic output device helper functions
+//! Output device helper functions for internal key code mapping
 //!
-//! Contains shared logic used by all platform output device implementations,
-//! including cross-platform modifier key virtual key codes.
+//! Contains shared logic used by the [OutputDevice](crate::platform::traits::OutputDevice)
+//! trait's default implementations.
 //!
 //! ## Internal VK Convention
 //!
 //! All functions in this module return **Windows virtual key codes** as the
-//! internal key identifier. Platform-specific output devices convert these
-//! to native codes at send time (e.g., macOS CGKeyCode via
-//! `virtual_key_to_keycode()`).
+//! universal internal key identifier. This is a deliberate design choice:
+//! the system uses Windows VK codes as a common key representation regardless
+//! of platform. Platform-specific output devices convert these to native codes
+//! at send time (e.g., macOS CGKeyCode via `virtual_key_to_keycode()`).
 
 /// Convert ASCII character to internal virtual key code
 ///

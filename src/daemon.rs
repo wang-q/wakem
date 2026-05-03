@@ -64,11 +64,7 @@ impl ServerState {
         let window_manager = CurrentPlatform::create_window_manager();
         let notification_service = CurrentPlatform::create_notification_service();
         let window_preset_manager = CurrentPlatform::create_window_preset_manager();
-        let mapper = KeyMapper::with_window_manager(
-            Box::new(window_manager),
-            Some(Box::new(notification_service)),
-            Some(Box::new(window_preset_manager)),
-        );
+        let mapper = KeyMapper::with_window_manager(Box::new(window_manager));
 
         Self {
             config: Arc::new(RwLock::new(ConfigState::default())),
@@ -79,11 +75,9 @@ impl ServerState {
             ))),
             launcher: Arc::new(Mutex::new(Box::new(CurrentPlatform::create_launcher()))),
             window_preset_manager: Arc::new(RwLock::new(Box::new(
-                CurrentPlatform::create_window_preset_manager(),
+                window_preset_manager,
             ))),
-            notification_service: Arc::new(Mutex::new(Box::new(
-                CurrentPlatform::create_notification_service(),
-            ))),
+            notification_service: Arc::new(Mutex::new(Box::new(notification_service))),
             active: Arc::new(AtomicBool::new(true)),
             macro_recorder: Arc::new(MacroRecorder::new()),
             auth_key: Arc::new(RwLock::new(zeroize::Zeroizing::new(String::new()))),
@@ -381,7 +375,7 @@ impl ServerState {
             }
         }
 
-        // Filter out key repeat events (Windows sends repeated WM_KEYDOWN while held).
+        // Filter out key repeat events (platforms send repeated key-down while held).
         // Only the first press should trigger an action; subsequent repeats are suppressed.
         if let InputEvent::Key(ref key_event) = event {
             if key_event.state == KeyState::Pressed {
@@ -565,8 +559,14 @@ impl ServerState {
             }
             Action::Window(window_action) => {
                 info!(?window_action, "Executing window action");
+                let ns = self.notification_service.lock().await;
+                let mut pm = self.window_preset_manager.write().await;
                 let mut mapper = self.mapper.write().await;
-                mapper.execute_action(&Action::Window(window_action))?;
+                mapper.execute_action(
+                    &Action::Window(window_action),
+                    Some(ns.as_ref()),
+                    Some(pm.as_mut()),
+                )?;
                 info!("Window action executed successfully");
             }
             Action::Launch(launch_action) => {
@@ -617,10 +617,15 @@ impl ServerState {
                 }
 
                 Window(window_action) => {
+                    let ns = self.notification_service.lock().await;
+                    let mut pm = self.window_preset_manager.write().await;
                     let mut mapper = self.mapper.write().await;
-                    mapper.execute_action(&Window(window_action.clone()))?;
+                    mapper.execute_action(
+                        &Window(window_action.clone()),
+                        Some(ns.as_ref()),
+                        Some(pm.as_mut()),
+                    )?;
                     i += 1;
-                    // mapper lock released here
                 }
 
                 // Handle launch actions separately
@@ -1097,7 +1102,7 @@ pub async fn run_server_with_config(
     // Collect all std thread JoinHandles for graceful shutdown
     let mut thread_handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
 
-    // Start Raw Input capture (in separate thread, send to tokio channel via bridge)
+    // Start input device capture (in separate thread, send to tokio channel via bridge)
     let input_tx_bridge = input_tx.clone();
     let input_shutdown_flag = Arc::new(AtomicBool::new(false));
     let input_shutdown_flag_clone = input_shutdown_flag.clone();
@@ -1123,9 +1128,13 @@ pub async fn run_server_with_config(
                     }
                     info!("Input device initialized and registered");
                     while !raw_input_shutdown.load(Ordering::SeqCst) {
-                        if let Err(e) = device.run_once() {
-                            error!("Input device error: {}", e);
-                            break;
+                        match device.run_once() {
+                            Ok(false) => break,
+                            Err(e) => {
+                                error!("Input device error: {}", e);
+                                break;
+                            }
+                            Ok(true) => {}
                         }
                     }
                     info!("Input device thread shutting down");

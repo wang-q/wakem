@@ -1,6 +1,4 @@
-use crate::platform::traits::{
-    NotificationService, WindowManagerTrait, WindowPresetManager,
-};
+use crate::platform::traits::WindowManagerTrait;
 use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
 };
@@ -18,8 +16,6 @@ pub struct KeyMapper {
     context_rules: Vec<ContextMappingRule>,
     enabled: bool,
     pub(crate) window_manager: Option<Box<dyn WindowManagerTrait>>,
-    notification_service: Option<Box<dyn NotificationService>>,
-    window_preset_manager: Option<Box<dyn WindowPresetManager>>,
 }
 
 impl KeyMapper {
@@ -29,23 +25,15 @@ impl KeyMapper {
             context_rules: Vec::new(),
             enabled: true,
             window_manager: None,
-            notification_service: None,
-            window_preset_manager: None,
         }
     }
 
-    pub fn with_window_manager(
-        window_manager: Box<dyn WindowManagerTrait>,
-        notification_service: Option<Box<dyn NotificationService>>,
-        window_preset_manager: Option<Box<dyn WindowPresetManager>>,
-    ) -> Self {
+    pub fn with_window_manager(window_manager: Box<dyn WindowManagerTrait>) -> Self {
         Self {
             rules: Vec::new(),
             context_rules: Vec::new(),
             enabled: true,
             window_manager: Some(window_manager),
-            notification_service,
-            window_preset_manager,
         }
     }
 
@@ -191,17 +179,22 @@ impl KeyMapper {
         }
     }
 
-    pub fn execute_action(&mut self, action: &Action) -> anyhow::Result<()> {
+    pub fn execute_action(
+        &mut self,
+        action: &Action,
+        notification_service: Option<&dyn crate::platform::traits::NotificationService>,
+        window_preset_manager: Option<
+            &mut (dyn crate::platform::traits::WindowPresetManager + '_),
+        >,
+    ) -> anyhow::Result<()> {
         match action {
             Action::Window(window_action) => {
                 if let Some(ref wm) = self.window_manager {
-                    let ns = self.notification_service.as_deref();
-                    let pm = self.window_preset_manager.as_deref_mut();
                     super::window_actions::execute_window_action(
                         wm.as_ref(),
                         window_action,
-                        ns,
-                        pm,
+                        notification_service,
+                        window_preset_manager,
                     )?;
                 } else {
                     debug!("WindowManager not available, skipping window action");

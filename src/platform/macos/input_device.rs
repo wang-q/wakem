@@ -103,15 +103,6 @@ impl MacosInputDeviceExt {
         Ok(false)
     }
 
-    /// Run one iteration of the input processing loop
-    pub fn run_once(&mut self) -> Result<bool> {
-        if let Some(ref mut inner) = self.device.inner {
-            inner.run_once()
-        } else {
-            Ok(true)
-        }
-    }
-
     /// Poll event with pending event support
     fn poll_event_with_pending(&mut self) -> Option<InputEvent> {
         if !self.device.base.running {
@@ -177,6 +168,14 @@ impl crate::platform::traits::InputDevice for MacosInputDeviceExt {
 
     fn stop(&mut self) {
         self.device.stop();
+    }
+
+    fn run_once(&mut self) -> Result<bool> {
+        if let Some(ref mut inner) = self.device.inner {
+            inner.run_once()
+        } else {
+            Ok(true)
+        }
     }
 }
 

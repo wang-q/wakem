@@ -62,10 +62,6 @@ pub const RATE_LIMIT_WINDOW_SECS: u64 = 60;
 
 // ==================== Wheel Constants ====================
 
-/// WHEEL_DELTA standard value (Windows API standard: 120)
-/// On macOS, wheel delta values are typically 1 or 3
-pub const WHEEL_DELTA: i32 = 120;
-
 /// Default wheel speed
 pub const DEFAULT_WHEEL_SPEED: i32 = 3;
 

@@ -1,11 +1,13 @@
 //! Windows Raw Input implementation
 #![cfg(target_os = "windows")]
 
-use crate::constants::WHEEL_DELTA;
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
 };
+
+/// WHEEL_DELTA standard value (Windows API standard: 120)
+const WHEEL_DELTA: i32 = 120;
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;

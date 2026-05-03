@@ -17,6 +17,12 @@ pub trait InputDevice: Send {
     fn poll_event(&mut self) -> Option<InputEvent>;
     fn is_running(&self) -> bool;
     fn stop(&mut self);
+
+    /// Run one iteration of the input processing loop.
+    /// Returns Ok(true) to continue, Ok(false) to stop, or Err on failure.
+    fn run_once(&mut self) -> Result<bool> {
+        Ok(true)
+    }
 }
 
 /// Output device trait - for sending simulated input events

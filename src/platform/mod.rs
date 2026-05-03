@@ -51,5 +51,5 @@ pub type CurrentPlatform = macos::MacosPlatform;
 /// (e.g., macOS CGKeyCode via `virtual_key_to_keycode()`).
 pub fn key_to_internal_code(key: &keyboard_codes::Key) -> u16 {
     use keyboard_codes::KeyCodeMapper;
-    key.to_code(keyboard_codes::Platform::Windows) as u16
+    key.to_code(keyboard_codes::current_platform()) as u16
 }

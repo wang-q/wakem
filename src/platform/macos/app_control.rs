@@ -9,7 +9,7 @@ impl ApplicationControl for super::platform_utils::MacosPlatform {
     fn detach_console() {}
 
     fn open_folder(path: &std::path::Path) -> Result<()> {
-        app_control::open_folder(path)
+        app_control::open_folder_with_opener(path, "open")
     }
 
     fn force_kill_instance(instance_id: u32) -> Result<()> {
