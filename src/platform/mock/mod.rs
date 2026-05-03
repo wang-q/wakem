@@ -5,7 +5,7 @@
 
 pub mod mock_window_api;
 
-use crate::platform::traits::{InputDeviceTrait, OutputDeviceTrait};
+use crate::platform::traits::{InputDevice, OutputDevice};
 use crate::types::{
     InputEvent, KeyEvent, KeyState, ModifierState, MouseButton, MouseEvent,
     MouseEventType,
@@ -14,7 +14,7 @@ use anyhow::Result;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-/// Macro to generate test-mode [OutputDeviceTrait] implementation.
+/// Macro to generate test-mode [OutputDevice] implementation.
 ///
 /// Eliminates duplicated `#[cfg(test)]` boilerplate across platforms.
 /// Each method logs a `[TEST MODE]` message and returns `Ok(())`.
@@ -29,7 +29,7 @@ use std::sync::{Arc, Mutex};
 macro_rules! impl_test_output_device {
     ($device:ty) => {
         #[cfg(test)]
-        impl OutputDeviceTrait for $device {
+        impl OutputDevice for $device {
             fn send_key(
                 &self,
                 _scan_code: u16,
@@ -205,7 +205,7 @@ impl Default for MockInputDevice {
     }
 }
 
-impl InputDeviceTrait for MockInputDevice {
+impl InputDevice for MockInputDevice {
     fn register(&mut self) -> Result<()> {
         self.state.lock().unwrap().running = true;
         Ok(())
@@ -303,7 +303,7 @@ impl Default for MockOutputDevice {
     }
 }
 
-impl OutputDeviceTrait for MockOutputDevice {
+impl OutputDevice for MockOutputDevice {
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
         self.events.lock().unwrap().push(MockOutputEvent::Key {
             scan_code,
@@ -471,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_input_device_config_default() {
-        let config = crate::platform::traits::InputDeviceConfig::default();
+        let config = crate::platform::types::InputDeviceConfig::default();
         assert!(config.capture_keyboard);
         assert!(config.capture_mouse);
         assert!(!config.block_legacy_input);

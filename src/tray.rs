@@ -5,7 +5,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::client::DaemonClient;
 use crate::config;
-use crate::platform::traits::{AppCommand, ApplicationControl, TrayLifecycle};
+use crate::platform::types::AppCommand;
 use crate::platform::CurrentPlatform;
 
 async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u32) {

@@ -1,6 +1,4 @@
-use crate::platform::traits::{
-    NotificationService, WindowManagerTrait, WindowPresetManagerTrait,
-};
+use crate::platform::traits::{NotificationService, WindowManager, WindowPresetManager};
 use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
     MonitorDirection, WindowAction,
@@ -18,9 +16,9 @@ pub struct KeyMapper {
     rules: Vec<MappingRule>,
     context_rules: Vec<ContextMappingRule>,
     enabled: bool,
-    pub(crate) window_manager: Option<Box<dyn WindowManagerTrait>>,
+    pub(crate) window_manager: Option<Box<dyn WindowManager>>,
     notification_service: Option<Box<dyn NotificationService>>,
-    window_preset_manager: Option<Box<dyn WindowPresetManagerTrait>>,
+    window_preset_manager: Option<Box<dyn WindowPresetManager>>,
 }
 
 impl KeyMapper {
@@ -36,9 +34,9 @@ impl KeyMapper {
     }
 
     pub fn with_window_manager(
-        window_manager: Box<dyn WindowManagerTrait>,
+        window_manager: Box<dyn WindowManager>,
         notification_service: Option<Box<dyn NotificationService>>,
-        window_preset_manager: Option<Box<dyn WindowPresetManagerTrait>>,
+        window_preset_manager: Option<Box<dyn WindowPresetManager>>,
     ) -> Self {
         Self {
             rules: Vec::new(),
@@ -58,7 +56,7 @@ impl KeyMapper {
     pub fn process_event_with_context(
         &self,
         event: &InputEvent,
-        context: Option<&crate::platform::traits::WindowContext>,
+        context: Option<&crate::platform::types::WindowContext>,
     ) -> Option<Action> {
         if !self.enabled {
             return None;
@@ -75,7 +73,7 @@ impl KeyMapper {
     fn process_key_event_with_context(
         &self,
         event: &KeyEvent,
-        context: Option<&crate::platform::traits::WindowContext>,
+        context: Option<&crate::platform::types::WindowContext>,
     ) -> Option<Action> {
         debug!(
             scan_code = event.scan_code,
@@ -275,29 +273,82 @@ impl Default for KeyMapper {
 }
 
 fn execute_window_action_impl(
-    wm: &dyn WindowManagerTrait,
+    wm: &dyn WindowManager,
     action: &WindowAction,
     notification_service: &Option<Box<dyn NotificationService>>,
-    window_preset_manager: &mut Option<Box<dyn WindowPresetManagerTrait>>,
+    window_preset_manager: &mut Option<Box<dyn WindowPresetManager>>,
 ) -> anyhow::Result<()> {
+    use crate::platform::common::window_ops;
+
     let window = wm
         .get_foreground_window()
         .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
 
     match action {
-        WindowAction::Center => wm.move_to_center(window)?,
-        WindowAction::MoveToEdge(edge) => wm.move_to_edge(window, *edge)?,
-        WindowAction::HalfScreen(edge) => wm.set_half_screen(window, *edge)?,
-        WindowAction::LoopWidth(align) => wm.loop_width(window, *align)?,
-        WindowAction::LoopHeight(align) => wm.loop_height(window, *align)?,
+        WindowAction::Center => {
+            let info = wm.get_window_info(window)?;
+            let monitors = wm.get_monitors();
+            if let Some((x, y)) = window_ops::calc_centered_pos(&info, &monitors) {
+                wm.set_window_pos(window, x, y, info.width, info.height)?;
+            }
+        }
+        WindowAction::MoveToEdge(edge) => {
+            let info = wm.get_window_info(window)?;
+            let monitors = wm.get_monitors();
+            if let Some((x, y)) = window_ops::calc_edge_pos(&info, &monitors, *edge) {
+                wm.set_window_pos(window, x, y, info.width, info.height)?;
+            }
+        }
+        WindowAction::HalfScreen(edge) => {
+            let info = wm.get_window_info(window)?;
+            let monitors = wm.get_monitors();
+            if let Some((x, y, w, h)) =
+                window_ops::calc_half_screen(&info, &monitors, *edge)
+            {
+                wm.set_window_pos(window, x, y, w, h)?;
+            }
+        }
+        WindowAction::LoopWidth(align) => {
+            let info = wm.get_window_info(window)?;
+            let monitors = wm.get_monitors();
+            if let Some((x, y, w, h)) =
+                window_ops::calc_looped_width(&info, &monitors, *align)
+            {
+                wm.set_window_pos(window, x, y, w, h)?;
+            }
+        }
+        WindowAction::LoopHeight(align) => {
+            let info = wm.get_window_info(window)?;
+            let monitors = wm.get_monitors();
+            if let Some((x, y, w, h)) =
+                window_ops::calc_looped_height(&info, &monitors, *align)
+            {
+                wm.set_window_pos(window, x, y, w, h)?;
+            }
+        }
         WindowAction::FixedRatio { ratio, scale_index } => {
-            wm.set_fixed_ratio(window, *ratio, Some(*scale_index))?
+            let info = wm.get_window_info(window)?;
+            let monitors = wm.get_monitors();
+            if let Some((x, y, w, h)) = window_ops::calc_fixed_ratio(
+                &info,
+                &monitors,
+                *ratio,
+                Some(*scale_index),
+            ) {
+                wm.set_window_pos(window, x, y, w, h)?;
+            }
         }
         WindowAction::NativeRatio { scale_index } => {
-            wm.set_native_ratio(window, Some(*scale_index))?
+            let info = wm.get_window_info(window)?;
+            let monitors = wm.get_monitors();
+            if let Some((x, y, w, h)) =
+                window_ops::calc_native_ratio(&info, &monitors, Some(*scale_index))
+            {
+                wm.set_window_pos(window, x, y, w, h)?;
+            }
         }
         WindowAction::SwitchToNextWindow => {
-            wm.switch_to_next_window_of_same_process()?
+            wm.switch_to_next_window_of_same_process()?;
         }
         WindowAction::MoveToMonitor(direction) => {
             execute_move_to_monitor(wm, window, direction)?;
@@ -315,7 +366,8 @@ fn execute_window_action_impl(
         WindowAction::Restore => wm.restore_window(window)?,
         WindowAction::Close => wm.close_window(window)?,
         WindowAction::ToggleTopmost => {
-            wm.toggle_topmost(window)?;
+            let current = wm.is_topmost(window);
+            wm.set_topmost(window, !current)?;
         }
         WindowAction::ShowDebugInfo => {
             show_debug_info(wm, window, notification_service);
@@ -339,7 +391,7 @@ fn execute_window_action_impl(
 }
 
 fn execute_move_to_monitor(
-    wm: &dyn WindowManagerTrait,
+    wm: &dyn WindowManager,
     window: crate::platform::types::WindowId,
     direction: &MonitorDirection,
 ) -> anyhow::Result<()> {
@@ -393,7 +445,7 @@ fn execute_move_to_monitor(
 }
 
 fn show_debug_info(
-    wm: &dyn WindowManagerTrait,
+    wm: &dyn WindowManager,
     window: crate::platform::types::WindowId,
     notification_service: &Option<Box<dyn NotificationService>>,
 ) {
@@ -432,7 +484,7 @@ fn show_notification(
 fn save_preset(
     name: &str,
     notification_service: &Option<Box<dyn NotificationService>>,
-    window_preset_manager: &mut Option<Box<dyn WindowPresetManagerTrait>>,
+    window_preset_manager: &mut Option<Box<dyn WindowPresetManager>>,
 ) {
     if let Some(ref mut pm) = window_preset_manager {
         match pm.get_foreground_window_info() {
@@ -463,7 +515,7 @@ fn save_preset(
 fn load_preset(
     _window: crate::platform::types::WindowId,
     name: &str,
-    window_preset_manager: &Option<Box<dyn WindowPresetManagerTrait>>,
+    window_preset_manager: &Option<Box<dyn WindowPresetManager>>,
 ) {
     if let Some(ref pm) = window_preset_manager {
         if let Err(e) = pm.load_preset(name) {
@@ -478,7 +530,7 @@ fn load_preset(
 
 fn apply_preset(
     window: crate::platform::types::WindowId,
-    window_preset_manager: &Option<Box<dyn WindowPresetManagerTrait>>,
+    window_preset_manager: &Option<Box<dyn WindowPresetManager>>,
 ) {
     if let Some(ref pm) = window_preset_manager {
         match pm.apply_preset_for_window_by_id(window) {

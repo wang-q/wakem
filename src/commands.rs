@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::config;
-use crate::platform::traits::ApplicationControl;
+
 use crate::platform::CurrentPlatform;
 use crate::runtime_util::{run_async, run_with_client};
 

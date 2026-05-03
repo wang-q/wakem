@@ -8,7 +8,7 @@
 #![cfg(target_os = "windows")]
 
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
+
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, error};
@@ -38,10 +38,9 @@ const WM_USER_TRAYICON: u32 = 6000;
 const WM_LBUTTONUP: u32 = 0x0202;
 const WM_RBUTTONUP: u32 = 0x0205;
 
-// Re-export shared tray types from platform::traits
-pub use crate::platform::traits::AppCommand;
-// Re-export menu ID constants from common::tray
-pub use crate::platform::common::tray::menu_ids;
+// Re-export shared tray types from platform::types
+use crate::platform::common::tray::menu_ids;
+pub use crate::platform::types::AppCommand;
 
 /// Callback type for command handling
 type CommandCallback = Box<dyn Fn(AppCommand) + Send + 'static>;
@@ -516,9 +515,6 @@ impl Drop for TrayIcon {
     }
 }
 
-// Re-export shared TrayApi trait from common::tray
-pub use crate::platform::common::tray::TrayApi;
-
 /// Real tray icon API implementation
 pub struct RealTrayApi {
     inner: Arc<Mutex<TrayIconInner>>,
@@ -565,9 +561,8 @@ impl RealTrayApi {
     }
 }
 
-#[async_trait]
-impl TrayApi for RealTrayApi {
-    async fn register(&self, hwnd: Option<isize>) -> Result<()> {
+impl RealTrayApi {
+    pub async fn register(&self, hwnd: Option<isize>) -> Result<()> {
         let hwnd = hwnd
             .ok_or_else(|| anyhow::anyhow!("Windows tray registration requires hwnd"))?;
         let mut inner = self.inner.lock().await;
@@ -578,73 +573,56 @@ impl TrayApi for RealTrayApi {
         Ok(())
     }
 
-    async fn unregister(&self) -> Result<()> {
+    pub async fn unregister(&self) -> Result<()> {
         let mut inner = self.inner.lock().await;
         inner.tray_icon.unregister()?;
         inner.registered = false;
         Ok(())
     }
 
-    async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
+    pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
         let mut inner = self.inner.lock().await;
         inner.tray_icon.show_notification(title, message)?;
         Ok(())
     }
 
-    async fn show_menu(&self) -> Result<u32> {
+    pub async fn show_menu(&self) -> Result<u32> {
         let mut inner = self.inner.lock().await;
         inner.tray_icon.show_menu()
     }
 
-    async fn set_active(&self, active: bool) -> Result<()> {
+    pub async fn set_active(&self, active: bool) -> Result<()> {
         let mut inner = self.inner.lock().await;
         inner.active = active;
         Ok(())
     }
 
-    async fn is_active(&self) -> bool {
+    pub async fn is_active(&self) -> bool {
         let inner = self.inner.lock().await;
         inner.active
     }
 
-    fn get_notifications(&self) -> Vec<(String, String)> {
+    pub fn get_notifications(&self) -> Vec<(String, String)> {
         Vec::new()
     }
 
-    fn is_registered(&self) -> bool {
+    pub fn is_registered(&self) -> bool {
         match self.inner.try_lock() {
             Ok(inner) => inner.registered,
             Err(_) => false,
         }
     }
 
-    fn set_menu_selections(&self, _selections: Vec<u32>) {}
+    pub fn set_menu_selections(&self, _selections: Vec<u32>) {}
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::common::tray::MockTrayApi;
-    use crate::platform::traits::MenuAction;
 
     #[test]
     fn test_tray_icon_creation() {
         let tray = TrayIcon::new();
         drop(tray);
-    }
-
-    #[test]
-    fn test_mock_tray_api() {
-        let api = MockTrayApi::new();
-        assert!(!api.is_registered());
-    }
-
-    #[test]
-    fn test_menu_action_enum() {
-        assert_eq!(MenuAction::None as i32, 0);
-        assert_eq!(MenuAction::ToggleActive as i32, 1);
-        assert_eq!(MenuAction::Reload as i32, 2);
-        assert_eq!(MenuAction::OpenConfig as i32, 3);
-        assert_eq!(MenuAction::Exit as i32, 4);
     }
 }

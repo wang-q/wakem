@@ -7,7 +7,7 @@
 
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;
-use crate::platform::traits::WindowInfo;
+use crate::platform::types::WindowInfo;
 use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{debug, info};

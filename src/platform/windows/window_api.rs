@@ -13,10 +13,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ShowWindow, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SW_RESTORE,
 };
 
-use crate::platform::traits::{MonitorInfo, MonitorWorkArea, WindowFrame};
+use crate::platform::types::{MonitorInfo, WindowFrame};
 
 /// API call log entry (for MockWindowApi testing)
 #[derive(Debug, Clone)]
+#[cfg(test)]
 pub enum WindowApiCall {
     GetForegroundWindow,
     GetWindowRect {
@@ -61,6 +62,7 @@ pub enum WindowApiCall {
 
 /// Window state (Windows-specific implementation details)
 #[derive(Debug, Clone, Copy, Default)]
+#[cfg(test)]
 pub struct WindowStateDetail {
     pub minimized: bool,
     pub maximized: bool,
@@ -69,11 +71,8 @@ pub struct WindowStateDetail {
 
 /// Windows API abstract interface
 pub trait WindowApi {
-    /// Get foreground window handle
     fn get_foreground_window(&self) -> Option<HWND>;
-    /// Get window rectangle
-    fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame>;
-    /// Set window position
+    fn get_window_rect(&self, hwnd: HWND) -> Result<WindowFrame>;
     fn set_window_pos(
         &self,
         hwnd: HWND,
@@ -82,55 +81,18 @@ pub trait WindowApi {
         width: i32,
         height: i32,
     ) -> Result<()>;
-    /// Get monitor info
     fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo>;
-    /// Get monitor work area
-    fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea>;
-    /// Check if window is valid
     fn is_window(&self, hwnd: HWND) -> bool;
-    /// Get window title
     fn get_window_title(&self, hwnd: HWND) -> Option<String>;
-    /// Check if window is minimized
     fn is_iconic(&self, hwnd: HWND) -> bool;
-    /// Check if window is maximized
     fn is_zoomed(&self, hwnd: HWND) -> bool;
-    /// Minimize window
     fn minimize_window(&self, hwnd: HWND) -> Result<()>;
-    /// Maximize window
     fn maximize_window(&self, hwnd: HWND) -> Result<()>;
-    /// Restore window
     fn restore_window(&self, hwnd: HWND) -> Result<()>;
-    /// Close window
     fn close_window(&self, hwnd: HWND) -> Result<()>;
-    /// Set topmost status
     fn set_topmost(&self, hwnd: HWND, topmost: bool) -> Result<()>;
-    /// Check if window is topmost
     fn is_topmost(&self, hwnd: HWND) -> bool;
-    /// Ensure window is restored
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()>;
-
-    /// Alias matching WindowApiBase::is_window_valid
-    fn is_window_valid(&self, hwnd: HWND) -> bool {
-        self.is_window(hwnd)
-    }
-
-    /// Alias matching WindowApiBase::is_minimized
-    fn is_minimized(&self, hwnd: HWND) -> bool {
-        self.is_iconic(hwnd)
-    }
-
-    /// Alias matching WindowApiBase::is_maximized
-    fn is_maximized(&self, hwnd: HWND) -> bool {
-        self.is_zoomed(hwnd)
-    }
-
-    /// Alias matching WindowApiBase::get_monitors
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        let fg = self.get_foreground_window();
-        fg.and_then(|hwnd| self.get_monitor_info(hwnd))
-            .map(|info| vec![info])
-            .unwrap_or_default()
-    }
 }
 
 /// Real Windows API implementation
@@ -148,73 +110,6 @@ impl Default for RealWindowApi {
     }
 }
 
-impl crate::platform::traits::WindowApiBase for RealWindowApi {
-    type WindowId = HWND;
-
-    crate::impl_window_api_base_inner!();
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        WindowApi::get_monitors(self)
-    }
-}
-
-impl RealWindowApi {
-    pub fn get_foreground_window_inner(&self) -> Option<HWND> {
-        WindowApi::get_foreground_window(self)
-    }
-
-    pub fn set_window_pos_inner(
-        &self,
-        hwnd: HWND,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        WindowApi::set_window_pos(self, hwnd, x, y, width, height)
-    }
-
-    pub fn minimize_window_inner(&self, hwnd: HWND) -> Result<()> {
-        WindowApi::minimize_window(self, hwnd)
-    }
-
-    pub fn maximize_window_inner(&self, hwnd: HWND) -> Result<()> {
-        WindowApi::maximize_window(self, hwnd)
-    }
-
-    pub fn restore_window_inner(&self, hwnd: HWND) -> Result<()> {
-        WindowApi::restore_window(self, hwnd)
-    }
-
-    pub fn close_window_inner(&self, hwnd: HWND) -> Result<()> {
-        WindowApi::close_window(self, hwnd)
-    }
-
-    pub fn set_topmost_inner(&self, hwnd: HWND, topmost: bool) -> Result<()> {
-        WindowApi::set_topmost(self, hwnd, topmost)
-    }
-
-    pub fn is_topmost_inner(&self, hwnd: HWND) -> bool {
-        WindowApi::is_topmost(self, hwnd)
-    }
-
-    pub fn is_window_valid_inner(&self, hwnd: HWND) -> bool {
-        WindowApi::is_window_valid(self, hwnd)
-    }
-
-    pub fn is_minimized_inner(&self, hwnd: HWND) -> bool {
-        WindowApi::is_minimized(self, hwnd)
-    }
-
-    pub fn is_maximized_inner(&self, hwnd: HWND) -> bool {
-        WindowApi::is_maximized(self, hwnd)
-    }
-
-    pub fn get_monitors(&self) -> Vec<MonitorInfo> {
-        WindowApi::get_monitors(self)
-    }
-}
-
 impl WindowApi for RealWindowApi {
     fn get_foreground_window(&self) -> Option<HWND> {
         unsafe {
@@ -227,11 +122,11 @@ impl WindowApi for RealWindowApi {
         }
     }
 
-    fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame> {
+    fn get_window_rect(&self, hwnd: HWND) -> Result<WindowFrame> {
         unsafe {
             let mut rect = RECT::default();
-            GetWindowRect(hwnd, &mut rect).ok()?;
-            Some(WindowFrame::new(
+            GetWindowRect(hwnd, &mut rect)?;
+            Ok(WindowFrame::new(
                 rect.left,
                 rect.top,
                 rect.right - rect.left,
@@ -281,33 +176,6 @@ impl WindowApi for RealWindowApi {
 
             let work_area = &monitor_info.rcWork;
             Some(MonitorInfo {
-                x: work_area.left,
-                y: work_area.top,
-                width: work_area.right - work_area.left,
-                height: work_area.bottom - work_area.top,
-            })
-        }
-    }
-
-    fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea> {
-        unsafe {
-            let hmonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            if hmonitor.is_invalid() {
-                return None;
-            }
-
-            use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITORINFO};
-            let mut monitor_info = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                ..Default::default()
-            };
-
-            if !GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
-                return None;
-            }
-
-            let work_area = &monitor_info.rcWork;
-            Some(MonitorWorkArea {
                 x: work_area.left,
                 y: work_area.top,
                 width: work_area.right - work_area.left,
@@ -401,7 +269,6 @@ impl WindowApi for RealWindowApi {
                 GetWindowLongW, IsWindow, GWL_EXSTYLE,
             };
 
-            // Check if window is valid first
             if !IsWindow(Some(hwnd)).as_bool() {
                 return false;
             }
@@ -413,7 +280,7 @@ impl WindowApi for RealWindowApi {
 
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
-            WindowApi::restore_window(self, hwnd)?;
+            self.restore_window(hwnd)?;
         }
         Ok(())
     }
@@ -481,9 +348,13 @@ impl WindowApi for MockWindowApi {
         *self.foreground_window.borrow()
     }
 
-    fn get_window_rect(&self, hwnd: HWND) -> Option<WindowFrame> {
+    fn get_window_rect(&self, hwnd: HWND) -> Result<WindowFrame> {
         self.log_operation(WindowApiCall::GetWindowRect { hwnd });
-        self.window_rects.borrow().get(&(hwnd.0 as isize)).copied()
+        self.window_rects
+            .borrow()
+            .get(&(hwnd.0 as isize))
+            .copied()
+            .ok_or_else(|| anyhow::anyhow!("Window not found"))
     }
 
     fn set_window_pos(
@@ -505,7 +376,6 @@ impl WindowApi for MockWindowApi {
         let mut rects = self.window_rects.borrow_mut();
         rects.insert(hwnd.0 as isize, WindowFrame::new(x, y, width, height));
 
-        // Update window state
         let mut states = self.window_states.borrow_mut();
         if let Some(state) = states.get_mut(&(hwnd.0 as isize)) {
             state.minimized = false;
@@ -518,15 +388,6 @@ impl WindowApi for MockWindowApi {
     fn get_monitor_info(&self, hwnd: HWND) -> Option<MonitorInfo> {
         self.log_operation(WindowApiCall::GetMonitorInfo { hwnd });
         self.monitor_info.borrow().get(&(hwnd.0 as isize)).cloned()
-    }
-
-    fn get_monitor_work_area(&self, hwnd: HWND) -> Option<MonitorWorkArea> {
-        self.get_monitor_info(hwnd).map(|info| MonitorWorkArea {
-            x: info.x,
-            y: info.y,
-            width: info.width,
-            height: info.height,
-        })
     }
 
     fn is_window(&self, hwnd: HWND) -> bool {
@@ -596,7 +457,7 @@ impl WindowApi for MockWindowApi {
     fn ensure_window_restored(&self, hwnd: HWND) -> Result<()> {
         self.log_operation(WindowApiCall::EnsureRestored { hwnd });
         if self.is_iconic(hwnd) || self.is_zoomed(hwnd) {
-            WindowApi::restore_window(self, hwnd)?;
+            self.restore_window(hwnd)?;
         }
         Ok(())
     }
@@ -618,69 +479,6 @@ impl Default for MockWindowApi {
 }
 
 #[cfg(test)]
-use crate::platform::traits::WindowApiBase;
-
-#[cfg(test)]
-impl WindowApiBase for MockWindowApi {
-    type WindowId = HWND;
-
-    fn get_foreground_window_inner(&self) -> Option<Self::WindowId> {
-        WindowApi::get_foreground_window(self)
-    }
-
-    fn set_window_pos_inner(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        WindowApi::set_window_pos(self, window, x, y, width, height)
-    }
-
-    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::minimize_window(self, window)
-    }
-
-    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::maximize_window(self, window)
-    }
-
-    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::restore_window(self, window)
-    }
-
-    fn close_window_inner(&self, window: Self::WindowId) -> Result<()> {
-        WindowApi::close_window(self, window)
-    }
-
-    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        WindowApi::set_topmost(self, window, topmost)
-    }
-
-    fn is_topmost_inner(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_topmost(self, window)
-    }
-
-    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_window_valid(self, window)
-    }
-
-    fn is_minimized_inner(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_minimized(self, window)
-    }
-
-    fn is_maximized_inner(&self, window: Self::WindowId) -> bool {
-        WindowApi::is_maximized(self, window)
-    }
-
-    fn get_monitors(&self) -> Vec<MonitorInfo> {
-        unsafe { super::window_manager::enumerate_all_monitors() }
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -693,21 +491,14 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(1234);
 
-        // Set window rect
         let frame = WindowFrame::new(100, 200, 800, 600);
         api.set_window_rect(hwnd, frame);
 
-        // Verify can be retrieved
         let retrieved = api.get_window_rect(hwnd).unwrap();
         assert_eq!(retrieved.x, 100);
         assert_eq!(retrieved.y, 200);
         assert_eq!(retrieved.width, 800);
         assert_eq!(retrieved.height, 600);
-
-        // Verify operation log
-        let ops = api.get_operations();
-        assert_eq!(ops.len(), 1);
-        assert!(matches!(ops[0], WindowApiCall::GetWindowRect { .. }));
     }
 
     #[test]
@@ -715,7 +506,7 @@ mod tests {
         let api = MockWindowApi::new();
         let hwnd = test_hwnd(5678);
 
-        WindowApi::set_window_pos(&api, hwnd, 50, 100, 1024, 768).unwrap();
+        api.set_window_pos(hwnd, 50, 100, 1024, 768).unwrap();
 
         let frame = api.get_window_rect(hwnd).unwrap();
         assert_eq!(frame.x, 50);
@@ -732,30 +523,16 @@ mod tests {
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        WindowApi::minimize_window(&api, hwnd).unwrap();
+        api.minimize_window(hwnd).unwrap();
         assert!(api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        WindowApi::restore_window(&api, hwnd).unwrap();
+        api.restore_window(hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(!api.is_zoomed(hwnd));
 
-        WindowApi::maximize_window(&api, hwnd).unwrap();
+        api.maximize_window(hwnd).unwrap();
         assert!(!api.is_iconic(hwnd));
         assert!(api.is_zoomed(hwnd));
-    }
-
-    #[test]
-    fn test_mock_window_api_foreground_window() {
-        let api = MockWindowApi::new();
-        let hwnd = test_hwnd(1111);
-
-        assert!(WindowApi::get_foreground_window(&api).is_none());
-
-        api.set_foreground_window(hwnd);
-        assert_eq!(
-            WindowApi::get_foreground_window(&api).unwrap().0 as usize,
-            1111
-        );
     }
 }

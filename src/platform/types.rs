@@ -18,7 +18,7 @@ impl Default for InputDeviceConfig {
     }
 }
 
-/// Window identifier type
+/// Window identifier type (platform-agnostic)
 pub type WindowId = usize;
 
 /// Window information
@@ -37,15 +37,6 @@ pub struct WindowInfo {
 /// Monitor information
 #[derive(Debug, Clone, Copy)]
 pub struct MonitorInfo {
-    pub x: i32,
-    pub y: i32,
-    pub width: i32,
-    pub height: i32,
-}
-
-/// Monitor work area (excludes taskbar/Dock). Used on macOS; Windows uses MonitorInfo directly.
-#[derive(Debug, Clone, Copy)]
-pub struct MonitorWorkArea {
     pub x: i32,
     pub y: i32,
     pub width: i32,
@@ -90,35 +81,22 @@ impl WindowFrame {
     }
 }
 
-/// Trait for window information needed by common operations
-pub trait WindowInfoProvider {
-    fn x(&self) -> i32;
-    fn y(&self) -> i32;
-    fn width(&self) -> i32;
-    fn height(&self) -> i32;
-}
-
-impl WindowInfoProvider for WindowInfo {
-    fn x(&self) -> i32 {
-        self.x
-    }
-    fn y(&self) -> i32 {
-        self.y
-    }
-    fn width(&self) -> i32 {
-        self.width
-    }
-    fn height(&self) -> i32 {
-        self.height
-    }
-}
-
 /// Application commands sent from tray menu
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppCommand {
     ToggleActive,
     ReloadConfig,
     OpenConfigFolder,
+    Exit,
+}
+
+/// Tray menu actions
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuAction {
+    None,
+    ToggleActive,
+    Reload,
+    OpenConfig,
     Exit,
 }
 
@@ -132,16 +110,6 @@ pub enum PlatformWindowEvent {
     },
 }
 
-/// Menu action identifiers for tray context menus
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuAction {
-    None,
-    ToggleActive,
-    Reload,
-    OpenConfig,
-    Exit,
-}
-
 /// Window context information used for context-aware mappings
 #[derive(Debug, Clone, Default)]
 pub struct WindowContext {
@@ -149,12 +117,6 @@ pub struct WindowContext {
     pub window_class: String,
     pub window_title: String,
     pub executable_path: Option<String>,
-}
-
-/// Platform-specific initialization context for notification services
-#[derive(Debug, Clone, Default)]
-pub struct NotificationInitContext {
-    pub native_handle: Option<usize>,
 }
 
 impl WindowContext {
@@ -185,4 +147,10 @@ impl WindowContext {
                 )
             })
     }
+}
+
+/// Platform-specific initialization context for notification services
+#[derive(Debug, Clone, Default)]
+pub struct NotificationInitContext {
+    pub native_handle: Option<usize>,
 }

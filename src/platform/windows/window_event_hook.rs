@@ -1,7 +1,7 @@
 //! Windows window event hook implementation
 #![cfg(target_os = "windows")]
 
-use crate::platform::traits::PlatformWindowEvent;
+use crate::platform::types::PlatformWindowEvent;
 use anyhow::Result;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Sender;
@@ -79,6 +79,20 @@ impl WindowEventHook {
     /// Get shutdown flag reference
     pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
         self.shutdown_flag.clone()
+    }
+}
+
+impl crate::platform::traits::WindowEventHook for WindowEventHook {
+    fn start_with_shutdown(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()> {
+        self.start_with_shutdown(shutdown_flag)
+    }
+
+    fn stop(&mut self) {
+        self.stop()
+    }
+
+    fn shutdown_flag(&self) -> Arc<AtomicBool> {
+        self.shutdown_flag()
     }
 }
 

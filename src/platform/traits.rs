@@ -2,20 +2,15 @@
 //!
 //! This module defines the cross-platform interfaces implemented
 //! by each platform-specific module (Windows, macOS).
-//!
-//! Shared data types are defined in [`super::types`] and re-exported here.
 
-use crate::platform::common::output_helpers::char_to_vk;
-use crate::types::key_codes::{VK_ALT, VK_CONTROL, VK_LMETA, VK_SHIFT};
-use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction, MouseButton};
+use crate::platform::types::*;
+use crate::types::{InputEvent, KeyAction, ModifierState, MouseAction};
 use anyhow::Result;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tracing::debug;
-
-pub use super::types::*;
 
 /// Input device trait - for capturing keyboard and mouse events
-pub trait InputDeviceTrait: Send {
+pub trait InputDevice: Send {
     fn register(&mut self) -> Result<()>;
     fn unregister(&mut self);
     fn poll_event(&mut self) -> Option<InputEvent>;
@@ -24,7 +19,16 @@ pub trait InputDeviceTrait: Send {
 }
 
 /// Output device trait - for sending simulated input events
-pub trait OutputDeviceTrait: Send {
+pub trait OutputDevice: Send + Sync {
+    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()>;
+    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()>;
+    fn send_mouse_button(
+        &self,
+        button: crate::types::MouseButton,
+        release: bool,
+    ) -> Result<()>;
+    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()>;
+
     fn send_key_action(&self, action: &KeyAction) -> Result<()> {
         match action {
             KeyAction::Press {
@@ -51,6 +55,7 @@ pub trait OutputDeviceTrait: Send {
     }
 
     fn send_text(&self, text: &str) -> Result<()> {
+        use crate::platform::common::output_helpers::char_to_vk;
         for ch in text.chars() {
             if let Some(vk) = char_to_vk(ch) {
                 self.send_key(0, vk, false)?;
@@ -62,10 +67,12 @@ pub trait OutputDeviceTrait: Send {
 
     fn send_combo(
         &self,
-        modifiers: &ModifierState,
+        modifiers: &crate::types::ModifierState,
         scan_code: u16,
         virtual_key: u16,
     ) -> Result<()> {
+        use crate::types::key_codes::*;
+
         if modifiers.shift {
             self.send_key(0, VK_SHIFT, false)?;
         }
@@ -98,7 +105,6 @@ pub trait OutputDeviceTrait: Send {
         Ok(())
     }
 
-    fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()>;
     fn send_mouse_action(&self, action: &MouseAction) -> Result<()> {
         match action {
             MouseAction::Move { x, y, relative } => {
@@ -115,93 +121,11 @@ pub trait OutputDeviceTrait: Send {
             MouseAction::None => Ok(()),
         }
     }
-
-    fn send_mouse_move(&self, x: i32, y: i32, relative: bool) -> Result<()>;
-    fn send_mouse_button(&self, button: MouseButton, release: bool) -> Result<()>;
-    fn send_mouse_wheel(&self, delta: i32, horizontal: bool) -> Result<()>;
 }
 
-/// Base window API trait - shared operations across platforms
-///
-/// This trait defines the common window operations that both Windows and macOS
-/// implement. Platform-specific traits extend this with their own methods.
-///
-/// The `_inner` methods are the platform-specific implementations.
-/// The public methods have default implementations that delegate to `_inner`.
-/// Platforms only need to implement the `_inner` methods.
-pub trait WindowApiBase {
-    type WindowId: Copy + std::fmt::Debug + 'static;
-
-    fn get_foreground_window_inner(&self) -> Option<Self::WindowId>;
-    fn set_window_pos_inner(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()>;
-    fn minimize_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn maximize_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn restore_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn close_window_inner(&self, window: Self::WindowId) -> Result<()>;
-    fn set_topmost_inner(&self, window: Self::WindowId, topmost: bool) -> Result<()>;
-    fn is_topmost_inner(&self, window: Self::WindowId) -> bool;
-    fn is_window_valid_inner(&self, window: Self::WindowId) -> bool;
-    fn is_minimized_inner(&self, window: Self::WindowId) -> bool;
-    fn is_maximized_inner(&self, window: Self::WindowId) -> bool;
-    fn get_monitors(&self) -> Vec<MonitorInfo>;
-
-    fn get_foreground_window(&self) -> Option<Self::WindowId> {
-        self.get_foreground_window_inner()
-    }
-    fn set_window_pos(
-        &self,
-        window: Self::WindowId,
-        x: i32,
-        y: i32,
-        width: i32,
-        height: i32,
-    ) -> Result<()> {
-        self.set_window_pos_inner(window, x, y, width, height)
-    }
-    fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        self.minimize_window_inner(window)
-    }
-    fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        self.maximize_window_inner(window)
-    }
-    fn restore_window(&self, window: Self::WindowId) -> Result<()> {
-        self.restore_window_inner(window)
-    }
-    fn close_window(&self, window: Self::WindowId) -> Result<()> {
-        self.close_window_inner(window)
-    }
-    fn set_topmost(&self, window: Self::WindowId, topmost: bool) -> Result<()> {
-        self.set_topmost_inner(window, topmost)
-    }
-    fn is_topmost(&self, window: Self::WindowId) -> bool {
-        self.is_topmost_inner(window)
-    }
-    fn is_window_valid(&self, window: Self::WindowId) -> bool {
-        self.is_window_valid_inner(window)
-    }
-    fn is_minimized(&self, window: Self::WindowId) -> bool {
-        self.is_minimized_inner(window)
-    }
-    fn is_maximized(&self, window: Self::WindowId) -> bool {
-        self.is_maximized_inner(window)
-    }
-    fn ensure_window_restored(&self, window: Self::WindowId) -> Result<()> {
-        if self.is_minimized(window) || self.is_maximized(window) {
-            self.restore_window(window)?;
-        }
-        Ok(())
-    }
-}
-
-/// Basic window manipulation operations
-pub trait WindowOperations: Send + Sync {
+/// Window manager trait - unified interface for window operations
+pub trait WindowManager: Send + Sync {
+    fn get_foreground_window(&self) -> Option<WindowId>;
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo>;
     fn set_window_pos(
         &self,
@@ -215,286 +139,27 @@ pub trait WindowOperations: Send + Sync {
     fn maximize_window(&self, window: WindowId) -> Result<()>;
     fn restore_window(&self, window: WindowId) -> Result<()>;
     fn close_window(&self, window: WindowId) -> Result<()>;
-}
-
-/// Window state query operations
-pub trait WindowStateQueries: Send + Sync {
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
+    fn is_topmost(&self, window: WindowId) -> bool;
     fn is_window_valid(&self, window: WindowId) -> bool;
     fn is_minimized(&self, window: WindowId) -> bool;
     fn is_maximized(&self, window: WindowId) -> bool;
-    fn is_topmost(&self, window: WindowId) -> bool;
-}
-
-/// Monitor-related operations
-pub trait MonitorOperations: Send + Sync {
     fn get_monitors(&self) -> Vec<MonitorInfo>;
-    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()>;
-}
 
-/// Foreground window operations
-pub trait ForegroundWindowOperations: Send + Sync {
-    fn get_foreground_window(&self) -> Option<WindowId>;
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()>;
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        let _ = (window, monitor_index);
+        anyhow::bail!("move_to_monitor not implemented on this platform")
+    }
+
     fn switch_to_next_window_of_same_process(&self) -> Result<()> {
-        debug!("SwitchToNextWindow: not implemented on this platform");
-        Ok(())
+        anyhow::bail!(
+            "switch_to_next_window_of_same_process not implemented on this platform"
+        )
     }
 }
 
-/// Window manager trait - composed of fine-grained operation traits
-///
-/// This is a marker trait that combines all window operation traits.
-/// Implementors automatically satisfy this by implementing the
-/// constituent traits.
-pub trait WindowManagerTrait:
-    WindowOperations
-    + WindowStateQueries
-    + MonitorOperations
-    + ForegroundWindowOperations
-    + WindowManagerExt
-    + Send
-    + Sync
-{
-}
-
-/// Extended window manager operations with default implementations
-///
-/// Provides high-level window management operations (center, half-screen,
-/// loop, fixed ratio, etc.) built on top of the basic
-/// [`WindowManagerTrait`] operations.
-///
-/// Default implementations delegate to [`common::window_manager`] for
-/// non-platform-specific logic.
-pub trait WindowManagerExt:
-    WindowOperations + WindowStateQueries + MonitorOperations + ForegroundWindowOperations
-{
-    fn move_to_center(&self, window: WindowId) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
-            &monitors, info.x, info.y,
-        )
-        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-        let new_x = monitor.x + (monitor.width - info.width) / 2;
-        let new_y = monitor.y + (monitor.height - info.height) / 2;
-        self.set_window_pos(window, new_x, new_y, info.width, info.height)
-    }
-
-    fn move_to_edge(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
-            &monitors, info.x, info.y,
-        )
-        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-        let (new_x, new_y) = match edge {
-            crate::types::Edge::Left => (monitor.x, info.y),
-            crate::types::Edge::Right => {
-                (monitor.x + monitor.width - info.width, info.y)
-            }
-            crate::types::Edge::Top => (info.x, monitor.y),
-            crate::types::Edge::Bottom => {
-                (info.x, monitor.y + monitor.height - info.height)
-            }
-        };
-        self.set_window_pos(window, new_x, new_y, info.width, info.height)
-    }
-
-    fn set_half_screen(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
-            &monitors, info.x, info.y,
-        )
-        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-        let (new_x, new_y, new_width, new_height) = match edge {
-            crate::types::Edge::Left => {
-                (monitor.x, monitor.y, monitor.width / 2, monitor.height)
-            }
-            crate::types::Edge::Right => {
-                let w = monitor.width / 2;
-                (monitor.x + monitor.width - w, monitor.y, w, monitor.height)
-            }
-            crate::types::Edge::Top => {
-                (monitor.x, monitor.y, monitor.width, monitor.height / 2)
-            }
-            crate::types::Edge::Bottom => {
-                let h = monitor.height / 2;
-                (monitor.x, monitor.y + monitor.height - h, monitor.width, h)
-            }
-        };
-        self.set_window_pos(window, new_x, new_y, new_width, new_height)
-    }
-
-    fn loop_width(
-        &self,
-        window: WindowId,
-        align: crate::types::Alignment,
-    ) -> Result<()> {
-        const WIDTH_RATIOS: [f32; 5] = [0.75, 0.6, 0.5, 0.4, 0.25];
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
-            &monitors, info.x, info.y,
-        )
-        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-        let current_ratio = info.width as f32 / monitor.width as f32;
-        let next_ratio = crate::platform::common::window_manager::find_next_ratio(
-            &WIDTH_RATIOS,
-            current_ratio,
-        );
-        let new_width = (monitor.width as f32 * next_ratio) as i32;
-        let new_x = match align {
-            crate::types::Alignment::Left => monitor.x,
-            crate::types::Alignment::Right => monitor.x + monitor.width - new_width,
-            _ => info.x,
-        };
-        self.set_window_pos(window, new_x, info.y, new_width, info.height)
-    }
-
-    fn loop_height(
-        &self,
-        window: WindowId,
-        align: crate::types::Alignment,
-    ) -> Result<()> {
-        const HEIGHT_RATIOS: [f32; 3] = [0.75, 0.5, 0.25];
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
-            &monitors, info.x, info.y,
-        )
-        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-        let current_ratio = info.height as f32 / monitor.height as f32;
-        let next_ratio = crate::platform::common::window_manager::find_next_ratio(
-            &HEIGHT_RATIOS,
-            current_ratio,
-        );
-        let new_height = (monitor.height as f32 * next_ratio) as i32;
-        let new_y = match align {
-            crate::types::Alignment::Top => monitor.y,
-            crate::types::Alignment::Bottom => monitor.y + monitor.height - new_height,
-            _ => info.y,
-        };
-        self.set_window_pos(window, info.x, new_y, info.width, new_height)
-    }
-
-    fn set_fixed_ratio(
-        &self,
-        window: WindowId,
-        ratio: f32,
-        scale_index: Option<usize>,
-    ) -> Result<()> {
-        const SCALES: [f32; 4] = [1.0, 0.9, 0.7, 0.5];
-        let info = self.get_window_info(window)?;
-        let monitors = self.get_monitors();
-        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
-            &monitors, info.x, info.y,
-        )
-        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-        let base_size = std::cmp::min(monitor.width, monitor.height);
-        let base_width = (base_size as f32 * ratio) as i32;
-        let base_height = base_size;
-
-        let next_scale = match scale_index {
-            Some(idx) if idx < SCALES.len() => SCALES[idx],
-            Some(idx) => {
-                anyhow::bail!(
-                    "Scale index {} out of range (0-{})",
-                    idx,
-                    SCALES.len() - 1
-                );
-            }
-            None => {
-                let current_scale = (info.width as f32 / base_width as f32
-                    + info.height as f32 / base_height as f32)
-                    / 2.0;
-                crate::platform::common::window_manager::find_next_ratio(
-                    &SCALES,
-                    current_scale,
-                )
-            }
-        };
-
-        let new_width = (base_width as f32 * next_scale) as i32;
-        let new_height = (base_height as f32 * next_scale) as i32;
-        let new_x = monitor.x + (monitor.width - new_width) / 2;
-        let new_y = monitor.y + (monitor.height - new_height) / 2;
-        self.set_window_pos(window, new_x, new_y, new_width, new_height)
-    }
-
-    fn set_native_ratio(
-        &self,
-        window: WindowId,
-        scale_index: Option<usize>,
-    ) -> Result<()> {
-        let monitors = self.get_monitors();
-        let info = self.get_window_info(window)?;
-        let monitor = crate::platform::common::window_manager::find_monitor_for_point(
-            &monitors, info.x, info.y,
-        )
-        .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
-        let ratio = monitor.width as f32 / monitor.height as f32;
-        self.set_fixed_ratio(window, ratio, scale_index)
-    }
-
-    fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
-        let current = self.is_topmost(window);
-        let new_state = !current;
-        self.set_topmost(window, new_state)?;
-        Ok(new_state)
-    }
-}
-
-impl<
-        T: ?Sized
-            + WindowOperations
-            + WindowStateQueries
-            + MonitorOperations
-            + ForegroundWindowOperations,
-    > WindowManagerExt for T
-{
-}
-
-/// Platform utility functions trait
-///
-/// Provides common platform operations that are implemented differently
-/// on each platform (Windows, macOS).
-pub trait PlatformUtilities {
-    /// Get current modifier state
-    fn get_modifier_state() -> ModifierState;
-}
-
-/// Trait for providing current window context information
-///
-/// This trait abstracts the platform-specific implementation of obtaining
-/// the current foreground window's context (process name, window title, etc.).
-/// It enables core logic to access window context without direct platform API calls.
-pub trait ContextProvider {
-    /// Get the current foreground window context
-    ///
-    /// Returns `None` if no window is in foreground or if the information
-    /// cannot be obtained (e.g., insufficient permissions on macOS).
-    fn get_current_context() -> Option<WindowContext>;
-}
-
-/// Trait for showing desktop notifications
-///
-/// This trait provides a cross-platform abstraction for displaying
-/// system notifications (toast notifications on Windows, notification center
-/// on macOS). Implementations should handle platform-specific details internally.
-pub trait NotificationService: Send + Sync {
-    /// Show a notification with the given title and message
-    fn show(&self, title: &str, message: &str) -> Result<()>;
-
-    /// Initialize the notification service with platform-specific context
-    fn initialize(&self, _ctx: &NotificationInitContext) {}
-}
-
-/// Trait for window preset management
-///
-/// Provides a cross-platform abstraction for managing window presets
-/// (saving, loading, and auto-applying window positions/sizes).
-pub trait WindowPresetManagerTrait: Send + Sync {
+/// Window preset manager trait
+pub trait WindowPresetManager: Send + Sync {
     fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>);
     fn save_preset(&mut self, name: String) -> Result<()>;
     fn load_preset(&self, name: &str) -> Result<()>;
@@ -502,41 +167,41 @@ pub trait WindowPresetManagerTrait: Send + Sync {
     fn apply_preset_for_window_by_id(&self, window_id: WindowId) -> Result<bool>;
 }
 
-/// Trait for window event hook
-///
-/// Provides a cross-platform abstraction for monitoring window events
-/// such as foreground window changes. Windows uses SetWinEventHook,
-/// macOS uses CGWindowList polling.
-pub trait WindowEventHookTrait: Send {
-    fn start_with_shutdown(
-        &mut self,
-        shutdown_flag: Arc<std::sync::atomic::AtomicBool>,
-    ) -> Result<()>;
-    fn stop(&mut self);
-    fn shutdown_flag(&self) -> Arc<std::sync::atomic::AtomicBool>;
+/// Notification service trait
+pub trait NotificationService: Send + Sync {
+    fn show(&self, title: &str, message: &str) -> Result<()>;
+    fn initialize(&self, _ctx: &NotificationInitContext) {}
 }
 
-/// Trait for program launcher
-///
-/// Provides a cross-platform abstraction for launching programs
-/// and opening files/folders.
-pub trait LauncherTrait: Send {
+/// Launcher trait
+pub trait Launcher: Send + Sync {
     fn launch(&self, action: &crate::types::LaunchAction) -> Result<()>;
 }
 
-/// Trait for tray lifecycle management
-///
-/// Provides a cross-platform abstraction for running the system tray
-/// message loop and stopping it.
+/// Window event hook trait
+pub trait WindowEventHook: Send {
+    fn start_with_shutdown(&mut self, shutdown_flag: Arc<AtomicBool>) -> Result<()>;
+    fn stop(&mut self);
+    fn shutdown_flag(&self) -> Arc<AtomicBool>;
+}
+
+/// Platform utilities trait
+pub trait PlatformUtilities {
+    fn get_modifier_state() -> ModifierState;
+}
+
+/// Context provider trait
+pub trait ContextProvider {
+    fn get_current_context() -> Option<WindowContext>;
+}
+
+/// Tray lifecycle trait
 pub trait TrayLifecycle {
     fn run_tray_message_loop(callback: Box<dyn Fn(AppCommand) + Send>) -> Result<()>;
     fn stop_tray();
 }
 
-/// Trait for application control
-///
-/// Provides a cross-platform abstraction for application lifecycle
-/// operations that differ between platforms.
+/// Application control trait
 pub trait ApplicationControl {
     fn detach_console();
     fn terminate_application();
@@ -544,21 +209,15 @@ pub trait ApplicationControl {
     fn force_kill_instance(instance_id: u32) -> Result<()>;
 }
 
-/// Factory trait for creating platform-specific objects
-///
-/// Centralizes all platform-specific object creation so that
-/// non-platform code never needs conditional compilation.
-///
-/// Associated types allow compile-time type safety while maintaining
-/// platform abstraction.
+/// Platform factory trait - for creating platform-specific objects
 pub trait PlatformFactory {
-    type InputDevice: InputDeviceTrait;
-    type OutputDevice: OutputDeviceTrait + Send + Sync;
-    type WindowManager: WindowManagerTrait;
-    type WindowPresetManager: WindowPresetManagerTrait;
+    type InputDevice: InputDevice;
+    type OutputDevice: OutputDevice;
+    type WindowManager: WindowManager;
+    type WindowPresetManager: WindowPresetManager;
     type NotificationService: NotificationService;
-    type Launcher: LauncherTrait;
-    type WindowEventHook: WindowEventHookTrait;
+    type Launcher: Launcher;
+    type WindowEventHook: WindowEventHook;
 
     fn create_input_device(
         config: InputDeviceConfig,
@@ -566,30 +225,11 @@ pub trait PlatformFactory {
     ) -> Result<Self::InputDevice>;
 
     fn create_output_device() -> Self::OutputDevice;
-
     fn create_window_manager() -> Self::WindowManager;
-
     fn create_window_preset_manager() -> Self::WindowPresetManager;
-
     fn create_notification_service() -> Self::NotificationService;
-
     fn create_launcher() -> Self::Launcher;
-
     fn create_window_event_hook(
         sender: std::sync::mpsc::Sender<PlatformWindowEvent>,
     ) -> Self::WindowEventHook;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_window_context_empty() {
-        let ctx = WindowContext::empty();
-        assert!(ctx.process_name.is_empty());
-        assert!(ctx.window_class.is_empty());
-        assert!(ctx.window_title.is_empty());
-        assert!(ctx.executable_path.is_none());
-    }
 }

@@ -4,7 +4,7 @@
 //! Shared logic (char mapping, text input, key combos) is in [output_helpers].
 #![cfg(target_os = "windows")]
 
-use crate::platform::traits::OutputDeviceTrait;
+use crate::platform::traits::OutputDevice;
 use crate::types::MouseButton;
 use anyhow::Result;
 #[cfg(not(test))]
@@ -35,7 +35,7 @@ impl SendInputDevice {
 }
 
 #[cfg(not(test))]
-impl OutputDeviceTrait for SendInputDevice {
+impl OutputDevice for SendInputDevice {
     fn send_key(&self, scan_code: u16, virtual_key: u16, release: bool) -> Result<()> {
         let mut input = INPUT {
             r#type: INPUT_KEYBOARD,

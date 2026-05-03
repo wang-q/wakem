@@ -12,8 +12,8 @@ use crate::constants::{
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
-    InputDeviceTrait, LauncherTrait, NotificationService, OutputDeviceTrait,
-    PlatformFactory, WindowPresetManagerTrait,
+    InputDevice, Launcher, NotificationService, OutputDevice, PlatformFactory,
+    WindowPresetManager,
 };
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -46,9 +46,9 @@ pub struct ServerState {
     config: Arc<RwLock<ConfigState>>,
     mapper: Arc<RwLock<KeyMapper>>,
     layer_manager: Arc<RwLock<LayerManager>>,
-    output_device: Arc<Mutex<Box<dyn OutputDeviceTrait + Send + Sync>>>,
-    launcher: Arc<Mutex<Box<dyn LauncherTrait + Send + Sync>>>,
-    window_preset_manager: Arc<RwLock<Box<dyn WindowPresetManagerTrait>>>,
+    output_device: Arc<Mutex<Box<dyn OutputDevice + Send + Sync>>>,
+    launcher: Arc<Mutex<Box<dyn Launcher + Send + Sync>>>,
+    window_preset_manager: Arc<RwLock<Box<dyn WindowPresetManager>>>,
     notification_service: Arc<Mutex<Box<dyn NotificationService>>>,
     active: Arc<AtomicBool>,
     macro_recorder: Arc<MacroRecorder>,
@@ -418,8 +418,8 @@ impl ServerState {
         // Layer manager didn't handle, use base mapping engine (with context awareness) - use read lock
         let action = {
             let mapper = self.mapper.read().await;
-            let context: Option<crate::platform::traits::WindowContext> =
-                <CurrentPlatform as crate::platform::traits::ContextProvider>::get_current_context();
+            let context: Option<crate::platform::types::WindowContext> =
+                crate::platform::CurrentPlatform::get_current_context();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
@@ -822,7 +822,7 @@ impl ServerState {
     /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
     pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
         let service = self.notification_service.lock().await;
-        let ctx = crate::platform::traits::NotificationInitContext {
+        let ctx = crate::platform::types::NotificationInitContext {
             native_handle: Some(hwnd_value as usize),
         };
         service.initialize(&ctx);
@@ -1021,7 +1021,7 @@ mod tests {
 
 /// Get current modifier key state
 fn get_current_modifier_state() -> ModifierState {
-    <CurrentPlatform as crate::platform::traits::PlatformUtilities>::get_modifier_state()
+    crate::platform::CurrentPlatform::get_modifier_state()
 }
 
 /// Run server with optional config path
@@ -1124,7 +1124,7 @@ pub async fn run_server_with_config(
 
         let raw_input_handle = std::thread::spawn(move || {
             match <CurrentPlatform as PlatformFactory>::create_input_device(
-                crate::platform::traits::InputDeviceConfig::default(),
+                crate::platform::types::InputDeviceConfig::default(),
                 Some(std_tx),
             ) {
                 Ok(mut device) => {
@@ -1284,7 +1284,7 @@ pub async fn run_server_with_config(
     {
         let mut window_event_rx = {
             let (tx, rx) = tokio::sync::mpsc::channel::<
-                crate::platform::traits::PlatformWindowEvent,
+                crate::platform::types::PlatformWindowEvent,
             >(WINDOW_EVENT_CHANNEL_CAPACITY);
 
             let hook_shutdown_flag = Arc::new(AtomicBool::new(false));
@@ -1293,7 +1293,7 @@ pub async fn run_server_with_config(
 
             let window_bridge_handle = std::thread::spawn(move || {
                 let (std_tx, std_rx) = std::sync::mpsc::channel::<
-                    crate::platform::traits::PlatformWindowEvent,
+                    crate::platform::types::PlatformWindowEvent,
                 >();
 
                 let hook_shutdown_flag_inner = hook_shutdown_flag.clone();
@@ -1453,7 +1453,7 @@ pub async fn run_server_with_config(
 impl ServerState {
     async fn handle_window_event(
         &self,
-        event: crate::platform::traits::PlatformWindowEvent,
+        event: crate::platform::types::PlatformWindowEvent,
     ) {
         let auto_apply = {
             let config = self.config.read().await;
@@ -1464,7 +1464,7 @@ impl ServerState {
             return;
         }
 
-        let crate::platform::traits::PlatformWindowEvent::WindowActivated {
+        let crate::platform::types::PlatformWindowEvent::WindowActivated {
             process_name,
             window_title,
             window_id,

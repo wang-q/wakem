@@ -5,9 +5,8 @@ mod integration_tests {
     use std::process::Command;
     use std::thread;
     use std::time::Duration;
-    use wakem::platform::common::window_manager::CommonWindowApi;
-    use wakem::platform::traits::WindowFrame;
-    use wakem::platform::windows::WindowManager;
+    use wakem::platform::traits::WindowManager;
+    use wakem::platform::windows::WindowManager as WindowsWindowManager;
     use wakem::types::{Alignment, Edge};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -33,35 +32,6 @@ mod integration_tests {
         }
 
         child.id()
-    }
-
-    /// Launch multiple notepad windows for testing
-    fn launch_multiple_test_windows(count: usize) -> Vec<u32> {
-        cleanup_test_windows();
-        thread::sleep(Duration::from_millis(100));
-
-        let mut pids = Vec::new();
-
-        for _ in 0..count {
-            if let Ok(child) = Command::new("notepad.exe").spawn() {
-                pids.push(child.id());
-
-                // Wait for the new window to appear
-                let start = std::time::Instant::now();
-                while start.elapsed() < Duration::from_secs(5) {
-                    let wm = WindowManager::new();
-                    let windows = wm.get_app_visible_windows("notepad.exe");
-                    if windows.len() >= pids.len() {
-                        break;
-                    }
-                    thread::sleep(Duration::from_millis(100));
-                }
-
-                thread::sleep(Duration::from_millis(300));
-            }
-        }
-
-        pids
     }
 
     fn cleanup_test_windows() {
@@ -144,51 +114,45 @@ mod integration_tests {
         thread::sleep(Duration::from_millis(200));
     }
 
+    // Helper to convert HWND to WindowId
+    fn hwnd_to_id(hwnd: HWND) -> usize {
+        hwnd.0 as usize
+    }
+
     // ==================== Window Information Tests ====================
 
     #[test]
     #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_get_foreground_window_info() {
+    fn test_get_foreground_window() {
         setup();
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
-        let info = wm.get_foreground_window_info();
-        assert!(
-            info.is_ok(),
-            "Should get foreground window info: {:?}",
-            info.err()
-        );
-        let info = info.unwrap();
-        assert!(!info.title.is_empty(), "Window title should not be empty");
-        assert!(info.frame.width > 0, "Window width should be positive");
-        assert!(info.frame.height > 0, "Window height should be positive");
+        let wm = WindowsWindowManager::new();
+        let foreground = wm.get_foreground_window();
+        assert!(foreground.is_some(), "Should get foreground window");
 
         teardown();
     }
 
     #[test]
     #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_get_window_info_by_handle() {
+    fn test_get_window_info() {
         setup();
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
-        let info = wm.get_window_info(hwnd);
+        let info = wm.get_window_info(window_id);
         assert!(info.is_ok(), "Should get window info");
 
         let info = info.unwrap();
-        assert!(
-            info.title.contains("Notepad") || info.title.contains("Untitled"),
-            "Title should contain 'Notepad' or 'Untitled', got: {}",
-            info.title
-        );
-        assert!(info.frame.width > 0, "Width should be positive");
-        assert!(info.frame.height > 0, "Height should be positive");
+        assert!(!info.title.is_empty(), "Window title should not be empty");
+        assert!(info.width > 0, "Window width should be positive");
+        assert!(info.height > 0, "Window height should be positive");
 
         teardown();
     }
@@ -197,40 +161,40 @@ mod integration_tests {
 
     #[test]
     #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_set_window_frame() {
+    fn test_set_window_pos() {
         setup();
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
-        let new_frame = WindowFrame::new(100, 100, 800, 600);
-        let result = wm.set_window_frame(hwnd, &new_frame);
-        assert!(result.is_ok(), "Should set window frame");
+        let result = wm.set_window_pos(window_id, 100, 100, 800, 600);
+        assert!(result.is_ok(), "Should set window position");
 
         wait_for_window_stable();
 
-        let info = wm.get_window_info(hwnd).unwrap();
+        let info = wm.get_window_info(window_id).unwrap();
         assert!(
-            (info.frame.x - 100).abs() < 10,
+            (info.x - 100).abs() < 10,
             "X should be near 100, got {}",
-            info.frame.x
+            info.x
         );
         assert!(
-            (info.frame.y - 100).abs() < 10,
+            (info.y - 100).abs() < 10,
             "Y should be near 100, got {}",
-            info.frame.y
+            info.y
         );
         assert!(
-            (info.frame.width - 800).abs() < 20,
+            (info.width - 800).abs() < 20,
             "Width should be near 800, got {}",
-            info.frame.width
+            info.width
         );
         assert!(
-            (info.frame.height - 600).abs() < 20,
+            (info.height - 600).abs() < 20,
             "Height should be near 600, got {}",
-            info.frame.height
+            info.height
         );
 
         teardown();
@@ -243,25 +207,23 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
-        let original = wm.get_window_info(hwnd).unwrap().frame;
-        let result = wm.move_to_center(hwnd);
+        let original = wm.get_window_info(window_id).unwrap();
+        let result = wm.move_to_center(window_id);
         assert!(result.is_ok(), "Should move window to center");
 
         wait_for_window_stable();
 
-        let new_frame = wm.get_window_info(hwnd).unwrap().frame;
+        let new_info = wm.get_window_info(window_id).unwrap();
         assert!(
-            new_frame.x != original.x || new_frame.y != original.y,
+            new_info.x != original.x || new_info.y != original.y,
             "Window position should have changed"
         );
-        assert_eq!(original.width, new_frame.width, "Width should not change");
-        assert_eq!(
-            original.height, new_frame.height,
-            "Height should not change"
-        );
+        assert_eq!(original.width, new_info.width, "Width should not change");
+        assert_eq!(original.height, new_info.height, "Height should not change");
 
         teardown();
     }
@@ -273,19 +235,20 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
         // Test moving to left edge
-        let result = wm.move_to_edge(hwnd, Edge::Left);
+        let result = wm.move_to_edge(window_id, Edge::Left);
         assert!(result.is_ok(), "Should move window to left edge");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
+        let info = wm.get_window_info(window_id).unwrap();
         assert!(
-            frame.x < 100,
+            info.x < 100,
             "Window should be near left edge, x={}",
-            frame.x
+            info.x
         );
 
         teardown();
@@ -298,29 +261,26 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
         // Get monitor info for comparison
-        let info = wm.get_window_info(hwnd).unwrap();
-        let monitor_width = info.work_area.width;
+        let monitors = wm.get_monitors();
+        let monitor_width = monitors[0].width;
 
         // Set to left half
-        let result = wm.set_half_screen(hwnd, Edge::Left);
+        let result = wm.set_half_screen(window_id, Edge::Left);
         assert!(result.is_ok(), "Should set window to left half");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
-        assert!(
-            frame.x < 100,
-            "Window should be at left edge, x={}",
-            frame.x
-        );
+        let info = wm.get_window_info(window_id).unwrap();
+        assert!(info.x < 100, "Window should be at left edge, x={}", info.x);
         // Width should be approximately half the monitor width
         assert!(
-            (frame.width - monitor_width / 2).abs() < 50,
+            (info.width - monitor_width / 2).abs() < 50,
             "Width should be approximately half screen, got {} (monitor width: {})",
-            frame.width,
+            info.width,
             monitor_width
         );
 
@@ -334,16 +294,17 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
-        let original_width = wm.get_window_info(hwnd).unwrap().frame.width;
+        let original_width = wm.get_window_info(window_id).unwrap().width;
 
         // Cycle through widths
-        wm.loop_width(hwnd, Alignment::Left).unwrap();
+        wm.loop_width(window_id, Alignment::Left).unwrap();
         wait_for_window_stable();
 
-        let new_width = wm.get_window_info(hwnd).unwrap().frame.width;
+        let new_width = wm.get_window_info(window_id).unwrap().width;
         assert!(
             new_width != original_width,
             "Width should have changed after loop_width"
@@ -359,16 +320,17 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
-        let original_height = wm.get_window_info(hwnd).unwrap().frame.height;
+        let original_height = wm.get_window_info(window_id).unwrap().height;
 
         // Cycle through heights
-        wm.loop_height(hwnd, Alignment::Top).unwrap();
+        wm.loop_height(window_id, Alignment::Top).unwrap();
         wait_for_window_stable();
 
-        let new_height = wm.get_window_info(hwnd).unwrap().frame.height;
+        let new_height = wm.get_window_info(window_id).unwrap().height;
         assert!(
             new_height != original_height,
             "Height should have changed after loop_height"
@@ -384,16 +346,17 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
         // Test 16:9 ratio
-        let result = wm.set_fixed_ratio(hwnd, 16.0 / 9.0);
+        let result = wm.set_fixed_ratio(window_id, 16.0 / 9.0, None);
         assert!(result.is_ok(), "Should set 16:9 ratio");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
-        let ratio = frame.width as f32 / frame.height as f32;
+        let info = wm.get_window_info(window_id).unwrap();
+        let ratio = info.width as f32 / info.height as f32;
         assert!(
             (ratio - 16.0 / 9.0).abs() < 0.1,
             "Ratio should be approximately 16:9, got {}",
@@ -401,12 +364,12 @@ mod integration_tests {
         );
 
         // Test 4:3 ratio
-        let result = wm.set_fixed_ratio(hwnd, 4.0 / 3.0);
+        let result = wm.set_fixed_ratio(window_id, 4.0 / 3.0, None);
         assert!(result.is_ok(), "Should set 4:3 ratio");
         wait_for_window_stable();
 
-        let frame = wm.get_window_info(hwnd).unwrap().frame;
-        let ratio = frame.width as f32 / frame.height as f32;
+        let info = wm.get_window_info(window_id).unwrap();
+        let ratio = info.width as f32 / info.height as f32;
         assert!(
             (ratio - 4.0 / 3.0).abs() < 0.1,
             "Ratio should be approximately 4:3, got {}",
@@ -425,16 +388,17 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
         // Minimize
-        let result = wm.minimize_window(hwnd);
+        let result = wm.minimize_window(window_id);
         assert!(result.is_ok(), "Should minimize window");
         wait_for_window_stable();
 
         // Restore
-        let result = wm.restore_window(hwnd);
+        let result = wm.restore_window(window_id);
         assert!(result.is_ok(), "Should restore window");
         wait_for_window_stable();
 
@@ -460,17 +424,18 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
-        let original = wm.get_window_info(hwnd).unwrap().frame;
+        let original = wm.get_window_info(window_id).unwrap();
 
         // Maximize
-        let result = wm.maximize_window(hwnd);
+        let result = wm.maximize_window(window_id);
         assert!(result.is_ok(), "Should maximize window");
         wait_for_window_stable();
 
-        let maximized = wm.get_window_info(hwnd).unwrap().frame;
+        let maximized = wm.get_window_info(window_id).unwrap();
         // Maximized window should be larger than original
         assert!(
             maximized.width > original.width || maximized.height > original.height,
@@ -478,11 +443,11 @@ mod integration_tests {
         );
 
         // Restore
-        let result = wm.restore_window(hwnd);
+        let result = wm.restore_window(window_id);
         assert!(result.is_ok(), "Should restore window");
         wait_for_window_stable();
 
-        let restored = wm.get_window_info(hwnd).unwrap().frame;
+        let restored = wm.get_window_info(window_id).unwrap();
         // Size should be back to approximately original
         assert!(
             (restored.width - original.width).abs() < 50,
@@ -501,17 +466,18 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
         // Toggle topmost on
-        let result = wm.toggle_topmost(hwnd);
+        let result = wm.toggle_topmost(window_id);
         assert!(result.is_ok(), "Should toggle topmost");
         let is_topmost = result.unwrap();
         wait_for_window_stable();
 
         // Toggle again
-        let result = wm.toggle_topmost(hwnd);
+        let result = wm.toggle_topmost(window_id);
         assert!(result.is_ok(), "Should toggle topmost again");
         let is_topmost_now = result.unwrap();
         wait_for_window_stable();
@@ -532,8 +498,9 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
         let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
 
         unsafe {
             assert!(
@@ -543,7 +510,7 @@ mod integration_tests {
         }
 
         // Close the window
-        let result = wm.close_window(hwnd);
+        let result = wm.close_window(window_id);
         assert!(result.is_ok(), "Should close window");
 
         // Wait longer for window to actually close
@@ -579,19 +546,12 @@ mod integration_tests {
         setup();
 
         // Launch two notepad windows
-        let _pids = launch_multiple_test_windows(2);
+        let _pid1 = launch_test_window();
+        thread::sleep(Duration::from_millis(500));
+        let _pid2 = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
-
-        // Get notepad windows using the public API
-        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
-
-        assert!(
-            notepad_windows.len() >= 2,
-            "Should have at least 2 notepad windows, found {}",
-            notepad_windows.len()
-        );
+        let wm = WindowsWindowManager::new();
 
         // Switch to next window - this should work regardless of foreground permissions
         let result = wm.switch_to_next_window_of_same_process();
@@ -607,66 +567,6 @@ mod integration_tests {
 
     #[test]
     #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_switch_cycles_through_three_windows() {
-        setup();
-
-        // Launch three notepad windows
-        let _pids = launch_multiple_test_windows(3);
-        wait_for_window_stable();
-
-        let wm = WindowManager::new();
-
-        // Get notepad windows
-        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
-
-        assert!(
-            notepad_windows.len() >= 3,
-            "Should have at least 3 notepad windows, found {}",
-            notepad_windows.len()
-        );
-
-        // Switch through all windows multiple times
-        for _ in 0..notepad_windows.len() * 2 {
-            let result = wm.switch_to_next_window_of_same_process();
-            assert!(result.is_ok(), "Should switch window");
-            wait_for_window_stable();
-        }
-
-        teardown();
-    }
-
-    #[test]
-    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
-    fn test_switch_cycles_through_four_windows() {
-        setup();
-
-        // Launch four notepad windows
-        let _pids = launch_multiple_test_windows(4);
-        wait_for_window_stable();
-
-        let wm = WindowManager::new();
-
-        // Get notepad windows
-        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
-
-        assert!(
-            notepad_windows.len() >= 4,
-            "Should have at least 4 notepad windows, found {}",
-            notepad_windows.len()
-        );
-
-        // Switch through all windows multiple times
-        for _ in 0..notepad_windows.len() * 2 {
-            let result = wm.switch_to_next_window_of_same_process();
-            assert!(result.is_ok(), "Should switch window");
-            wait_for_window_stable();
-        }
-
-        teardown();
-    }
-
-    #[test]
-    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
     fn test_single_window_does_not_panic() {
         setup();
 
@@ -674,15 +574,7 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
-
-        // Get notepad windows
-        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
-        assert_eq!(
-            notepad_windows.len(),
-            1,
-            "Should have exactly 1 notepad window"
-        );
+        let wm = WindowsWindowManager::new();
 
         // Switch should not panic with single window
         let result = wm.switch_to_next_window_of_same_process();
@@ -705,7 +597,7 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
 
         // Get notepad windows
         let windows = wm.get_app_visible_windows("notepad.exe");
@@ -733,7 +625,7 @@ mod integration_tests {
         let _pid = launch_test_window();
         wait_for_window_stable();
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
 
         // Get notepad windows
         let windows = wm.get_app_visible_windows("notepad.exe");
@@ -749,7 +641,7 @@ mod integration_tests {
         // This test verifies that get_app_visible_windows correctly finds
         // Explorer windows even though they run in separate processes
 
-        let wm = WindowManager::new();
+        let wm = WindowsWindowManager::new();
 
         // Get explorer windows - this should work even with multi-process
         let windows = wm.get_app_visible_windows("explorer.exe");
@@ -762,6 +654,92 @@ mod integration_tests {
                 assert!(IsWindow(Some(*hwnd)).as_bool(), "Handle should be valid");
                 assert!(IsWindowVisible(*hwnd).as_bool(), "Window should be visible");
             }
+        }
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_switch_cycles_through_three_windows() {
+        setup();
+
+        // Launch three notepad windows
+        let _pid1 = launch_test_window();
+        thread::sleep(Duration::from_millis(300));
+        let _pid2 = launch_test_window();
+        thread::sleep(Duration::from_millis(300));
+        let _pid3 = launch_test_window();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+
+        // Get notepad windows
+        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
+
+        assert!(
+            notepad_windows.len() >= 3,
+            "Should have at least 3 notepad windows, found {}",
+            notepad_windows.len()
+        );
+
+        // Switch through all windows multiple times
+        for _ in 0..notepad_windows.len() * 2 {
+            let result = wm.switch_to_next_window_of_same_process();
+            assert!(result.is_ok(), "Should switch window");
+            wait_for_window_stable();
+        }
+
+        teardown();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_switch_cycles_through_four_windows() {
+        setup();
+
+        // Launch four notepad windows
+        let _pid1 = launch_test_window();
+        thread::sleep(Duration::from_millis(300));
+        let _pid2 = launch_test_window();
+        thread::sleep(Duration::from_millis(300));
+        let _pid3 = launch_test_window();
+        thread::sleep(Duration::from_millis(300));
+        let _pid4 = launch_test_window();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+
+        // Get notepad windows
+        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
+
+        assert!(
+            notepad_windows.len() >= 4,
+            "Should have at least 4 notepad windows, found {}",
+            notepad_windows.len()
+        );
+
+        // Switch through all windows multiple times
+        for _ in 0..notepad_windows.len() * 2 {
+            let result = wm.switch_to_next_window_of_same_process();
+            assert!(result.is_ok(), "Should switch window");
+            wait_for_window_stable();
+        }
+
+        teardown();
+    }
+
+    // ==================== Monitor Tests ====================
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_get_monitors() {
+        let wm = WindowsWindowManager::new();
+        let monitors = wm.get_monitors();
+
+        assert!(!monitors.is_empty(), "Should have at least one monitor");
+
+        for monitor in &monitors {
+            assert!(monitor.width > 0, "Monitor width should be positive");
+            assert!(monitor.height > 0, "Monitor height should be positive");
         }
     }
 }

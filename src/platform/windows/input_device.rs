@@ -1,45 +1,44 @@
 //! Windows input device implementation
-//!
-//! Wraps the low-level Raw Input device from [crate::platform::windows::input]
-//! behind the [InputDeviceTrait] interface. Uses the generic [InputDevice]
-//! from [common::input_device] to share code with macOS implementation.
 #![cfg(target_os = "windows")]
 
-use crate::platform::common::input_device::{InputDevice, PlatformInputDevice};
-use crate::platform::traits::InputDeviceTrait;
+use crate::platform::traits::InputDevice;
+use crate::platform::types::InputDeviceConfig;
 use crate::types::InputEvent;
 use anyhow::Result;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use tracing::debug;
 
-/// Windows Raw Input device type alias
-pub type RawInputDevice = InputDevice<RawInputInner>;
-
-/// Inner Raw Input device from the low-level module
-pub struct RawInputInner {
-    inner: crate::platform::windows::input::RawInputDevice,
+/// Windows Raw Input device
+pub struct RawInputDevice {
+    inner: Option<crate::platform::windows::input::RawInputDevice>,
+    receiver: Receiver<InputEvent>,
+    sender: Sender<InputEvent>,
+    running: bool,
 }
 
-impl PlatformInputDevice for RawInputInner {
-    fn create(sender: Sender<InputEvent>) -> Result<Self> {
-        let inner = crate::platform::windows::input::RawInputDevice::new(sender)?;
-        Ok(Self { inner })
+impl RawInputDevice {
+    /// Create a new input device with default configuration
+    pub fn new(_config: InputDeviceConfig) -> Result<Self> {
+        let (sender, receiver) = channel();
+        Ok(Self {
+            inner: None,
+            receiver,
+            sender,
+            running: false,
+        })
     }
 
-    fn run_once(&mut self) -> Result<bool> {
-        self.inner.run_once()
+    /// Create a new input device with a sender
+    pub fn with_sender(sender: Sender<InputEvent>) -> Result<Self> {
+        let (_, receiver) = channel();
+        Ok(Self {
+            inner: None,
+            receiver,
+            sender,
+            running: false,
+        })
     }
 
-    fn stop(&mut self) {
-        self.inner.stop();
-    }
-}
-
-// SAFETY: RawInputInner contains an HWND which is not Send by default.
-// However, the device is only used on the thread that created it.
-unsafe impl Send for RawInputInner {}
-
-impl InputDevice<RawInputInner> {
     /// Run one iteration of the input processing loop
     /// Returns Ok(true) if should continue, Ok(false) if shutdown requested
     pub fn run_once(&mut self) -> Result<bool> {
@@ -53,28 +52,28 @@ impl InputDevice<RawInputInner> {
     }
 }
 
-impl InputDeviceTrait for InputDevice<RawInputInner> {
+impl InputDevice for RawInputDevice {
     fn register(&mut self) -> Result<()> {
         debug!("Registering Raw Input device");
 
-        let sender = self.base.sender();
-        let inner = RawInputInner::create(sender)?;
+        let inner =
+            crate::platform::windows::input::RawInputDevice::new(self.sender.clone())?;
         self.inner = Some(inner);
+        self.running = true;
 
-        self.base.running = true;
         Ok(())
     }
 
     fn unregister(&mut self) {
         debug!("Unregistering Raw Input device");
-        self.base.running = false;
+        self.running = false;
         if let Some(mut inner) = self.inner.take() {
             inner.stop();
         }
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
-        if !self.base.running {
+        if !self.running {
             return None;
         }
 
@@ -82,25 +81,28 @@ impl InputDeviceTrait for InputDevice<RawInputInner> {
             let _ = inner.run_once();
         }
 
-        self.base.try_recv_event()
+        self.receiver.try_recv().ok()
     }
 
     fn is_running(&self) -> bool {
-        self.base.is_running()
+        self.running
     }
 
     fn stop(&mut self) {
-        self.base.stop();
+        self.running = false;
         if let Some(mut inner) = self.inner.take() {
             inner.stop();
         }
     }
 }
 
+// SAFETY: RawInputDevice contains an HWND which is not Send by default.
+// However, the device is only used on the thread that created it.
+unsafe impl Send for RawInputDevice {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::traits::InputDeviceConfig;
 
     #[test]
     fn test_raw_input_device_creation() {

@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use wakem::platform::traits::AppCommand;
+use wakem::platform::types::AppCommand;
 use wakem::tray::connect_and_handle_tray_commands;
 
 #[tokio::test]

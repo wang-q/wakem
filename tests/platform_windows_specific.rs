@@ -2,7 +2,7 @@
 
 #[cfg(all(test, target_os = "windows"))]
 mod windows_specific_tests {
-    use wakem::platform::traits::MonitorInfo;
+    use wakem::platform::types::MonitorInfo;
     use wakem::types::{Alignment, Edge};
 
     #[test]

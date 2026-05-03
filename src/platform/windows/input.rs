@@ -287,7 +287,7 @@ impl RawInputDevice {
     }
 
     unsafe fn get_current_modifier_state() -> ModifierState {
-        super::get_modifier_state()
+        super::WindowsPlatform::get_modifier_state()
     }
 
     /// Handle Raw Input message

@@ -1,7 +1,7 @@
 //! Windows window context implementation
 #![cfg(target_os = "windows")]
 
-use crate::platform::traits::WindowContext;
+use crate::platform::types::WindowContext;
 use tracing::debug;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId,

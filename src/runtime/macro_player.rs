@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, info};
 
-use crate::platform::traits::OutputDeviceTrait;
+use crate::platform::traits::OutputDevice;
 use crate::types::key_codes::{
     SCAN_CODE_ALT, SCAN_CODE_CTRL, SCAN_CODE_META, SCAN_CODE_SHIFT,
 };
@@ -16,7 +16,7 @@ pub struct MacroPlayer;
 impl MacroPlayer {
     /// Play macro with optional cancellation support
     pub async fn play_macro(
-        output_device: &(dyn OutputDeviceTrait + Send + Sync),
+        output_device: &(dyn OutputDevice + Send + Sync),
         macro_def: &Macro,
         cancel_flag: Option<Arc<AtomicBool>>,
     ) -> anyhow::Result<()> {
@@ -80,7 +80,7 @@ impl MacroPlayer {
 
     /// Ensure modifier state matches target (only press/release differences)
     async fn ensure_modifiers(
-        output: &(dyn OutputDeviceTrait + Send + Sync),
+        output: &(dyn OutputDevice + Send + Sync),
         current: &mut ModifierState,
         target: &ModifierState,
     ) -> anyhow::Result<()> {
@@ -150,7 +150,7 @@ impl MacroPlayer {
     /// Release only modifiers that were pressed by the macro player
     /// Release order is LIFO (reverse of press order: Ctrl→Shift→Alt→Meta)
     async fn release_held_modifiers(
-        output: &(dyn OutputDeviceTrait + Send + Sync),
+        output: &(dyn OutputDevice + Send + Sync),
         current: &ModifierState,
     ) -> anyhow::Result<()> {
         if current.meta {
@@ -183,7 +183,7 @@ impl MacroPlayer {
 
     /// Execute single action
     async fn execute_action(
-        output_device: &(dyn OutputDeviceTrait + Send + Sync),
+        output_device: &(dyn OutputDevice + Send + Sync),
         action: &Action,
         cancel_flag: &Option<Arc<AtomicBool>>,
     ) -> anyhow::Result<()> {
