@@ -607,7 +607,7 @@ mod integration_tests {
         let wm = WindowsWindowManager::new();
 
         // Get notepad windows
-        let windows = wm.get_app_visible_windows("notepad.exe");
+        let windows = wm.api().get_app_visible_windows("notepad.exe");
 
         assert!(
             !windows.is_empty(),
@@ -635,7 +635,7 @@ mod integration_tests {
         let wm = WindowsWindowManager::new();
 
         // Get notepad windows
-        let windows = wm.get_app_visible_windows("notepad.exe");
+        let windows = wm.api().get_app_visible_windows("notepad.exe");
 
         assert!(!windows.is_empty(), "Should find notepad windows");
 
@@ -651,7 +651,7 @@ mod integration_tests {
         let wm = WindowsWindowManager::new();
 
         // Get explorer windows - this should work even with multi-process
-        let windows = wm.get_app_visible_windows("explorer.exe");
+        let windows = wm.api().get_app_visible_windows("explorer.exe");
 
         // We may or may not have Explorer windows open
         // The important thing is that the function doesn't panic
@@ -680,7 +680,7 @@ mod integration_tests {
         let wm = WindowsWindowManager::new();
 
         // Get notepad windows
-        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
+        let notepad_windows = wm.api().get_app_visible_windows("notepad.exe");
 
         assert!(
             notepad_windows.len() >= 3,
@@ -716,7 +716,7 @@ mod integration_tests {
         let wm = WindowsWindowManager::new();
 
         // Get notepad windows
-        let notepad_windows = wm.get_app_visible_windows("notepad.exe");
+        let notepad_windows = wm.api().get_app_visible_windows("notepad.exe");
 
         assert!(
             notepad_windows.len() >= 4,

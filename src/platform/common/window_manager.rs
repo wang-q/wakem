@@ -7,7 +7,7 @@
 
 use crate::platform::traits::{
     find_monitor_for_point, ForegroundWindowOperations, MonitorOperations,
-    WindowApiBase, WindowOperations, WindowStateQueries,
+    WindowApiBase, WindowOperations, WindowStateQueries, WindowSwitching,
 };
 use crate::platform::types::{WindowId, WindowInfo};
 use anyhow::Result;
@@ -30,6 +30,18 @@ impl<A: WindowApiBase> WindowManager<A> {
     /// Get reference to the underlying API
     pub fn api(&self) -> &A {
         &self.api
+    }
+}
+
+impl<A: WindowApiBase + Default> WindowManager<A> {
+    pub fn new() -> Self {
+        Self::with_api(A::default())
+    }
+}
+
+impl<A: WindowApiBase + Default> Default for WindowManager<A> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -141,6 +153,14 @@ impl<A: WindowApiBase<WindowId = WindowId>> MonitorOperations for WindowManager<
         let new_height = (rel_height * target_monitor.height as f32) as i32;
 
         self.set_window_pos(window, new_x, new_y, new_width, new_height)
+    }
+}
+
+impl<A: WindowApiBase<WindowId = WindowId> + Send + Sync> WindowSwitching
+    for WindowManager<A>
+{
+    fn switch_to_next_window_of_same_process(&self) -> Result<()> {
+        self.api().switch_to_next_window_of_same_process_inner()
     }
 }
 

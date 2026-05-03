@@ -88,6 +88,27 @@ impl crate::platform::traits::WindowApiBase for RealMacosWindowApi {
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         MacosWindowApi::get_monitors(self)
     }
+
+    fn switch_to_next_window_of_same_process_inner(&self) -> Result<()> {
+        use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+            .map_err(|e| anyhow::anyhow!("Failed to create event source: {:?}", e))?;
+
+        let key_down = CGEvent::new_keyboard_event(source.clone(), 50, true)
+            .map_err(|e| anyhow::anyhow!("Failed to create key down event: {:?}", e))?;
+        key_down.set_flags(CGEventFlags::CGEventFlagCommand);
+        key_down.post(CGEventTapLocation::HID);
+
+        let key_up = CGEvent::new_keyboard_event(source, 50, false)
+            .map_err(|e| anyhow::anyhow!("Failed to create key up event: {:?}", e))?;
+        key_up.set_flags(CGEventFlags::CGEventFlagCommand);
+        key_up.post(CGEventTapLocation::HID);
+
+        tracing::debug!("Switched to next window of same process (using CGEvent)");
+        Ok(())
+    }
 }
 
 impl RealMacosWindowApi {

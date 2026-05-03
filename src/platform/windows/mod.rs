@@ -17,7 +17,6 @@ pub mod window_preset;
 use crate::platform::traits::{
     Launcher as LauncherTrait, PlatformFactory, TrayLifecycle,
 };
-use crate::platform::types::*;
 use anyhow::Result;
 
 pub use crate::platform::common::launcher::Launcher;
@@ -31,13 +30,7 @@ pub use window_manager::WindowManager;
 pub use window_preset::WindowPresetManager;
 
 impl TrayLifecycle for WindowsPlatform {
-    fn run_tray_message_loop(callback: Box<dyn Fn(AppCommand) + Send>) -> Result<()> {
-        tray::run_tray_message_loop(callback)
-    }
-
-    fn stop_tray() {
-        tray::stop_tray()
-    }
+    crate::impl_tray_lifecycle!();
 }
 
 impl PlatformFactory for WindowsPlatform {
@@ -49,41 +42,16 @@ impl PlatformFactory for WindowsPlatform {
     type Launcher = Launcher;
     type WindowEventHook = WindowEventHook;
 
-    fn create_input_device(
-        _config: InputDeviceConfig,
-        sender: Option<std::sync::mpsc::Sender<crate::types::InputEvent>>,
-    ) -> Result<Self::InputDevice> {
-        match sender {
-            Some(tx) => RawInputDevice::with_sender(tx),
-            None => RawInputDevice::new(InputDeviceConfig::default()),
-        }
-    }
-
-    fn create_output_device() -> Self::OutputDevice {
-        SendInputDevice::new()
-    }
-
-    fn create_window_manager() -> Self::WindowManager {
-        WindowManager::new()
-    }
-
-    fn create_window_preset_manager() -> Self::WindowPresetManager {
-        WindowPresetManager::new(WindowManager::new())
-    }
-
-    fn create_notification_service() -> Self::NotificationService {
-        WindowsNotificationService::new()
-    }
-
-    fn create_launcher() -> Self::Launcher {
-        Launcher::new()
-    }
-
-    fn create_window_event_hook(
-        sender: std::sync::mpsc::Sender<PlatformWindowEvent>,
-    ) -> Self::WindowEventHook {
-        WindowEventHook::new(sender)
-    }
+    crate::impl_platform_factory_methods!(
+        Self,
+        RawInputDevice,
+        SendInputDevice,
+        WindowManager,
+        WindowPresetManager,
+        WindowsNotificationService,
+        Launcher,
+        WindowEventHook
+    );
 }
 
 impl LauncherTrait for Launcher {

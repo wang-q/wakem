@@ -20,6 +20,7 @@
 //!    platform-specific code selected via conditional compilation.
 
 // Layer 1: Types & traits (shared across all platforms)
+pub mod macros;
 pub mod traits;
 pub mod types;
 

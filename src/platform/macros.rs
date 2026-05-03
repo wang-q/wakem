@@ -11,13 +11,13 @@ macro_rules! impl_platform_factory_methods {
     ($platform:ty, $input:ty, $output:ty, $wm:ty, $wpm:ty, $notif:ty,
      $launcher:ty, $hook:ty) => {
         fn create_input_device(
-            _config: $crate::platform::traits::InputDeviceConfig,
+            _config: $crate::platform::types::InputDeviceConfig,
             sender: Option<std::sync::mpsc::Sender<$crate::types::InputEvent>>,
         ) -> anyhow::Result<Self::InputDevice> {
             match sender {
                 Some(tx) => <$input>::with_sender(tx),
                 None => {
-                    <$input>::new($crate::platform::traits::InputDeviceConfig::default())
+                    <$input>::new($crate::platform::types::InputDeviceConfig::default())
                 }
             }
         }
@@ -44,7 +44,7 @@ macro_rules! impl_platform_factory_methods {
 
         fn create_window_event_hook(
             sender: std::sync::mpsc::Sender<
-                $crate::platform::traits::PlatformWindowEvent,
+                $crate::platform::types::PlatformWindowEvent,
             >,
         ) -> Self::WindowEventHook {
             <$hook>::new(sender)
@@ -58,7 +58,7 @@ macro_rules! impl_platform_factory_methods {
 macro_rules! impl_tray_lifecycle {
     () => {
         fn run_tray_message_loop(
-            callback: Box<dyn Fn($crate::platform::traits::AppCommand) + Send>,
+            callback: Box<dyn Fn($crate::platform::types::AppCommand) + Send>,
         ) -> anyhow::Result<()> {
             tray::run_tray_message_loop(callback)
         }
@@ -180,8 +180,6 @@ macro_rules! impl_window_api_base_inner {
         }
     };
 }
-
-
 
 /// Macro declaring a unit-struct notification service with `new()` and
 /// `Default`. For use when the notification service does not need internal

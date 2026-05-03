@@ -20,7 +20,6 @@ pub mod window_preset;
 
 use crate::platform::traits::{
     LauncherTrait, PlatformFactory, TrayLifecycle, WindowEventHookTrait,
-    WindowPresetManagerTrait,
 };
 
 pub use crate::platform::common::launcher::Launcher;
@@ -68,33 +67,6 @@ impl WindowEventHookTrait for MacosWindowEventHook {
 impl LauncherTrait for Launcher {
     fn launch(&self, action: &crate::types::LaunchAction) -> anyhow::Result<()> {
         self.launch(action)
-    }
-}
-
-impl WindowPresetManagerTrait for WindowPresetManager {
-    fn load_presets(&mut self, presets: Vec<crate::config::WindowPreset>) {
-        self.load_presets(presets)
-    }
-
-    fn save_preset(&mut self, name: String) -> anyhow::Result<()> {
-        self.save_preset(name)
-    }
-
-    fn load_preset(&self, name: &str) -> anyhow::Result<()> {
-        self.load_preset(name)
-    }
-
-    fn get_foreground_window_info(
-        &self,
-    ) -> Option<anyhow::Result<crate::platform::traits::WindowInfo>> {
-        self.get_foreground_window_info()
-    }
-
-    fn apply_preset_for_window_by_id(
-        &self,
-        window_id: crate::platform::traits::WindowId,
-    ) -> anyhow::Result<bool> {
-        self.apply_preset_for_window_by_id(window_id)
     }
 }
 

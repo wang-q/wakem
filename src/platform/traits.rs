@@ -165,6 +165,11 @@ pub trait WindowApiBase: Send + Sync {
         let _ = window;
         None
     }
+    fn switch_to_next_window_of_same_process_inner(&self) -> Result<()> {
+        anyhow::bail!(
+            "switch_to_next_window_of_same_process not implemented on this platform"
+        )
+    }
 
     // === Default delegations to inner methods ===
     fn get_foreground_window(&self) -> Option<Self::WindowId> {

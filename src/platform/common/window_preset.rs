@@ -7,7 +7,11 @@
 
 use crate::config::wildcard_match;
 use crate::config::WindowPreset;
-use crate::platform::types::WindowInfo;
+use crate::platform::traits::{
+    ForegroundWindowOperations, WindowApiBase, WindowOperations,
+    WindowPresetManager as WindowPresetManagerTrait,
+};
+use crate::platform::types::{WindowId, WindowInfo};
 use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{debug, info};
@@ -32,6 +36,39 @@ pub trait WindowPresetApi {
     ) -> Result<()>;
     fn minimize_window(&self, window: Self::WindowId) -> Result<()>;
     fn maximize_window(&self, window: Self::WindowId) -> Result<()>;
+}
+
+impl<A: WindowApiBase<WindowId = WindowId> + Send + Sync> WindowPresetApi
+    for crate::platform::common::window_manager::WindowManager<A>
+{
+    type WindowId = WindowId;
+
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        ForegroundWindowOperations::get_foreground_window(self)
+    }
+
+    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
+        WindowOperations::get_window_info(self, window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: WindowId,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    ) -> Result<()> {
+        WindowOperations::set_window_pos(self, window, x, y, w, h)
+    }
+
+    fn minimize_window(&self, window: WindowId) -> Result<()> {
+        WindowOperations::minimize_window(self, window)
+    }
+
+    fn maximize_window(&self, window: WindowId) -> Result<()> {
+        WindowOperations::maximize_window(self, window)
+    }
 }
 
 /// Generic window preset manager.
@@ -193,6 +230,31 @@ impl<A: WindowPresetApi> WindowPresetManager<A> {
 
     pub fn clear_saved(&mut self) {
         self.saved_presets.clear();
+    }
+}
+
+impl<A: WindowApiBase<WindowId = WindowId> + Send + Sync + 'static>
+    WindowPresetManagerTrait
+    for WindowPresetManager<crate::platform::common::window_manager::WindowManager<A>>
+{
+    fn load_presets(&mut self, presets: Vec<WindowPreset>) {
+        WindowPresetManager::load_presets(self, presets);
+    }
+
+    fn save_preset(&mut self, name: String) -> Result<()> {
+        WindowPresetManager::save_preset(self, name)
+    }
+
+    fn load_preset(&self, name: &str) -> Result<()> {
+        WindowPresetManager::load_preset(self, name)
+    }
+
+    fn get_foreground_window_info(&self) -> Option<Result<WindowInfo>> {
+        WindowPresetManager::get_foreground_window_info(self)
+    }
+
+    fn apply_preset_for_window_by_id(&self, window_id: WindowId) -> Result<bool> {
+        WindowPresetManager::apply_preset_for_window_by_id(self, window_id)
     }
 }
 
