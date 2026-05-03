@@ -157,6 +157,13 @@ pub trait WindowApiBase: Send + Sync {
     fn get_window_title_inner(&self, window: Self::WindowId) -> Option<String>;
     fn get_window_rect_inner(&self, window: Self::WindowId) -> Result<WindowFrame>;
     fn get_monitors_inner(&self) -> Vec<MonitorInfo>;
+    fn get_monitor_work_area_inner(
+        &self,
+        monitor_index: usize,
+    ) -> Option<MonitorWorkArea> {
+        let _ = monitor_index;
+        None
+    }
     fn get_process_name_inner(&self, window: Self::WindowId) -> Option<String> {
         let _ = window;
         None
@@ -233,6 +240,10 @@ pub trait WindowApiBase: Send + Sync {
 
     fn get_monitors(&self) -> Vec<MonitorInfo> {
         self.get_monitors_inner()
+    }
+
+    fn get_monitor_work_area(&self, monitor_index: usize) -> Option<MonitorWorkArea> {
+        self.get_monitor_work_area_inner(monitor_index)
     }
 
     fn get_process_name(&self, window: Self::WindowId) -> Option<String> {

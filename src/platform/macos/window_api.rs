@@ -89,6 +89,13 @@ impl crate::platform::traits::WindowApiBase for RealMacosWindowApi {
         MacosWindowApi::get_monitors(self)
     }
 
+    fn get_monitor_work_area_inner(
+        &self,
+        monitor_index: usize,
+    ) -> Option<MonitorWorkArea> {
+        MacosWindowApi::get_monitor_work_area(self, monitor_index)
+    }
+
     fn switch_to_next_window_of_same_process_inner(&self) -> Result<()> {
         use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};

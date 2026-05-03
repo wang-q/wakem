@@ -3,8 +3,10 @@
 //! Extracted from [`KeyMapper`](super::KeyMapper) to keep the mapper focused on
 //! rule matching and event processing.
 
-use crate::platform::traits::WindowManagerTrait;
-use crate::platform::types::{MonitorInfo, WindowInfo};
+use crate::platform::traits::{
+    NotificationService, WindowManagerTrait, WindowPresetManager,
+};
+use crate::platform::types::WindowId;
 use crate::types::{MonitorDirection, WindowAction};
 use tracing::debug;
 
@@ -12,180 +14,248 @@ use tracing::debug;
 ///
 /// All window operations are dispatched through [`WindowManagerTrait`] trait,
 /// which provides both basic and advanced window management operations.
-pub fn execute_window_action<W: WindowManagerTrait>(
-    wm: &W,
+/// Optional notification and preset services enable ShowDebugInfo, SavePreset, etc.
+pub fn execute_window_action(
+    wm: &dyn WindowManagerTrait,
     action: &WindowAction,
+    notification_service: Option<&dyn NotificationService>,
+    window_preset_manager: Option<&mut (dyn WindowPresetManager + '_)>,
 ) -> anyhow::Result<()> {
-    let window_id = wm
+    let window = wm
         .get_foreground_window()
         .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
 
     match action {
-        WindowAction::Move { x, y } => {
-            let info = wm.get_window_info(window_id)?;
-            wm.set_window_pos(window_id, *x, *y, info.width, info.height)?;
-        }
-        WindowAction::Resize { width, height } => {
-            let info = wm.get_window_info(window_id)?;
-            wm.set_window_pos(window_id, info.x, info.y, *width, *height)?;
-        }
-
-        WindowAction::Minimize => {
-            wm.minimize_window(window_id)?;
-        }
-        WindowAction::Maximize => {
-            wm.maximize_window(window_id)?;
-        }
-        WindowAction::Restore => {
-            wm.restore_window(window_id)?;
-        }
-        WindowAction::Close => {
-            wm.close_window(window_id)?;
-        }
-
-        WindowAction::ToggleTopmost => {
-            wm.toggle_topmost(window_id)?;
-        }
-
-        WindowAction::MoveToMonitor(direction) => {
-            execute_move_to_monitor(wm, window_id, direction)?;
-        }
-
         WindowAction::Center => {
-            wm.move_to_center(window_id)?;
+            wm.move_to_center(window)?;
         }
         WindowAction::MoveToEdge(edge) => {
-            wm.move_to_edge(window_id, *edge)?;
+            wm.move_to_edge(window, *edge)?;
         }
         WindowAction::HalfScreen(edge) => {
-            wm.set_half_screen(window_id, *edge)?;
+            wm.set_half_screen(window, *edge)?;
         }
         WindowAction::LoopWidth(align) => {
-            wm.loop_width(window_id, *align)?;
+            wm.loop_width(window, *align)?;
         }
         WindowAction::LoopHeight(align) => {
-            wm.loop_height(window_id, *align)?;
+            wm.loop_height(window, *align)?;
         }
-        WindowAction::FixedRatio { ratio, .. } => {
-            wm.set_fixed_ratio(window_id, *ratio, None)?;
+        WindowAction::FixedRatio { ratio, scale_index } => {
+            wm.set_fixed_ratio(window, *ratio, Some(*scale_index))?;
         }
-        WindowAction::NativeRatio { .. } => {
-            wm.set_native_ratio(window_id, None)?;
+        WindowAction::NativeRatio { scale_index } => {
+            wm.set_native_ratio(window, Some(*scale_index))?;
         }
-
         WindowAction::SwitchToNextWindow => {
-            debug!("SwitchToNextWindow: requires platform-specific implementation");
+            wm.switch_to_next_window_of_same_process()?;
         }
-
-        WindowAction::ShowDebugInfo => match wm.get_window_info(window_id) {
-            Ok(info) => {
-                debug!(
-                    x = info.x,
-                    y = info.y,
-                    width = info.width,
-                    height = info.height,
-                    "Window debug info"
-                );
-            }
-            Err(e) => {
-                debug!("Failed to get debug info: {}", e);
-            }
-        },
+        WindowAction::MoveToMonitor(direction) => {
+            execute_move_to_monitor(wm, window, direction)?;
+        }
+        WindowAction::Move { x, y } => {
+            let info = wm.get_window_info(window)?;
+            wm.set_window_pos(window, *x, *y, info.width, info.height)?;
+        }
+        WindowAction::Resize { width, height } => {
+            let info = wm.get_window_info(window)?;
+            wm.set_window_pos(window, info.x, info.y, *width, *height)?;
+        }
+        WindowAction::Minimize => wm.minimize_window(window)?,
+        WindowAction::Maximize => wm.maximize_window(window)?,
+        WindowAction::Restore => wm.restore_window(window)?,
+        WindowAction::Close => wm.close_window(window)?,
+        WindowAction::ToggleTopmost => {
+            wm.toggle_topmost(window)?;
+        }
+        WindowAction::ShowDebugInfo => {
+            show_debug_info(wm, window, notification_service);
+        }
         WindowAction::ShowNotification { title, message } => {
-            debug!(
-                title,
-                message, "ShowNotification: notification service not available"
-            );
+            show_notification(title, message, notification_service);
         }
-
         WindowAction::SavePreset { name } => {
-            debug!(name, "SavePreset: preset manager not available");
+            save_preset(name, notification_service, window_preset_manager);
         }
         WindowAction::LoadPreset { name } => {
-            debug!(name, "LoadPreset: preset manager not available");
+            load_preset(window, name, window_preset_manager);
         }
         WindowAction::ApplyPreset => {
-            debug!("ApplyPreset: preset manager not available");
+            apply_preset(window, window_preset_manager);
         }
-
         WindowAction::None => {}
     }
 
     Ok(())
 }
 
-fn execute_move_to_monitor<W: WindowManagerTrait>(
-    wm: &W,
-    window_id: usize,
+fn execute_move_to_monitor(
+    wm: &dyn WindowManagerTrait,
+    window: WindowId,
     direction: &MonitorDirection,
 ) -> anyhow::Result<()> {
     let monitors = wm.get_monitors();
-    if monitors.is_empty() {
-        anyhow::bail!("No monitors found");
+    if monitors.len() <= 1 {
+        debug!("Only one monitor, skipping move");
+        return Ok(());
     }
 
-    let monitor_index: usize = match direction {
-        MonitorDirection::Index(idx) => {
-            let idx = *idx as usize;
-            if idx >= monitors.len() {
-                anyhow::bail!(
-                    "Monitor index {} out of range (0-{})",
-                    idx,
-                    monitors.len() - 1
-                );
+    let info = wm.get_window_info(window)?;
+    let current_monitor_idx = monitors
+        .iter()
+        .position(|m| {
+            info.x >= m.x
+                && info.x < m.x + m.width
+                && info.y >= m.y
+                && info.y < m.y + m.height
+        })
+        .unwrap_or(0);
+
+    let target_index = match direction {
+        MonitorDirection::Next => (current_monitor_idx + 1) % monitors.len(),
+        MonitorDirection::Prev => {
+            if current_monitor_idx == 0 {
+                monitors.len() - 1
+            } else {
+                current_monitor_idx - 1
             }
-            idx
         }
-        MonitorDirection::Next | MonitorDirection::Prev => {
-            let info = wm.get_window_info(window_id)?;
-            let cx = info.x + info.width / 2;
-            let cy = info.y + info.height / 2;
-
-            let current_monitor_idx = find_monitor_index_for_point(&monitors, cx, cy);
-
-            match direction {
-                MonitorDirection::Next => (current_monitor_idx + 1) % monitors.len(),
-                MonitorDirection::Prev => {
-                    if current_monitor_idx == 0 {
-                        monitors.len() - 1
-                    } else {
-                        current_monitor_idx - 1
-                    }
-                }
-                _ => unreachable!(),
+        MonitorDirection::Index(idx) => {
+            if *idx >= 0 && (*idx as usize) < monitors.len() {
+                *idx as usize
+            } else {
+                current_monitor_idx
             }
         }
     };
 
-    let info = wm.get_window_info(window_id)?;
-    let target = &monitors[monitor_index];
-    let new_x = target.x + (target.width - info.width) / 2;
-    let new_y = target.y + (target.height - info.height) / 2;
-    wm.set_window_pos(window_id, new_x, new_y, info.width, info.height)?;
+    if target_index == current_monitor_idx {
+        debug!("Already on target monitor, skipping move");
+        return Ok(());
+    }
 
-    Ok(())
+    let target = &monitors[target_index];
+    let current = &monitors[current_monitor_idx];
+    let rel_x = (info.x - current.x) as f32 / current.width as f32;
+    let rel_y = (info.y - current.y) as f32 / current.height as f32;
+    let new_x = target.x + (rel_x * target.width as f32) as i32;
+    let new_y = target.y + (rel_y * target.height as f32) as i32;
+    wm.set_window_pos(window, new_x, new_y, info.width, info.height)
 }
 
-fn find_monitor_index_for_point(
-    monitors: &[MonitorInfo],
-    x: i32,
-    y: i32,
-) -> usize {
-    for (i, monitor) in monitors.iter().enumerate() {
-        if x >= monitor.x
-            && x < monitor.x + monitor.width
-            && y >= monitor.y
-            && y < monitor.y + monitor.height
-        {
-            return i;
+fn show_debug_info(
+    wm: &dyn WindowManagerTrait,
+    window: WindowId,
+    notification_service: Option<&dyn NotificationService>,
+) {
+    match wm.get_window_info(window) {
+        Ok(info) => {
+            let debug_info = format!(
+                "Window Debug Info:\n\
+                 Position: ({}, {})\n\
+                 Size: {}x{}\n\
+                 Process: {}",
+                info.x, info.y, info.width, info.height, info.process_name
+            );
+            debug!("{}", debug_info);
+            show_notification("wakem - Debug Info", &debug_info, notification_service);
+        }
+        Err(e) => {
+            debug!("Failed to get debug info: {}", e);
         }
     }
-    0
+}
+
+fn show_notification(
+    title: &str,
+    message: &str,
+    notification_service: Option<&dyn NotificationService>,
+) {
+    if let Some(ns) = notification_service {
+        if let Err(e) = ns.show(title, message) {
+            debug!("Failed to show notification: {}", e);
+        }
+    } else {
+        debug!("NotificationService not available, cannot show notification");
+    }
+}
+
+fn save_preset(
+    name: &str,
+    notification_service: Option<&dyn NotificationService>,
+    window_preset_manager: Option<&mut (dyn WindowPresetManager + '_)>,
+) {
+    if let Some(pm) = window_preset_manager {
+        match pm.get_foreground_window_info() {
+            Some(Ok(_info)) => {
+                if let Err(e) = pm.save_preset(name.to_string()) {
+                    debug!("Failed to save preset '{}': {}", name, e);
+                } else {
+                    debug!("Saved preset '{}' for current window", name);
+                    show_notification(
+                        "wakem",
+                        &format!("Preset '{}' saved", name),
+                        notification_service,
+                    );
+                }
+            }
+            Some(Err(e)) => {
+                debug!("Failed to get foreground window info: {}", e);
+            }
+            None => {
+                debug!("No foreground window found");
+            }
+        }
+    } else {
+        debug!("WindowPresetManager not available, cannot save preset");
+    }
+}
+
+fn load_preset(
+    _window: WindowId,
+    name: &str,
+    window_preset_manager: Option<&mut (dyn WindowPresetManager + '_)>,
+) {
+    if let Some(pm) = window_preset_manager {
+        if let Err(e) = pm.load_preset(name) {
+            debug!("Failed to load preset '{}': {}", name, e);
+        } else {
+            debug!("Loaded preset '{}' for current window", name);
+        }
+    } else {
+        debug!("WindowPresetManager not available, cannot load preset");
+    }
+}
+
+fn apply_preset(
+    window: WindowId,
+    window_preset_manager: Option<&mut (dyn WindowPresetManager + '_)>,
+) {
+    if let Some(pm) = window_preset_manager {
+        match pm.apply_preset_for_window_by_id(window) {
+            Ok(true) => {
+                debug!("Applied matching preset to current window");
+            }
+            Ok(false) => {
+                debug!("No matching preset found for current window");
+            }
+            Err(e) => {
+                debug!("Failed to apply preset: {}", e);
+            }
+        }
+    } else {
+        debug!("WindowPresetManager not available, cannot apply preset");
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::traits::{
+        ForegroundWindowOperations, MonitorOperations, WindowOperations,
+        WindowStateQueries, WindowSwitching,
+    };
+    use crate::platform::types::{MonitorInfo, WindowInfo};
     use std::cell::RefCell;
 
     #[derive(Clone, Copy)]
@@ -201,6 +271,8 @@ mod tests {
         monitors: Vec<MonitorInfo>,
         pos_log: RefCell<Vec<(i32, i32, i32, i32)>>,
     }
+
+    unsafe impl Sync for TestWindowManager {}
 
     impl TestWindowManager {
         fn new(monitor: MonitorInfo, window_width: i32, window_height: i32) -> Self {
@@ -287,15 +359,19 @@ mod tests {
         fn is_topmost(&self, _window: usize) -> bool {
             false
         }
-
-        fn set_topmost(&self, _window: usize, _topmost: bool) -> anyhow::Result<()> {
-            Ok(())
-        }
     }
 
     impl MonitorOperations for TestWindowManager {
         fn get_monitors(&self) -> Vec<MonitorInfo> {
             self.monitors.clone()
+        }
+
+        fn move_to_monitor(
+            &self,
+            _window: usize,
+            _monitor_index: usize,
+        ) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
@@ -303,7 +379,13 @@ mod tests {
         fn get_foreground_window(&self) -> Option<usize> {
             Some(0)
         }
+
+        fn set_topmost(&self, _window: usize, _topmost: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
+
+    impl WindowSwitching for TestWindowManager {}
 
     #[test]
     fn test_execute_move_action() {
@@ -314,7 +396,8 @@ mod tests {
             height: 1080,
         };
         let wm = TestWindowManager::new(monitor, 800, 600);
-        execute_window_action(&wm, &WindowAction::Move { x: 100, y: 200 }).unwrap();
+        execute_window_action(&wm, &WindowAction::Move { x: 100, y: 200 }, None, None)
+            .unwrap();
         let (x, y, w, h) = wm.last_pos();
         assert_eq!(x, 100);
         assert_eq!(y, 200);
@@ -337,6 +420,8 @@ mod tests {
                 width: 1024,
                 height: 768,
             },
+            None,
+            None,
         )
         .unwrap();
         let (x, y, w, h) = wm.last_pos();
@@ -355,7 +440,7 @@ mod tests {
             height: 1080,
         };
         let wm = TestWindowManager::new(monitor, 800, 600);
-        execute_window_action(&wm, &WindowAction::Center).unwrap();
+        execute_window_action(&wm, &WindowAction::Center, None, None).unwrap();
         let (x, y, w, h) = wm.last_pos();
         assert_eq!(w, 800);
         assert_eq!(h, 600);
@@ -372,8 +457,13 @@ mod tests {
             height: 1080,
         };
         let wm = TestWindowManager::new(monitor, 800, 600);
-        execute_window_action(&wm, &WindowAction::HalfScreen(crate::types::Edge::Left))
-            .unwrap();
+        execute_window_action(
+            &wm,
+            &WindowAction::HalfScreen(crate::types::Edge::Left),
+            None,
+            None,
+        )
+        .unwrap();
         let (x, _y, w, h) = wm.last_pos();
         assert_eq!(x, 0);
         assert_eq!(w, 960);
@@ -392,6 +482,8 @@ mod tests {
         execute_window_action(
             &wm,
             &WindowAction::LoopWidth(crate::types::Alignment::Left),
+            None,
+            None,
         )
         .unwrap();
         let (_, _, w, _) = wm.last_pos();
@@ -407,7 +499,7 @@ mod tests {
             height: 1080,
         };
         let wm = TestWindowManager::new(monitor, 800, 600);
-        execute_window_action(&wm, &WindowAction::None).unwrap();
+        execute_window_action(&wm, &WindowAction::None, None, None).unwrap();
         assert_eq!(wm.pos_log.borrow().len(), 0);
     }
 }

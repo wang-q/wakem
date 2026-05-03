@@ -3,7 +3,6 @@ use crate::platform::traits::{
 };
 use crate::types::{
     Action, ContextCondition, InputEvent, KeyAction, KeyEvent, KeyState, MappingRule,
-    MonitorDirection, WindowAction,
 };
 use std::collections::HashMap;
 use tracing::debug;
@@ -196,11 +195,13 @@ impl KeyMapper {
         match action {
             Action::Window(window_action) => {
                 if let Some(ref wm) = self.window_manager {
-                    execute_window_action_impl(
+                    let ns = self.notification_service.as_deref();
+                    let pm = self.window_preset_manager.as_deref_mut();
+                    super::window_actions::execute_window_action(
                         wm.as_ref(),
                         window_action,
-                        &self.notification_service,
-                        &mut self.window_preset_manager,
+                        ns,
+                        pm,
                     )?;
                 } else {
                     debug!("WindowManager not available, skipping window action");
@@ -271,239 +272,6 @@ impl KeyMapper {
 impl Default for KeyMapper {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-fn execute_window_action_impl(
-    wm: &dyn WindowManagerTrait,
-    action: &WindowAction,
-    notification_service: &Option<Box<dyn NotificationService>>,
-    window_preset_manager: &mut Option<Box<dyn WindowPresetManager>>,
-) -> anyhow::Result<()> {
-    let window = wm
-        .get_foreground_window()
-        .ok_or_else(|| anyhow::anyhow!("No foreground window"))?;
-
-    match action {
-        WindowAction::Center => {
-            wm.move_to_center(window)?;
-        }
-        WindowAction::MoveToEdge(edge) => {
-            wm.move_to_edge(window, *edge)?;
-        }
-        WindowAction::HalfScreen(edge) => {
-            wm.set_half_screen(window, *edge)?;
-        }
-        WindowAction::LoopWidth(align) => {
-            wm.loop_width(window, *align)?;
-        }
-        WindowAction::LoopHeight(align) => {
-            wm.loop_height(window, *align)?;
-        }
-        WindowAction::FixedRatio { ratio, scale_index } => {
-            wm.set_fixed_ratio(window, *ratio, Some(*scale_index))?;
-        }
-        WindowAction::NativeRatio { scale_index } => {
-            wm.set_native_ratio(window, Some(*scale_index))?;
-        }
-        WindowAction::SwitchToNextWindow => {
-            wm.switch_to_next_window_of_same_process()?;
-        }
-        WindowAction::MoveToMonitor(direction) => {
-            execute_move_to_monitor(wm, window, direction)?;
-        }
-        WindowAction::Move { x, y } => {
-            let info = wm.get_window_info(window)?;
-            wm.set_window_pos(window, *x, *y, info.width, info.height)?;
-        }
-        WindowAction::Resize { width, height } => {
-            let info = wm.get_window_info(window)?;
-            wm.set_window_pos(window, info.x, info.y, *width, *height)?;
-        }
-        WindowAction::Minimize => wm.minimize_window(window)?,
-        WindowAction::Maximize => wm.maximize_window(window)?,
-        WindowAction::Restore => wm.restore_window(window)?,
-        WindowAction::Close => wm.close_window(window)?,
-        WindowAction::ToggleTopmost => {
-            wm.toggle_topmost(window)?;
-        }
-        WindowAction::ShowDebugInfo => {
-            show_debug_info(wm, window, notification_service);
-        }
-        WindowAction::ShowNotification { title, message } => {
-            show_notification(title, message, notification_service);
-        }
-        WindowAction::SavePreset { name } => {
-            save_preset(name, notification_service, window_preset_manager);
-        }
-        WindowAction::LoadPreset { name } => {
-            load_preset(window, name, window_preset_manager);
-        }
-        WindowAction::ApplyPreset => {
-            apply_preset(window, window_preset_manager);
-        }
-        WindowAction::None => {}
-    }
-
-    Ok(())
-}
-
-fn execute_move_to_monitor(
-    wm: &dyn WindowManagerTrait,
-    window: crate::platform::types::WindowId,
-    direction: &MonitorDirection,
-) -> anyhow::Result<()> {
-    let monitors = wm.get_monitors();
-    if monitors.len() <= 1 {
-        debug!("Only one monitor, skipping move");
-        return Ok(());
-    }
-
-    let info = wm.get_window_info(window)?;
-    let current_monitor_idx = monitors
-        .iter()
-        .position(|m| {
-            info.x >= m.x
-                && info.x < m.x + m.width
-                && info.y >= m.y
-                && info.y < m.y + m.height
-        })
-        .unwrap_or(0);
-
-    let target_index = match direction {
-        MonitorDirection::Next => (current_monitor_idx + 1) % monitors.len(),
-        MonitorDirection::Prev => {
-            if current_monitor_idx == 0 {
-                monitors.len() - 1
-            } else {
-                current_monitor_idx - 1
-            }
-        }
-        MonitorDirection::Index(idx) => {
-            if *idx >= 0 && (*idx as usize) < monitors.len() {
-                *idx as usize
-            } else {
-                current_monitor_idx
-            }
-        }
-    };
-
-    if target_index == current_monitor_idx {
-        debug!("Already on target monitor, skipping move");
-        return Ok(());
-    }
-
-    let target = &monitors[target_index];
-    let current = &monitors[current_monitor_idx];
-    let rel_x = (info.x - current.x) as f32 / current.width as f32;
-    let rel_y = (info.y - current.y) as f32 / current.height as f32;
-    let new_x = target.x + (rel_x * target.width as f32) as i32;
-    let new_y = target.y + (rel_y * target.height as f32) as i32;
-    wm.set_window_pos(window, new_x, new_y, info.width, info.height)
-}
-
-fn show_debug_info(
-    wm: &dyn WindowManagerTrait,
-    window: crate::platform::types::WindowId,
-    notification_service: &Option<Box<dyn NotificationService>>,
-) {
-    match wm.get_window_info(window) {
-        Ok(info) => {
-            let debug_info = format!(
-                "Window Debug Info:\n\
-                 Position: ({}, {})\n\
-                 Size: {}x{}\n\
-                 Process: {}",
-                info.x, info.y, info.width, info.height, info.process_name
-            );
-            debug!("{}", debug_info);
-            show_notification("wakem - Debug Info", &debug_info, notification_service);
-        }
-        Err(e) => {
-            debug!("Failed to get debug info: {}", e);
-        }
-    }
-}
-
-fn show_notification(
-    title: &str,
-    message: &str,
-    notification_service: &Option<Box<dyn NotificationService>>,
-) {
-    if let Some(ref ns) = notification_service {
-        if let Err(e) = ns.show(title, message) {
-            debug!("Failed to show notification: {}", e);
-        }
-    } else {
-        debug!("NotificationService not available, cannot show notification");
-    }
-}
-
-fn save_preset(
-    name: &str,
-    notification_service: &Option<Box<dyn NotificationService>>,
-    window_preset_manager: &mut Option<Box<dyn WindowPresetManager>>,
-) {
-    if let Some(ref mut pm) = window_preset_manager {
-        match pm.get_foreground_window_info() {
-            Some(Ok(_info)) => {
-                if let Err(e) = pm.save_preset(name.to_string()) {
-                    debug!("Failed to save preset '{}': {}", name, e);
-                } else {
-                    debug!("Saved preset '{}' for current window", name);
-                    show_notification(
-                        "wakem",
-                        &format!("Preset '{}' saved", name),
-                        notification_service,
-                    );
-                }
-            }
-            Some(Err(e)) => {
-                debug!("Failed to get foreground window info: {}", e);
-            }
-            None => {
-                debug!("No foreground window found");
-            }
-        }
-    } else {
-        debug!("WindowPresetManager not available, cannot save preset");
-    }
-}
-
-fn load_preset(
-    _window: crate::platform::types::WindowId,
-    name: &str,
-    window_preset_manager: &Option<Box<dyn WindowPresetManager>>,
-) {
-    if let Some(ref pm) = window_preset_manager {
-        if let Err(e) = pm.load_preset(name) {
-            debug!("Failed to load preset '{}': {}", name, e);
-        } else {
-            debug!("Loaded preset '{}' for current window", name);
-        }
-    } else {
-        debug!("WindowPresetManager not available, cannot load preset");
-    }
-}
-
-fn apply_preset(
-    window: crate::platform::types::WindowId,
-    window_preset_manager: &Option<Box<dyn WindowPresetManager>>,
-) {
-    if let Some(ref pm) = window_preset_manager {
-        match pm.apply_preset_for_window_by_id(window) {
-            Ok(true) => {
-                debug!("Applied matching preset to current window");
-            }
-            Ok(false) => {
-                debug!("No matching preset found for current window");
-            }
-            Err(e) => {
-                debug!("Failed to apply preset: {}", e);
-            }
-        }
-    } else {
-        debug!("WindowPresetManager not available, cannot apply preset");
     }
 }
 

@@ -43,6 +43,29 @@ pub struct MonitorInfo {
     pub height: i32,
 }
 
+/// Monitor work area excluding taskbar/Dock
+///
+/// On macOS this excludes the Dock area; on Windows the taskbar
+/// is already handled by the OS so this equals [`MonitorInfo`].
+#[derive(Debug, Clone, Copy)]
+pub struct MonitorWorkArea {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl From<MonitorInfo> for MonitorWorkArea {
+    fn from(m: MonitorInfo) -> Self {
+        Self {
+            x: m.x,
+            y: m.y,
+            width: m.width,
+            height: m.height,
+        }
+    }
+}
+
 /// Window frame with position and size
 #[derive(Debug, Clone, Copy)]
 pub struct WindowFrame {
@@ -110,6 +133,15 @@ pub enum PlatformWindowEvent {
     },
 }
 
+/// Criteria for matching window context
+#[derive(Debug, Clone, Default)]
+pub struct WindowMatchCriteria {
+    pub process_name: Option<String>,
+    pub window_class: Option<String>,
+    pub window_title: Option<String>,
+    pub executable_path: Option<String>,
+}
+
 /// Window context information used for context-aware mappings
 #[derive(Debug, Clone, Default)]
 pub struct WindowContext {
@@ -124,6 +156,27 @@ impl WindowContext {
         Self::default()
     }
 
+    pub fn matches_criteria(&self, criteria: &WindowMatchCriteria) -> bool {
+        criteria
+            .process_name
+            .as_ref()
+            .is_none_or(|p| crate::types::wildcard_match(&self.process_name, p))
+            && criteria
+                .window_class
+                .as_ref()
+                .is_none_or(|c| crate::types::wildcard_match(&self.window_class, c))
+            && criteria
+                .window_title
+                .as_ref()
+                .is_none_or(|t| crate::types::wildcard_match(&self.window_title, t))
+            && criteria.executable_path.as_ref().is_none_or(|p| {
+                crate::types::wildcard_match(
+                    self.executable_path.as_deref().unwrap_or(""),
+                    p,
+                )
+            })
+    }
+
     pub fn matches(
         &self,
         process_name: Option<&str>,
@@ -131,21 +184,13 @@ impl WindowContext {
         window_title: Option<&str>,
         executable_path: Option<&str>,
     ) -> bool {
-        process_name
-            .as_ref()
-            .is_none_or(|p| crate::types::wildcard_match(&self.process_name, p))
-            && window_class
-                .as_ref()
-                .is_none_or(|c| crate::types::wildcard_match(&self.window_class, c))
-            && window_title
-                .as_ref()
-                .is_none_or(|t| crate::types::wildcard_match(&self.window_title, t))
-            && executable_path.as_ref().is_none_or(|p| {
-                crate::types::wildcard_match(
-                    self.executable_path.as_deref().unwrap_or(""),
-                    p,
-                )
-            })
+        let criteria = WindowMatchCriteria {
+            process_name: process_name.map(|s| s.to_string()),
+            window_class: window_class.map(|s| s.to_string()),
+            window_title: window_title.map(|s| s.to_string()),
+            executable_path: executable_path.map(|s| s.to_string()),
+        };
+        self.matches_criteria(&criteria)
     }
 }
 

@@ -241,6 +241,14 @@ impl WindowApiBase for RealWindowApi {
         unsafe { enumerate_all_monitors() }
     }
 
+    fn get_monitor_work_area_inner(
+        &self,
+        monitor_index: usize,
+    ) -> Option<crate::platform::types::MonitorWorkArea> {
+        let monitors = self.get_monitors_inner();
+        monitors.get(monitor_index).map(|m| (*m).into())
+    }
+
     fn get_process_name_inner(&self, window: WindowId) -> Option<String> {
         unsafe {
             let hwnd = window_id_to_hwnd(window);
