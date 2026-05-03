@@ -257,22 +257,6 @@ fn test_next_key_info_message() {
     }
 }
 
-/// Test 注册原生句柄
-#[test]
-fn test_register_native_handle() {
-    let msg = Message::RegisterNativeHandle { handle: 12345 };
-
-    let json = serde_json::to_string(&msg).expect("Failed to serialize");
-    let deserialized: Message =
-        serde_json::from_str(&json).expect("Failed to deserialize");
-
-    if let Message::RegisterNativeHandle { handle } = deserialized {
-        assert_eq!(handle, 12345);
-    } else {
-        panic!("Expected RegisterNativeHandle message");
-    }
-}
-
 /// Test Stop recording宏
 #[test]
 fn test_stop_macro_recording() {

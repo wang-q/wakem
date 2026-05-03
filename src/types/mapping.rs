@@ -1,4 +1,5 @@
-use super::{Action, ContextCondition, ContextInfo, InputEvent, ModifierState};
+use super::{Action, ContextCondition, InputEvent, ModifierState};
+use crate::platform::types::WindowContext;
 use serde::{Deserialize, Serialize};
 
 /// Mapping rule
@@ -38,7 +39,7 @@ impl MappingRule {
     }
 
     /// Check if input event matches this rule
-    pub fn matches(&self, event: &InputEvent, context: &ContextInfo) -> bool {
+    pub fn matches(&self, event: &InputEvent, context: &WindowContext) -> bool {
         if !self.enabled {
             return false;
         }
@@ -49,7 +50,7 @@ impl MappingRule {
                 &context.process_name,
                 &context.window_class,
                 &context.window_title,
-                Some(&context.process_path),
+                context.executable_path.as_deref(),
             ) {
                 return false;
             }
@@ -157,6 +158,7 @@ impl Trigger {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::types::WindowContext;
     use crate::types::{KeyAction, KeyEvent, KeyState};
 
     #[test]
@@ -267,7 +269,7 @@ mod tests {
         let action = Action::Key(KeyAction::click(0x1E, 0x41));
         let rule = MappingRule::new(trigger, action);
 
-        let context = ContextInfo::default();
+        let context = WindowContext::default();
         let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
         assert!(rule.matches(&event, &context));
 
@@ -282,7 +284,7 @@ mod tests {
         let mut rule = MappingRule::new(trigger, action);
         rule.enabled = false;
 
-        let context = ContextInfo::default();
+        let context = WindowContext::default();
         let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
         assert!(!rule.matches(&event, &context));
     }
@@ -386,7 +388,7 @@ mod tests {
         let rule = MappingRule::new(trigger, action);
 
         let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
-        let context = ContextInfo::default();
+        let context = WindowContext::default();
 
         assert!(rule.matches(&event, &context));
     }
@@ -400,7 +402,7 @@ mod tests {
         rule.enabled = false;
 
         let event = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
-        let context = ContextInfo::default();
+        let context = WindowContext::default();
 
         assert!(!rule.matches(&event, &context));
     }
@@ -409,33 +411,31 @@ mod tests {
     fn test_context_condition_matching() {
         let context = ContextCondition::new().with_process_name("notepad.exe");
 
-        let matching_info = ContextInfo {
+        let matching_info = WindowContext {
             window_class: "Notepad".to_string(),
             process_name: "notepad.exe".to_string(),
-            process_path: "C:\\Windows\\notepad.exe".to_string(),
+            executable_path: Some("C:\\Windows\\notepad.exe".to_string()),
             window_title: "Untitled".to_string(),
-            window_handle: 0,
         };
 
-        let non_matching_info = ContextInfo {
+        let non_matching_info = WindowContext {
             window_class: "Chrome".to_string(),
             process_name: "chrome.exe".to_string(),
-            process_path: "C:\\Program Files\\chrome.exe".to_string(),
+            executable_path: Some("C:\\Program Files\\chrome.exe".to_string()),
             window_title: "Google".to_string(),
-            window_handle: 0,
         };
 
         assert!(context.matches(
             &matching_info.process_name,
             &matching_info.window_class,
             &matching_info.window_title,
-            Some(&matching_info.process_path)
+            matching_info.executable_path.as_deref()
         ));
         assert!(!context.matches(
             &non_matching_info.process_name,
             &non_matching_info.window_class,
             &non_matching_info.window_title,
-            Some(&non_matching_info.process_path)
+            non_matching_info.executable_path.as_deref()
         ));
     }
 
@@ -637,7 +637,7 @@ mod tests {
 
         let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
 
-        let context = ContextInfo::default();
+        let context = WindowContext::default();
 
         // Disabled rule should not match
         assert!(!rule.matches(&event, &context));
@@ -649,33 +649,31 @@ mod tests {
             .with_process_name("code.exe")
             .with_window_class("Chrome_WidgetWin_1");
 
-        let full_match = ContextInfo {
+        let full_match = WindowContext {
             window_class: "Chrome_WidgetWin_1".to_string(),
             process_name: "code.exe".to_string(),
-            process_path: "".to_string(),
-            window_title: "".to_string(),
-            window_handle: 0,
+            executable_path: None,
+            window_title: String::new(),
         };
 
-        let partial_match = ContextInfo {
+        let partial_match = WindowContext {
             window_class: "Chrome_WidgetWin_1".to_string(),
             process_name: "notepad.exe".to_string(),
-            process_path: "".to_string(),
-            window_title: "".to_string(),
-            window_handle: 0,
+            executable_path: None,
+            window_title: String::new(),
         };
 
         assert!(cond.matches(
             &full_match.process_name,
             &full_match.window_class,
             &full_match.window_title,
-            Some(&full_match.process_path)
+            full_match.executable_path.as_deref()
         ));
         assert!(!cond.matches(
             &partial_match.process_name,
             &partial_match.window_class,
             &partial_match.window_title,
-            Some(&partial_match.process_path)
+            partial_match.executable_path.as_deref()
         ));
     }
 

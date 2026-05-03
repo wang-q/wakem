@@ -14,7 +14,7 @@ impl ApplicationControl for super::platform_utils::WindowsPlatform {
     }
 
     fn open_folder(path: &std::path::Path) -> Result<()> {
-        app_control::open_folder_with_opener(path, "explorer")
+        app_control::open_folder(path)
     }
 
     fn force_kill_instance(instance_id: u32) -> Result<()> {

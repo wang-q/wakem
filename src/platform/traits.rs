@@ -455,7 +455,6 @@ pub trait WindowPresetManager: Send + Sync {
 /// Notification service trait
 pub trait NotificationService: Send + Sync {
     fn show(&self, title: &str, message: &str) -> Result<()>;
-    fn initialize(&self, _ctx: &NotificationInitContext) {}
 }
 
 /// Launcher trait

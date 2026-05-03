@@ -201,16 +201,6 @@ impl WindowContext {
     }
 }
 
-/// Platform-specific initialization context for notification services
-///
-/// On Windows, `platform_handle` carries the HWND of the message-only window
-/// used for Shell_NotifyIconW callbacks. On macOS, this field is unused
-/// (notifications are delivered via NSUserNotificationCenter / UNUserNotificationCenter).
-#[derive(Debug, Clone, Default)]
-pub struct NotificationInitContext {
-    pub platform_handle: Option<usize>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

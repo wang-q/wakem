@@ -208,14 +208,6 @@ impl DaemonClient {
         Self::expect_success(response, "BindMacro")
     }
 
-    /// Register message window handle
-    pub async fn register_native_handle(&mut self, handle: usize) -> Result<()> {
-        let response = self
-            .send_receive(&Message::RegisterNativeHandle { handle })
-            .await?;
-        Self::expect_success(response, "RegisterNativeHandle")
-    }
-
     /// Shutdown the daemon
     pub async fn shutdown(&mut self) -> Result<()> {
         let response = self.send_receive(&Message::Shutdown).await?;
@@ -365,17 +357,6 @@ mod tests {
         );
     }
 
-    /// Test register_native_handle should return error when not connected
-    #[tokio::test]
-    async fn test_register_native_handle_not_connected() {
-        let mut client = DaemonClient::new();
-        let result = client.register_native_handle(12345).await;
-        assert!(
-            result.is_err(),
-            "register_native_handle should return error when not connected"
-        );
-    }
-
     // ==================== IPC message serialization validation ====================
 
     /// Verify that message types used by the client can be correctly serialized/deserialized
@@ -473,16 +454,6 @@ mod tests {
             assert_eq!(trigger, "F5");
         } else {
             panic!("Expected BindMacro message");
-        }
-
-        // RegisterNativeHandle message
-        let msg = Message::RegisterNativeHandle { handle: 12345 };
-        let json = serde_json::to_string(&msg).unwrap();
-        let deserialized: Message = serde_json::from_str(&json).unwrap();
-        if let Message::RegisterNativeHandle { handle } = deserialized {
-            assert_eq!(handle, 12345);
-        } else {
-            panic!("Expected RegisterNativeHandle message");
         }
     }
 

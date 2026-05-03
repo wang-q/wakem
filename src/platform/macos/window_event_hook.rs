@@ -160,8 +160,8 @@ impl MacosWindowEventHook {
         self.running.load(Ordering::SeqCst)
     }
 
-    pub fn shutdown_flag(&self) -> &Arc<AtomicBool> {
-        &self.shutdown_flag
+    pub fn shutdown_flag(&self) -> Arc<AtomicBool> {
+        self.shutdown_flag.clone()
     }
 
     pub fn event_sender(&self) -> &Sender<PlatformWindowEvent> {

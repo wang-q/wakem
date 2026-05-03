@@ -56,22 +56,7 @@ impl Launcher {
     }
 
     pub fn parse_command(command: &str) -> LaunchAction {
-        let parts: Vec<&str> = command.split_whitespace().collect();
-        if parts.is_empty() {
-            return LaunchAction {
-                program: String::new(),
-                args: Vec::new(),
-                working_dir: None,
-                env_vars: Vec::new(),
-            };
-        }
-
-        LaunchAction {
-            program: parts[0].to_string(),
-            args: parts[1..].iter().map(|s| s.to_string()).collect(),
-            working_dir: None,
-            env_vars: Vec::new(),
-        }
+        LaunchAction::parse_command(command)
     }
 }
 

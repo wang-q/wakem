@@ -81,16 +81,6 @@ impl ContextCondition {
     }
 }
 
-/// Context information (current active window, etc.)
-#[derive(Debug, Clone, Default)]
-pub struct ContextInfo {
-    pub window_class: String,
-    pub process_name: String,
-    pub process_path: String,
-    pub window_title: String,
-    pub window_handle: isize,
-}
-
 /// Wildcard matching (supports * and ?)
 ///
 /// Performance optimizations:
@@ -226,16 +216,6 @@ mod tests {
         assert!(cond.matches("chrome.exe", "Chrome_WidgetWin_1", "GitHub - Repo", None));
         assert!(!cond.matches("chrome.exe", "Chrome_WidgetWin_1", "Google", None));
         assert!(!cond.matches("firefox", "Chrome_WidgetWin_1", "GitHub - Repo", None));
-    }
-
-    #[test]
-    fn test_context_info_default() {
-        let info = ContextInfo::default();
-        assert!(info.window_class.is_empty());
-        assert!(info.process_name.is_empty());
-        assert!(info.process_path.is_empty());
-        assert!(info.window_title.is_empty());
-        assert_eq!(info.window_handle, 0);
     }
 
     #[test]

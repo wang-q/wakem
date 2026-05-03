@@ -6,7 +6,7 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::common::input_device::{InputDevice, PlatformInputDevice};
-use crate::platform::traits::{InputDeviceConfig, InputDeviceTrait};
+use crate::platform::traits::InputDeviceConfig;
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 use std::sync::mpsc::Sender;
@@ -137,7 +137,7 @@ impl MacosInputDeviceExt {
     }
 }
 
-impl InputDeviceTrait for MacosInputDeviceExt {
+impl crate::platform::traits::InputDevice for MacosInputDeviceExt {
     fn register(&mut self) -> Result<()> {
         debug!("Registering MacosInputDevice");
         self.device.base.running = true;

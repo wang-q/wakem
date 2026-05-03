@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
+use wakem::platform::types::WindowContext;
 use wakem::types::*;
 
 fn bench_trigger_key_match(c: &mut Criterion) {
@@ -16,12 +17,11 @@ fn bench_context_match(c: &mut Criterion) {
         .with_process_name("notepad.exe")
         .with_window_class("Notepad");
 
-    let context = ContextInfo {
+    let context = WindowContext {
         window_class: "Notepad".to_string(),
         process_name: "notepad.exe".to_string(),
-        process_path: "C:\\Windows\\notepad.exe".to_string(),
+        executable_path: Some("C:\\Windows\\notepad.exe".to_string()),
         window_title: "Untitled - Notepad".to_string(),
-        window_handle: 0x123456,
     };
 
     c.bench_function("context_match", |b| {
@@ -30,7 +30,7 @@ fn bench_context_match(c: &mut Criterion) {
                 black_box(&context.process_name),
                 black_box(&context.window_class),
                 black_box(&context.window_title),
-                black_box(Some(&context.process_path)),
+                black_box(context.executable_path.as_deref()),
             ))
         });
     });
@@ -59,7 +59,7 @@ fn bench_mapping_rule_match(c: &mut Criterion) {
     );
 
     let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
-    let context = ContextInfo::default();
+    let context = WindowContext::default();
 
     c.bench_function("mapping_rule_match", |b| {
         b.iter(|| black_box(rule.matches(black_box(&event), black_box(&context))));

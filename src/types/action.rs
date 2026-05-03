@@ -178,6 +178,28 @@ pub struct LaunchAction {
     pub env_vars: Vec<(String, String)>,
 }
 
+impl LaunchAction {
+    /// Parse a command string into a LaunchAction
+    pub fn parse_command(command: &str) -> Self {
+        let parts: Vec<&str> = command.split_whitespace().collect();
+        if parts.is_empty() {
+            return Self {
+                program: String::new(),
+                args: Vec::new(),
+                working_dir: None,
+                env_vars: Vec::new(),
+            };
+        }
+
+        Self {
+            program: parts[0].to_string(),
+            args: parts[1..].iter().map(|s| s.to_string()).collect(),
+            working_dir: None,
+            env_vars: Vec::new(),
+        }
+    }
+}
+
 /// All possible action types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Action {

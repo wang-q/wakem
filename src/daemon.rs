@@ -818,16 +818,6 @@ impl ServerState {
         Ok(())
     }
 
-    /// Set native handle for platform notification service
-    pub async fn set_native_handle(&self, handle: isize) {
-        let service = self.notification_service.lock().await;
-        let ctx = crate::platform::types::NotificationInitContext {
-            platform_handle: Some(handle as usize),
-        };
-        service.initialize(&ctx);
-        info!("Native handle registered: {}", handle);
-    }
-
     /// Show notification via platform notification service
     pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
         let service = self.notification_service.lock().await;
@@ -1571,10 +1561,6 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
                 message: format!("Failed to bind macro: {}", e),
             },
         },
-        Message::RegisterNativeHandle { handle } => {
-            state.set_native_handle(handle as isize).await;
-            Message::Success
-        }
         Message::Shutdown => {
             info!("Shutdown command received, initiating graceful shutdown...");
             state.shutdown().await;

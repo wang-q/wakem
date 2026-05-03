@@ -31,8 +31,6 @@ pub enum Message {
     DeleteMacro { name: String },
     /// Bind macro to trigger key
     BindMacro { macro_name: String, trigger: String },
-    /// Register message window handle (for sending notifications)
-    RegisterNativeHandle { handle: usize },
     /// Shutdown the daemon
     Shutdown,
 

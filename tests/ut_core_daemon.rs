@@ -569,29 +569,3 @@ async fn test_get_status_consistency() {
     assert_eq!(status1, status2);
     assert_eq!(status2, status3);
 }
-
-/// Test native handle registration (Windows specific)
-#[cfg(target_os = "windows")]
-#[tokio::test]
-async fn test_set_native_handle() {
-    let state = ServerState::new(ShutdownSignal::new());
-
-    let handle_value = 12345_isize;
-    state.set_native_handle(handle_value).await;
-
-    let result = state.show_notification("Test", "Test message").await;
-    let _ = result;
-}
-
-/// Test native handle registration (macOS version)
-#[cfg(target_os = "macos")]
-#[tokio::test]
-async fn test_set_native_handle() {
-    let state = ServerState::new(ShutdownSignal::new());
-
-    let handle_value = 12345_isize;
-    state.set_native_handle(handle_value).await;
-
-    let result = state.show_notification("Test", "Test message").await;
-    let _ = result;
-}

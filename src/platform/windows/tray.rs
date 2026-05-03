@@ -534,6 +534,45 @@ impl RealTrayApi {
     pub fn set_menu_selections(&self, _selections: Vec<u32>) {}
 }
 
+#[async_trait::async_trait]
+impl crate::platform::common::tray::TrayApi for RealTrayApi {
+    async fn register(&self) -> Result<()> {
+        RealTrayApi::register(self).await
+    }
+
+    async fn unregister(&self) -> Result<()> {
+        RealTrayApi::unregister(self).await
+    }
+
+    async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
+        RealTrayApi::show_notification(self, title, message).await
+    }
+
+    async fn show_menu(&self) -> Result<u32> {
+        RealTrayApi::show_menu(self).await
+    }
+
+    async fn set_active(&self, active: bool) -> Result<()> {
+        RealTrayApi::set_active(self, active).await
+    }
+
+    async fn is_active(&self) -> bool {
+        RealTrayApi::is_active(self).await
+    }
+
+    fn get_notifications(&self) -> Vec<(String, String)> {
+        RealTrayApi::get_notifications(self)
+    }
+
+    fn is_registered(&self) -> bool {
+        RealTrayApi::is_registered(self)
+    }
+
+    fn set_menu_selections(&self, selections: Vec<u32>) {
+        RealTrayApi::set_menu_selections(self, selections)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

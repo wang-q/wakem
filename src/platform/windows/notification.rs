@@ -2,12 +2,16 @@
 #![cfg(target_os = "windows")]
 
 use crate::platform::traits::NotificationService;
-use crate::platform::types::NotificationInitContext;
 use anyhow::Result;
-use std::sync::Arc;
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Shell::{
     NIF_INFO, NIM_MODIFY, NOTIFYICONDATAW, NOTIFY_ICON_INFOTIP_FLAGS,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DefWindowProcW, RegisterClassW, CS_HREDRAW, CS_VREDRAW,
+    CW_USEDEFAULT, WINDOW_STYLE, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST,
 };
 
 pub fn show_shell_notification(hwnd: HWND, title: &str, message: &str) -> Result<()> {
@@ -42,39 +46,74 @@ pub fn show_shell_notification(hwnd: HWND, title: &str, message: &str) -> Result
     Ok(())
 }
 
+fn create_message_window() -> Option<isize> {
+    unsafe extern "system" fn default_window_proc(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        DefWindowProcW(hwnd, msg, wparam, lparam)
+    }
+
+    unsafe {
+        let hinstance = GetModuleHandleW(None).ok()?;
+
+        let class_name: Vec<u16> = "WakemNotifyClass\0".encode_utf16().collect();
+        let wc = WNDCLASSW {
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(default_window_proc),
+            hInstance: hinstance.into(),
+            lpszClassName: windows::core::PCWSTR(class_name.as_ptr()),
+            ..Default::default()
+        };
+
+        let _atom = RegisterClassW(&wc);
+
+        let hwnd = CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+            windows::core::PCWSTR(class_name.as_ptr()),
+            windows::core::w!("WakemNotify"),
+            WINDOW_STYLE(0),
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            None,
+            None,
+            Some(hinstance.into()),
+            None,
+        );
+
+        hwnd.ok().map(|h| h.0 as isize)
+    }
+}
+
 pub struct WindowsNotificationService {
-    hwnd: Arc<std::sync::RwLock<Option<isize>>>,
+    hwnd: Option<isize>,
 }
 
 impl WindowsNotificationService {
     pub fn new() -> Self {
-        Self {
-            hwnd: Arc::new(std::sync::RwLock::new(None)),
+        let hwnd = create_message_window();
+        if hwnd.is_some() {
+            tracing::info!("Created message window for notifications");
+        } else {
+            tracing::warn!(
+                "Failed to create message window, notifications will be disabled"
+            );
         }
-    }
-
-    pub fn set_hwnd(&self, hwnd_value: isize) {
-        if let Ok(mut guard) = self.hwnd.write() {
-            *guard = Some(hwnd_value);
-        }
+        Self { hwnd }
     }
 
     pub fn show(&self, title: &str, message: &str) -> Result<()> {
-        let hwnd_value = self.hwnd.read().ok().and_then(|guard| *guard);
-
-        let Some(hwnd_value) = hwnd_value else {
-            tracing::debug!("Message window not registered, skipping notification");
+        let Some(hwnd_value) = self.hwnd else {
+            tracing::debug!("Message window not available, skipping notification");
             return Ok(());
         };
 
         let hwnd = HWND(hwnd_value as *mut std::ffi::c_void);
         show_shell_notification(hwnd, title, message)
-    }
-
-    pub fn initialize(&self, ctx: &NotificationInitContext) {
-        if let Some(handle) = ctx.platform_handle {
-            self.set_hwnd(handle as isize);
-        }
     }
 }
 
@@ -84,12 +123,19 @@ impl Default for WindowsNotificationService {
     }
 }
 
+impl Drop for WindowsNotificationService {
+    fn drop(&mut self) {
+        if let Some(hwnd_value) = self.hwnd.take() {
+            unsafe {
+                let hwnd = HWND(hwnd_value as *mut std::ffi::c_void);
+                let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd);
+            }
+        }
+    }
+}
+
 impl NotificationService for WindowsNotificationService {
     fn show(&self, title: &str, message: &str) -> Result<()> {
         self.show(title, message)
-    }
-
-    fn initialize(&self, ctx: &NotificationInitContext) {
-        self.initialize(ctx)
     }
 }

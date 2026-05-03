@@ -1,8 +1,7 @@
 //! IPC server implementation.
 
 use crate::constants::{
-    IPC_CHANNEL_CAPACITY, IPC_IDLE_TIMEOUT_LONG_SECS, IPC_IDLE_TIMEOUT_SHORT_SECS,
-    IPC_PROTOCOL_VERSION,
+    IPC_CHANNEL_CAPACITY, IPC_IDLE_TIMEOUT_SHORT_SECS, IPC_PROTOCOL_VERSION,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -157,16 +156,13 @@ async fn handle_connection(
     }
 
     let (response_tx, mut response_rx) = mpsc::channel(IPC_CHANNEL_CAPACITY);
-    let mut idle_timeout = IPC_IDLE_TIMEOUT_SHORT_SECS;
+    let idle_timeout = IPC_IDLE_TIMEOUT_SHORT_SECS;
 
     loop {
         tokio::select! {
             result = read_message(&mut stream) => {
                 match result {
                     Ok(message) => {
-                        if matches!(message, Message::RegisterNativeHandle { .. }) {
-                            idle_timeout = IPC_IDLE_TIMEOUT_LONG_SECS;
-                        }
                         if message_tx.send((message, response_tx.clone())).await.is_err() {
                             break;
                         }

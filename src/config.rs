@@ -12,9 +12,7 @@ use keyboard_codes::Key;
 use crate::constants::{
     DEFAULT_ACCELERATION_MULTIPLIER, DEFAULT_WHEEL_SPEED, DEFAULT_WHEEL_STEP,
 };
-use crate::types::{ContextCondition, MacroStep, MappingRule};
-
-use crate::platform::common::launcher::Launcher;
+use crate::types::{ContextCondition, LaunchAction, MacroStep, MappingRule};
 
 /// Global configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1736,7 +1734,7 @@ fn parse_launch_mapping(trigger: &str, command: &str) -> anyhow::Result<MappingR
     // Parse launch command
     let action = if command.contains(' ') {
         // Use Launcher::parse_command to parse commands with arguments
-        Action::Launch(Launcher::parse_command(command))
+        Action::Launch(LaunchAction::parse_command(command))
     } else {
         // Simple command
         Action::launch(command)

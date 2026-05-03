@@ -19,9 +19,6 @@ pub const IPC_DISCOVERY_TIMEOUT_MS: u64 = 100;
 /// IPC idle timeout for short-lived connections (seconds) - for one-shot commands
 pub const IPC_IDLE_TIMEOUT_SHORT_SECS: u64 = 30;
 
-/// IPC idle timeout for long-lived connections (seconds) - for tray clients
-pub const IPC_IDLE_TIMEOUT_LONG_SECS: u64 = 600;
-
 /// IPC channel capacity
 pub const IPC_CHANNEL_CAPACITY: usize = 100;
 

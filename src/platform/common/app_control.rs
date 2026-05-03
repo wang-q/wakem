@@ -20,3 +20,15 @@ pub fn open_folder_with_opener(
     std::process::Command::new(opener).arg(path).spawn()?;
     Ok(())
 }
+
+/// Open a folder using the platform-appropriate file manager
+#[cfg(target_os = "windows")]
+pub fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {
+    open_folder_with_opener(path, "explorer")
+}
+
+/// Open a folder using the platform-appropriate file manager
+#[cfg(target_os = "macos")]
+pub fn open_folder(path: &std::path::Path) -> anyhow::Result<()> {
+    open_folder_with_opener(path, "open")
+}
