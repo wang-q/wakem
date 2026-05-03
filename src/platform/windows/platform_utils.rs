@@ -2,7 +2,6 @@
 #![cfg(target_os = "windows")]
 
 use crate::platform::traits::{ContextProvider, PlatformUtilities};
-use crate::platform::types::WindowContext;
 
 pub struct WindowsPlatform;
 
@@ -49,6 +48,10 @@ impl WindowsPlatform {
 impl PlatformUtilities for WindowsPlatform {
     fn get_modifier_state() -> crate::types::ModifierState {
         Self::get_modifier_state()
+    }
+
+    fn parse_key_fallback(name: &str) -> Option<crate::types::KeyInfo> {
+        parse_key_fallback(name)
     }
 
     fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
@@ -215,9 +218,7 @@ pub fn parse_key_fallback(name: &str) -> Option<crate::types::KeyInfo> {
 }
 
 impl ContextProvider for WindowsPlatform {
-    fn get_current_context() -> Option<WindowContext> {
-        super::context::get_current()
-    }
+    crate::impl_context_provider!();
 }
 
 pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {

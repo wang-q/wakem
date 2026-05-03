@@ -475,6 +475,10 @@ pub trait PlatformUtilities {
     fn get_modifier_state() -> ModifierState;
     fn get_process_name_by_pid(pid: u32) -> Result<String>;
     fn get_executable_path_by_pid(pid: u32) -> Result<String>;
+    fn parse_key_fallback(name: &str) -> Option<crate::types::KeyInfo> {
+        let _ = name;
+        None
+    }
 }
 
 /// Context provider trait

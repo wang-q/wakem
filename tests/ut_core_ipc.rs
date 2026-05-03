@@ -257,19 +257,19 @@ fn test_next_key_info_message() {
     }
 }
 
-/// Test 注册消息窗口
+/// Test 注册原生句柄
 #[test]
-fn test_register_message_window() {
-    let msg = Message::RegisterMessageWindow { hwnd: 12345 };
+fn test_register_native_handle() {
+    let msg = Message::RegisterNativeHandle { handle: 12345 };
 
     let json = serde_json::to_string(&msg).expect("Failed to serialize");
     let deserialized: Message =
         serde_json::from_str(&json).expect("Failed to deserialize");
 
-    if let Message::RegisterMessageWindow { hwnd } = deserialized {
-        assert_eq!(hwnd, 12345);
+    if let Message::RegisterNativeHandle { handle } = deserialized {
+        assert_eq!(handle, 12345);
     } else {
-        panic!("Expected RegisterMessageWindow message");
+        panic!("Expected RegisterNativeHandle message");
     }
 }
 

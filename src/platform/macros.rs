@@ -54,6 +54,7 @@ macro_rules! impl_platform_factory_methods {
 
 /// Macro implementing `TrayLifecycle` with the standard delegation pattern.
 /// Both platforms delegate to module-level `tray::run_tray_message_loop` / `tray::stop_tray`.
+/// Intended for use in the platform `mod.rs` where `tray` is a direct child module.
 #[macro_export]
 macro_rules! impl_tray_lifecycle {
     () => {
@@ -74,8 +75,8 @@ macro_rules! impl_tray_lifecycle {
 #[macro_export]
 macro_rules! impl_context_provider {
     () => {
-        fn get_current_context() -> Option<$crate::platform::traits::WindowContext> {
-            context::get_current()
+        fn get_current_context() -> Option<$crate::platform::types::WindowContext> {
+            super::context::get_current()
         }
     };
 }
@@ -126,6 +127,25 @@ macro_rules! decl_notification_service {
             fn default() -> Self {
                 Self::new()
             }
+        }
+    };
+}
+
+/// Macro generating module-level delegate functions that forward to
+/// `platform_utils` module. Both platforms expose the same two free
+/// functions (`get_process_name_by_pid`, `get_executable_path_by_pid`)
+/// that simply delegate to the `PlatformUtilities` trait implementation
+/// via the `platform_utils` sub-module.
+/// Intended for use in the platform `mod.rs` where `platform_utils` is a direct child module.
+#[macro_export]
+macro_rules! impl_platform_utils_delegates {
+    () => {
+        pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
+            platform_utils::get_process_name_by_pid(pid)
+        }
+
+        pub fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
+            platform_utils::get_executable_path_by_pid(pid)
         }
     };
 }

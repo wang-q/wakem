@@ -2,7 +2,6 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::traits::{ContextProvider, PlatformUtilities};
-use crate::platform::types::WindowContext;
 
 pub fn get_modifier_state() -> crate::types::ModifierState {
     use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};

@@ -570,33 +570,28 @@ async fn test_get_status_consistency() {
     assert_eq!(status2, status3);
 }
 
-/// Test message window handle registration (Windows specific)
+/// Test native handle registration (Windows specific)
 #[cfg(target_os = "windows")]
 #[tokio::test]
-async fn test_set_message_window_hwnd() {
+async fn test_set_native_handle() {
     let state = ServerState::new(ShutdownSignal::new());
 
-    // Register window handle (using isize instead of HWND)
-    let hwnd_value = 12345_isize;
-    state.set_message_window_hwnd(hwnd_value).await;
+    let handle_value = 12345_isize;
+    state.set_native_handle(handle_value).await;
 
-    // Verify notification function available (should not panic)
     let result = state.show_notification("Test", "Test message").await;
-    // May fail (Windows API), but should not panic
     let _ = result;
 }
 
-/// Test message window handle registration (macOS version)
+/// Test native handle registration (macOS version)
 #[cfg(target_os = "macos")]
 #[tokio::test]
-async fn test_set_message_window_hwnd() {
+async fn test_set_native_handle() {
     let state = ServerState::new(ShutdownSignal::new());
 
-    // Register window handle (macOS version is no-op)
-    let hwnd_value = 12345_isize;
-    state.set_message_window_hwnd(hwnd_value).await;
+    let handle_value = 12345_isize;
+    state.set_native_handle(handle_value).await;
 
-    // Verify notification function available (should not panic)
     let result = state.show_notification("Test", "Test message").await;
     let _ = result;
 }

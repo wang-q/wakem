@@ -818,15 +818,14 @@ impl ServerState {
         Ok(())
     }
 
-    /// Set message window handle
-    /// Takes isize instead of HWND because HWND is not Send and cannot be used across await points
-    pub async fn set_message_window_hwnd(&self, hwnd_value: isize) {
+    /// Set native handle for platform notification service
+    pub async fn set_native_handle(&self, handle: isize) {
         let service = self.notification_service.lock().await;
         let ctx = crate::platform::types::NotificationInitContext {
-            native_handle: Some(hwnd_value as usize),
+            native_handle: Some(handle as usize),
         };
         service.initialize(&ctx);
-        info!("Message window handle registered: {}", hwnd_value);
+        info!("Native handle registered: {}", handle);
     }
 
     /// Show notification via platform notification service
@@ -1464,29 +1463,34 @@ impl ServerState {
             return;
         }
 
-        let crate::platform::types::PlatformWindowEvent::WindowActivated {
-            process_name,
-            window_title,
-            window_id,
-        } = event;
-        debug!(
-            "Window activated: process='{}', title='{}'",
-            process_name, window_title
-        );
-        tokio::time::sleep(tokio::time::Duration::from_millis(
-            WINDOW_PRESET_APPLY_DELAY_MS,
-        ))
-        .await;
+        match event {
+            crate::platform::types::PlatformWindowEvent::WindowActivated {
+                process_name,
+                window_title,
+                window_id,
+            } => {
+                debug!(
+                    "Window activated: process='{}', title='{}'",
+                    process_name, window_title
+                );
+                tokio::time::sleep(tokio::time::Duration::from_millis(
+                    WINDOW_PRESET_APPLY_DELAY_MS,
+                ))
+                .await;
 
-        let preset_manager = self.window_preset_manager.read().await;
-        match preset_manager.apply_preset_for_window_by_id(window_id) {
-            Ok(true) => {
-                debug!("Auto-applied preset to window {}", window_id);
+                let preset_manager = self.window_preset_manager.read().await;
+                match preset_manager.apply_preset_for_window_by_id(window_id) {
+                    Ok(true) => {
+                        debug!("Auto-applied preset to window {}", window_id);
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        debug!("Failed to auto-apply preset: {}", e);
+                    }
+                }
             }
-            Ok(false) => {}
-            Err(e) => {
-                debug!("Failed to auto-apply preset: {}", e);
-            }
+            crate::platform::types::PlatformWindowEvent::WindowCreated { .. }
+            | crate::platform::types::PlatformWindowEvent::WindowClosed { .. } => {}
         }
     }
 }
@@ -1567,9 +1571,8 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
                 message: format!("Failed to bind macro: {}", e),
             },
         },
-        Message::RegisterMessageWindow { hwnd } => {
-            // Pass isize directly to avoid Send issues with HWND
-            state.set_message_window_hwnd(hwnd as isize).await;
+        Message::RegisterNativeHandle { handle } => {
+            state.set_native_handle(handle as isize).await;
             Message::Success
         }
         Message::Shutdown => {

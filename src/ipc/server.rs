@@ -164,7 +164,7 @@ async fn handle_connection(
             result = read_message(&mut stream) => {
                 match result {
                     Ok(message) => {
-                        if matches!(message, Message::RegisterMessageWindow { .. }) {
+                        if matches!(message, Message::RegisterNativeHandle { .. }) {
                             idle_timeout = IPC_IDLE_TIMEOUT_LONG_SECS;
                         }
                         if message_tx.send((message, response_tx.clone())).await.is_err() {

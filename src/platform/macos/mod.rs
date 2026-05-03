@@ -21,7 +21,7 @@ pub mod window_preset;
 #[cfg(test)]
 pub mod mock_window_api;
 
-use crate::platform::traits::{PlatformFactory, TrayLifecycle, WindowEventHookTrait};
+use crate::platform::traits::{PlatformFactory, TrayLifecycle, WindowEventHook};
 
 pub use crate::platform::common::launcher::Launcher;
 pub use crate::platform::traits::InputDeviceConfig;
@@ -49,19 +49,13 @@ pub use window_preset::WindowPresetManager;
 #[cfg(test)]
 pub use mock_window_api::MockMacosWindowApi;
 
-pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
-    platform_utils::get_process_name_by_pid(pid)
-}
-
-pub fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
-    platform_utils::get_executable_path_by_pid(pid)
-}
+crate::impl_platform_utils_delegates!();
 
 impl TrayLifecycle for MacosPlatform {
     crate::impl_tray_lifecycle!();
 }
 
-impl WindowEventHookTrait for MacosWindowEventHook {
+impl WindowEventHook for MacosWindowEventHook {
     crate::impl_window_event_hook!();
 }
 

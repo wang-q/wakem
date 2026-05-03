@@ -3,6 +3,8 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+
+use crate::platform::traits::PlatformUtilities;
 use tracing::debug;
 
 use keyboard_codes::{Key, KeyCodeMapper, Platform};
@@ -898,9 +900,8 @@ pub fn parse_key(name: &str) -> anyhow::Result<crate::types::KeyInfo> {
         }
     }
 
-    #[cfg(target_os = "windows")]
     if let Some(key_info) =
-        crate::platform::windows::platform_utils::parse_key_fallback(&name_lower)
+        crate::platform::CurrentPlatform::parse_key_fallback(&name_lower)
     {
         return Ok(key_info);
     }

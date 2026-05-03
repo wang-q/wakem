@@ -30,6 +30,10 @@ impl TrayLifecycle for WindowsPlatform {
     crate::impl_tray_lifecycle!();
 }
 
+impl crate::platform::traits::WindowEventHook for WindowEventHook {
+    crate::impl_window_event_hook!();
+}
+
 impl PlatformFactory for WindowsPlatform {
     type InputDevice = RawInputDevice;
     type OutputDevice = SendInputDevice;
@@ -51,10 +55,4 @@ impl PlatformFactory for WindowsPlatform {
     );
 }
 
-pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
-    platform_utils::get_process_name_by_pid(pid)
-}
-
-pub fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
-    platform_utils::get_executable_path_by_pid(pid)
-}
+crate::impl_platform_utils_delegates!();

@@ -209,11 +209,11 @@ impl DaemonClient {
     }
 
     /// Register message window handle
-    pub async fn register_message_window(&mut self, hwnd: usize) -> Result<()> {
+    pub async fn register_native_handle(&mut self, handle: usize) -> Result<()> {
         let response = self
-            .send_receive(&Message::RegisterMessageWindow { hwnd })
+            .send_receive(&Message::RegisterNativeHandle { handle })
             .await?;
-        Self::expect_success(response, "RegisterMessageWindow")
+        Self::expect_success(response, "RegisterNativeHandle")
     }
 
     /// Shutdown the daemon
@@ -365,14 +365,14 @@ mod tests {
         );
     }
 
-    /// Test register_message_window should return error when not connected
+    /// Test register_native_handle should return error when not connected
     #[tokio::test]
-    async fn test_register_message_window_not_connected() {
+    async fn test_register_native_handle_not_connected() {
         let mut client = DaemonClient::new();
-        let result = client.register_message_window(12345).await;
+        let result = client.register_native_handle(12345).await;
         assert!(
             result.is_err(),
-            "register_message_window should return error when not connected"
+            "register_native_handle should return error when not connected"
         );
     }
 
@@ -475,14 +475,14 @@ mod tests {
             panic!("Expected BindMacro message");
         }
 
-        // RegisterMessageWindow message
-        let msg = Message::RegisterMessageWindow { hwnd: 12345 };
+        // RegisterNativeHandle message
+        let msg = Message::RegisterNativeHandle { handle: 12345 };
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
-        if let Message::RegisterMessageWindow { hwnd } = deserialized {
-            assert_eq!(hwnd, 12345);
+        if let Message::RegisterNativeHandle { handle } = deserialized {
+            assert_eq!(handle, 12345);
         } else {
-            panic!("Expected RegisterMessageWindow message");
+            panic!("Expected RegisterNativeHandle message");
         }
     }
 

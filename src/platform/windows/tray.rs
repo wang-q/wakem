@@ -25,7 +25,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     LoadCursorW, LookupIconIdFromDirectoryEx, PostMessageW, PostQuitMessage,
     RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage, CS_HREDRAW,
     CS_VREDRAW, CW_USEDEFAULT, HMENU, IDC_ARROW, LR_DEFAULTCOLOR, MF_SEPARATOR,
-    MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RIGHTBUTTON, WINDOW_STYLE,
+    MF_STRING, MSG, TPM_BOTTOMALIGN, TPM_LEFTALIGN, WINDOW_STYLE,
     WM_COMMAND, WM_CREATE, WM_DESTROY, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
     WS_EX_TOPMOST,
 };
@@ -55,104 +55,34 @@ thread_local! {
     static CMD_CALLBACK: RefCell<Option<CommandCallback>> = const { RefCell::new(None) };
 }
 
-/// Tray icon data structure
+/// Tray icon data structure (wraps TrayIcon for message loop usage)
 struct TrayIconData {
-    data: NOTIFYICONDATAW,
+    icon: TrayIcon,
 }
 
 impl TrayIconData {
     fn create() -> Self {
-        let offset = unsafe {
-            LookupIconIdFromDirectoryEx(ICON_BYTES.as_ptr(), true, 0, 0, LR_DEFAULTCOLOR)
-        } as usize;
-        if offset >= ICON_BYTES.len() {
-            panic!(
-                "Icon offset {} out of bounds (max {})",
-                offset,
-                ICON_BYTES.len()
-            );
-        }
-        let icon_data = &ICON_BYTES[offset..];
-        let hicon = unsafe {
-            CreateIconFromResourceEx(icon_data, true, 0x30000, 0, 0, LR_DEFAULTCOLOR)
-        }
-        .expect("Failed to load icon");
-
-        let mut tooltip = [0u16; 128];
-        let src: Vec<u16> = unsafe { w!("wakem").as_wide() }.to_vec();
-        let copy_len = src.len().min(tooltip.len() - 1);
-        tooltip[..copy_len].copy_from_slice(&src[..copy_len]);
-
         Self {
-            data: NOTIFYICONDATAW {
-                uID: WM_USER_TRAYICON,
-                uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
-                uCallbackMessage: WM_USER_TRAYICON,
-                hIcon: hicon,
-                szTip: tooltip,
-                ..Default::default()
-            },
+            icon: TrayIcon::new(),
         }
     }
 
     fn register(&mut self, hwnd: HWND) {
-        self.data.hWnd = hwnd;
-        unsafe {
-            let _ = Shell_NotifyIconW(NIM_ADD, &self.data);
+        if let Err(e) = self.icon.register(hwnd) {
+            error!("Failed to register tray icon: {}", e);
+        } else {
+            debug!("Tray icon registered");
         }
-        debug!("Tray icon registered");
     }
 
-    fn show_menu(&self) {
-        let hwnd = self.data.hWnd;
-        let mut cursor = POINT::default();
-
-        unsafe {
-            let _ = SetForegroundWindow(hwnd);
-            let _ = GetCursorPos(&mut cursor);
-            let hmenu: HMENU = CreatePopupMenu().unwrap();
-
-            // Add menu items
-            let _ = AppendMenuW(
-                hmenu,
-                MF_STRING,
-                menu_ids::TOGGLE_ACTIVE as usize,
-                w!("Enable/Disable"),
-            );
-            let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
-            let _ = AppendMenuW(
-                hmenu,
-                MF_STRING,
-                menu_ids::RELOAD as usize,
-                w!("Reload Config"),
-            );
-            let _ = AppendMenuW(
-                hmenu,
-                MF_STRING,
-                menu_ids::OPEN_CONFIG as usize,
-                w!("Open Config Folder"),
-            );
-            let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
-            let _ = AppendMenuW(hmenu, MF_STRING, menu_ids::EXIT as usize, w!("Exit"));
-
-            // Display menu - do NOT use TPM_RETURNCMD as it prevents WM_COMMAND from being sent
-            let _ = TrackPopupMenu(
-                hmenu,
-                TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_RIGHTBUTTON,
-                cursor.x,
-                cursor.y,
-                None,
-                hwnd,
-                None,
-            );
-
-            // Required workaround for tray menu to work correctly on Windows
-            // See: https://support.microsoft.com/en-us/kb/135788
-            let _ = PostMessageW(Some(hwnd), 0u32, WPARAM(0), LPARAM(0));
-
-            let _ = DestroyMenu(hmenu);
+    fn show_menu(&mut self) {
+        if let Err(e) = self.icon.show_menu() {
+            error!("Failed to show tray menu: {}", e);
         }
-        debug!("Menu shown");
+    }
+
+    fn data(&self) -> &NOTIFYICONDATAW {
+        &self.icon.data
     }
 }
 
@@ -171,7 +101,7 @@ unsafe extern "system" fn window_proc(
             TRAY_ICON.with(|t| {
                 if let Some(ref mut tray) = *t.borrow_mut() {
                     unsafe {
-                        let _ = Shell_NotifyIconW(NIM_DELETE, &tray.data);
+                        let _ = Shell_NotifyIconW(NIM_DELETE, tray.data());
                     }
                 }
             });
@@ -184,7 +114,7 @@ unsafe extern "system" fn window_proc(
             if mouse_msg == WM_LBUTTONUP || mouse_msg == WM_RBUTTONUP {
                 debug!("Tray icon clicked");
                 TRAY_ICON.with(|t| {
-                    if let Some(ref tray) = *t.borrow() {
+                    if let Some(ref mut tray) = *t.borrow_mut() {
                         tray.show_menu();
                     }
                 });
@@ -315,7 +245,7 @@ pub fn stop_tray() {
 
 /// Tray icon structure (for standalone usage)
 pub struct TrayIcon {
-    data: NOTIFYICONDATAW,
+    pub(crate) data: NOTIFYICONDATAW,
 }
 
 // SAFETY: TrayIcon contains HWND and HICON which are raw pointers.

@@ -32,7 +32,7 @@ pub enum Message {
     /// Bind macro to trigger key
     BindMacro { macro_name: String, trigger: String },
     /// Register message window handle (for sending notifications)
-    RegisterMessageWindow { hwnd: usize },
+    RegisterNativeHandle { handle: usize },
     /// Shutdown the daemon
     Shutdown,
 

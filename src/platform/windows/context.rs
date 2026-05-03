@@ -73,29 +73,4 @@ mod tests {
         let ctx = context.unwrap();
         assert!(!ctx.window_class.is_empty() || !ctx.window_title.is_empty());
     }
-
-    #[test]
-    fn test_matches() {
-        let ctx = WindowContext {
-            process_name: "firefox.exe".to_string(),
-            window_class: "MozillaWindowClass".to_string(),
-            window_title: "Firefox".to_string(),
-            executable_path: Some("C:\\Program Files\\Firefox\\firefox.exe".to_string()),
-        };
-
-        // Test process name matching
-        assert!(ctx.matches(Some("firefox.exe"), None, None, None));
-        assert!(ctx.matches(Some("*.exe"), None, None, None));
-        assert!(!ctx.matches(Some("chrome.exe"), None, None, None));
-
-        // Test window class name matching
-        assert!(ctx.matches(None, Some("Mozilla*"), None, None));
-        assert!(!ctx.matches(None, Some("Chrome*"), None, None));
-
-        // Test window title matching
-        assert!(ctx.matches(None, None, Some("Fire*"), None));
-
-        // Test path matching
-        assert!(ctx.matches(None, None, None, Some("*Firefox*")));
-    }
 }
