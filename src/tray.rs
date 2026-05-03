@@ -1,12 +1,19 @@
 use anyhow::Result;
 use std::thread;
 use tokio::sync::mpsc;
+use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
 
 use crate::client::DaemonClient;
 use crate::config;
 use crate::platform::types::AppCommand;
 use crate::platform::CurrentPlatform;
+
+/// Heartbeat interval for checking daemon connection (milliseconds)
+const DAEMON_HEARTBEAT_INTERVAL_MS: u64 = 1000;
+
+/// Maximum consecutive heartbeat failures before exiting
+const MAX_HEARTBEAT_FAILURES: u32 = 3;
 
 async fn try_reconnect(client_option: &mut Option<DaemonClient>, instance_id: u32) {
     use crate::constants::{DEFAULT_RETRY_DELAY_MS, MAX_RECONNECT_RETRIES};
@@ -136,76 +143,116 @@ pub async fn connect_and_handle_tray_commands(
         }
     }
 
-    while let Some(cmd) = cmd_rx.recv().await {
-        match cmd {
-            AppCommand::ToggleActive => {
-                info!("Toggle active command received");
-                if let Some(ref mut client) = client_option {
-                    match client.get_status().await {
-                        Ok((current_active, _)) => {
-                            let new_active = !current_active;
-                            match client.set_active(new_active).await {
-                                Ok(_) => {
-                                    info!(
-                                        "Daemon active state changed to: {}",
-                                        new_active
-                                    );
+    let mut heartbeat = interval(Duration::from_millis(DAEMON_HEARTBEAT_INTERVAL_MS));
+    let mut consecutive_failures = 0u32;
+
+    loop {
+        tokio::select! {
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    Some(AppCommand::ToggleActive) => {
+                        info!("Toggle active command received");
+                        if let Some(ref mut client) = client_option {
+                            match client.get_status().await {
+                                Ok((current_active, _)) => {
+                                    consecutive_failures = 0;
+                                    let new_active = !current_active;
+                                    match client.set_active(new_active).await {
+                                        Ok(_) => {
+                                            info!(
+                                                "Daemon active state changed to: {}",
+                                                new_active
+                                            );
+                                        }
+                                        Err(e) => {
+                                            error!("Failed to set active state: {}", e);
+                                            try_reconnect(&mut client_option, instance_id).await;
+                                        }
+                                    }
                                 }
                                 Err(e) => {
-                                    error!("Failed to set active state: {}", e);
+                                    error!("Failed to get status: {}", e);
                                     try_reconnect(&mut client_option, instance_id).await;
                                 }
                             }
-                        }
-                        Err(e) => {
-                            error!("Failed to get status: {}", e);
+                        } else {
+                            error!("Not connected to daemon, attempting reconnection...");
                             try_reconnect(&mut client_option, instance_id).await;
                         }
                     }
-                } else {
-                    error!("Not connected to daemon, attempting reconnection...");
-                    try_reconnect(&mut client_option, instance_id).await;
-                }
-            }
-            AppCommand::ReloadConfig => {
-                info!("Reload config command received");
-                if let Some(ref mut client) = client_option {
-                    match client.reload_config().await {
-                        Ok(_) => {
-                            info!("Configuration reloaded successfully");
-                        }
-                        Err(e) => {
-                            error!("Failed to reload config: {}", e);
+                    Some(AppCommand::ReloadConfig) => {
+                        info!("Reload config command received");
+                        if let Some(ref mut client) = client_option {
+                            match client.reload_config().await {
+                                Ok(_) => {
+                                    info!("Configuration reloaded successfully");
+                                }
+                                Err(e) => {
+                                    error!("Failed to reload config: {}", e);
+                                    try_reconnect(&mut client_option, instance_id).await;
+                                }
+                            }
+                        } else {
+                            error!("Not connected to daemon, attempting reconnection...");
                             try_reconnect(&mut client_option, instance_id).await;
                         }
                     }
-                } else {
-                    error!("Not connected to daemon, attempting reconnection...");
-                    try_reconnect(&mut client_option, instance_id).await;
-                }
-            }
-            AppCommand::OpenConfigFolder => {
-                info!("Open config folder command received");
-                if let Err(e) = open_config_folder(instance_id) {
-                    error!("Failed to open config folder: {}", e);
-                }
-            }
-            AppCommand::Exit => {
-                info!("Exit command received");
+                    Some(AppCommand::OpenConfigFolder) => {
+                        info!("Open config folder command received");
+                        if let Err(e) = open_config_folder(instance_id) {
+                            error!("Failed to open config folder: {}", e);
+                        }
+                    }
+                    Some(AppCommand::Exit) => {
+                        info!("Exit command received");
 
+                        if let Some(ref mut client) = client_option {
+                            match client.shutdown().await {
+                                Ok(_) => {
+                                    info!("Daemon shutdown successfully");
+                                }
+                                Err(e) => {
+                                    error!("Failed to shutdown daemon: {}", e);
+                                }
+                            }
+                        }
+
+                        on_exit();
+                        break;
+                    }
+                    None => {
+                        info!("Command channel closed");
+                        break;
+                    }
+                }
+            }
+            _ = heartbeat.tick() => {
                 if let Some(ref mut client) = client_option {
-                    match client.shutdown().await {
+                    match client.get_status().await {
                         Ok(_) => {
-                            info!("Daemon shutdown successfully");
+                            consecutive_failures = 0;
                         }
                         Err(e) => {
-                            error!("Failed to shutdown daemon: {}", e);
+                            consecutive_failures += 1;
+                            warn!(
+                                "Heartbeat failed ({}/{}): {}",
+                                consecutive_failures, MAX_HEARTBEAT_FAILURES, e
+                            );
+
+                            if consecutive_failures >= MAX_HEARTBEAT_FAILURES {
+                                warn!("Daemon connection lost, attempting reconnection...");
+                                try_reconnect(&mut client_option, instance_id).await;
+                                consecutive_failures = 0;
+
+                                if client_option.is_none() {
+                                    error!("Failed to reconnect to daemon, exiting tray");
+                                    on_exit();
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
-
-                on_exit();
-                break;
             }
         }
     }

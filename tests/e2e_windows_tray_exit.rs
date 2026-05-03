@@ -37,16 +37,16 @@ fn wakem_binary() -> String {
 }
 
 fn start_tray(instance_id: u32) -> std::io::Result<Child> {
-    info!("Starting wakem tray --instance {}", instance_id);
+    info!("Starting wakem --instance {} tray", instance_id);
     Command::new(wakem_binary())
-        .args(["tray", "--instance", &instance_id.to_string()])
+        .args(["--instance", &instance_id.to_string(), "tray"])
         .spawn()
 }
 
 fn start_daemon(instance_id: u32) -> std::io::Result<Child> {
-    info!("Starting wakem daemon --instance {}", instance_id);
+    info!("Starting wakem --instance {} daemon", instance_id);
     Command::new(wakem_binary())
-        .args(["daemon", "--instance", &instance_id.to_string()])
+        .args(["--instance", &instance_id.to_string(), "daemon"])
         .spawn()
 }
 

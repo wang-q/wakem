@@ -304,7 +304,7 @@ cargo test platform_     # 平台特定测试
 
 E2E 测试需要真实的桌面环境，默认 `#[ignore]`，不会影响常规 `cargo test`。
 
-```bash
+```powershell
 # 窗口管理
 cargo test --test e2e_windows_window -- --ignored --test-threads=1
 
@@ -315,9 +315,9 @@ cargo test --test e2e_windows_launcher -- --ignored --test-threads=1
 cargo test --test e2e_windows_tray_exit -- --ignored --test-threads=1
 
 # 托盘退出 (PowerShell 辅助脚本，更完整)
-powershell -File scripts/e2e_tray_exit.ps1
-powershell -File scripts/e2e_tray_exit.ps1 -TestNoDaemon
-powershell -File scripts/e2e_tray_exit.ps1 -TestWithDaemon
+scripts/e2e_tray_exit.ps1
+scripts/e2e_tray_exit.ps1 -TestNoDaemon
+scripts/e2e_tray_exit.ps1 -TestWithDaemon
 ```
 
 #### 窗口管理测试
