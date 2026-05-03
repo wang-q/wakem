@@ -6,6 +6,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::client::DaemonClient;
 use crate::config;
+use crate::platform::traits::{ApplicationControl, TrayLifecycle};
 use crate::platform::types::AppCommand;
 use crate::platform::CurrentPlatform;
 
@@ -265,7 +266,7 @@ fn open_config_folder_sync(instance_id: u32) -> Result<()> {
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .ok_or_else(|| anyhow::anyhow!("Could not resolve config directory"))?;
 
-    CurrentPlatform::open_folder(&config_path)
+    <CurrentPlatform as ApplicationControl>::open_folder(&config_path)
 }
 
 fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
@@ -274,7 +275,7 @@ fn run_tokio_for_tray(cmd_rx: mpsc::Receiver<AppCommand>, instance_id: u32) {
     rt.block_on(connect_and_handle_tray_commands(
         cmd_rx,
         instance_id,
-        CurrentPlatform::terminate_application,
+        <CurrentPlatform as ApplicationControl>::terminate_application,
         open_config_folder_sync,
     ));
 }
@@ -318,7 +319,7 @@ pub fn run_tray_sync(
     info!("wakem starting (instance {})...", instance_id);
 
     if detach_console {
-        CurrentPlatform::detach_console();
+        <CurrentPlatform as ApplicationControl>::detach_console();
     }
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<AppCommand>(16);
@@ -343,9 +344,11 @@ pub fn run_tray_sync(
         None
     };
 
-    let tray_result = CurrentPlatform::run_tray_message_loop(Box::new(move |cmd| {
-        let _ = cmd_tx_for_tray.blocking_send(cmd);
-    }));
+    let tray_result = <CurrentPlatform as TrayLifecycle>::run_tray_message_loop(
+        Box::new(move |cmd| {
+            let _ = cmd_tx_for_tray.blocking_send(cmd);
+        }),
+    );
 
     let _ = cmd_tx.blocking_send(AppCommand::Exit);
     info!("Waiting for tokio thread to exit...");

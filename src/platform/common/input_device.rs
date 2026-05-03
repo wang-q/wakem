@@ -6,7 +6,7 @@
 //!
 //! Also provides [InputDevice] generic struct for platform-specific implementations.
 
-use crate::platform::traits::InputDeviceConfig;
+use crate::platform::types::InputDeviceConfig;
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 use std::sync::mpsc::{channel, Receiver, Sender};

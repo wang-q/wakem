@@ -12,8 +12,8 @@ use crate::constants::{
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
-    InputDevice, Launcher, NotificationService, OutputDevice, PlatformFactory,
-    WindowPresetManager,
+    ContextProvider, InputDevice, Launcher, NotificationService, OutputDevice,
+    PlatformFactory, WindowPresetManager,
 };
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
@@ -419,7 +419,7 @@ impl ServerState {
         let action = {
             let mapper = self.mapper.read().await;
             let context: Option<crate::platform::types::WindowContext> =
-                crate::platform::CurrentPlatform::get_current_context();
+                <crate::platform::CurrentPlatform as ContextProvider>::get_current_context();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 

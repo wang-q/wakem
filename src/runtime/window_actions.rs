@@ -4,7 +4,7 @@
 //! rule matching and event processing.
 
 use crate::platform::traits::WindowManager;
-use crate::platform::types::WindowInfo;
+use crate::platform::types::{MonitorInfo, WindowInfo};
 use crate::types::{MonitorDirection, WindowAction};
 use tracing::debug;
 
@@ -167,7 +167,7 @@ fn execute_move_to_monitor<W: WindowManager>(
 }
 
 fn find_monitor_index_for_point(
-    monitors: &[crate::platform::traits::MonitorInfo],
+    monitors: &[MonitorInfo],
     x: i32,
     y: i32,
 ) -> usize {
@@ -186,7 +186,6 @@ fn find_monitor_index_for_point(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::traits::MonitorInfo;
     use std::cell::RefCell;
 
     #[derive(Clone, Copy)]

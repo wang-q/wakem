@@ -10,7 +10,10 @@ pub mod window_event_hook;
 pub mod window_manager;
 pub mod window_preset;
 
-use crate::platform::traits::PlatformFactory;
+use crate::platform::traits::{
+    ApplicationControl, ContextProvider, Launcher as LauncherTrait, NotificationService,
+    PlatformFactory, PlatformUtilities, TrayLifecycle,
+};
 use crate::platform::types::*;
 use anyhow::Result;
 use std::sync::Arc;
@@ -65,45 +68,102 @@ impl WindowsPlatform {
 
         modifiers
     }
+}
 
-    /// Get current window context
-    pub fn get_current_context() -> Option<WindowContext> {
-        context::get_current()
+// ============================================================================
+// Trait Implementations
+// ============================================================================
+
+impl PlatformUtilities for WindowsPlatform {
+    fn get_modifier_state() -> crate::types::ModifierState {
+        Self::get_modifier_state()
     }
 
-    /// Run tray message loop
-    pub fn run_tray_message_loop(
-        callback: Box<dyn Fn(AppCommand) + Send>,
-    ) -> Result<()> {
+    fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+        };
+
+        unsafe {
+            let handle =
+                OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
+                    .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
+
+            let mut buffer = [0u16; 260];
+            let len = GetModuleBaseNameW(handle, None, &mut buffer);
+
+            CloseHandle(handle).ok();
+
+            if len == 0 {
+                return Err(anyhow::anyhow!("Failed to get process name"));
+            }
+
+            Ok(String::from_utf16_lossy(&buffer[..len as usize]))
+        }
+    }
+
+    fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+        };
+
+        unsafe {
+            let handle =
+                OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
+                    .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
+
+            let mut buffer = [0u16; 260];
+            let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
+
+            CloseHandle(handle).ok();
+
+            if len == 0 {
+                return Err(anyhow::anyhow!("Failed to get executable path"));
+            }
+
+            Ok(String::from_utf16_lossy(&buffer[..len as usize]))
+        }
+    }
+}
+
+impl ContextProvider for WindowsPlatform {
+    fn get_current_context() -> Option<WindowContext> {
+        context::get_current()
+    }
+}
+
+impl TrayLifecycle for WindowsPlatform {
+    fn run_tray_message_loop(callback: Box<dyn Fn(AppCommand) + Send>) -> Result<()> {
         tray::run_tray_message_loop(callback)
     }
 
-    /// Stop tray
-    pub fn stop_tray() {
+    fn stop_tray() {
         tray::stop_tray()
     }
+}
 
-    /// Detach console
-    pub fn detach_console() {
+impl ApplicationControl for WindowsPlatform {
+    fn detach_console() {
         use windows::Win32::System::Console::FreeConsole;
         unsafe {
             let _ = FreeConsole();
         }
     }
 
-    /// Terminate application
-    pub fn terminate_application() {
+    fn terminate_application() {
         Self::stop_tray()
     }
 
-    /// Open folder in explorer
-    pub fn open_folder(path: &std::path::Path) -> Result<()> {
+    fn open_folder(path: &std::path::Path) -> Result<()> {
         std::process::Command::new("explorer").arg(path).spawn()?;
         Ok(())
     }
 
-    /// Force kill daemon instance
-    pub fn force_kill_instance(instance_id: u32) -> Result<()> {
+    fn force_kill_instance(instance_id: u32) -> Result<()> {
         use std::process::{Command, Stdio};
 
         let window_title = if instance_id == 0 {
@@ -284,7 +344,7 @@ impl Default for WindowsNotificationService {
     }
 }
 
-impl crate::platform::traits::NotificationService for WindowsNotificationService {
+impl NotificationService for WindowsNotificationService {
     fn show(&self, title: &str, message: &str) -> Result<()> {
         self.show(title, message)
     }
@@ -294,7 +354,7 @@ impl crate::platform::traits::NotificationService for WindowsNotificationService
     }
 }
 
-impl crate::platform::traits::Launcher for Launcher {
+impl LauncherTrait for Launcher {
     fn launch(&self, action: &crate::types::LaunchAction) -> Result<()> {
         self.launch(action)
     }
@@ -302,51 +362,9 @@ impl crate::platform::traits::Launcher for Launcher {
 
 /// Helper functions
 pub fn get_process_name_by_pid(pid: u32) -> anyhow::Result<String> {
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-    };
-
-    unsafe {
-        let handle =
-            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
-                .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
-
-        let mut buffer = [0u16; 260];
-        let len = GetModuleBaseNameW(handle, None, &mut buffer);
-
-        CloseHandle(handle).ok();
-
-        if len == 0 {
-            return Err(anyhow::anyhow!("Failed to get process name"));
-        }
-
-        Ok(String::from_utf16_lossy(&buffer[..len as usize]))
-    }
+    <WindowsPlatform as PlatformUtilities>::get_process_name_by_pid(pid)
 }
 
 pub fn get_executable_path_by_pid(pid: u32) -> anyhow::Result<String> {
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-    };
-
-    unsafe {
-        let handle =
-            OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
-                .map_err(|e| anyhow::anyhow!("Failed to open process: {}", e))?;
-
-        let mut buffer = [0u16; 260];
-        let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
-
-        CloseHandle(handle).ok();
-
-        if len == 0 {
-            return Err(anyhow::anyhow!("Failed to get executable path"));
-        }
-
-        Ok(String::from_utf16_lossy(&buffer[..len as usize]))
-    }
+    <WindowsPlatform as PlatformUtilities>::get_executable_path_by_pid(pid)
 }

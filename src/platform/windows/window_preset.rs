@@ -6,7 +6,6 @@ use crate::platform::common::window_preset::{
 };
 use crate::platform::traits::WindowPresetManager as WindowPresetManagerTrait;
 use crate::platform::types::{WindowId, WindowInfo};
-use crate::platform::windows::window_api::WindowApi;
 use crate::platform::windows::window_manager::WindowManager;
 use anyhow::Result;
 use windows::Win32::Foundation::HWND;
@@ -27,8 +26,28 @@ impl WindowPresetApi for WindowManager {
     }
 
     fn get_window_info(&self, window: Self::WindowId) -> Result<WindowInfo> {
-        let title = self.api.get_window_title(window).unwrap_or_default();
-        let frame = self.api.get_window_rect(window)?;
+        use crate::platform::traits::WindowOperations;
+
+        // Get window info using the trait methods
+        let window_id = window.0 as usize;
+
+        // Get title using Windows API directly since it's not in the trait
+        let title = unsafe {
+            let mut title_buffer = [0u16; 256];
+            let len = windows::Win32::UI::WindowsAndMessaging::GetWindowTextW(
+                window,
+                &mut title_buffer,
+            );
+            if len == 0 {
+                String::new()
+            } else {
+                String::from_utf16_lossy(&title_buffer[..len as usize])
+            }
+        };
+
+        // Get window rect using trait method
+        let info = WindowOperations::get_window_info(self, window_id)?;
+
         let process_name = unsafe {
             match get_window_process_id(window) {
                 Ok(pid) => super::get_process_name_by_pid(pid).unwrap_or_default(),
@@ -38,14 +57,14 @@ impl WindowPresetApi for WindowManager {
         let executable_path = unsafe { get_window_executable_path(window).ok() };
 
         Ok(WindowInfo {
-            id: window.0 as usize,
+            id: window_id,
             title,
             process_name,
             executable_path,
-            x: frame.x,
-            y: frame.y,
-            width: frame.width,
-            height: frame.height,
+            x: info.x,
+            y: info.y,
+            width: info.width,
+            height: info.height,
         })
     }
 
@@ -57,16 +76,18 @@ impl WindowPresetApi for WindowManager {
         w: i32,
         h: i32,
     ) -> Result<()> {
-        self.api.ensure_window_restored(window)?;
-        self.api.set_window_pos(window, x, y, w, h)
+        use crate::platform::traits::WindowOperations;
+        WindowOperations::set_window_pos(self, window.0 as usize, x, y, w, h)
     }
 
     fn minimize_window(&self, window: Self::WindowId) -> Result<()> {
-        self.api.minimize_window(window)
+        use crate::platform::traits::WindowOperations;
+        WindowOperations::minimize_window(self, window.0 as usize)
     }
 
     fn maximize_window(&self, window: Self::WindowId) -> Result<()> {
-        self.api.maximize_window(window)
+        use crate::platform::traits::WindowOperations;
+        WindowOperations::maximize_window(self, window.0 as usize)
     }
 }
 

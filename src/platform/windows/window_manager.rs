@@ -10,9 +10,12 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows_core::BOOL;
 
-use crate::platform::traits::WindowManager as WindowManagerTrait;
+use crate::platform::traits::{
+    ForegroundWindowOperations, MonitorOperations, WindowManager as WindowManagerTrait,
+    WindowManagerExt, WindowOperations, WindowStateQueries,
+};
 use crate::platform::types::{MonitorInfo, WindowFrame, WindowId, WindowInfo};
-use crate::platform::windows::window_api::WindowApi;
+use crate::platform::windows::window_api::RealWindowApi;
 
 /// Monitor direction (for moving between displays)
 #[derive(Debug, Clone, Copy)]
@@ -30,76 +33,33 @@ fn window_id_to_hwnd(id: WindowId) -> HWND {
     HWND(id as *mut core::ffi::c_void)
 }
 
-/// Enumerate all monitors using EnumDisplayMonitors.
-pub(crate) unsafe fn enumerate_all_monitors() -> Vec<MonitorInfo> {
-    use windows::Win32::Graphics::Gdi::{
-        EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO,
-    };
-
-    struct EnumData {
-        monitors: Vec<MonitorInfo>,
-    }
-
-    unsafe extern "system" fn enum_callback(
-        hmonitor: HMONITOR,
-        _hdc: HDC,
-        _rect: *mut RECT,
-        lparam: LPARAM,
-    ) -> BOOL {
-        let data = &mut *(lparam.0 as *mut EnumData);
-
-        let mut monitor_info = MONITORINFO {
-            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-            ..Default::default()
-        };
-
-        if GetMonitorInfoW(hmonitor, &mut monitor_info).as_bool() {
-            let work_area = &monitor_info.rcWork;
-            data.monitors.push(MonitorInfo {
-                x: work_area.left,
-                y: work_area.top,
-                width: work_area.right - work_area.left,
-                height: work_area.bottom - work_area.top,
-            });
-        }
-
-        BOOL(1)
-    }
-
-    let mut data = EnumData {
-        monitors: Vec::new(),
-    };
-
-    let _ = EnumDisplayMonitors(
-        None,
-        None,
-        Some(enum_callback),
-        LPARAM(&mut data as *mut _ as isize),
-    );
-
-    data.monitors
-}
-
-/// Windows window manager
+/// Windows-specific window manager
+///
+/// This wraps the generic `common::WindowManager` and adds Windows-specific
+/// functionality like `move_to_monitor` with HWND-based API.
 pub struct WindowManager {
-    pub(crate) api: super::window_api::RealWindowApi,
+    inner: crate::platform::common::window_manager::WindowManager<RealWindowApi>,
 }
 
 impl WindowManager {
+    /// Create a new Windows window manager
     pub fn new() -> Self {
         Self {
-            api: super::window_api::RealWindowApi::new(),
+            inner: crate::platform::common::window_manager::WindowManager::with_api(
+                RealWindowApi::new(),
+            ),
         }
     }
 
-    /// Move window to another monitor
-    pub fn move_to_monitor(
+    /// Move window to another monitor using HWND
+    pub fn move_to_monitor_hwnd(
         &self,
         hwnd: HWND,
         direction: MonitorDirection,
     ) -> Result<()> {
         unsafe {
-            let monitors = enumerate_all_monitors();
+            use crate::platform::traits::MonitorOperations;
+            let monitors = MonitorOperations::get_monitors(self);
             if monitors.len() < 2 {
                 debug!("Only one monitor, nothing to do");
                 return Ok(());
@@ -129,8 +89,14 @@ impl WindowManager {
             let target_monitor = &monitors[target_index];
             let current_monitor = &monitors[current_monitor_index];
 
-            let info = self.get_window_info(hwnd.0 as usize)?;
-            let frame = WindowFrame::new(info.x, info.y, info.width, info.height);
+            let mut rect = RECT::default();
+            GetWindowRect(hwnd, &mut rect)?;
+            let frame = WindowFrame::new(
+                rect.left,
+                rect.top,
+                rect.right - rect.left,
+                rect.bottom - rect.top,
+            );
 
             let rel_x =
                 (frame.x - current_monitor.x) as f32 / current_monitor.width as f32;
@@ -144,12 +110,9 @@ impl WindowManager {
             let new_width = (rel_width * target_monitor.width as f32) as i32;
             let new_height = (rel_height * target_monitor.height as f32) as i32;
 
-            self.set_window_pos(
-                hwnd_to_window_id(hwnd),
-                new_x,
-                new_y,
-                new_width,
-                new_height,
+            let window_id = hwnd_to_window_id(hwnd);
+            WindowOperations::set_window_pos(
+                self, window_id, new_x, new_y, new_width, new_height,
             )?;
 
             debug!(
@@ -487,6 +450,64 @@ impl WindowManager {
 
         result
     }
+
+    // Delegate methods to inner generic WindowManager
+    pub fn move_to_center(&self, window: WindowId) -> Result<()> {
+        self.inner.move_to_center(window)
+    }
+
+    pub fn move_to_edge(
+        &self,
+        window: WindowId,
+        edge: crate::types::Edge,
+    ) -> Result<()> {
+        self.inner.move_to_edge(window, edge)
+    }
+
+    pub fn set_half_screen(
+        &self,
+        window: WindowId,
+        edge: crate::types::Edge,
+    ) -> Result<()> {
+        self.inner.set_half_screen(window, edge)
+    }
+
+    pub fn loop_width(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        self.inner.loop_width(window, align)
+    }
+
+    pub fn loop_height(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        self.inner.loop_height(window, align)
+    }
+
+    pub fn set_fixed_ratio(
+        &self,
+        window: WindowId,
+        ratio: f32,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        self.inner.set_fixed_ratio(window, ratio, scale_index)
+    }
+
+    pub fn set_native_ratio(
+        &self,
+        window: WindowId,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        self.inner.set_native_ratio(window, scale_index)
+    }
+
+    pub fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
+        self.inner.toggle_topmost(window)
+    }
 }
 
 impl Default for WindowManager {
@@ -495,26 +516,10 @@ impl Default for WindowManager {
     }
 }
 
-impl WindowManagerTrait for WindowManager {
-    fn get_foreground_window(&self) -> Option<WindowId> {
-        self.api.get_foreground_window().map(hwnd_to_window_id)
-    }
-
+// Delegate trait implementations to inner WindowManager
+impl WindowOperations for WindowManager {
     fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
-        let hwnd = window_id_to_hwnd(window);
-        let title = self.api.get_window_title(hwnd).unwrap_or_default();
-        let frame = self.api.get_window_rect(hwnd)?;
-
-        Ok(WindowInfo {
-            id: window,
-            title,
-            process_name: String::new(),
-            executable_path: None,
-            x: frame.x,
-            y: frame.y,
-            width: frame.width,
-            height: frame.height,
-        })
+        self.inner.get_window_info(window)
     }
 
     fn set_window_pos(
@@ -525,66 +530,232 @@ impl WindowManagerTrait for WindowManager {
         width: i32,
         height: i32,
     ) -> Result<()> {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.ensure_window_restored(hwnd)?;
-        self.api.set_window_pos(hwnd, x, y, width, height)
+        self.inner.set_window_pos(window, x, y, width, height)
     }
 
     fn minimize_window(&self, window: WindowId) -> Result<()> {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.minimize_window(hwnd)
+        self.inner.minimize_window(window)
     }
 
     fn maximize_window(&self, window: WindowId) -> Result<()> {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.maximize_window(hwnd)
+        self.inner.maximize_window(window)
     }
 
     fn restore_window(&self, window: WindowId) -> Result<()> {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.restore_window(hwnd)
+        self.inner.restore_window(window)
     }
 
     fn close_window(&self, window: WindowId) -> Result<()> {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.close_window(hwnd)
+        self.inner.close_window(window)
     }
+}
 
-    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.set_topmost(hwnd, topmost)
-    }
-
-    fn is_topmost(&self, window: WindowId) -> bool {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.is_topmost(hwnd)
-    }
-
+impl WindowStateQueries for WindowManager {
     fn is_window_valid(&self, window: WindowId) -> bool {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.is_window(hwnd)
+        self.inner.is_window_valid(window)
     }
 
     fn is_minimized(&self, window: WindowId) -> bool {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.is_iconic(hwnd)
+        self.inner.is_minimized(window)
     }
 
     fn is_maximized(&self, window: WindowId) -> bool {
-        let hwnd = window_id_to_hwnd(window);
-        self.api.is_zoomed(hwnd)
+        self.inner.is_maximized(window)
     }
 
+    fn is_topmost(&self, window: WindowId) -> bool {
+        self.inner.is_topmost(window)
+    }
+}
+
+impl ForegroundWindowOperations for WindowManager {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        self.inner.get_foreground_window()
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        self.inner.set_topmost(window, topmost)
+    }
+}
+
+impl MonitorOperations for WindowManager {
     fn get_monitors(&self) -> Vec<MonitorInfo> {
-        unsafe { enumerate_all_monitors() }
+        self.inner.get_monitors()
     }
 
     fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
         let hwnd = window_id_to_hwnd(window);
-        self.move_to_monitor(hwnd, MonitorDirection::Index(monitor_index as i32))
+        self.move_to_monitor_hwnd(hwnd, MonitorDirection::Index(monitor_index as i32))
+    }
+}
+
+impl WindowManagerExt for WindowManager {
+    fn move_to_center(&self, window: WindowId) -> Result<()> {
+        self.move_to_center(window)
+    }
+
+    fn move_to_edge(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        self.move_to_edge(window, edge)
+    }
+
+    fn set_half_screen(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        self.set_half_screen(window, edge)
+    }
+
+    fn loop_width(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        self.loop_width(window, align)
+    }
+
+    fn loop_height(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        self.loop_height(window, align)
+    }
+
+    fn set_fixed_ratio(
+        &self,
+        window: WindowId,
+        ratio: f32,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        self.set_fixed_ratio(window, ratio, scale_index)
+    }
+
+    fn set_native_ratio(
+        &self,
+        window: WindowId,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        self.set_native_ratio(window, scale_index)
+    }
+
+    fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
+        self.toggle_topmost(window)
+    }
+}
+
+// Implement the legacy WindowManager trait for backward compatibility
+// Note: All other methods are provided by blanket impls in traits.rs
+impl WindowManagerTrait for WindowManager {
+    fn get_foreground_window(&self) -> Option<WindowId> {
+        ForegroundWindowOperations::get_foreground_window(self)
+    }
+
+    fn get_window_info(&self, window: WindowId) -> Result<WindowInfo> {
+        WindowOperations::get_window_info(self, window)
+    }
+
+    fn set_window_pos(
+        &self,
+        window: WindowId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        WindowOperations::set_window_pos(self, window, x, y, width, height)
+    }
+
+    fn minimize_window(&self, window: WindowId) -> Result<()> {
+        WindowOperations::minimize_window(self, window)
+    }
+
+    fn maximize_window(&self, window: WindowId) -> Result<()> {
+        WindowOperations::maximize_window(self, window)
+    }
+
+    fn restore_window(&self, window: WindowId) -> Result<()> {
+        WindowOperations::restore_window(self, window)
+    }
+
+    fn close_window(&self, window: WindowId) -> Result<()> {
+        WindowOperations::close_window(self, window)
+    }
+
+    fn set_topmost(&self, window: WindowId, topmost: bool) -> Result<()> {
+        ForegroundWindowOperations::set_topmost(self, window, topmost)
+    }
+
+    fn is_topmost(&self, window: WindowId) -> bool {
+        WindowStateQueries::is_topmost(self, window)
+    }
+
+    fn is_window_valid(&self, window: WindowId) -> bool {
+        WindowStateQueries::is_window_valid(self, window)
+    }
+
+    fn is_minimized(&self, window: WindowId) -> bool {
+        WindowStateQueries::is_minimized(self, window)
+    }
+
+    fn is_maximized(&self, window: WindowId) -> bool {
+        WindowStateQueries::is_maximized(self, window)
+    }
+
+    fn get_monitors(&self) -> Vec<MonitorInfo> {
+        MonitorOperations::get_monitors(self)
+    }
+
+    fn move_to_monitor(&self, window: WindowId, monitor_index: usize) -> Result<()> {
+        MonitorOperations::move_to_monitor(self, window, monitor_index)
     }
 
     fn switch_to_next_window_of_same_process(&self) -> Result<()> {
         self.switch_to_next_window_of_same_process()
+    }
+
+    fn move_to_center(&self, window: WindowId) -> Result<()> {
+        WindowManagerExt::move_to_center(self, window)
+    }
+
+    fn move_to_edge(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        WindowManagerExt::move_to_edge(self, window, edge)
+    }
+
+    fn set_half_screen(&self, window: WindowId, edge: crate::types::Edge) -> Result<()> {
+        WindowManagerExt::set_half_screen(self, window, edge)
+    }
+
+    fn loop_width(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        WindowManagerExt::loop_width(self, window, align)
+    }
+
+    fn loop_height(
+        &self,
+        window: WindowId,
+        align: crate::types::Alignment,
+    ) -> Result<()> {
+        WindowManagerExt::loop_height(self, window, align)
+    }
+
+    fn set_fixed_ratio(
+        &self,
+        window: WindowId,
+        ratio: f32,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        WindowManagerExt::set_fixed_ratio(self, window, ratio, scale_index)
+    }
+
+    fn set_native_ratio(
+        &self,
+        window: WindowId,
+        scale_index: Option<usize>,
+    ) -> Result<()> {
+        WindowManagerExt::set_native_ratio(self, window, scale_index)
+    }
+
+    fn toggle_topmost(&self, window: WindowId) -> Result<bool> {
+        WindowManagerExt::toggle_topmost(self, window)
     }
 }
