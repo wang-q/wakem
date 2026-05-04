@@ -155,6 +155,15 @@ impl LayerManager {
         self.stack.is_layer_active(name)
     }
 
+    /// Check if a key is a layer activation key
+    pub fn is_activation_key(&self, scan_code: u16, virtual_key: u16) -> bool {
+        let key = ActivationKey {
+            scan_code,
+            virtual_key,
+        };
+        self.activation_key_index.contains_key(&key)
+    }
+
     /// Deactivate all layers
     pub fn clear_layers(&mut self) {
         self.stack.clear_active_layers();

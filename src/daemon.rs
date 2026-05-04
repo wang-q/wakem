@@ -105,7 +105,6 @@ impl ServerState {
         // Lock acquisition order (must be consistent to prevent deadlocks):
         // 1. auth_key       2. mapper         3. hyper_key_map
         // 4. preset_manager 5. layer_manager   6. config
-        // 7. config_loaded
         // IMPORTANT: Always acquire locks in this order. Never acquire an earlier
         // lock while holding a later one, as this could cause deadlocks.
         // Debug: Log config details
@@ -198,15 +197,10 @@ impl ServerState {
             }
         }
 
-        // 5. Finally update config (ensure all components are ready)
+        // 5. Update config and mark as loaded (single write lock acquisition)
         {
             let mut cfg = self.config.write().await;
             cfg.config = config;
-        }
-
-        // 6. Mark config as loaded
-        {
-            let mut cfg = self.config.write().await;
             cfg.loaded = true;
         }
 
@@ -359,22 +353,32 @@ impl ServerState {
             );
         }
 
-        // Filter out key release events for non-hyper keys
+        // Filter out key release events for non-hyper keys (unless they are layer activation keys)
         // This replaces the old RI_KEY_BREAK filter in input.rs which dropped ALL key-up events.
         // We need hyper-key releases to pass through (to clear virtual_modifiers),
-        // but must block other releases to prevent double-triggering of shortcut actions.
+        // and layer activation key releases (for Hold mode deactivation).
+        // Other releases are blocked to prevent double-triggering of shortcut actions.
         if let InputEvent::Key(ref key_event) = event {
             if key_event.state == KeyState::Released {
                 let hyper_map = self.hyper_key_map.read().await;
-                if !hyper_map.contains_key(&(key_event.scan_code, key_event.virtual_key))
-                {
-                    debug!("Filtered non-hyper key release event");
-                    // Remove from pressed_keys on release
-                    self.pressed_keys
-                        .write()
-                        .await
-                        .remove(&(key_event.scan_code, key_event.virtual_key));
-                    return;
+                let is_hyper_key = hyper_map
+                    .contains_key(&(key_event.scan_code, key_event.virtual_key));
+                drop(hyper_map);
+
+                if !is_hyper_key {
+                    let layer_manager = self.layer_manager.read().await;
+                    let is_layer_key = layer_manager
+                        .is_activation_key(key_event.scan_code, key_event.virtual_key);
+                    drop(layer_manager);
+
+                    if !is_layer_key {
+                        debug!("Filtered non-hyper key release event");
+                        self.pressed_keys
+                            .write()
+                            .await
+                            .remove(&(key_event.scan_code, key_event.virtual_key));
+                        return;
+                    }
                 }
             }
         }
@@ -562,9 +566,9 @@ impl ServerState {
             }
             Action::Window(window_action) => {
                 info!(?window_action, "Executing window action");
-                let ns = self.notification_service.lock().await;
-                let mut pm = self.window_preset_manager.write().await;
                 let mut mapper = self.mapper.write().await;
+                let mut pm = self.window_preset_manager.write().await;
+                let ns = self.notification_service.lock().await;
                 mapper.execute_action(
                     &Action::Window(window_action),
                     Some(ns.as_ref()),
@@ -711,22 +715,20 @@ impl ServerState {
 
     /// Save macro to config
     async fn save_macro(&self, macro_def: &Macro) -> Result<()> {
-        let config_path = {
+        {
             let mut config = self.config.write().await;
             config
                 .config
                 .macros
                 .insert(macro_def.name.clone(), macro_def.steps.clone());
-            crate::config::resolve_config_file_path(
+            let config_path = crate::config::resolve_config_file_path(
                 None,
                 config.config.network.instance_id,
-            )
-        };
-
-        if let Some(config_path) = config_path {
-            let config = self.config.read().await;
-            if let Err(e) = config.config.save_to_file(&config_path) {
-                warn!("Failed to save config to file: {}", e);
+            );
+            if let Some(ref path) = config_path {
+                if let Err(e) = config.config.save_to_file(path) {
+                    warn!("Failed to save config to file: {}", e);
+                }
             }
         }
 
@@ -1169,7 +1171,7 @@ pub async fn run_server_with_config(
         });
 
         // Bridge: receive from std channel and send to tokio channel
-        // Use try_recv to allow checking shutdown flag
+        // Use recv_timeout to allow checking shutdown flag without busy-waiting
         loop {
             if shutdown_flag.load(Ordering::SeqCst) {
                 // Signal Raw Input thread to stop
@@ -1178,7 +1180,7 @@ pub async fn run_server_with_config(
                 let _ = raw_input_handle.join();
                 break;
             }
-            match std_rx.try_recv() {
+            match std_rx.recv_timeout(std::time::Duration::from_millis(100)) {
                 Ok(event) => {
                     if tx_clone.blocking_send(event).is_err() {
                         // Channel closed, signal Raw Input to stop and exit
@@ -1187,11 +1189,10 @@ pub async fn run_server_with_config(
                         break;
                     }
                 }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    // No events, sleep briefly to avoid busy waiting
-                    std::thread::sleep(std::time::Duration::from_millis(10));
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    // Timeout, loop back to check shutdown flag
                 }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                     // Sender dropped, signal Raw Input to stop and exit
                     raw_input_shutdown_for_bridge.store(true, Ordering::SeqCst);
                     let _ = raw_input_handle.join();
@@ -1336,22 +1337,21 @@ pub async fn run_server_with_config(
                 });
 
                 // Bridge: receive from std channel and send to tokio channel
-                // Use try_recv to allow checking shutdown flag
+                // Use recv_timeout to allow checking shutdown flag without busy-waiting
                 loop {
                     if shutdown_flag.load(Ordering::SeqCst) {
                         break;
                     }
-                    match std_rx.try_recv() {
+                    match std_rx.recv_timeout(std::time::Duration::from_millis(100)) {
                         Ok(event) => {
                             if tx.blocking_send(event).is_err() {
                                 break;
                             }
                         }
-                        Err(std::sync::mpsc::TryRecvError::Empty) => {
-                            // No events, sleep briefly to avoid busy waiting
-                            std::thread::sleep(std::time::Duration::from_millis(10));
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                            // Timeout, loop back to check shutdown flag
                         }
-                        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                             // Sender dropped, exit
                             break;
                         }

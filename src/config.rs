@@ -899,7 +899,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<crate::types::KeyInfo> {
     if let Ok(key) = name_lower.parse::<Key>() {
         let code = crate::platform::key_to_internal_code(&key);
         if code != 0 || !name_lower.is_empty() {
-            return Ok(crate::types::KeyInfo::new(code, code));
+            return Ok(crate::types::KeyInfo::new(0, code));
         }
     }
 

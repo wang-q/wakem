@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::platform::traits::OutputDevice;
 use crate::types::key_codes::{VK_ALT, VK_CONTROL, VK_LMETA, VK_SHIFT};
@@ -215,10 +215,16 @@ impl MacroPlayer {
                 }
             }
             Action::Window(window_action) => {
-                debug!("Macro WindowAction: {:?}", window_action);
+                warn!(
+                    "Macro playback skipped WindowAction (not supported): {:?}",
+                    window_action
+                );
             }
             Action::Launch(launch_action) => {
-                debug!("Macro LaunchAction: {:?}", launch_action);
+                warn!(
+                    "Macro playback skipped LaunchAction (not supported): {:?}",
+                    launch_action
+                );
             }
             Action::Sequence(actions) => {
                 debug!("Macro Sequence: {} actions", actions.len());

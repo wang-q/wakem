@@ -1,10 +1,10 @@
 //! IPC client implementation.
 
-use crate::constants::IPC_CONNECTION_TIMEOUT_SECS;
+use crate::constants::{IPC_CONNECTION_TIMEOUT_SECS, IPC_PROTOCOL_VERSION};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time::{timeout, Duration as TokioDuration};
-use tracing::debug;
+use tracing::{debug, warn};
 
 use super::auth::{compute_response, AUTH_RESULT_SUCCESS, CHALLENGE_SIZE};
 use super::io::{read_message, send_message};
@@ -52,6 +52,22 @@ impl IpcClient {
                 return Err(IpcError::ConnectionRefused);
             }
             debug!("Authentication successful");
+
+            let mut version_bytes = [0u8; 2];
+            timeout(
+                TokioDuration::from_secs(IPC_CONNECTION_TIMEOUT_SECS),
+                stream.read_exact(&mut version_bytes),
+            )
+            .await
+            .map_err(|_| IpcError::Timeout)??;
+            let server_version = u16::from_be_bytes(version_bytes);
+            if server_version != IPC_PROTOCOL_VERSION {
+                warn!(
+                    "Protocol version mismatch: server={}, client={}",
+                    server_version, IPC_PROTOCOL_VERSION
+                );
+            }
+            debug!("Server protocol version: {}", server_version);
         }
 
         self.stream = Some(stream);

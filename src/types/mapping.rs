@@ -133,10 +133,21 @@ impl Trigger {
     }
 
     /// Create simple key trigger
+    ///
+    /// A value of 0 for scan_code or virtual_key is treated as "don't care"
+    /// (converted to None), so the trigger only matches on the non-zero field.
     pub fn key(scan_code: u16, virtual_key: u16) -> Self {
         Self::Key {
-            scan_code: Some(scan_code),
-            virtual_key: Some(virtual_key),
+            scan_code: if scan_code != 0 {
+                Some(scan_code)
+            } else {
+                None
+            },
+            virtual_key: if virtual_key != 0 {
+                Some(virtual_key)
+            } else {
+                None
+            },
             modifiers: ModifierState::default(),
         }
     }
@@ -148,8 +159,16 @@ impl Trigger {
         modifiers: ModifierState,
     ) -> Self {
         Self::Key {
-            scan_code: Some(scan_code),
-            virtual_key: Some(virtual_key),
+            scan_code: if scan_code != 0 {
+                Some(scan_code)
+            } else {
+                None
+            },
+            virtual_key: if virtual_key != 0 {
+                Some(virtual_key)
+            } else {
+                None
+            },
             modifiers,
         }
     }
