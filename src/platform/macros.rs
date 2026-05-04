@@ -53,7 +53,15 @@ macro_rules! impl_platform_factory_methods {
 }
 
 /// Macro implementing `TrayLifecycle` with the standard delegation pattern.
-/// Both platforms delegate to module-level `tray::run_tray_message_loop` / `tray::stop_tray`.
+///
+/// # Contract
+///
+/// This macro relies on the parent platform module exposing a **`tray`**
+/// child module with two public functions:
+///
+/// - `tray::run_tray_message_loop(callback: impl Fn(AppCommand) + Send + 'static) -> Result<()>`
+/// - `tray::stop_tray()`
+///
 /// Intended for use in the platform `mod.rs` where `tray` is a direct child module.
 #[macro_export]
 macro_rules! impl_tray_lifecycle {
@@ -81,13 +89,20 @@ macro_rules! impl_context_provider {
     };
 }
 
-/// Macro implementing [`WindowEventHookTrait`] with the standard delegation
+/// Macro implementing [`WindowEventHook`] with the standard delegation
 /// pattern. The platform `WindowEventHook` types expose inherent methods
 /// (`start_with_shutdown`, `stop`, `shutdown_flag`) that implement the
 /// actual logic. This macro generates trait method bodies that delegate
 /// to those inherent methods.
 ///
-/// [`WindowEventHookTrait`]: crate::platform::traits::WindowEventHookTrait
+/// # Name resolution
+///
+/// The trait method names are intentionally **identical** to the inherent
+/// methods. This relies on Rust's method resolution rules: inherent methods
+/// take priority over trait methods, so `self.stop()` resolves to the
+/// inherent `stop()` rather than recursively calling the trait method.
+///
+/// [`WindowEventHook`]: crate::platform::traits::WindowEventHook
 #[macro_export]
 macro_rules! impl_window_event_hook {
     () => {

@@ -23,7 +23,7 @@ use objc::runtime::{Class, Object, Protocol, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 
 // Re-export shared tray types
-pub use crate::platform::traits::{AppCommand, MenuAction};
+pub use crate::platform::types::{AppCommand, MenuAction};
 // Import unified TrayApi trait from common::tray
 use crate::platform::common::tray::{
     default_menu_items, menu_id_to_app_command, TrayApi,
@@ -310,16 +310,6 @@ impl TrayApi for RealTrayApi {
         self.registered.load(Ordering::SeqCst)
     }
 }
-
-// Re-export TrayIconWrapper and TrayManager from common::tray
-pub use crate::platform::common::tray::TrayIconWrapper;
-pub use crate::platform::common::tray::TrayManager;
-
-/// Type aliases for convenience
-pub type RealTrayManager = TrayManager<RealTrayApi>;
-
-#[cfg(test)]
-pub type MockTrayManager = TrayManager<MockTrayApi>;
 
 /// Run the tray event loop
 /// This function initializes NSApplication, creates the tray, and runs the event loop

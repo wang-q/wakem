@@ -21,26 +21,14 @@ pub mod window_preset;
 use crate::platform::traits::{PlatformFactory, TrayLifecycle, WindowEventHook};
 
 pub use crate::platform::common::launcher::Launcher;
-pub use crate::platform::traits::InputDeviceConfig;
-
 pub use input_device::MacosInputDeviceExt;
 pub type InputDevice = MacosInputDeviceExt;
-
 pub use notification::MacosNotificationService;
 pub use output_device::MacosOutputDevice;
-
 pub use platform_utils::MacosPlatform;
-
-pub use tray::{
-    run_tray_event_loop, run_tray_message_loop, stop_tray, AppCommand, RealTrayApi,
-    TrayIconWrapper as TrayIcon, TrayManager,
-};
-
 pub use window_api::RealMacosWindowApi;
 pub use window_event_hook::MacosWindowEventHook;
-
 pub use window_manager::WindowManager;
-
 pub use window_preset::WindowPresetManager;
 
 crate::impl_platform_utils_delegates!();

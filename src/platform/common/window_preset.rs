@@ -21,6 +21,20 @@ use tracing::{debug, info};
 /// Each platform implements this trait to provide window query and
 /// manipulation primitives. The common manager then builds all
 /// higher-level preset operations on top of these primitives.
+///
+/// # Why a separate trait instead of using `WindowApiBase`?
+///
+/// [`WindowApiBase`] has 14+ methods covering full window management.
+/// `WindowPresetApi` exposes only the 5 methods that [`WindowPresetManager`]
+/// actually needs. This narrower interface makes testing simpler: test code
+/// only needs to implement these 5 methods, not the entire window API.
+///
+/// For production use, a blanket impl automatically bridges any
+/// [`WindowManager<A>`] (where `A: WindowApiBase`) to `WindowPresetApi`.
+///
+/// [`WindowApiBase`]: crate::platform::traits::WindowApiBase
+/// [`WindowPresetManager`]: crate::platform::common::window_preset::WindowPresetManager
+/// [`WindowManager<A>`]: crate::platform::common::window_manager::WindowManager
 pub trait WindowPresetApi {
     type WindowId: Copy;
 

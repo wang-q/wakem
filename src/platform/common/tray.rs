@@ -88,6 +88,14 @@ pub trait TrayApi: Send + Sync {
 /// Previously, Windows and macOS had separate `TrayManager` definitions.
 /// This unified version combines the API wrapper from the Windows version
 /// with the lifecycle management from the macOS version.
+///
+/// # Relationship with `run_tray_message_loop`
+///
+/// The production tray entry point (`run_tray_message_loop` in each platform's
+/// `tray.rs`) implements its own message pump / event loop directly using the
+/// platform's native APIs. `TrayManager` is **not** used inside that loop;
+/// instead, it provides a higher-level API abstraction primarily useful for
+/// **testing** tray behavior through [`MockTrayApi`].
 pub struct TrayManager<T: TrayApi> {
     tray: Option<TrayIconWrapper<T>>,
     command_sender: Sender<AppCommand>,
