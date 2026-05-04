@@ -288,12 +288,13 @@ impl WindowApiBase for RealWindowApi {
 
             let current_pid = self.get_window_process_id(current_hwnd)?;
 
-            let windows = match super::get_process_name_by_pid(current_pid) {
+            let mut windows = match super::get_process_name_by_pid(current_pid) {
                 Ok(process_name) => {
                     tracing::debug!(
-                        "[SwitchWindow] PID={}, process={}",
+                        "[SwitchWindow] PID={}, process={}, current_hwnd={:?}",
                         current_pid,
-                        process_name
+                        process_name,
+                        current_hwnd
                     );
                     self.get_app_visible_windows(&process_name)
                 }
@@ -306,14 +307,37 @@ impl WindowApiBase for RealWindowApi {
                 }
             };
 
-            tracing::debug!("[SwitchWindow] Found {} windows", windows.len());
+            // Remove duplicates (same hwnd appearing multiple times)
+            let original_len = windows.len();
+            windows.sort_by_key(|hwnd| hwnd_to_window_id(*hwnd));
+            windows.dedup_by_key(|hwnd| hwnd_to_window_id(*hwnd));
+            if windows.len() != original_len {
+                tracing::debug!("[SwitchWindow] Removed {} duplicates", original_len - windows.len());
+            }
+
+            // Ensure current window is in the list
+            if !windows.contains(&current_hwnd) {
+                tracing::debug!(
+                    "[SwitchWindow] Current window {:?} not in list, adding it",
+                    current_hwnd
+                );
+                windows.push(current_hwnd);
+            }
+
+            tracing::debug!("[SwitchWindow] Total unique windows: {}", windows.len());
 
             if windows.len() < 2 {
+                tracing::debug!("[SwitchWindow] Only {} window(s), skipping switch", windows.len());
                 return Ok(());
             }
 
-            let sorted_windows = self.sort_windows_by_zorder(windows);
+            // Sort by WindowId for stable ordering (not by z-order)
+            // WindowId is based on platform-native window handle, providing stable ordering
+            // This ensures consistent cycling regardless of current z-order
+            let mut sorted_windows = windows;
+            sorted_windows.sort_by_key(|hwnd| hwnd_to_window_id(*hwnd));
 
+            // Find current window index
             let current_index = sorted_windows
                 .iter()
                 .position(|&hwnd| hwnd == current_hwnd)
@@ -322,9 +346,12 @@ impl WindowApiBase for RealWindowApi {
             let next_index = (current_index + 1) % sorted_windows.len();
             let next_hwnd = sorted_windows[next_index];
 
-            tracing::debug!(
-                "[SwitchWindow] Switching index {} -> {}",
+            tracing::info!(
+                "[SwitchWindow] {} windows, current={:?} (idx={}), next={:?} (idx={})",
+                sorted_windows.len(),
+                current_hwnd,
                 current_index,
+                next_hwnd,
                 next_index
             );
 
@@ -500,56 +527,6 @@ impl RealWindowApi {
                 EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
 
             data.windows
-        }
-    }
-
-    fn sort_windows_by_zorder(&self, windows: Vec<HWND>) -> Vec<HWND> {
-        use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
-        use windows_core::BOOL;
-
-        unsafe {
-            let mut zorder_map: std::collections::HashMap<isize, usize> =
-                std::collections::HashMap::new();
-
-            struct EnumData<'a> {
-                target_windows: &'a [HWND],
-                zorder_map: &'a mut std::collections::HashMap<isize, usize>,
-                z_index: usize,
-            }
-
-            unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-                let data = &mut *(lparam.0 as *mut EnumData);
-
-                if !IsWindowVisible(hwnd).as_bool() {
-                    return BOOL(1);
-                }
-
-                if data.target_windows.contains(&hwnd) {
-                    data.zorder_map.insert(hwnd.0 as isize, data.z_index);
-                }
-
-                data.z_index += 1;
-                BOOL(1)
-            }
-
-            let mut data = EnumData {
-                target_windows: &windows,
-                zorder_map: &mut zorder_map,
-                z_index: 0,
-            };
-
-            let _ =
-                EnumWindows(Some(enum_callback), LPARAM(&mut data as *mut _ as isize));
-
-            let mut sorted = windows;
-            sorted.sort_by_key(|hwnd| {
-                zorder_map
-                    .get(&(hwnd.0 as isize))
-                    .copied()
-                    .unwrap_or(usize::MAX)
-            });
-
-            sorted
         }
     }
 

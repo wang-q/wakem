@@ -698,6 +698,66 @@ mod integration_tests {
         teardown();
     }
 
+    /// Test that window switching actually cycles through ALL windows, not just two.
+    /// This test specifically targets the bug where switching would only alternate
+    /// between two windows when there are three or more.
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_switch_actually_cycles_all_windows() {
+        setup();
+
+        // Launch three notepad windows
+        let _pid1 = launch_notepad_without_cleanup();
+        thread::sleep(Duration::from_millis(500));
+        let _pid2 = launch_notepad_without_cleanup();
+        thread::sleep(Duration::from_millis(500));
+        let _pid3 = launch_notepad_without_cleanup();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+
+        // Get initial window list
+        let initial_windows = wm.api().get_app_visible_windows("notepad.exe");
+        assert!(
+            initial_windows.len() >= 3,
+            "Should have at least 3 notepad windows, found {}",
+            initial_windows.len()
+        );
+
+        // Track which windows we've seen during switching
+        let mut seen_windows: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+        // Get the initial foreground window
+        let initial_fg = wm.get_foreground_window().expect("Should have foreground window");
+        seen_windows.insert(initial_fg);
+
+        // Switch through windows and record each unique window we visit
+        // We need to see ALL 3 windows, not just bounce between 2
+        for i in 0..6 { // Try up to 6 switches to ensure we see all windows
+            let result = wm.switch_to_next_window_of_same_process();
+            assert!(result.is_ok(), "Switch {} failed: {:?}", i, result.err());
+            wait_for_window_stable();
+
+            // Small delay to ensure window activation is complete
+            thread::sleep(Duration::from_millis(100));
+
+            if let Some(fg) = wm.get_foreground_window() {
+                seen_windows.insert(fg);
+            }
+        }
+
+        // The bug: if we only ever see 2 windows instead of 3, this assertion will fail
+        assert!(
+            seen_windows.len() >= 3,
+            "Window switching bug detected! Only visited {} unique windows out of {}. \
+             This indicates the switch is only cycling between 2 windows instead of all windows.",
+            seen_windows.len(),
+            initial_windows.len()
+        );
+
+        teardown();
+    }
+
     #[test]
     #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
     fn test_switch_cycles_through_four_windows() {
