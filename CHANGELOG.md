@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.5 - 2026-05-04
+
 ## 0.1.4 - 2026-05-04
 
 ### Features
