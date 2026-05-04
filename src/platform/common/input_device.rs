@@ -10,6 +10,7 @@ use crate::platform::types::InputDeviceConfig;
 use crate::types::{InputEvent, KeyState, ModifierState};
 use anyhow::Result;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use tracing::debug;
 
 /// Shared base state for input device implementations
 ///
@@ -126,6 +127,26 @@ impl<T> InputDevice<T> {
     pub fn stop(&mut self) {
         self.base.stop();
         self.inner = None;
+    }
+}
+
+impl<T: PlatformInputDevice> InputDevice<T> {
+    /// Default unregister implementation shared by all platforms
+    pub fn default_unregister(&mut self, device_name: &str) {
+        debug!("Unregistering {}", device_name);
+        self.base.running = false;
+        if let Some(ref mut inner) = self.inner.take() {
+            inner.stop();
+        }
+    }
+
+    /// Default run_once implementation shared by all platforms
+    pub fn default_run_once(&mut self) -> Result<bool> {
+        if let Some(ref mut inner) = self.inner {
+            inner.run_once()
+        } else {
+            Ok(true)
+        }
     }
 }
 

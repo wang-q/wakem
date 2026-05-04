@@ -61,11 +61,7 @@ impl InputDevice for RawInputDevice {
     }
 
     fn unregister(&mut self) {
-        debug!("Unregistering Raw Input device");
-        self.device.base.running = false;
-        if let Some(ref mut inner) = self.device.inner.take() {
-            inner.stop();
-        }
+        self.device.default_unregister("Raw Input device");
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
@@ -89,12 +85,7 @@ impl InputDevice for RawInputDevice {
     }
 
     fn run_once(&mut self) -> Result<bool> {
-        if let Some(ref mut inner) = self.device.inner {
-            inner.run_once()
-        } else {
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            Ok(true)
-        }
+        self.device.default_run_once()
     }
 }
 

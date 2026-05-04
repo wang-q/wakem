@@ -151,11 +151,7 @@ impl crate::platform::traits::InputDevice for MacosInputDeviceExt {
     }
 
     fn unregister(&mut self) {
-        debug!("Unregistering MacosInputDevice");
-        self.device.base.running = false;
-        if let Some(ref mut inner) = self.device.inner.take() {
-            inner.stop();
-        }
+        self.device.default_unregister("MacosInputDevice");
     }
 
     fn poll_event(&mut self) -> Option<InputEvent> {
@@ -171,11 +167,7 @@ impl crate::platform::traits::InputDevice for MacosInputDeviceExt {
     }
 
     fn run_once(&mut self) -> Result<bool> {
-        if let Some(ref mut inner) = self.device.inner {
-            inner.run_once()
-        } else {
-            Ok(true)
-        }
+        self.device.default_run_once()
     }
 }
 
