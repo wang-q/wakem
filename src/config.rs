@@ -393,9 +393,9 @@ pub struct NetworkConfig {
     /// Instance ID (determines port: 57427 + instance_id)
     #[serde(default)]
     pub instance_id: u32,
-    /// Pre-shared key
+    /// Pre-shared key (stored securely with automatic zeroing)
     #[serde(default)]
-    pub auth_key: Option<String>,
+    pub auth_key: Option<zeroize::Zeroizing<String>>,
 }
 
 impl NetworkConfig {
@@ -414,9 +414,9 @@ impl NetworkConfig {
         if self.auth_key.is_none() {
             let key = Self::generate_random_key();
             debug!("Authentication key generated for security");
-            self.auth_key = Some(key);
+            self.auth_key = Some(zeroize::Zeroizing::new(key));
         }
-        self.auth_key.as_deref().unwrap()
+        self.auth_key.as_ref().map(|z| z.as_str()).unwrap()
     }
 
     /// Generate random authentication key (32 character hex)

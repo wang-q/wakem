@@ -44,7 +44,7 @@ libc = "0.2"
 hmac = "0.12"
 sha2 = "0.10"
 rand = "0.8"
-zeroize = { version = "1.7", features = ["derive"] }
+zeroize = { version = "1.7", features = ["derive", "serde"] }
 
 # Keyboard code mapping (cross-platform)
 keyboard-codes = { version = "0.3", features = ["serde", "phf"] }

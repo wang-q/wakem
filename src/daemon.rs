@@ -12,9 +12,10 @@ use crate::constants::{
 };
 use crate::ipc::{IpcServer, Message};
 use crate::platform::traits::{
-    ContextProvider, InputDevice, Launcher, NotificationService, OutputDevice,
-    PlatformFactory, WindowPresetManager,
+    InputDevice, Launcher, NotificationService, OutputDevice, PlatformFactory,
+    WindowPresetManager,
 };
+use crate::platform::types::WindowContext;
 use crate::runtime::macro_player::MacroPlayer;
 use crate::shutdown::ShutdownSignal;
 use crate::types::{
@@ -24,6 +25,28 @@ use crate::types::{
 use crate::runtime::{KeyMapper, LayerManager};
 
 use crate::platform::CurrentPlatform;
+
+/// Trait for providing context and modifier state
+/// Allows dependency injection for testing
+pub trait ContextProvider: Send + Sync {
+    /// Get current window context
+    fn get_current_context(&self) -> Option<WindowContext>;
+    /// Get current modifier state
+    fn get_modifier_state(&self) -> ModifierState;
+}
+
+/// Default implementation using the current platform
+struct DefaultContextProvider;
+
+impl ContextProvider for DefaultContextProvider {
+    fn get_current_context(&self) -> Option<WindowContext> {
+        <CurrentPlatform as crate::platform::traits::ContextProvider>::get_current_context()
+    }
+
+    fn get_modifier_state(&self) -> ModifierState {
+        CurrentPlatform::get_modifier_state()
+    }
+}
 
 /// Combined config state to reduce lock count
 #[derive(Default)]
@@ -57,8 +80,7 @@ pub struct ServerState {
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     pressed_keys: Arc<Mutex<std::collections::HashSet<(u16, u16)>>>,
     shutdown_signal: ShutdownSignal,
-    context_fn: fn() -> Option<crate::platform::types::WindowContext>,
-    modifier_fn: fn() -> ModifierState,
+    context_provider: Arc<Mutex<Box<dyn ContextProvider + Send + Sync>>>,
 }
 
 impl ServerState {
@@ -87,8 +109,7 @@ impl ServerState {
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
             pressed_keys: Arc::new(Mutex::new(std::collections::HashSet::new())),
             shutdown_signal,
-            context_fn: get_current_context_default,
-            modifier_fn: get_modifier_state_default,
+            context_provider: Arc::new(Mutex::new(Box::new(DefaultContextProvider))),
         }
     }
 
@@ -122,9 +143,7 @@ impl ServerState {
         // 1. Update auth key (stored separately from config)
         {
             let mut key = self.auth_key.write().await;
-            *key = zeroize::Zeroizing::new(
-                config.network.auth_key.clone().unwrap_or_default(),
-            );
+            *key = config.network.auth_key.clone().unwrap_or_default();
         }
 
         // 2. Update base mapping rules and context rules (merged into one write lock)
@@ -420,8 +439,8 @@ impl ServerState {
         // Layer manager didn't handle, use base mapping engine (with context awareness) - use read lock
         let action = {
             let mapper = self.mapper.read().await;
-            let context: Option<crate::platform::types::WindowContext> =
-                (self.context_fn)();
+            let context_provider = self.context_provider.lock().await;
+            let context = context_provider.get_current_context();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
@@ -509,7 +528,10 @@ impl ServerState {
         let config = self.config.read().await;
         let wheel_config = &config.config.mouse.wheel;
 
-        let modifiers = (self.modifier_fn)();
+        let modifiers = {
+            let context_provider = self.context_provider.lock().await;
+            context_provider.get_modifier_state()
+        };
 
         // Check horizontal scroll
         if let Some(hscroll_config) = &wheel_config.horizontal_scroll {
@@ -1025,27 +1047,13 @@ mod tests {
     }
 }
 
-fn get_current_context_default() -> Option<crate::platform::types::WindowContext> {
-    <crate::platform::CurrentPlatform as ContextProvider>::get_current_context()
-}
-
-fn get_modifier_state_default() -> ModifierState {
-    crate::platform::CurrentPlatform::get_modifier_state()
-}
-
 impl ServerState {
     #[cfg(test)]
-    pub fn with_context_fn(
+    pub fn with_context_provider(
         mut self,
-        f: fn() -> Option<crate::platform::types::WindowContext>,
+        provider: Box<dyn ContextProvider + Send + Sync>,
     ) -> Self {
-        self.context_fn = f;
-        self
-    }
-
-    #[cfg(test)]
-    pub fn with_modifier_fn(mut self, f: fn() -> ModifierState) -> Self {
-        self.modifier_fn = f;
+        self.context_provider = Arc::new(Mutex::new(provider));
         self
     }
 }
