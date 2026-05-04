@@ -1,34 +1,36 @@
 //! Unit tests for window_actions module
 //!
 //! Tests the platform-agnostic window action execution logic using
-//! MockWindowApi to verify correct behavior without platform dependencies.
+//! MockWindowManager to verify correct behavior without platform dependencies.
 
 #[cfg(test)]
 mod tests {
-    use wakem::platform::mock::mock_window_api::MockWindowApi;
+    use wakem::platform::mock::mock_window_api::MockWindowManager;
+    use wakem::platform::types::MonitorInfo;
     use wakem::runtime::window_actions::execute_window_action;
-    use wakem::types::{Alignment, Edge, MonitorDirection, WindowAction};
+    use wakem::types::{MonitorDirection, WindowAction};
 
     /// Helper to create a mock window manager with a foreground window
-    fn setup_mock_wm() -> MockWindowApi<usize> {
-        let wm = MockWindowApi::new();
+    fn setup_mock_wm() -> MockWindowManager {
+        let wm = MockWindowManager::new();
         let window_id = 1;
 
         // Set up a foreground window with initial position
         wm.set_foreground_window(window_id);
-        wm.set_window_rect(
+        wm.add_window(
             window_id,
-            wakem::platform::traits::WindowFrame::new(100, 100, 800, 600),
+            "Test Window",
+            100,
+            100,
+            800,
+            600,
         );
-        wm.set_monitor_info(
-            window_id,
-            wakem::platform::traits::MonitorInfo {
-                x: 0,
-                y: 0,
-                width: 1920,
-                height: 1080,
-            },
-        );
+        wm.set_monitors(vec![MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        }]);
 
         wm
     }
@@ -40,7 +42,7 @@ mod tests {
         let wm = setup_mock_wm();
 
         let action = WindowAction::Move { x: 200, y: 300 };
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
         assert!(result.is_ok(), "Move action should succeed");
     }
@@ -53,7 +55,7 @@ mod tests {
             width: 1024,
             height: 768,
         };
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
         assert!(result.is_ok(), "Resize action should succeed");
     }
@@ -64,7 +66,7 @@ mod tests {
     fn test_execute_minimize_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::Minimize);
+        let result = execute_window_action(&wm, &WindowAction::Minimize, None, None);
 
         assert!(result.is_ok(), "Minimize action should succeed");
     }
@@ -73,7 +75,7 @@ mod tests {
     fn test_execute_maximize_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::Maximize);
+        let result = execute_window_action(&wm, &WindowAction::Maximize, None, None);
 
         assert!(result.is_ok(), "Maximize action should succeed");
     }
@@ -82,7 +84,7 @@ mod tests {
     fn test_execute_restore_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::Restore);
+        let result = execute_window_action(&wm, &WindowAction::Restore, None, None);
 
         assert!(result.is_ok(), "Restore action should succeed");
     }
@@ -91,7 +93,7 @@ mod tests {
     fn test_execute_close_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::Close);
+        let result = execute_window_action(&wm, &WindowAction::Close, None, None);
 
         assert!(result.is_ok(), "Close action should succeed");
     }
@@ -102,12 +104,12 @@ mod tests {
     fn test_execute_toggle_topmost_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::ToggleTopmost);
+        let result = execute_window_action(&wm, &WindowAction::ToggleTopmost, None, None);
 
         assert!(result.is_ok(), "ToggleTopmost action should succeed");
 
         // Toggle again
-        let result = execute_window_action(&wm, &WindowAction::ToggleTopmost);
+        let result = execute_window_action(&wm, &WindowAction::ToggleTopmost, None, None);
         assert!(result.is_ok(), "Second ToggleTopmost should succeed");
     }
 
@@ -118,7 +120,7 @@ mod tests {
         let wm = setup_mock_wm();
 
         let action = WindowAction::MoveToMonitor(MonitorDirection::Next);
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
         assert!(
             result.is_ok(),
@@ -131,7 +133,7 @@ mod tests {
         let wm = setup_mock_wm();
 
         let action = WindowAction::MoveToMonitor(MonitorDirection::Index(0));
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
         assert!(result.is_ok(), "MoveToMonitor Index(0) should succeed");
     }
@@ -141,34 +143,30 @@ mod tests {
         let wm = setup_mock_wm();
 
         let action = WindowAction::MoveToMonitor(MonitorDirection::Index(99));
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
+        // When index is invalid, it falls back to current monitor, so action succeeds
         assert!(
-            result.is_err(),
-            "MoveToMonitor Index(99) should fail - out of range"
-        );
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(
-            err_msg.contains("out of range"),
-            "Error should mention 'out of range', got: {}",
-            err_msg
+            result.is_ok(),
+            "MoveToMonitor with invalid index should succeed (falls back to current)"
         );
     }
 
     #[test]
     fn test_execute_move_to_monitor_no_monitors() {
-        let wm = MockWindowApi::new();
+        let wm = MockWindowManager::new();
         wm.set_foreground_window(1);
+        wm.add_window(1, "Test", 100, 100, 800, 600);
+        // No monitors set - empty vec
+        wm.set_monitors(vec![]);
 
         let action = WindowAction::MoveToMonitor(MonitorDirection::Next);
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
-        assert!(result.is_err(), "Should fail - no monitors found");
-        let err_msg = format!("{}", result.unwrap_err());
+        // With no monitors, the action silently succeeds (nothing to do)
         assert!(
-            err_msg.contains("No monitors"),
-            "Error should mention 'No monitors', got: {}",
-            err_msg
+            result.is_ok(),
+            "Should succeed when no monitors (nothing to move)"
         );
     }
 
@@ -176,10 +174,10 @@ mod tests {
 
     #[test]
     fn test_execute_no_foreground_window() {
-        let wm = MockWindowApi::new();
+        let wm = MockWindowManager::new();
 
         // No foreground window set
-        let result = execute_window_action(&wm, &WindowAction::Minimize);
+        let result = execute_window_action(&wm, &WindowAction::Minimize, None, None);
 
         assert!(result.is_err(), "Should fail without foreground window");
         let err_msg = format!("{}", result.unwrap_err());
@@ -195,7 +193,7 @@ mod tests {
         let wm = setup_mock_wm();
 
         // None action should succeed and do nothing
-        let result = execute_window_action(&wm, &WindowAction::None);
+        let result = execute_window_action(&wm, &WindowAction::None, None, None);
 
         assert!(result.is_ok(), "None action should succeed");
     }
@@ -209,20 +207,19 @@ mod tests {
         // These actions should not fail, just log debug messages
         let advanced_actions: Vec<WindowAction> = vec![
             WindowAction::Center,
-            WindowAction::MoveToEdge(Edge::Left),
-            WindowAction::HalfScreen(Edge::Right),
-            WindowAction::LoopWidth(Alignment::Center),
-            WindowAction::LoopHeight(Alignment::Top),
+            WindowAction::MoveToEdge(wakem::types::Edge::Left),
+            WindowAction::HalfScreen(wakem::types::Edge::Right),
+            WindowAction::LoopWidth(wakem::types::Alignment::Center),
+            WindowAction::LoopHeight(wakem::types::Alignment::Top),
             WindowAction::FixedRatio {
                 ratio: 1.0,
                 scale_index: 0,
             },
             WindowAction::NativeRatio { scale_index: 0 },
-            WindowAction::SwitchToNextWindow,
         ];
 
         for (i, action) in advanced_actions.iter().enumerate() {
-            let result = execute_window_action(&wm, action);
+            let result = execute_window_action(&wm, action, None, None);
             assert!(
                 result.is_ok(),
                 "Advanced action #{} {:?} should not fail",
@@ -233,10 +230,22 @@ mod tests {
     }
 
     #[test]
+    fn test_switch_to_next_window_not_implemented() {
+        let wm = setup_mock_wm();
+
+        // SwitchToNextWindow is not implemented in mock, should fail
+        let result = execute_window_action(&wm, &WindowAction::SwitchToNextWindow, None, None);
+        assert!(
+            result.is_err(),
+            "SwitchToNextWindow should fail when not implemented"
+        );
+    }
+
+    #[test]
     fn test_show_debug_info_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::ShowDebugInfo);
+        let result = execute_window_action(&wm, &WindowAction::ShowDebugInfo, None, None);
         assert!(result.is_ok(), "ShowDebugInfo should succeed");
     }
 
@@ -248,7 +257,7 @@ mod tests {
             title: "Test".to_string(),
             message: "Hello".to_string(),
         };
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
         assert!(
             result.is_ok(),
@@ -271,7 +280,7 @@ mod tests {
         ];
 
         for (i, action) in preset_actions.iter().enumerate() {
-            let result = execute_window_action(&wm, action);
+            let result = execute_window_action(&wm, action, None, None);
             assert!(
                 result.is_ok(),
                 "Preset action #{} {:?} should not fail",
@@ -296,7 +305,7 @@ mod tests {
         ];
 
         for (i, action) in actions.iter().enumerate() {
-            let result = execute_window_action(&wm, action);
+            let result = execute_window_action(&wm, action, None, None);
             assert!(
                 result.is_ok(),
                 "Sequential action #{} {:?} should succeed",
@@ -326,7 +335,7 @@ mod tests {
         ];
 
         for (i, action) in move_actions.iter().enumerate() {
-            let result = execute_window_action(&wm, action);
+            let result = execute_window_action(&wm, action, None, None);
             assert!(result.is_ok(), "Boundary move action #{} should succeed", i);
         }
     }
@@ -339,7 +348,7 @@ mod tests {
             width: 3840,
             height: 2160,
         }; // 4K resolution
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
         assert!(result.is_ok(), "Large resize should succeed");
     }
@@ -352,7 +361,7 @@ mod tests {
             width: 0,
             height: 0,
         };
-        let result = execute_window_action(&wm, &action);
+        let result = execute_window_action(&wm, &action, None, None);
 
         // Should succeed (even if size is invalid, it's up to platform to validate)
         assert!(

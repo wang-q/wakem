@@ -5,7 +5,7 @@
 
 use crate::platform::traits::{
     ForegroundWindowOperations, MonitorOperations, WindowApiBase, WindowOperations,
-    WindowStateQueries,
+    WindowStateQueries, WindowSwitching,
 };
 use crate::platform::types::{MonitorInfo, MonitorWorkArea, WindowFrame, WindowId};
 use anyhow::{anyhow, Result};
@@ -220,6 +220,8 @@ impl ForegroundWindowOperations for MockWindowManager {
         Ok(())
     }
 }
+
+impl WindowSwitching for MockWindowManager {}
 
 /// Mock implementation of [WindowApiBase] for testing
 ///

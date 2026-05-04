@@ -52,11 +52,6 @@ keyboard-codes = { version = "0.3", features = ["serde", "phf"] }
 # Async trait
 async-trait = "0.1"
 
-[features]
-default = []
-cargo-clippy = []
-test-utils = []
-
 # Platform-specific dependencies
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = [
@@ -99,10 +94,6 @@ criterion = "0.5"
 
 # Temporary directories for testing
 tempfile = "3.10"
-
-[[test]]
-name = "ut_window_actions"
-required-features = ["test-utils"]
 
 [[bench]]
 name = "basic_benchmarks"
