@@ -49,6 +49,14 @@ impl ModifierState {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }
 
+    /// Check if this modifier state is a subset of another
+    pub fn is_subset_of(&self, other: &Self) -> bool {
+        (!self.shift || other.shift)
+            && (!self.ctrl || other.ctrl)
+            && (!self.alt || other.alt)
+            && (!self.meta || other.meta)
+    }
+
     /// Create modifier key state from internal VK code
     ///
     /// The system uses Windows virtual key codes as the universal internal

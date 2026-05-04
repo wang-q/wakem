@@ -47,8 +47,8 @@ impl LayerManager {
 
     /// Set base layer mappings
     pub fn set_base_mappings(&mut self, mappings: Vec<MappingRule>) {
-        self.base_mappings = mappings.clone();
-        self.stack.set_base_layer(mappings);
+        self.stack.set_base_layer(mappings.clone());
+        self.base_mappings = mappings;
     }
 
     /// Process input event, check if it's a layer activation key

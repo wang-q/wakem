@@ -254,11 +254,7 @@ impl KeyMapper {
             return Ok((from_key.scan_code, Action::window(window_action)));
         }
 
-        Err(anyhow::anyhow!(
-            "Failed to parse mapping: {} -> {}",
-            from,
-            to
-        ))
+        anyhow::bail!("Failed to parse mapping: {} -> {}", from, to)
     }
 }
 

@@ -458,9 +458,9 @@ impl RealTrayApi {
     pub async fn register(&self) -> Result<()> {
         let mut inner = self.inner.lock().await;
         if inner.hwnd.is_invalid() || inner.hwnd.0.is_null() {
-            return Err(anyhow::anyhow!(
+            anyhow::bail!(
                 "Windows tray registration requires hwnd; call set_hwnd() first"
-            ));
+            );
         }
         let hwnd = inner.hwnd;
         inner.tray_icon.register(hwnd)?;

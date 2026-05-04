@@ -47,11 +47,9 @@ impl Launcher {
                 );
                 Ok(())
             }
-            Err(e) => Err(anyhow::anyhow!(
-                "Failed to launch program {}: {}",
-                action.program,
-                e
-            )),
+            Err(e) => {
+                anyhow::bail!("Failed to launch program {}: {}", action.program, e)
+            }
         }
     }
 

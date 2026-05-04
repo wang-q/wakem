@@ -93,15 +93,15 @@ pub fn cmd_instances_sync() -> Result<()> {
 pub fn cmd_record_sync(instance_id: u32, name: &str) -> Result<()> {
     // Validate macro name: must be non-empty and contain only alphanumeric characters, underscores, and hyphens
     if name.is_empty() {
-        return Err(anyhow::anyhow!("Macro name cannot be empty"));
+        anyhow::bail!("Macro name cannot be empty");
     }
     if !name
         .chars()
         .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
     {
-        return Err(anyhow::anyhow!(
+        anyhow::bail!(
             "Macro name can only contain alphanumeric characters, underscores, and hyphens"
-        ));
+        );
     }
 
     let name_owned = name.to_string();

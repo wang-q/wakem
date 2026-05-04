@@ -84,7 +84,7 @@ impl MacroRecorder {
     pub async fn start_recording(&self, name: &str) -> anyhow::Result<()> {
         let mut recording = self.recording.write().await;
         if recording.is_some() {
-            return Err(anyhow::anyhow!("Already recording macro"));
+            anyhow::bail!("Already recording macro");
         }
 
         *recording = Some(MacroRecording {

@@ -51,13 +51,22 @@ pub async fn discover_instances() -> Vec<InstanceInfo> {
         });
     }
 
-    let mut instances = Vec::with_capacity((MAX_DISCOVERY_INSTANCE_ID + 1) as usize);
+    let mut active_count = 0usize;
+    let mut instances = Vec::with_capacity(8);
     while let Some(result) = set.join_next().await {
         if let Ok(info) = result {
+            if info.active {
+                active_count += 1;
+            }
             instances.push(info);
         }
     }
 
     instances.sort_by_key(|info| info.id);
+    debug!(
+        "Discovery complete: {}/{} instances active",
+        active_count,
+        instances.len()
+    );
     instances
 }

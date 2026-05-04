@@ -207,7 +207,7 @@ fn get_frontmost_app_info() -> Result<(String, String, usize)> {
 
         Ok((process_name, window_title, window_count))
     } else {
-        Err(anyhow::anyhow!("No frontmost window found"))
+        anyhow::bail!("No frontmost window found")
     }
 }
 

@@ -38,7 +38,7 @@ pub fn show_shell_notification(hwnd: HWND, title: &str, message: &str) -> Result
     unsafe {
         let result = windows::Win32::UI::Shell::Shell_NotifyIconW(NIM_MODIFY, &nid);
         if !result.as_bool() {
-            return Err(anyhow::anyhow!("Failed to show notification"));
+            anyhow::bail!("Failed to show notification");
         }
     }
 

@@ -162,7 +162,7 @@ impl<T: TrayApi + Default + 'static> TrayManager<T> {
             tray.show_notification(title, message).await
         } else {
             warn!("Cannot send notification: tray not initialized");
-            Err(anyhow::anyhow!("Tray not initialized"))
+            anyhow::bail!("Tray not initialized")
         }
     }
 
@@ -172,7 +172,7 @@ impl<T: TrayApi + Default + 'static> TrayManager<T> {
             tray.api.set_active(active).await
         } else {
             warn!("Cannot set active status: tray not initialized");
-            Err(anyhow::anyhow!("Tray not initialized"))
+            anyhow::bail!("Tray not initialized")
         }
     }
 
@@ -221,7 +221,7 @@ impl<T: TrayApi> TrayManager<T> {
         if let Some(ref tray) = self.tray {
             tray.api.unregister().await
         } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
+            anyhow::bail!("Tray not initialized")
         }
     }
 
@@ -233,7 +233,7 @@ impl<T: TrayApi> TrayManager<T> {
             tray.api.set_active(new_state).await?;
             Ok(new_state)
         } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
+            anyhow::bail!("Tray not initialized")
         }
     }
 
@@ -252,7 +252,7 @@ impl<T: TrayApi> TrayManager<T> {
             let selection = tray.api.show_menu().await?;
             Ok(menu_id_to_action(selection))
         } else {
-            Err(anyhow::anyhow!("Tray not initialized"))
+            anyhow::bail!("Tray not initialized")
         }
     }
 }

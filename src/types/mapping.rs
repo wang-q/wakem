@@ -114,7 +114,16 @@ impl Trigger {
                     }
                 }
                 // Check modifiers match
-                if modifiers != &e.modifiers {
+                // When trigger has modifiers: subset match (trigger modifiers ⊆ event modifiers)
+                // This allows Hyper key shortcuts to work: "Ctrl+Alt+C" matches
+                // an event with Ctrl+Alt+Meta+C (Hyper adds extra modifiers).
+                // When trigger has no modifiers: exact match (event must also have none),
+                // preventing plain key remaps from matching modified key presses.
+                if modifiers.is_empty() {
+                    if !e.modifiers.is_empty() {
+                        return false;
+                    }
+                } else if !modifiers.is_subset_of(&e.modifiers) {
                     return false;
                 }
                 true
@@ -123,7 +132,11 @@ impl Trigger {
                 if !e.is_button_down(*button) {
                     return false;
                 }
-                if *modifiers != e.modifiers {
+                if modifiers.is_empty() {
+                    if !e.modifiers.is_empty() {
+                        return false;
+                    }
+                } else if !modifiers.is_subset_of(&e.modifiers) {
                     return false;
                 }
                 true
@@ -220,11 +233,25 @@ mod tests {
         event.modifiers.alt = true;
         assert!(!trigger.matches(&InputEvent::Key(event)));
 
-        // Non-matching: extra modifier
+        // Subset match: extra modifier is allowed (Hyper key scenario)
         let mut event = KeyEvent::new(0x4B, 0x25, KeyState::Pressed);
         event.modifiers.ctrl = true;
         event.modifiers.alt = true;
         event.modifiers.shift = true;
+        assert!(trigger.matches(&InputEvent::Key(event)));
+    }
+
+    #[test]
+    fn test_trigger_no_modifiers_rejects_modified_event() {
+        let trigger = Trigger::key(0x1E, 0x41); // 'A' key, no modifiers
+
+        // Should match with no modifiers
+        let event = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        assert!(trigger.matches(&event));
+
+        // Should NOT match when modifiers are present
+        let mut event = KeyEvent::new(0x1E, 0x41, KeyState::Pressed);
+        event.modifiers.ctrl = true;
         assert!(!trigger.matches(&InputEvent::Key(event)));
     }
 

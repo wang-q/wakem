@@ -68,7 +68,7 @@ impl PlatformUtilities for WindowsPlatform {
             CloseHandle(handle).ok();
 
             if len == 0 {
-                return Err(anyhow::anyhow!("Failed to get process name"));
+                anyhow::bail!("Failed to get process name");
             }
 
             Ok(String::from_utf16_lossy(&buffer[..len as usize]))
@@ -93,7 +93,7 @@ impl PlatformUtilities for WindowsPlatform {
             CloseHandle(handle).ok();
 
             if len == 0 {
-                return Err(anyhow::anyhow!("Failed to get executable path"));
+                anyhow::bail!("Failed to get executable path");
             }
 
             Ok(String::from_utf16_lossy(&buffer[..len as usize]))

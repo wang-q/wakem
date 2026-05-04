@@ -283,7 +283,7 @@ impl WindowApiBase for RealWindowApi {
         unsafe {
             let current_hwnd = GetForegroundWindow();
             if current_hwnd.0.is_null() {
-                return Err(anyhow::anyhow!("No foreground window"));
+                anyhow::bail!("No foreground window");
             }
 
             let current_pid = self.get_window_process_id(current_hwnd)?;
@@ -343,7 +343,7 @@ impl RealWindowApi {
         );
 
         if pid == 0 {
-            return Err(anyhow::anyhow!("Failed to get process ID"));
+            anyhow::bail!("Failed to get process ID");
         }
 
         Ok(pid)

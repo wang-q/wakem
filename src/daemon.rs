@@ -55,7 +55,7 @@ pub struct ServerState {
     auth_key: Arc<RwLock<zeroize::Zeroizing<String>>>,
     active_hyper_keys: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
-    pressed_keys: Arc<RwLock<std::collections::HashSet<(u16, u16)>>>,
+    pressed_keys: Arc<Mutex<std::collections::HashSet<(u16, u16)>>>,
     shutdown_signal: ShutdownSignal,
     context_fn: fn() -> Option<crate::platform::types::WindowContext>,
     modifier_fn: fn() -> ModifierState,
@@ -85,7 +85,7 @@ impl ServerState {
             auth_key: Arc::new(RwLock::new(zeroize::Zeroizing::new(String::new()))),
             active_hyper_keys: Arc::new(RwLock::new(std::collections::HashMap::new())),
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
-            pressed_keys: Arc::new(RwLock::new(std::collections::HashSet::new())),
+            pressed_keys: Arc::new(Mutex::new(std::collections::HashSet::new())),
             shutdown_signal,
             context_fn: get_current_context_default,
             modifier_fn: get_modifier_state_default,
@@ -225,7 +225,7 @@ impl ServerState {
         let config_path = match config_path {
             Some(path) => path,
             None => {
-                return Err(anyhow::anyhow!("Config file not found"));
+                anyhow::bail!("Config file not found");
             }
         };
 
@@ -236,7 +236,7 @@ impl ServerState {
             Ok(config) => config,
             Err(e) => {
                 error!("Failed to load config: {}", e);
-                return Err(anyhow::anyhow!("Failed to load config: {}", e));
+                anyhow::bail!("Failed to load config: {}", e);
             }
         };
 
@@ -274,7 +274,7 @@ impl ServerState {
             match resolved_path {
                 Some(path) => path,
                 None => {
-                    return Err(anyhow::anyhow!("Config file path not found"));
+                    anyhow::bail!("Config file path not found");
                 }
             }
         };
@@ -290,7 +290,7 @@ impl ServerState {
             }
             Err(e) => {
                 error!("Failed to save config: {}", e);
-                Err(anyhow::anyhow!("Failed to save config: {}", e))
+                anyhow::bail!("Failed to save config: {}", e)
             }
         }
     }
@@ -374,7 +374,7 @@ impl ServerState {
                     if !is_layer_key {
                         debug!("Filtered non-hyper key release event");
                         self.pressed_keys
-                            .write()
+                            .lock()
                             .await
                             .remove(&(key_event.scan_code, key_event.virtual_key));
                         return;
@@ -388,7 +388,7 @@ impl ServerState {
         if let InputEvent::Key(ref key_event) = event {
             if key_event.state == KeyState::Pressed {
                 let key_id = (key_event.scan_code, key_event.virtual_key);
-                let mut pressed = self.pressed_keys.write().await;
+                let mut pressed = self.pressed_keys.lock().await;
                 if !pressed.insert(key_id) {
                     debug!(
                         scan_code = key_event.scan_code,
@@ -779,7 +779,7 @@ impl ServerState {
     pub async fn delete_macro(&self, name: &str) -> Result<()> {
         let mut config = self.config.write().await;
         if config.config.macros.remove(name).is_none() {
-            return Err(anyhow::anyhow!("Macro '{}' not found", name));
+            anyhow::bail!("Macro '{}' not found", name);
         }
 
         // Also remove bindings
@@ -805,7 +805,7 @@ impl ServerState {
 
         // Check if macro exists
         if !config.config.macros.contains_key(macro_name) {
-            return Err(anyhow::anyhow!("Macro '{}' not found", macro_name));
+            anyhow::bail!("Macro '{}' not found", macro_name);
         }
 
         // Add binding
@@ -832,9 +832,16 @@ impl ServerState {
     pub async fn show_notification(&self, title: &str, message: &str) -> Result<()> {
         let service = self.notification_service.lock().await;
         match service.show(title, message) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                debug!("Notification shown: '{}' - '{}'", title, message);
+                Ok(())
+            }
             Err(e) => {
                 warn!("Failed to show notification: {}", e);
+                debug!(
+                    "Notification error details: title='{}', message='{}', error={:?}",
+                    title, message, e
+                );
                 Ok(())
             }
         }
@@ -863,14 +870,14 @@ impl ServerState {
     /// Check if a key is currently in the pressed_keys set (test-only accessor)
     pub async fn is_key_pressed(&self, scan_code: u16, virtual_key: u16) -> bool {
         self.pressed_keys
-            .read()
+            .lock()
             .await
             .contains(&(scan_code, virtual_key))
     }
 
     /// Get the number of currently pressed keys (test-only accessor)
     pub async fn pressed_key_count(&self) -> usize {
-        self.pressed_keys.read().await.len()
+        self.pressed_keys.lock().await.len()
     }
 }
 

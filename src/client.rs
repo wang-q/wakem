@@ -48,7 +48,7 @@ impl DaemonClient {
                 info!("Connected to daemon");
                 Ok(())
             }
-            Err(_) => Err(anyhow::anyhow!("Connection timeout")),
+            Err(_) => anyhow::bail!("Connection timeout"),
         }
     }
 
@@ -66,10 +66,10 @@ impl DaemonClient {
                 active,
                 config_loaded,
             } => Ok((active, config_loaded)),
-            other => Err(anyhow::anyhow!(
+            other => anyhow::bail!(
                 "Unexpected response: expected StatusResponse, got {:?}",
                 other
-            )),
+            ),
         }
     }
 
@@ -99,12 +99,12 @@ impl DaemonClient {
                 Ok(())
             }
             Message::ConfigError { error } => {
-                Err(anyhow::anyhow!("Config error: {error}"))
+                anyhow::bail!("Config error: {error}")
             }
-            other => Err(anyhow::anyhow!(
+            other => anyhow::bail!(
                 "Unexpected response: expected ConfigLoaded or ConfigError, got {:?}",
                 other
-            )),
+            ),
         }
     }
 
@@ -122,19 +122,19 @@ impl DaemonClient {
         .await
         {
             Ok(result) => result.map_err(|e| anyhow::anyhow!("IPC error: {}", e)),
-            Err(_) => Err(anyhow::anyhow!("Request timeout")),
+            Err(_) => anyhow::bail!("Request timeout"),
         }
     }
 
     fn expect_success(response: Message, context: &str) -> Result<()> {
         match response {
             Message::Success => Ok(()),
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
+            Message::Error { message } => anyhow::bail!("{message}"),
+            other => anyhow::bail!(
                 "Unexpected response for {}: expected Success or Error, got {:?}",
                 context,
                 other
-            )),
+            ),
         }
     }
 
@@ -156,11 +156,11 @@ impl DaemonClient {
             Message::MacroRecordingResult { name, action_count } => {
                 Ok((name, action_count))
             }
-            Message::Error { message } => Err(anyhow::anyhow!("{message}")),
-            other => Err(anyhow::anyhow!(
+            Message::Error { message } => anyhow::bail!("{message}"),
+            other => anyhow::bail!(
                 "Unexpected response for StopMacroRecording: expected MacroRecordingResult or Error, got {:?}",
                 other
-            )),
+            ),
         }
     }
 
@@ -180,10 +180,10 @@ impl DaemonClient {
 
         match response {
             Message::MacrosList { macros } => Ok(macros),
-            other => Err(anyhow::anyhow!(
+            other => anyhow::bail!(
                 "Unexpected response for GetMacros: expected MacrosList, got {:?}",
                 other
-            )),
+            ),
         }
     }
 
@@ -226,9 +226,6 @@ mod tests {
     use super::*;
     use crate::ipc::{get_instance_address, get_instance_port, Message};
 
-    // ==================== DaemonClient initialization ====================
-
-    /// Test client initialization (disconnected state)
     #[test]
     fn test_client_new() {
         let client = DaemonClient::new();
@@ -238,16 +235,12 @@ mod tests {
         );
     }
 
-    /// Test Default trait implementation
     #[test]
     fn test_client_default() {
         let client = DaemonClient::default();
         assert!(!client.is_connected());
     }
 
-    // ==================== Error handling in disconnected state ====================
-
-    /// Test get_status should return error when not connected
     #[tokio::test]
     async fn test_get_status_not_connected() {
         let mut client = DaemonClient::new();
@@ -258,7 +251,6 @@ mod tests {
         );
     }
 
-    /// Test set_active should return error when not connected
     #[tokio::test]
     async fn test_set_active_not_connected() {
         let mut client = DaemonClient::new();
@@ -269,7 +261,6 @@ mod tests {
         );
     }
 
-    /// Test reload_config should return error when not connected
     #[tokio::test]
     async fn test_reload_config_not_connected() {
         let mut client = DaemonClient::new();
@@ -280,7 +271,6 @@ mod tests {
         );
     }
 
-    /// Test save_config should return error when not connected
     #[tokio::test]
     async fn test_save_config_not_connected() {
         let mut client = DaemonClient::new();
@@ -291,7 +281,6 @@ mod tests {
         );
     }
 
-    /// Test start_macro_recording should return error when not connected
     #[tokio::test]
     async fn test_start_macro_recording_not_connected() {
         let mut client = DaemonClient::new();
@@ -302,7 +291,6 @@ mod tests {
         );
     }
 
-    /// Test stop_macro_recording should return error when not connected
     #[tokio::test]
     async fn test_stop_macro_recording_not_connected() {
         let mut client = DaemonClient::new();
@@ -313,7 +301,6 @@ mod tests {
         );
     }
 
-    /// Test play_macro should return error when not connected
     #[tokio::test]
     async fn test_play_macro_not_connected() {
         let mut client = DaemonClient::new();
@@ -324,7 +311,6 @@ mod tests {
         );
     }
 
-    /// Test get_macros should return error when not connected
     #[tokio::test]
     async fn test_get_macros_not_connected() {
         let mut client = DaemonClient::new();
@@ -335,7 +321,6 @@ mod tests {
         );
     }
 
-    /// Test delete_macro should return error when not connected
     #[tokio::test]
     async fn test_delete_macro_not_connected() {
         let mut client = DaemonClient::new();
@@ -346,7 +331,6 @@ mod tests {
         );
     }
 
-    /// Test bind_macro should return error when not connected
     #[tokio::test]
     async fn test_bind_macro_not_connected() {
         let mut client = DaemonClient::new();
@@ -357,18 +341,13 @@ mod tests {
         );
     }
 
-    // ==================== IPC message serialization validation ====================
-
-    /// Verify that message types used by the client can be correctly serialized/deserialized
     #[test]
     fn test_client_message_serialization() {
-        // GetStatus message
         let msg = Message::GetStatus;
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
         assert!(matches!(deserialized, Message::GetStatus));
 
-        // SetActive message
         let msg = Message::SetActive { active: true };
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
@@ -378,19 +357,16 @@ mod tests {
             panic!("Expected SetActive message");
         }
 
-        // ReloadConfig message
         let msg = Message::ReloadConfig;
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
         assert!(matches!(deserialized, Message::ReloadConfig));
 
-        // SaveConfig message
         let msg = Message::SaveConfig;
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
         assert!(matches!(deserialized, Message::SaveConfig));
 
-        // StartMacroRecording message
         let msg = Message::StartMacroRecording {
             name: "test".to_string(),
         };
@@ -402,13 +378,11 @@ mod tests {
             panic!("Expected StartMacroRecording message");
         }
 
-        // StopMacroRecording message
         let msg = Message::StopMacroRecording;
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
         assert!(matches!(deserialized, Message::StopMacroRecording));
 
-        // PlayMacro message
         let msg = Message::PlayMacro {
             name: "macro1".to_string(),
         };
@@ -420,13 +394,11 @@ mod tests {
             panic!("Expected PlayMacro message");
         }
 
-        // GetMacros message
         let msg = Message::GetMacros;
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: Message = serde_json::from_str(&json).unwrap();
         assert!(matches!(deserialized, Message::GetMacros));
 
-        // DeleteMacro message
         let msg = Message::DeleteMacro {
             name: "old_macro".to_string(),
         };
@@ -438,7 +410,6 @@ mod tests {
             panic!("Expected DeleteMacro message");
         }
 
-        // BindMacro message
         let msg = Message::BindMacro {
             macro_name: "my_macro".to_string(),
             trigger: "F5".to_string(),
@@ -457,9 +428,6 @@ mod tests {
         }
     }
 
-    // ==================== Response message parsing validation ====================
-
-    /// Verify parsing of StatusResponse response
     #[test]
     fn test_status_response_parsing() {
         let response = Message::StatusResponse {
@@ -482,7 +450,6 @@ mod tests {
         }
     }
 
-    /// Verify parsing of MacrosList response
     #[test]
     fn test_macros_list_response_parsing() {
         let response = Message::MacrosList {
@@ -507,7 +474,6 @@ mod tests {
         }
     }
 
-    /// Verify parsing of MacroRecordingResult response
     #[test]
     fn test_macro_recording_result_parsing() {
         let response = Message::MacroRecordingResult {
@@ -527,7 +493,6 @@ mod tests {
         }
     }
 
-    /// Verify parsing of Error response
     #[test]
     fn test_error_response_parsing() {
         let error_messages = vec![
@@ -553,24 +518,14 @@ mod tests {
         }
     }
 
-    // ==================== Connection parameter validation ====================
-
-    /// Verify instance address generation logic
     #[test]
     fn test_instance_address_generation() {
-        // Instance 0
         assert_eq!(get_instance_port(0), 57427);
         assert_eq!(get_instance_address(0), "127.0.0.1:57427");
-
-        // Instance 1
         assert_eq!(get_instance_port(1), 57428);
         assert_eq!(get_instance_address(1), "127.0.0.1:57428");
-
-        // Instance 5
         assert_eq!(get_instance_port(5), 57432);
         assert_eq!(get_instance_address(5), "127.0.0.1:57432");
-
-        // Large instance ID
         assert_eq!(get_instance_port(100), 57527);
         assert_eq!(get_instance_address(100), "127.0.0.1:57527");
     }

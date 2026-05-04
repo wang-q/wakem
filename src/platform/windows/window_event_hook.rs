@@ -49,7 +49,7 @@ impl WindowEventHook {
             );
 
             if hook.is_invalid() {
-                return Err(anyhow::anyhow!("Failed to set WinEventHook"));
+                anyhow::bail!("Failed to set WinEventHook");
             }
 
             set_global_sender(self.event_tx.clone());

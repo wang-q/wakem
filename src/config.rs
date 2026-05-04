@@ -647,7 +647,7 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
             "win" | "meta" | "command" => modifiers.meta = true,
             _ => {
                 // If not a known modifier key, return error
-                return Err(anyhow::anyhow!("Unknown modifier: {}", part));
+                anyhow::bail!("Unknown modifier: {}", part);
             }
         }
     }
@@ -718,7 +718,7 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
 
     let parts: Vec<&str> = shortcut.split('+').map(|s| s.trim()).collect();
     if parts.is_empty() {
-        return Err(anyhow::anyhow!("Empty shortcut"));
+        anyhow::bail!("Empty shortcut");
     }
 
     let mut modifiers = ModifierState::new();
@@ -735,10 +735,7 @@ fn parse_shortcut_trigger(shortcut: &str) -> anyhow::Result<crate::types::Trigge
     }
 
     if key_name.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No key specified in shortcut: {}",
-            shortcut
-        ));
+        anyhow::bail!("No key specified in shortcut: {}", shortcut);
     }
 
     let key = parse_key(key_name)?;
@@ -831,13 +828,10 @@ pub fn parse_window_action(
                 let name = param_list.first().unwrap_or(&"default").to_string();
                 Ok(WindowAction::LoadPreset { name })
             }
-            _ => Err(anyhow::anyhow!("Unknown window action: {}", name)),
+            _ => anyhow::bail!("Unknown window action: {}", name),
         }
     } else {
-        Err(anyhow::anyhow!(
-            "Invalid window action format: {}",
-            action_str
-        ))
+        anyhow::bail!("Invalid window action format: {}", action_str)
     }
 }
 
@@ -850,7 +844,7 @@ fn parse_edge(s: &str) -> anyhow::Result<crate::types::Edge> {
         "right" => Ok(Edge::Right),
         "top" => Ok(Edge::Top),
         "bottom" => Ok(Edge::Bottom),
-        _ => Err(anyhow::anyhow!("Unknown edge: {}", s)),
+        _ => anyhow::bail!("Unknown edge: {}", s),
     }
 }
 
@@ -864,7 +858,7 @@ fn parse_alignment(s: &str) -> anyhow::Result<crate::types::Alignment> {
         "top" => Ok(Alignment::Top),
         "bottom" => Ok(Alignment::Bottom),
         "center" => Ok(Alignment::Center),
-        _ => Err(anyhow::anyhow!("Unknown alignment: {}", s)),
+        _ => anyhow::bail!("Unknown alignment: {}", s),
     }
 }
 
@@ -879,7 +873,7 @@ fn parse_monitor_direction(s: &str) -> anyhow::Result<crate::types::MonitorDirec
             if let Ok(index) = s.parse::<i32>() {
                 Ok(MonitorDirection::Index(index))
             } else {
-                Err(anyhow::anyhow!("Unknown monitor direction: {}", s))
+                anyhow::bail!("Unknown monitor direction: {}", s)
             }
         }
     }
@@ -903,7 +897,7 @@ pub fn parse_key(name: &str) -> anyhow::Result<crate::types::KeyInfo> {
         }
     }
 
-    Err(anyhow::anyhow!("Unknown key name: {}", name))
+    anyhow::bail!("Unknown key name: {}", name)
 }
 
 /// Config file path cache (reduces repeated file system I/O)
