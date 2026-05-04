@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.4 - 2026-05-04
+
 ### Features
 
 - **CLI**: Added `shutdown` command to gracefully stop the daemon via IPC
