@@ -2,6 +2,36 @@
 
 ## Unreleased - ReleaseDate
 
+### Features
+
+- **CLI**: Added `shutdown` command to gracefully stop the daemon via IPC
+- **Security**: Enhanced secure key handling with `zeroize` for authentication keys
+- **IPC**: Added protocol version check and improved instance discovery with debug logging
+
+### Bug Fixes
+
+- **Window Switching**: Fixed window cycling to properly iterate through all windows instead of alternating between two when three or more windows exist
+- **Key Event Handling**: Fixed key release filtering to allow layer activation key releases
+- **Tray**: Improved tray exit handling and icon cleanup on Windows
+
+### Improvements
+
+- **Architecture**: Major refactoring with platform factory pattern and trait-based architecture
+- **Window Management**: Restructured into modular traits (WindowOperations, WindowStateQueries, MonitorOperations, ForegroundWindowOperations)
+- **Input Handling**: Consolidated common input device operations and improved key code handling
+- **Tray**: Unified menu handling across platforms with heartbeat monitoring for daemon connection
+- **Config**: Streamlined error handling in logging initialization
+- **Code Quality**: Removed dead code, unused imports, and improved documentation
+
+### Refactoring
+
+- Consolidated platform-specific implementations into common modules
+- Moved window action execution logic to separate `window_actions.rs` module
+- Extracted common daemon runtime utilities to `runtime_util.rs`
+- Reorganized IPC module structure and removed unused message types
+- Unified mock window API across platforms
+- Simplified trait implementations using macros where appropriate
+
 ## 0.1.3 - 2026-04-26
 
 ### Improvements
