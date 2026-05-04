@@ -2,7 +2,15 @@
 
 ## Unreleased - ReleaseDate
 
-## 0.1.5 - 2026-05-04
+## 0.1.5 - 2026-05-05
+
+### Bug Fixes
+
+- **Hyper Key**: Fixed CapsLock as Hyper key producing `@` symbol. Hyper keys now act as pure virtual modifiers without sending actual modifier key events to the system.
+
+### Improvements
+
+- **Daemon**: Hyper key events are now consumed internally and do not trigger mapped actions, preventing unintended output.
 
 ## 0.1.4 - 2026-05-04
 
