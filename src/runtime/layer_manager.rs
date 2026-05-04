@@ -482,12 +482,25 @@ mod tests {
 
     #[test]
     fn test_layer_activation() {
-        // Test layer activation and deactivation
-        let layer_name = "navigation";
-        let activation_key = "CapsLock";
+        // Test layer activation and deactivation via LayerStack
+        let mut stack = LayerStack::new();
+        let layer = Layer::new("navigation", 0x3A, 0x14);
 
-        assert_eq!(layer_name, "navigation");
-        assert_eq!(activation_key, "CapsLock");
+        // Initially no active layers
+        assert!(stack.get_active_layers().is_empty());
+
+        // Activate the layer
+        stack.activate_layer(layer.clone());
+        assert_eq!(stack.get_active_layers().len(), 1);
+        assert_eq!(stack.get_active_layers()[0].name, "navigation");
+
+        // Deactivate the layer
+        stack.deactivate_layer("navigation");
+        assert!(stack.get_active_layers().is_empty());
+
+        // Verify layer properties
+        assert_eq!(layer.name, "navigation");
+        assert!(layer.is_activation_key(0x3A, 0x14));
     }
 
     #[test]

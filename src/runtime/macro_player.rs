@@ -258,9 +258,10 @@ mod tests {
     };
 
     #[test]
-    fn test_macro_player_creation() {
-        // This test just verifies compilation passes
-        // Actual testing requires OutputDevice, which is complex
+    fn test_macro_player_module_compiles() {
+        // This test verifies the macro_player module compiles correctly
+        // MacroPlayer contains only static methods, so we just verify the module exists
+        assert!(true);
     }
 
     #[test]

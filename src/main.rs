@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use tracing::{debug, info};
+use tracing::info;
 
 use wakem::cli::{Cli, Commands};
 use wakem::commands;
@@ -8,22 +8,30 @@ use wakem::config;
 use wakem::runtime_util;
 use wakem::tray;
 
-fn init_logging(cli: &Cli) -> (Option<config::Config>, Option<std::path::PathBuf>) {
+/// Result of initializing logging and loading config
+#[allow(dead_code)]
+struct InitResult {
+    config: Option<config::Config>,
+    config_path: Option<std::path::PathBuf>,
+    config_error: Option<anyhow::Error>,
+}
+
+fn init_logging(cli: &Cli) -> InitResult {
     let config_path = cli
         .config
         .clone()
         .or_else(|| config::resolve_config_file_path(None, cli.instance));
 
-    let (log_level, config_result) = if let Some(ref path) = config_path {
+    let (log_level, config_result, config_error) = if let Some(ref path) = config_path {
         match config::Config::from_file(path) {
-            Ok(cfg) => (cfg.log_level.clone(), Some(Ok(cfg))),
+            Ok(cfg) => (cfg.log_level.clone(), Some(cfg), None),
             Err(e) => {
                 eprintln!("Failed to load config for log level: {}", e);
-                ("info".to_string(), Some(Err(e)))
+                ("info".to_string(), None, Some(e))
             }
         }
     } else {
-        ("info".to_string(), None)
+        ("info".to_string(), None, None)
     };
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -31,31 +39,35 @@ fn init_logging(cli: &Cli) -> (Option<config::Config>, Option<std::path::PathBuf
 
     tracing_subscriber::fmt().with_env_filter(env_filter).init();
 
-    if let Some(result) = config_result {
-        match result {
-            Ok(cfg) => {
-                info!("Logging initialized with level: {}", log_level);
-                return (Some(cfg), config_path);
-            }
-            Err(err) => {
-                debug!("Failed to load config for log level: {}", err);
-            }
-        }
+    if config_result.is_some() {
+        info!("Logging initialized with level: {}", log_level);
+    } else if config_error.is_some() {
+        info!(
+            "Logging initialized with level: {} (config load failed)",
+            log_level
+        );
+    } else {
+        info!("Logging initialized with level: {}", log_level);
     }
 
-    info!("Logging initialized with level: {}", log_level);
-    (None, config_path)
+    InitResult {
+        config: config_result,
+        config_path,
+        config_error,
+    }
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let (preloaded_config, config_path) = init_logging(&cli);
+    let init_result = init_logging(&cli);
 
     match cli.command {
-        Some(Commands::Daemon) => {
-            runtime_util::run_daemon(cli.instance, preloaded_config, config_path)
-        }
+        Some(Commands::Daemon) => runtime_util::run_daemon(
+            cli.instance,
+            init_result.config,
+            init_result.config_path,
+        ),
         Some(Commands::Status) => commands::cmd_status_sync(cli.instance),
         Some(Commands::Reload) => commands::cmd_reload_sync(cli.instance),
         Some(Commands::Save) => commands::cmd_save_sync(cli.instance),

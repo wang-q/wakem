@@ -1605,6 +1605,9 @@ async fn handle_message(message: Message, state: &ServerState) -> Message {
             state.shutdown().await;
             Message::Success
         }
+        Message::GetNextKeyInfo => Message::Error {
+            message: "GetNextKeyInfo not implemented".to_string(),
+        },
         _ => Message::Error {
             message: "Unknown message".to_string(),
         },
