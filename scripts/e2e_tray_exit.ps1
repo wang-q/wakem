@@ -30,36 +30,10 @@ if (-not (Test-Path $binary)) {
 
 Write-Host "Using binary: $binary" -ForegroundColor Cyan
 
-# Check if a wakem process with the given instance is running
-function Find-WakemProcess {
-    param([int]$InstanceId)
-    Get-Process -Name "wakem" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -like "*--instance $InstanceId*" -or $_.CommandLine -like "*instance=$InstanceId*" }
-}
-
-# Check if the tray icon exists in the notification area
-# This uses the Shell COM object to enumerate tray icons
-function Test-TrayIconExists {
-    param([string]$Tooltip = "wakem")
-    try {
-        # Use a simple heuristic: check if wakem process is running
-        # A more thorough check would use UI Automation to find the icon
-        $procs = Get-Process -Name "wakem" -ErrorAction SilentlyContinue
-        return ($procs -ne $null -and $procs.Count -gt 0)
-    } catch {
-        return $false
-    }
-}
-
-# Kill all wakem processes for the given instance (cleanup)
-function Stop-WakemProcesses {
-    param([int]$InstanceId)
-    $procs = Find-WakemProcess -InstanceId $InstanceId
-    if ($procs) {
-        Write-Host "  Cleaning up leftover processes..." -ForegroundColor Yellow
-        $procs | Stop-Process -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 500
-    }
+# Kill all wakem processes (cleanup)
+function Stop-AllWakemProcesses {
+    Get-Process -Name "wakem" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
 }
 
 # Wait for a process to exit
@@ -69,39 +43,37 @@ function Wait-ForExit {
         [int]$TimeoutSeconds
     )
 
-    $exited = $Process.WaitForExit($TimeoutSeconds * 1000)
-    if ($exited) {
-        Write-Host "  Process exited (code: $($Process.ExitCode))" -ForegroundColor Green
+    if ($Process.HasExited) {
         return $true
-    } else {
-        Write-Host "  Process did NOT exit within $TimeoutSeconds seconds" -ForegroundColor Red
-        return $false
     }
+
+    $exited = $Process.WaitForExit($TimeoutSeconds * 1000)
+    return $exited
 }
 
 # ============================================================
-# Test 1: Tray exit without daemon
+# Test 1: Tray exit without daemon (using taskkill WM_CLOSE)
 # ============================================================
 function Test-TrayExitWithoutDaemon {
     Write-Host "`n=== Test: Tray exit without daemon ===" -ForegroundColor Cyan
     $id = $InstanceId
 
-    Stop-WakemProcesses -InstanceId $id
+    Stop-AllWakemProcesses
 
     Write-Host "  Starting tray (instance $id)..."
-    $tray = Start-Process -FilePath $binary -ArgumentList "tray","--instance",$id -PassThru -WindowStyle Hidden
+    # Note: --instance must come BEFORE the subcommand
+    $tray = Start-Process -FilePath $binary -ArgumentList "--instance",$id,"tray" -PassThru -WindowStyle Hidden
 
     Write-Host "  Waiting for tray to initialize (2s)..."
     Start-Sleep -Seconds 2
 
     Write-Host "  Checking tray process is running..."
     if ($tray.HasExited) {
-        Write-Host "  FAIL: Tray process exited immediately" -ForegroundColor Red
+        Write-Host "  FAIL: Tray process exited immediately (code: $($tray.ExitCode))" -ForegroundColor Red
         return $false
     }
 
-    Write-Host "  Sending WM_CLOSE to tray window..."
-    # Use taskkill which sends WM_CLOSE (graceful shutdown)
+    Write-Host "  Sending WM_CLOSE to tray window (via taskkill)..."
     $killResult = & taskkill /PID $tray.Id 2>&1
     Write-Host "  taskkill output: $killResult"
 
@@ -112,7 +84,7 @@ function Test-TrayExitWithoutDaemon {
         Stop-Process -Id $tray.Id -Force -ErrorAction SilentlyContinue
     }
 
-    Stop-WakemProcesses -InstanceId $id
+    Stop-AllWakemProcesses
 
     if ($exited) {
         Write-Host "  PASS: Tray exited cleanly without daemon" -ForegroundColor Green
@@ -123,28 +95,40 @@ function Test-TrayExitWithoutDaemon {
 }
 
 # ============================================================
-# Test 2: Tray exit with daemon (via IPC shutdown)
+# Test 2: Tray exit with daemon (via IPC shutdown command)
 # ============================================================
 function Test-TrayExitWithDaemon {
     Write-Host "`n=== Test: Tray exit with daemon (IPC shutdown) ===" -ForegroundColor Cyan
     $id = $InstanceId + 1
 
-    Stop-WakemProcesses -InstanceId $id
+    Stop-AllWakemProcesses
 
     Write-Host "  Starting daemon (instance $id)..."
-    $daemon = Start-Process -FilePath $binary -ArgumentList "daemon","--instance",$id -PassThru -WindowStyle Hidden
+    # Note: --instance must come BEFORE the subcommand
+    $daemon = Start-Process -FilePath $binary -ArgumentList "--instance",$id,"daemon" -PassThru -WindowStyle Hidden
 
     Write-Host "  Waiting for daemon to initialize (3s)..."
     Start-Sleep -Seconds 3
 
+    if ($daemon.HasExited) {
+        Write-Host "  FAIL: Daemon exited immediately (code: $($daemon.ExitCode))" -ForegroundColor Red
+        return $false
+    }
+
     Write-Host "  Starting tray (instance $id)..."
-    $tray = Start-Process -FilePath $binary -ArgumentList "tray","--instance",$id -PassThru -WindowStyle Hidden
+    $tray = Start-Process -FilePath $binary -ArgumentList "--instance",$id,"tray" -PassThru -WindowStyle Hidden
 
     Write-Host "  Waiting for tray to connect to daemon (2s)..."
     Start-Sleep -Seconds 2
 
+    if ($tray.HasExited) {
+        Write-Host "  FAIL: Tray exited immediately" -ForegroundColor Red
+        Stop-Process -Id $daemon.Id -Force -ErrorAction SilentlyContinue
+        return $false
+    }
+
     Write-Host "  Sending shutdown command via IPC..."
-    $shutdownResult = & $binary "shutdown" "--instance" $id 2>&1
+    $shutdownResult = & $binary "--instance" $id "shutdown" 2>&1
     Write-Host "  shutdown output: $shutdownResult"
 
     Write-Host "  Waiting for daemon to exit..."
@@ -160,7 +144,7 @@ function Test-TrayExitWithDaemon {
         Stop-Process -Id $tray.Id -Force -ErrorAction SilentlyContinue
     }
 
-    Stop-WakemProcesses -InstanceId $id
+    Stop-AllWakemProcesses
 
     $pass = $daemonExited -and $trayExited
     if ($pass) {
@@ -181,13 +165,13 @@ function Test-TrayRestartCycle {
     for ($i = 1; $i -le 3; $i++) {
         Write-Host "  Cycle $i/3..." -ForegroundColor Yellow
 
-        Stop-WakemProcesses -InstanceId $id
+        Stop-AllWakemProcesses
 
-        $tray = Start-Process -FilePath $binary -ArgumentList "tray","--instance",$id -PassThru -WindowStyle Hidden
+        $tray = Start-Process -FilePath $binary -ArgumentList "--instance",$id,"tray" -PassThru -WindowStyle Hidden
         Start-Sleep -Seconds 2
 
         if ($tray.HasExited) {
-            Write-Host "  FAIL: Tray exited immediately in cycle $i" -ForegroundColor Red
+            Write-Host "  FAIL: Tray exited immediately in cycle $i (code: $($tray.ExitCode))" -ForegroundColor Red
             return $false
         }
 
@@ -203,7 +187,7 @@ function Test-TrayRestartCycle {
         Start-Sleep -Seconds 1
     }
 
-    Stop-WakemProcesses -InstanceId $id
+    Stop-AllWakemProcesses
     Write-Host "  PASS: All 3 restart cycles completed" -ForegroundColor Green
     return $true
 }

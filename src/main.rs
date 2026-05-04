@@ -80,6 +80,7 @@ fn main() -> Result<()> {
         Some(Commands::DeleteMacro { name }) => {
             commands::cmd_delete_macro_sync(cli.instance, &name)
         }
+        Some(Commands::Shutdown) => commands::cmd_shutdown_sync(cli.instance),
         Some(Commands::Tray) => tray::run_tray_sync(cli.instance, false, false),
         None => tray::run_tray_sync(cli.instance, true, true),
     }

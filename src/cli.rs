@@ -69,6 +69,8 @@ pub enum Commands {
         /// Macro name
         name: String,
     },
+    /// Shutdown the daemon
+    Shutdown,
 }
 
 #[cfg(test)]

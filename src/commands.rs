@@ -172,3 +172,12 @@ pub fn cmd_delete_macro_sync(instance_id: u32, name: &str) -> Result<()> {
         Ok(())
     })
 }
+
+/// Shutdown the daemon
+pub fn cmd_shutdown_sync(instance_id: u32) -> Result<()> {
+    run_with_client(instance_id, |mut client| async move {
+        client.shutdown().await?;
+        println!("wakemd instance {} shutdown initiated", instance_id);
+        Ok(())
+    })
+}
