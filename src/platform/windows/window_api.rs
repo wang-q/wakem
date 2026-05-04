@@ -312,7 +312,10 @@ impl WindowApiBase for RealWindowApi {
             windows.sort_by_key(|hwnd| hwnd_to_window_id(*hwnd));
             windows.dedup_by_key(|hwnd| hwnd_to_window_id(*hwnd));
             if windows.len() != original_len {
-                tracing::debug!("[SwitchWindow] Removed {} duplicates", original_len - windows.len());
+                tracing::debug!(
+                    "[SwitchWindow] Removed {} duplicates",
+                    original_len - windows.len()
+                );
             }
 
             // Ensure current window is in the list
@@ -327,7 +330,10 @@ impl WindowApiBase for RealWindowApi {
             tracing::debug!("[SwitchWindow] Total unique windows: {}", windows.len());
 
             if windows.len() < 2 {
-                tracing::debug!("[SwitchWindow] Only {} window(s), skipping switch", windows.len());
+                tracing::debug!(
+                    "[SwitchWindow] Only {} window(s), skipping switch",
+                    windows.len()
+                );
                 return Ok(());
             }
 

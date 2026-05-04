@@ -17,14 +17,7 @@ mod tests {
 
         // Set up a foreground window with initial position
         wm.set_foreground_window(window_id);
-        wm.add_window(
-            window_id,
-            "Test Window",
-            100,
-            100,
-            800,
-            600,
-        );
+        wm.add_window(window_id, "Test Window", 100, 100, 800, 600);
         wm.set_monitors(vec![MonitorInfo {
             x: 0,
             y: 0,
@@ -104,12 +97,14 @@ mod tests {
     fn test_execute_toggle_topmost_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::ToggleTopmost, None, None);
+        let result =
+            execute_window_action(&wm, &WindowAction::ToggleTopmost, None, None);
 
         assert!(result.is_ok(), "ToggleTopmost action should succeed");
 
         // Toggle again
-        let result = execute_window_action(&wm, &WindowAction::ToggleTopmost, None, None);
+        let result =
+            execute_window_action(&wm, &WindowAction::ToggleTopmost, None, None);
         assert!(result.is_ok(), "Second ToggleTopmost should succeed");
     }
 
@@ -234,7 +229,8 @@ mod tests {
         let wm = setup_mock_wm();
 
         // SwitchToNextWindow is not implemented in mock, should fail
-        let result = execute_window_action(&wm, &WindowAction::SwitchToNextWindow, None, None);
+        let result =
+            execute_window_action(&wm, &WindowAction::SwitchToNextWindow, None, None);
         assert!(
             result.is_err(),
             "SwitchToNextWindow should fail when not implemented"
@@ -245,7 +241,8 @@ mod tests {
     fn test_show_debug_info_action() {
         let wm = setup_mock_wm();
 
-        let result = execute_window_action(&wm, &WindowAction::ShowDebugInfo, None, None);
+        let result =
+            execute_window_action(&wm, &WindowAction::ShowDebugInfo, None, None);
         assert!(result.is_ok(), "ShowDebugInfo should succeed");
     }
 

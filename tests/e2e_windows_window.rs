@@ -725,15 +725,19 @@ mod integration_tests {
         );
 
         // Track which windows we've seen during switching
-        let mut seen_windows: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        let mut seen_windows: std::collections::HashSet<usize> =
+            std::collections::HashSet::new();
 
         // Get the initial foreground window
-        let initial_fg = wm.get_foreground_window().expect("Should have foreground window");
+        let initial_fg = wm
+            .get_foreground_window()
+            .expect("Should have foreground window");
         seen_windows.insert(initial_fg);
 
         // Switch through windows and record each unique window we visit
         // We need to see ALL 3 windows, not just bounce between 2
-        for i in 0..6 { // Try up to 6 switches to ensure we see all windows
+        for i in 0..6 {
+            // Try up to 6 switches to ensure we see all windows
             let result = wm.switch_to_next_window_of_same_process();
             assert!(result.is_ok(), "Switch {} failed: {:?}", i, result.err());
             wait_for_window_stable();
