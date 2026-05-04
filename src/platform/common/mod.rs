@@ -5,6 +5,7 @@
 
 pub mod app_control;
 pub mod input_device;
+pub mod key_names;
 pub mod launcher;
 pub mod output_helpers;
 pub mod tray;

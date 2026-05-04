@@ -7,7 +7,7 @@
 #![cfg(target_os = "macos")]
 
 use crate::platform::macos::native_api::{cg_window, ns_workspace};
-use crate::platform::traits::WindowContext;
+use crate::platform::types::WindowContext;
 use tracing::debug;
 
 /// Get current window context using native APIs

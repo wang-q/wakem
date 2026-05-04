@@ -146,7 +146,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "windows")]
     fn test_window_event_creation() {
         let (tx, _rx) = std::sync::mpsc::channel();
         let hook = WindowEventHook::new(tx);

@@ -57,6 +57,8 @@ pub struct ServerState {
     hyper_key_map: Arc<RwLock<std::collections::HashMap<(u16, u16), ModifierState>>>,
     pressed_keys: Arc<RwLock<std::collections::HashSet<(u16, u16)>>>,
     shutdown_signal: ShutdownSignal,
+    context_fn: fn() -> Option<crate::platform::types::WindowContext>,
+    modifier_fn: fn() -> ModifierState,
 }
 
 impl ServerState {
@@ -85,6 +87,8 @@ impl ServerState {
             hyper_key_map: Arc::new(RwLock::new(std::collections::HashMap::new())),
             pressed_keys: Arc::new(RwLock::new(std::collections::HashSet::new())),
             shutdown_signal,
+            context_fn: get_current_context_default,
+            modifier_fn: get_modifier_state_default,
         }
     }
 
@@ -413,11 +417,7 @@ impl ServerState {
         let action = {
             let mapper = self.mapper.read().await;
             let context: Option<crate::platform::types::WindowContext> =
-                // NOTE: Uses static dispatch via CurrentPlatform rather than
-                // dependency injection. Refactoring to instance methods on
-                // ServerState would enable mocking but requires changing the
-                // ContextProvider/PlatformUtilities traits from static to &self.
-                <crate::platform::CurrentPlatform as ContextProvider>::get_current_context();
+                (self.context_fn)();
             mapper.process_event_with_context(&event, context.as_ref())
         };
 
@@ -505,8 +505,7 @@ impl ServerState {
         let config = self.config.read().await;
         let wheel_config = &config.config.mouse.wheel;
 
-        // Get current modifier state
-        let modifiers = get_current_modifier_state();
+        let modifiers = (self.modifier_fn)();
 
         // Check horizontal scroll
         if let Some(hscroll_config) = &wheel_config.horizontal_scroll {
@@ -1017,11 +1016,29 @@ mod tests {
     }
 }
 
-/// Get current modifier key state
-// NOTE: Uses static dispatch via CurrentPlatform rather than dependency
-// injection. See ContextProvider call above for the same limitation.
-fn get_current_modifier_state() -> ModifierState {
+fn get_current_context_default() -> Option<crate::platform::types::WindowContext> {
+    <crate::platform::CurrentPlatform as ContextProvider>::get_current_context()
+}
+
+fn get_modifier_state_default() -> ModifierState {
     crate::platform::CurrentPlatform::get_modifier_state()
+}
+
+impl ServerState {
+    #[cfg(test)]
+    pub fn with_context_fn(
+        mut self,
+        f: fn() -> Option<crate::platform::types::WindowContext>,
+    ) -> Self {
+        self.context_fn = f;
+        self
+    }
+
+    #[cfg(test)]
+    pub fn with_modifier_fn(mut self, f: fn() -> ModifierState) -> Self {
+        self.modifier_fn = f;
+        self
+    }
 }
 
 /// Run server with optional config path

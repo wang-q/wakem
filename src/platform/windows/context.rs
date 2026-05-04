@@ -65,7 +65,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "windows")]
     fn test_get_current() {
         let context = get_current();
         assert!(context.is_some());

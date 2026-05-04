@@ -481,8 +481,7 @@ pub trait PlatformUtilities {
     fn get_process_name_by_pid(pid: u32) -> Result<String>;
     fn get_executable_path_by_pid(pid: u32) -> Result<String>;
     fn parse_key_fallback(name: &str) -> Option<crate::types::KeyInfo> {
-        let _ = name;
-        None
+        crate::platform::common::key_names::parse_key_name(name)
     }
 }
 
