@@ -2,6 +2,32 @@
 //!
 //! This module provides macOS-specific implementations of the platform traits
 //! using Core Graphics, Cocoa, and Accessibility APIs.
+//!
+//! # Implementation Status
+//!
+//! | Component | Status | Notes |
+//! |-----------|--------|-------|
+//! | InputDevice | ✅ | CGEvent tap for keyboard/mouse capture |
+//! | OutputDevice | ✅ | CGEventPost for event injection |
+//! | WindowManager | ✅ | Core Graphics window operations |
+//! | WindowPresetManager | ✅ | Preset save/load/apply |
+//! | NotificationService | ✅ | UserNotifications framework |
+//! | Launcher | ✅ | NSWorkspace for app launching |
+//! | WindowEventHook | ⚠️ | Basic implementation, needs testing |
+//! | Tray | ⚠️ | Menu bar icon, needs polish |
+//! | AppControl | ✅ | NSWorkspace, NSApplication APIs |
+//!
+//! # Known Limitations
+//!
+//! - Some window operations require Accessibility permissions
+//! - Window event hook may miss rapid window switches
+//! - Tray menu styling differs from native macOS apps
+//!
+//! # Required Permissions
+//!
+//! - Accessibility: For window management and input capture
+//! - Input Monitoring: For keyboard/mouse event taps
+//! - Automation: For window event notifications
 #![cfg(target_os = "macos")]
 
 pub mod app_control;

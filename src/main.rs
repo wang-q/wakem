@@ -9,11 +9,9 @@ use wakem::runtime_util;
 use wakem::tray;
 
 /// Result of initializing logging and loading config
-#[allow(dead_code)]
 struct InitResult {
     config: Option<config::Config>,
     config_path: Option<std::path::PathBuf>,
-    config_error: Option<anyhow::Error>,
 }
 
 fn init_logging(cli: &Cli) -> InitResult {
@@ -22,16 +20,16 @@ fn init_logging(cli: &Cli) -> InitResult {
         .clone()
         .or_else(|| config::resolve_config_file_path(None, cli.instance));
 
-    let (log_level, config_result, config_error) = if let Some(ref path) = config_path {
+    let (log_level, config_result) = if let Some(ref path) = config_path {
         match config::Config::from_file(path) {
-            Ok(cfg) => (cfg.log_level.clone(), Some(cfg), None),
+            Ok(cfg) => (cfg.log_level.clone(), Some(cfg)),
             Err(e) => {
                 eprintln!("Failed to load config for log level: {}", e);
-                ("info".to_string(), None, Some(e))
+                ("info".to_string(), None)
             }
         }
     } else {
-        ("info".to_string(), None, None)
+        ("info".to_string(), None)
     };
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -41,11 +39,6 @@ fn init_logging(cli: &Cli) -> InitResult {
 
     if config_result.is_some() {
         info!("Logging initialized with level: {}", log_level);
-    } else if config_error.is_some() {
-        info!(
-            "Logging initialized with level: {} (config load failed)",
-            log_level
-        );
     } else {
         info!("Logging initialized with level: {}", log_level);
     }
@@ -53,7 +46,6 @@ fn init_logging(cli: &Cli) -> InitResult {
     InitResult {
         config: config_result,
         config_path,
-        config_error,
     }
 }
 
