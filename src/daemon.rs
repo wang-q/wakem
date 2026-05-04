@@ -354,9 +354,23 @@ impl ServerState {
             }
         }
 
-        // Check if this is CapsLock (Hyper key) and update virtual modifiers directly
+        // Check if this is a Hyper key and update virtual modifiers directly
         // This must happen before merge_virtual_modifiers
-        let _is_hyper_key = self.check_and_update_hyper_key(&event).await;
+        let is_hyper_key = self.check_and_update_hyper_key(&event).await;
+
+        // Hyper key acts as a pure virtual modifier: it only updates internal state
+        // and does not execute any mapped action or send input events
+        if is_hyper_key {
+            if let InputEvent::Key(ref key_event) = event {
+                let key_id = (key_event.scan_code, key_event.virtual_key);
+                if key_event.state == crate::types::KeyState::Pressed {
+                    self.pressed_keys.lock().await.insert(key_id);
+                } else {
+                    self.pressed_keys.lock().await.remove(&key_id);
+                }
+            }
+            return;
+        }
 
         // Merge virtual modifiers into the event for Hyper key support
         let event = self.merge_virtual_modifiers(event).await;
@@ -901,6 +915,19 @@ impl ServerState {
     pub async fn pressed_key_count(&self) -> usize {
         self.pressed_keys.lock().await.len()
     }
+
+    /// Check if a hyper key is currently active (test-only accessor)
+    pub async fn is_hyper_key_active(&self, scan_code: u16, virtual_key: u16) -> bool {
+        self.active_hyper_keys
+            .read()
+            .await
+            .contains_key(&(scan_code, virtual_key))
+    }
+
+    /// Get the number of currently active hyper keys (test-only accessor)
+    pub async fn active_hyper_key_count(&self) -> usize {
+        self.active_hyper_keys.read().await.len()
+    }
 }
 
 #[cfg(test)]
@@ -1044,6 +1071,139 @@ mod tests {
             state.is_key_pressed(0x1E, 0x41).await,
             "Step 5: repress after release"
         );
+    }
+
+    #[tokio::test]
+    async fn test_hyper_key_press_updates_state() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let _ = state.load_config(config).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        state.process_input_event(press).await;
+
+        assert!(
+            state.is_hyper_key_active(0x3A, 0x14).await,
+            "Hyper key press should activate it"
+        );
+        assert_eq!(state.active_hyper_key_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_hyper_key_release_clears_state() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let _ = state.load_config(config).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        let release = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Released));
+
+        state.process_input_event(press).await;
+        assert!(state.is_hyper_key_active(0x3A, 0x14).await);
+
+        state.process_input_event(release).await;
+        assert!(
+            !state.is_hyper_key_active(0x3A, 0x14).await,
+            "Hyper key release should deactivate it"
+        );
+        assert_eq!(state.active_hyper_key_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_hyper_key_press_tracks_pressed_keys() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let _ = state.load_config(config).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        state.process_input_event(press).await;
+
+        assert!(
+            state.is_key_pressed(0x3A, 0x14).await,
+            "Hyper key press should be tracked in pressed_keys"
+        );
+        assert_eq!(state.pressed_key_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_hyper_key_release_removes_pressed_keys() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let _ = state.load_config(config).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        let release = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Released));
+
+        state.process_input_event(press).await;
+        assert!(state.is_key_pressed(0x3A, 0x14).await);
+
+        state.process_input_event(release).await;
+        assert!(
+            !state.is_key_pressed(0x3A, 0x14).await,
+            "Hyper key release should remove from pressed_keys"
+        );
+        assert_eq!(state.pressed_key_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_hyper_key_does_not_trigger_action() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let _ = state.load_config(config).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x3A, 0x14, KeyState::Pressed));
+        state.process_input_event(press).await;
+
+        assert!(
+            state.is_hyper_key_active(0x3A, 0x14).await,
+            "Hyper key should be active"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_non_hyper_key_not_affected() {
+        let state = ServerState::new(ShutdownSignal::new());
+
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let _ = state.load_config(config).await;
+
+        let press = InputEvent::Key(KeyEvent::new(0x1E, 0x41, KeyState::Pressed));
+        state.process_input_event(press).await;
+
+        assert!(
+            !state.is_hyper_key_active(0x1E, 0x41).await,
+            "Non-hyper key should not be in active_hyper_keys"
+        );
+        assert!(state.is_key_pressed(0x1E, 0x41).await);
     }
 }
 

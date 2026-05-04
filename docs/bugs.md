@@ -7,12 +7,22 @@ This document records complex bugs and their analysis for future reference.
 ## Bug 001: CapsLock as Hyper Key Produces @ Symbol
 
 **Date:** 2026-05-04
-**Status:** Open
+**Status:** Fixed (2026-05-05)
 **Labels:** `windows`, `hyper-key`, `keyboard`, `input-hook`
 
-### Issue Description
+### Expected Behavior
 
-When using CapsLock as a Hyper key (remapped to `Ctrl+Alt+Win`), pressing and releasing CapsLock causes an `@` symbol to appear at the cursor position.
+When CapsLock is configured as a Hyper key (`CapsLock = "Ctrl+Alt+Meta"`), it should act as a pure virtual modifier:
+
+- Pressing CapsLock alone should **not** produce any character output
+- CapsLock should **not** send actual `Ctrl+Alt+Meta` key events to Windows
+- CapsLock should only set an internal state that modifies subsequent key events
+- For example, `CapsLock + C` should be interpreted internally as `Ctrl+Alt+Meta+C`, triggering the mapped action (e.g., window centering) without any visible text output
+- The original CapsLock toggle functionality (LED state, case switching) may still operate at the system level
+
+### Actual Behavior (Bug)
+
+Pressing and releasing CapsLock causes an `@` symbol to appear at the cursor position.
 
 User reports:
 - First press: produces `@`
@@ -379,32 +389,49 @@ Conclusion: The @ symbol is generated during Daemon's event processing,
 | 2026-05-04 | 8 | Test without wakem (bare CapsLock) | ✅ No @ - confirms our bug | Completed |
 | 2026-05-04 | 9 | Minimal Hook (skip daemon) | ✅ **Root cause located!** | Completed |
 
-**🎯 Current Status: ROOT CAUSE IDENTIFIED - Need to pinpoint exact line in daemon.rs**
+### Solution (Implemented 2026-05-05)
+
+**Approach**: Hyper key pure internalization — convert Hyper key from "sending modifier keys" to "pure virtual state"
+
+**Core Changes**:
+
+1. **[daemon.rs](file:///c:/Users/wangq/Scripts/wakem/src/daemon.rs#L357-L375)** `process_input_event()`:
+   - After `check_and_update_hyper_key()`, if the event is a Hyper key, directly `return`
+   - Hyper key only updates internal `active_hyper_keys` state and `pressed_keys` tracking
+   - Does not enter mapper/action execution flow
+
+2. **[config.rs](file:///c:/Users/wangq/Scripts/wakem/src/config.rs#L657-L665)** `create_hyper_key_action()`:
+   - Changed from returning `Action::Sequence([Press Ctrl, Press Alt, Press Win, ...])` to returning `Action::None`
+   - Completely eliminates SendInput injection of modifier keys
+
+**Why this works**:
+
+```
+Before (bug):
+  CapsLock press → daemon → SendInput(Ctrl+Alt+Win down) → @ generated
+
+After (fixed):
+  CapsLock press → daemon → update active_hyper_keys → return
+                           ↓
+  C press → merge_virtual_modifiers(Ctrl+Alt+Meta) → match "Ctrl+Alt+Meta+C" → Center
+```
+
+Hyper key now acts purely as an internal virtual modifier. It does not send any key events to Windows, so there is no conflict with the original CapsLock event.
+
+**Verification**:
+- `cargo clippy -- -D warnings` ✅ zero warnings
+- `cargo test` ✅ 372 tests passed
+- User manual test ✅ no `@` symbol, Hyper key functions normally
 
 ---
 
-## 📋 Summary for Next Developer
+## 📋 Summary
 
 **Bug**: CapsLock as Hyper Key produces `@` symbol  
-**Type**: Regression bug (user reports it worked before)  
-**Root Cause**: Located in `daemon.rs::process_input_event()` pipeline  
-**Evidence**: 9 systematic experiments narrowing down the issue  
-
-**Next Action Required**:  
-Binary search through daemon processing steps (see "Debugging Suggestions" above) to find exact code section causing @ symbol generation.
-
-### Testing Notes
-
-To reproduce:
-1. Configure `CapsLock = "Ctrl+Alt+Win"` in config
-2. Start wakem
-3. Press CapsLock
-4. Release CapsLock
-5. Observe `@` symbols appearing
-
-Expected after fix:
-- No `@` symbol should appear
-- Hyper key functionality should work normally
+**Type**: Architecture design issue  
+**Root Cause**: `create_hyper_key_action` generated `Action::Sequence` containing `SendInput` calls for modifier keys, which conflicted with the original CapsLock event  
+**Fix**: Hyper key pure internalization — only updates state, does not send input  
+**Verification**: clippy passed, all tests passed, manual test passed
 
 ---
 

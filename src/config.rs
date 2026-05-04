@@ -656,44 +656,15 @@ fn parse_modifier_combo(s: &str) -> anyhow::Result<crate::types::ModifierState> 
 }
 
 /// Create Hyper key action
-/// When the Hyper key (e.g., CapsLock) is held, it simulates holding the modifier keys
-/// This allows using CapsLock+C to trigger Ctrl+Alt+Win+C shortcuts
+///
+/// Hyper keys act as pure virtual modifiers: they only update internal state
+/// and do not send actual modifier key events to the system. The modifier
+/// state is maintained by `check_and_update_hyper_key` in the daemon and
+/// merged into subsequent key events via `merge_virtual_modifiers`.
 fn create_hyper_key_action(
-    modifiers: &crate::types::ModifierState,
+    _modifiers: &crate::types::ModifierState,
 ) -> crate::types::Action {
-    use crate::types::{Action, KeyAction};
-
-    let mut press_actions = Vec::new();
-    let mut release_actions = Vec::new();
-
-    let modifier_keys = [
-        ("lctrl", modifiers.ctrl),
-        ("lalt", modifiers.alt),
-        ("lwin", modifiers.meta),
-        ("lshift", modifiers.shift),
-    ];
-
-    for (key_name, active) in modifier_keys {
-        if active {
-            if let Ok(key) = parse_key(key_name) {
-                press_actions.push(Action::key(KeyAction::press(
-                    key.scan_code,
-                    key.virtual_key,
-                )));
-                release_actions.insert(
-                    0,
-                    Action::key(KeyAction::release(key.scan_code, key.virtual_key)),
-                );
-            }
-        }
-    }
-
-    let mut all_actions = press_actions;
-    all_actions.push(Action::Delay { milliseconds: 10 });
-    all_actions.push(Action::None);
-    all_actions.extend(release_actions);
-
-    Action::Sequence(all_actions)
+    crate::types::Action::None
 }
 
 /// Parse window management shortcut
@@ -1091,66 +1062,11 @@ J = "Down"
             panic!("Expected Key trigger");
         }
 
-        if let crate::types::Action::Sequence(actions) = &rule.action {
-            assert_eq!(actions.len(), 8);
-
-            if let crate::types::Action::Key(crate::types::KeyAction::Press {
-                virtual_key,
-                ..
-            }) = &actions[0]
-            {
-                assert_eq!(*virtual_key, crate::types::key_codes::VK_LCONTROL);
-            } else {
-                panic!("Expected Ctrl Press as first action, got {:?}", actions[0]);
-            }
-
-            if let crate::types::Action::Key(crate::types::KeyAction::Press {
-                virtual_key,
-                ..
-            }) = &actions[1]
-            {
-                assert_eq!(*virtual_key, crate::types::key_codes::VK_LALT);
-            } else {
-                panic!("Expected Alt Press as second action, got {:?}", actions[1]);
-            }
-
-            if let crate::types::Action::Key(crate::types::KeyAction::Press {
-                virtual_key,
-                ..
-            }) = &actions[2]
-            {
-                assert_eq!(*virtual_key, crate::types::key_codes::VK_LMETA);
-            } else {
-                panic!("Expected Win Press as third action, got {:?}", actions[2]);
-            }
-
-            if let crate::types::Action::Delay { milliseconds } = &actions[3] {
-                assert_eq!(*milliseconds, 10);
-            } else {
-                panic!("Expected Delay as fourth action, got {:?}", actions[3]);
-            }
-
-            assert!(
-                matches!(actions[4], crate::types::Action::None),
-                "Expected None marker as fifth action, got {:?}",
-                actions[4]
-            );
-
-            if let crate::types::Action::Key(crate::types::KeyAction::Release {
-                virtual_key,
-                ..
-            }) = &actions[5]
-            {
-                assert_eq!(*virtual_key, crate::types::key_codes::VK_LMETA);
-            } else {
-                panic!("Expected Win Release as sixth action, got {:?}", actions[5]);
-            }
-        } else {
-            panic!(
-                "Expected Sequence action for modifier combo, got {:?}",
-                rule.action
-            );
-        }
+        assert!(
+            matches!(rule.action, crate::types::Action::None),
+            "Hyper key action should be None (virtual modifier only), got {:?}",
+            rule.action
+        );
     }
 
     #[test]
