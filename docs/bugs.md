@@ -7,7 +7,7 @@ This document records complex bugs and their analysis for future reference.
 ## Bug 001: CapsLock as Hyper Key Produces @ Symbol
 
 **Date:** 2026-05-04
-**Status:** Analyzing
+**Status:** Open
 **Labels:** `windows`, `hyper-key`, `keyboard`, `input-hook`
 
 ### Issue Description
@@ -19,7 +19,7 @@ User reports:
 - First release: produces `@`
 - Subsequent presses/releases: produces one `@` each
 
-### Root Cause Analysis (In Progress)
+### Root Cause Analysis
 
 #### Current Findings
 
@@ -42,34 +42,82 @@ User reports:
    - Windows interprets `Ctrl+Alt` as `AltGr`
    - In many keyboard layouts, `AltGr + 0x3A` maps to `@`
 
-### Failed Attempts
+### Attempted Solutions (Not Working)
 
-1. **Attempt 1**: Block in Low-Level Hook only
-   - Result: Failed - Raw Input still propagates the event
+#### Attempt 1: Remove Raw Input Keyboard Handling
+- **Approach**: Removed keyboard event handling from `handle_raw_input`, keeping only Low-Level Hook for keyboard
+- **Result**: Failed - `@` symbol still appears
+- **Code Changes**:
+  - Modified `input.rs` to skip keyboard events in `handle_raw_input`
+  - Only mouse events are processed through Raw Input now
 
-### Proposed Solution
+#### Attempt 2: Implement Synchronous Event Blocking in Low-Level Hook
+- **Approach**: Added global `BLOCKED_KEYS` registry to track all mapped keys, modified `keyboard_proc` to return `LRESULT(1)` for blocked keys
+- **Result**: Failed - `@` symbol still appears
+- **Code Changes**:
+  - Added `BLOCKED_KEYS: RwLock<Option<HashSet<(u16, u16)>>>` static variable
+  - Added `set_blocked_keys()` function to update blocked key set
+  - Modified `keyboard_proc` to check if key is in blocked set before allowing propagation
+  - Used `parking_lot::RwLock` for better cross-thread synchronization
 
-Remove Raw Input keyboard handling, use only Low-Level Keyboard Hook for keyboard events.
+#### Attempt 3: Collect All Mapped Keys
+- **Approach**: Added `Config::get_blocked_keys()` to collect all keys with mappings (remap, layers, shortcuts, macros, launch)
+- **Result**: Failed - `@` symbol still appears
+- **Code Changes**:
+  - Added `get_blocked_keys()` method in `config.rs`
+  - Modified `daemon.rs` to call `set_blocked_keys()` when loading configuration
+  - Added test `test_get_blocked_keys` to verify correct key collection
 
-**Rationale**:
-- Low-Level Hook can truly block events
-- Raw Input is better suited for mouse/tablet input where blocking isn't needed
-- Having both causes duplicate events and blocking failures
+### Current Code State
 
-### Implementation Plan
+The following changes have been made but the issue persists:
 
-1. Remove keyboard handling from `handle_raw_input` in `input.rs`
-2. Keep only Low-Level Hook for keyboard events
-3. Keep Raw Input for mouse events (if needed)
+**Files Modified:**
+- `input.rs`: 
+  - Uses `parking_lot::RwLock` for `BLOCKED_KEYS` synchronization
+  - `keyboard_proc` checks blocked keys and returns `LRESULT(1)` to block events
+  - Raw Input only handles mouse events
+  
+- `config.rs`: 
+  - Added `get_blocked_keys()` method
+  - Added `test_get_blocked_keys` test
+  
+- `daemon.rs`: 
+  - Calls `set_blocked_keys()` on config load
+
+### Hypotheses for Why It's Not Working
+
+1. **Hook Installation Timing**: The Low-Level Hook might be installed after Windows has already started processing the key
+2. **Windows System-Level Handling**: CapsLock might be handled at a lower level in Windows before the Hook sees it
+3. **Race Condition**: The blocked keys set might not be populated when the first key events arrive
+4. **Hook Not Receiving Events**: The Hook might not be receiving the CapsLock events at all (though logs show it is)
+5. **Scan Code Mismatch**: The scan code from the Hook might not match what's in the blocked set
+
+### Debugging Suggestions for Next Attempt
+
+1. Add verbose logging in `keyboard_proc` to confirm:
+   - Hook is receiving CapsLock events
+   - Scan code matches expected value (0x3A)
+   - `should_block` is being evaluated correctly
+   - `LRESULT(1)` is being returned
+
+2. Verify `set_blocked_keys` is being called with correct keys before any key press
+
+3. Test with a simple key remap (not Hyper key) to verify blocking works at all
+
+4. Consider using Windows `BlockInput` API as a nuclear option
+
+5. Check if Windows is generating the `@` from the OutputDevice's simulated input rather than the original key
 
 ### Related Code Locations
 
 | File | Line | Description |
 |------|------|-------------|
-| `input.rs` | 336-396 | Raw Input keyboard handling |
-| `input.rs` | 189-260 | Low-Level Keyboard Hook |
-| `config.rs` | 258-280 | `get_hyper_key_mappings()` |
-| `daemon.rs` | 380-403 | Hyper key release filtering |
+| `input.rs` | 18-20 | `BLOCKED_KEYS` static variable |
+| `input.rs` | 179-248 | `keyboard_proc` - Low-Level Hook with blocking logic |
+| `input.rs` | 251-258 | `set_blocked_keys()` function |
+| `config.rs` | 283-328 | `get_blocked_keys()` - collects all mapped keys |
+| `daemon.rs` | 175-180 | Calls `set_blocked_keys()` on config load |
 
 ### Testing Notes
 
