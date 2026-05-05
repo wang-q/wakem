@@ -2,6 +2,14 @@
 
 ## Unreleased - ReleaseDate
 
+### Bug Fixes
+
+- Fixed FixedRatio/NativeRatio window stuck at maximum size on repeated hotkey presses
+
+### Features
+
+- Added `Backspace` as a center window hotkey for Windows keyboards
+
 ## 0.1.5 - 2026-05-05
 
 ### Bug Fixes

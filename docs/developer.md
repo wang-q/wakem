@@ -5,8 +5,8 @@
 ## Changelog
 
 ```bash
-git log v0.1.3..HEAD > gitlog.txt
-git diff v0.1.3 HEAD -- "*.rs" "*.md" > gitdiff.txt
+git log v0.1.5..HEAD > gitlog.txt
+git diff v0.1.5 HEAD -- "*.rs" "*.md" > gitdiff.txt
 ```
 
 ## Code coverage
