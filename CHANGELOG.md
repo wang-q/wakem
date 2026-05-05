@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.6 - 2026-05-05
+
 ### Bug Fixes
 
 - Fixed FixedRatio/NativeRatio window stuck at maximum size on repeated hotkey presses
