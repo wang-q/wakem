@@ -10,7 +10,8 @@ mod integration_tests {
         WindowOperations, WindowSwitching,
     };
     use wakem::platform::windows::WindowManager as WindowsWindowManager;
-    use wakem::types::{Alignment, Edge};
+    use wakem::runtime::window_actions::execute_window_action;
+    use wakem::types::{Alignment, Edge, WindowAction};
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextW, IsWindow, IsWindowVisible, PostMessageW, WM_CLOSE,
@@ -307,14 +308,30 @@ mod integration_tests {
 
         let original_width = wm.get_window_info(window_id).unwrap().width;
 
-        // Cycle through widths
         wm.loop_width(window_id, Alignment::Left).unwrap();
         wait_for_window_stable();
 
         let new_width = wm.get_window_info(window_id).unwrap().width;
         assert!(
-            new_width != original_width,
-            "Width should have changed after loop_width"
+            (new_width - original_width).abs() > 20,
+            "Width should have changed after loop_width (original={}, new={})",
+            original_width,
+            new_width
+        );
+
+        let mut widths: Vec<i32> = vec![new_width];
+        for _ in 0..4 {
+            wm.loop_width(window_id, Alignment::Left).unwrap();
+            wait_for_window_stable();
+            let w = wm.get_window_info(window_id).unwrap().width;
+            widths.push(w);
+        }
+
+        let unique: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Loop width should produce varying sizes, got {:?}",
+            widths
         );
 
         teardown();
@@ -333,14 +350,30 @@ mod integration_tests {
 
         let original_height = wm.get_window_info(window_id).unwrap().height;
 
-        // Cycle through heights
         wm.loop_height(window_id, Alignment::Top).unwrap();
         wait_for_window_stable();
 
         let new_height = wm.get_window_info(window_id).unwrap().height;
         assert!(
-            new_height != original_height,
-            "Height should have changed after loop_height"
+            (new_height - original_height).abs() > 20,
+            "Height should have changed after loop_height (original={}, new={})",
+            original_height,
+            new_height
+        );
+
+        let mut heights: Vec<i32> = vec![new_height];
+        for _ in 0..2 {
+            wm.loop_height(window_id, Alignment::Top).unwrap();
+            wait_for_window_stable();
+            let h = wm.get_window_info(window_id).unwrap().height;
+            heights.push(h);
+        }
+
+        let unique: std::collections::HashSet<i32> = heights.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Loop height should produce varying sizes, got {:?}",
+            heights
         );
 
         teardown();
@@ -381,6 +414,141 @@ mod integration_tests {
             (ratio - 4.0 / 3.0).abs() < 0.1,
             "Ratio should be approximately 4:3, got {}",
             ratio
+        );
+
+        teardown();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_fixed_ratio_cycles_through_scales_via_dispatch() {
+        setup();
+        let _pid = launch_test_window();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let action = WindowAction::FixedRatio {
+            ratio: 4.0 / 3.0,
+            scale_index: 0,
+        };
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        wait_for_window_stable();
+        let info1 = wm.get_window_info(window_id).unwrap();
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        wait_for_window_stable();
+        let info2 = wm.get_window_info(window_id).unwrap();
+
+        assert!(
+            (info1.width - info2.width).abs() > 20,
+            "FixedRatio via dispatch should cycle to different scale on repeated calls (width1={}, width2={})",
+            info1.width, info2.width
+        );
+
+        let ratio = 4.0 / 3.0;
+        let ratio1 = info1.width as f32 / info1.height as f32;
+        let ratio2 = info2.width as f32 / info2.height as f32;
+        assert!(
+            (ratio1 - ratio).abs() < 0.1,
+            "First ratio should be ~4:3, got {}",
+            ratio1
+        );
+        assert!(
+            (ratio2 - ratio).abs() < 0.1,
+            "Second ratio should be ~4:3, got {}",
+            ratio2
+        );
+
+        teardown();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_fixed_ratio_full_cycle_via_dispatch() {
+        setup();
+        let _pid = launch_test_window();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let action = WindowAction::FixedRatio {
+            ratio: 4.0 / 3.0,
+            scale_index: 0,
+        };
+
+        let mut widths: Vec<i32> = Vec::new();
+        for _ in 0..4 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            wait_for_window_stable();
+            let info = wm.get_window_info(window_id).unwrap();
+            widths.push(info.width);
+        }
+
+        let unique: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Scale should vary across calls, got all same width: {:?}",
+            widths
+        );
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        wait_for_window_stable();
+        let info_after_cycle = wm.get_window_info(window_id).unwrap();
+        assert!(
+            (info_after_cycle.width - widths[0]).abs() < 20,
+            "After full cycle, width should return to first scale (first={}, after_cycle={})",
+            widths[0], info_after_cycle.width
+        );
+
+        teardown();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_native_ratio_cycles_via_dispatch() {
+        setup();
+        let _pid = launch_test_window();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_notepad_hwnd().expect("Should find notepad window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let action = WindowAction::NativeRatio { scale_index: 0 };
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        wait_for_window_stable();
+        let info1 = wm.get_window_info(window_id).unwrap();
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        wait_for_window_stable();
+        let info2 = wm.get_window_info(window_id).unwrap();
+
+        assert!(
+            (info1.width - info2.width).abs() > 20,
+            "NativeRatio via dispatch should cycle to different scale on repeated calls (width1={}, width2={})",
+            info1.width, info2.width
+        );
+
+        let monitors = wm.get_monitors();
+        let screen_ratio = monitors[0].width as f32 / monitors[0].height as f32;
+        let ratio1 = info1.width as f32 / info1.height as f32;
+        let ratio2 = info2.width as f32 / info2.height as f32;
+        assert!(
+            (ratio1 - screen_ratio).abs() < 0.1,
+            "First ratio should match screen, got {}",
+            ratio1
+        );
+        assert!(
+            (ratio2 - screen_ratio).abs() < 0.1,
+            "Second ratio should match screen, got {}",
+            ratio2
         );
 
         teardown();

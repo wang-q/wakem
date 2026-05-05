@@ -41,11 +41,14 @@ pub fn execute_window_action(
         WindowAction::LoopHeight(align) => {
             wm.loop_height(window, *align)?;
         }
-        WindowAction::FixedRatio { ratio, scale_index } => {
-            wm.set_fixed_ratio(window, *ratio, Some(*scale_index))?;
+        WindowAction::FixedRatio {
+            ratio,
+            scale_index: _,
+        } => {
+            wm.set_fixed_ratio(window, *ratio, None)?;
         }
-        WindowAction::NativeRatio { scale_index } => {
-            wm.set_native_ratio(window, Some(*scale_index))?;
+        WindowAction::NativeRatio { scale_index: _ } => {
+            wm.set_native_ratio(window, None)?;
         }
         WindowAction::SwitchToNextWindow => {
             wm.switch_to_next_window_of_same_process()?;
@@ -488,6 +491,122 @@ mod tests {
         .unwrap();
         let (_, _, w, _) = wm.last_pos();
         assert_eq!(w, 1152);
+    }
+
+    #[test]
+    fn test_execute_fixed_ratio_cycles_through_scales() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let wm = TestWindowManager::new(monitor, 800, 600);
+
+        let action = WindowAction::FixedRatio {
+            ratio: 1.333,
+            scale_index: 0,
+        };
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        let (_, _, w1, h1) = wm.last_pos();
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        let (_, _, w2, h2) = wm.last_pos();
+
+        assert_ne!(
+            w1, w2,
+            "FixedRatio should cycle to different scale on repeated calls"
+        );
+
+        let ratio1 = w1 as f32 / h1 as f32;
+        let ratio2 = w2 as f32 / h2 as f32;
+        assert!(
+            (ratio1 - 1.333).abs() < 0.1,
+            "First ratio should be ~4:3, got {}",
+            ratio1
+        );
+        assert!(
+            (ratio2 - 1.333).abs() < 0.1,
+            "Second ratio should be ~4:3, got {}",
+            ratio2
+        );
+    }
+
+    #[test]
+    fn test_execute_fixed_ratio_full_cycle() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let wm = TestWindowManager::new(monitor, 800, 600);
+
+        let action = WindowAction::FixedRatio {
+            ratio: 1.333,
+            scale_index: 0,
+        };
+
+        let mut widths: Vec<i32> = Vec::new();
+        for _ in 0..4 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            let (_, _, w, _) = wm.last_pos();
+            widths.push(w);
+        }
+
+        assert_eq!(widths.len(), 4, "Should have 4 scale steps");
+        let unique: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Scale should vary across calls, got all same width: {:?}",
+            widths
+        );
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        let (_, _, w_after_cycle, _) = wm.last_pos();
+        assert_eq!(
+            w_after_cycle, widths[0],
+            "After full cycle, width should return to first scale"
+        );
+    }
+
+    #[test]
+    fn test_execute_native_ratio_cycles() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let wm = TestWindowManager::new(monitor, 800, 600);
+
+        let action = WindowAction::NativeRatio { scale_index: 0 };
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        let (_, _, w1, h1) = wm.last_pos();
+
+        execute_window_action(&wm, &action, None, None).unwrap();
+        let (_, _, w2, h2) = wm.last_pos();
+
+        assert_ne!(
+            w1, w2,
+            "NativeRatio should cycle to different scale on repeated calls"
+        );
+
+        let screen_ratio = 1920.0 / 1080.0;
+        let ratio1 = w1 as f32 / h1 as f32;
+        let ratio2 = w2 as f32 / h2 as f32;
+        assert!(
+            (ratio1 - screen_ratio).abs() < 0.1,
+            "First ratio should match screen, got {}",
+            ratio1
+        );
+        assert!(
+            (ratio2 - screen_ratio).abs() < 0.1,
+            "Second ratio should match screen, got {}",
+            ratio2
+        );
     }
 
     #[test]
