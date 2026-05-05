@@ -126,7 +126,7 @@ See [examples/window_manager.toml](examples/window_manager.toml) for key binding
 
 **Movement**
 
-* Center window. <kbd>Hyper</kbd>+<kbd>C</kbd>/<kbd>Delete</kbd>/<kbd>ForwardDelete</kbd>
+* Center window. <kbd>Hyper</kbd>+<kbd>C</kbd>/<kbd>Backspace</kbd>/<kbd>Delete</kbd>/<kbd>ForwardDelete</kbd>
 
 * Move to edges
     * Left edge - <kbd>Hyper</kbd>+<kbd>Home</kbd>

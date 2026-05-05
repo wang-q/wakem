@@ -18,6 +18,8 @@ CapsLock = "Ctrl+Alt+Meta"
 # Multiple keys mapped to same function (referencing mrw)
 "Ctrl+Alt+Meta+C" = "Center"
 "Ctrl+Alt+Meta+Shift+C" = "Center"
+"Ctrl+Alt+Meta+Backspace" = "Center"
+"Ctrl+Alt+Meta+Shift+Backspace" = "Center"
 "Ctrl+Alt+Meta+Delete" = "Center"
 "Ctrl+Alt+Meta+Shift+Delete" = "Center"
 "Ctrl+Alt+Meta+ForwardDelete" = "Center"
