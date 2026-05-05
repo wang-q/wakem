@@ -1,6 +1,7 @@
 # wakem Key Names Reference
 
-This document lists all key names recognized by wakem's configuration parser (`parse_key()` in `src/config.rs`).
+This document lists all key names recognized by wakem's configuration parser.
+The primary key name resolution is handled by `parse_key_name()` in `src/platform/common/key_names.rs`, with `keyboard_codes::Key` as a secondary source.
 These names can be used in `[keyboard.remap]`, layer mappings, and window shortcuts.
 
 ## Table of Contents
@@ -57,7 +58,10 @@ CapsLock = "ctrl"   # CapsLock acts as Ctrl
 
 | Name | Scan Code | Virtual Key |
 |------|-----------|-------------|
-| 0 ~ 9 | 0x0B ~ 0x14 | 0x30 ~ 0x39 (48~57) |
+| 1 ~ 9 | 0x02 ~ 0x0A | 0x31 ~ 0x39 (49~57) |
+| 0 | 0x0B | 0x30 (48) |
+
+> **Note**: The scan code for `0` is 0x0B, which follows after `9` (0x0A) in scan code order, not in numeric order.
 
 ### Numpad (Numeric Keypad)
 
@@ -92,14 +96,14 @@ Modifier keys are used in two contexts:
 
 | Name | Alias(es) | Scan Code | Virtual Key | Description |
 |------|-----------|-----------|-------------|-------------|
-| lshift | — | 0x2A | 0xA0 (160) | Left Shift |
-| rshift | — | 0x36 | 0xA1 (161) | Right Shift |
-| lctrl / lcontrol | — | 0x1D | 0xA2 (162) | Left Control |
-| rctrl / rcontrol | — | 0xE01D | 0xA3 (163) | Right Control |
-| lalt | — | 0x38 | 0xA4 (164) | Left Alt |
-| ralt | — | 0xE038 | 0xA5 (165) | Right Alt |
-| lwin / lmeta | — | 0xE05B | 0x5B (91) | Left Windows / Command |
-| rwin / rmeta | — | 0xE05C | 0x5C (92) | Right Windows / Command |
+| lshift | leftshift | 0x2A | 0xA0 (160) | Left Shift |
+| rshift | rightshift | 0x36 | 0xA1 (161) | Right Shift |
+| lctrl / lcontrol | leftctrl / leftcontrol | 0x1D | 0xA2 (162) | Left Control |
+| rctrl / rcontrol | rightctrl / rightcontrol | 0xE01D | 0xA3 (163) | Right Control |
+| lalt | leftalt | 0x38 | 0xA4 (164) | Left Alt |
+| ralt | rightalt | 0xE038 | 0xA5 (165) | Right Alt |
+| lwin / lmeta | leftwin / leftmeta | 0xE05B | 0x5B (91) | Left Windows / Command |
+| rwin / rmeta | rightwin / rightmeta | 0xE05C | 0x5C (92) | Right Windows / Command |
 
 ### Shortcut Modifier Prefixes
 
@@ -281,16 +285,19 @@ The numeric keypad (numpad) has its own set of key names. All numpad keys suppor
 
 When parsing a key name, the resolver checks sources in this order:
 
-1. **keyboard-codes crate** (`keyboard_codes::Key::from_str()`) — supports standard cross-platform key names
-2. **Legacy hardcoded mappings** in `parse_key()` — covers all keys listed in this document
+1. **Hardcoded key mappings** (`parse_key_fallback()` → `common::key_names::parse_key_name()`) — primary source, provides both scan code and virtual key code
+2. **keyboard-codes crate** (`keyboard_codes::Key::from_str()`) — secondary source, provides virtual key code only (scan code = 0)
 
-If neither source recognizes the name, an error is returned: `"Unknown key name: <name>"`.
+The hardcoded mappings are checked first because they provide both scan code and virtual key code, while the keyboard-codes crate only provides the virtual key code. If neither source recognizes the name, an error is returned: `"Unknown key name: <name>"`.
+
+> **Note**: The `parse_modifier_combo` function (used for Hyper key remapping like `CapsLock = "Ctrl+Alt+Meta"`) recognizes `ctrl`/`control`, `alt`, `shift`, `win`/`meta`/`command` but does **not** accept `cmd`. In contrast, `parse_shortcut_trigger` (used for window shortcuts and launch triggers) accepts `cmd` as an alias for `win`/`meta`.
 
 ### Tips
 
 - **Case-insensitive**: All key names match case-insensitively (`"F1"`, `"f1"`, `"F1"` all work)
 - **Use descriptive names**: Prefer readable names like `"numpad7"` over numeric codes
 - **Check with validation**: Run `wakem status` or check logs after editing config to catch typos early
+- **Modifier aliases in shortcuts vs. remapping**: In shortcut triggers (e.g., `"cmd+shift+left"`), `cmd` is accepted as an alias for `win`/`meta`. However, in keyboard remap targets (e.g., `CapsLock = "Ctrl+Alt+Meta"`), only `win`/`meta`/`command` are accepted — `cmd` is not recognized by `parse_modifier_combo`.
 
 ---
 

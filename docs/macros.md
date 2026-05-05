@@ -19,7 +19,8 @@ The macro system allows users to record and playback keyboard/mouse action seque
 - Record arbitrary keyboard and mouse operations (intelligently filtering standalone modifier keys)
 - Trigger recorded macros via hotkeys or command line
 - Precisely define macro steps in the configuration file (using MacroStep format)
-- Support all action types (keys, mouse, window management, launching programs, delays, etc.)
+- Support key, mouse, delay, and sequence action types during playback
+- Window and Launch actions can be defined but are skipped during playback
 - Persist macro data to the configuration file
 
 ## Command Line Usage
@@ -59,6 +60,16 @@ wakem bind-macro my-macro F1
 # Delete a macro
 wakem delete-macro my-macro
 ```
+
+### Macro Name Rules
+
+When recording macros via the CLI, the macro name must follow these rules:
+
+- Must not be empty
+- Can only contain alphanumeric characters, underscores (`_`), and hyphens (`-`)
+
+Examples of valid names: `my-macro`, `copy_paste`, `macro1`
+Examples of invalid names: `my macro` (contains space), `macro.name` (contains dot)
 
 ## Defining Macros in Configuration File
 
@@ -146,7 +157,9 @@ The macro system reuses the `Action` enum and supports all action types:
 
 #### Window Actions (WindowAction)
 
-The following window management actions are supported:
+> **Playback Limitation**: Window actions are **not supported** during macro playback. If a macro step contains a Window action, it will be skipped with a warning log. Window actions can be defined in the configuration file for documentation purposes, but will not be executed during playback.
+
+The following window management actions can be defined in macro steps:
 
 **Basic Operations**
 
@@ -183,9 +196,10 @@ The following window management actions are supported:
 | `SavePreset { name }` | Save current window as preset | Preset name |
 | `LoadPreset { name }` | Load specified preset to current window | Preset name |
 | `ApplyPreset` | Apply matched preset to current window | - |
-| `None` | No operation | - |
 
 #### Launch Actions (LaunchAction)
+
+> **Playback Limitation**: Launch actions are **not supported** during macro playback. If a macro step contains a Launch action, it will be skipped with a warning log. Use the `[launch]` configuration section or the `wakem bind-macro` command for program launching instead.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -194,25 +208,30 @@ The following window management actions are supported:
 | `working_dir` | Option\<String\> | Working directory (null means not specified) |
 | `env_vars` | Vec\<(String, String)\> | Environment variable key-value pair list |
 
-#### Other Actions
+#### Supported Action Types During Playback
 
-| Action | Description | Parameters |
-|--------|-------------|------------|
-| `Sequence` | Action sequence (nest multiple actions) | `Vec<Action>` |
-| `Delay` | Delay wait | `milliseconds` (u64) |
-| `None` | No operation | - |
+| Action Type | Playback Support | Notes |
+|-------------|-----------------|-------|
+| `Key` | ✅ Supported | Press, Release, Click, TypeText, Combo |
+| `Mouse` | ✅ Supported | Move, ButtonDown, ButtonUp, ButtonClick, Wheel, HWheel |
+| `Delay` | ✅ Supported | Sleep for specified milliseconds |
+| `Sequence` | ✅ Supported | Recursive execution of sub-actions |
+| `Window` | ❌ Skipped | Logged with warning, not executed |
+| `Launch` | ❌ Skipped | Logged with warning, not executed |
+| `None` | ✅ Supported | No operation (skip) |
 
 ## Core Components
 
 | Component | File | Description |
 |-----------|------|-------------|
 | `MacroRecorder` | `src/types/macros.rs` | Record input events, using `Action::from_input_event()` |
-| `MacroPlayer` | `src/runtime/macro_player.rs` | Playback macro actions, supports modifier state reconstruction |
-| `MacroManager` | `src/types/macros.rs` | Macro manager, responsible for loading, adding, deleting, querying macro definitions |
+| `MacroPlayer` | `src/runtime/macro_player.rs` | Playback macro actions, supports modifier state reconstruction and cancellation |
 | `MacroStep` | `src/types/macros.rs` | Macro step structure, containing action, modifiers, timestamp |
 | `Macro` | `src/types/macros.rs` | Macro definition structure, containing name, step list, metadata |
+| `simplify_delays()` | `src/types/macros.rs` | Delay optimization: merge consecutive short delays (<50ms) |
 | `ModifierState` | `src/types/mod.rs` | Modifier key state structure (ctrl/shift/alt/meta) |
 | `Action` | `src/types/action.rs` | Unified action enum |
+| Macro management | `src/daemon.rs` | ServerState methods: save_macro, play_macro, get_macros, delete_macro, bind_macro |
 
 ### Architecture Overview
 
@@ -222,7 +241,7 @@ The following window management actions are supported:
 │  - Uses Action::from_input_event()      │
 │  - Uses is_modifier() to filter         │
 │    standalone modifier keys             │
-│  - Uses from_virtual_key() + merge()    │
+│  - Uses apply_from_internal_vk()        │
 │    to track modifier state              │
 │  - Records as Vec<MacroStep>            │
 └─────────────────┬───────────────────────┘
@@ -238,10 +257,11 @@ The following window management actions are supported:
                   │
                   ▼
 ┌─────────────────────────────────────────┐
-│         MacroManager                    │
-│  - load_from_config(): Load from config │
-│  - add_macro() / remove_macro()         │
-│  - get_macro() / get_macro_names()      │
+│         MacroManager (ServerState)      │
+│  - save_macro(): Save to config file    │
+│  - play_macro(): Read from config, play │
+│  - get_macros() / delete_macro()        │
+│  - bind_macro()                         │
 └─────────────────┬───────────────────────┘
                   │
                   ▼
@@ -255,9 +275,8 @@ The following window management actions are supported:
 │  3. execute_action() calls handler:     │
 │     - Key -> send_key_action()          │
 │     - Mouse -> send_mouse_action()      │
-│     - Window -> (via ActionMapper)      │
-│     - Launch -> launcher                │
-│     - System -> system_control          │
+│     - Window -> skipped (warn log)      │
+│     - Launch -> skipped (warn log)      │
 │     - Sequence -> recursive processing  │
 │     - Delay / None -> sleep or skip     │
 │  4. release_all_modifiers() cleanup     │
@@ -278,10 +297,14 @@ pub struct ModifierState {
 impl ModifierState {
     // Create modifier state from virtual key code
     pub fn from_virtual_key(key: u16, pressed: bool) -> Option<(Self, bool)>;
+    // Apply modifier state from an internal VK event
+    pub fn apply_from_internal_vk(&mut self, key: u16, pressed: bool) -> bool;
     // Merge another modifier state
     pub fn merge(&mut self, other: &ModifierState);
     // Check if no modifiers are pressed
     pub fn is_empty(&self) -> bool;
+    // Check if this is a subset of another modifier state
+    pub fn is_subset_of(&self, other: &Self) -> bool;
 }
 
 // Macro step
@@ -296,7 +319,7 @@ pub struct MacroStep {
 pub struct Macro {
     pub name: String,              // Macro name
     pub steps: Vec<MacroStep>,    // Step list
-    pub created_at: Option<String>, // Creation time
+    pub created_at: Option<String>, // Creation time (Unix timestamp as string)
     pub description: Option<String>, // Description (optional)
 }
 ```
@@ -316,7 +339,7 @@ pub struct Macro {
 │              │                          │
 │              ▼                          │
 │      update_modifiers()                 │
-│      (from_virtual_key + merge)         │
+│      (apply_from_internal_vk)           │
 │              │                          │
 │              ▼                          │
 │      Create MacroStep                   │
@@ -345,13 +368,12 @@ pub struct Macro {
 │  for step in macro.steps:               │
 │  ├─ 1. sleep(delay_ms)                  │
 │  ├─ 2. ensure_modifiers(&step.modifiers)│
-│  │   Press Ctrl -> Alt -> Meta -> Shift │
+│  │   Press Ctrl -> Shift -> Alt -> Meta  │
 │  ├─ 3. execute_action(&step.action)     │
 │  │   ├─ Key    -> send_key_action()     │
 │  │   ├─ Mouse  -> send_mouse_action()   │
-│  │   ├─ Window -> (log)                 │
-│  │   ├─ Launch -> (log)                 │
-│  │   ├─ System -> (log)                 │
+│  │   ├─ Window -> skipped (warn log)    │
+│  │   ├─ Launch -> skipped (warn log)    │
 │  │   ├─ Sequence -> recursive sub-action│
 │  │   └─ Delay/None -> skip or sleep     │
 │  └─ end for                             │
@@ -360,6 +382,14 @@ pub struct Macro {
 │  Release order: Meta -> Alt -> Shift -> Ctrl│
 └─────────────────────────────────────────┘
 ```
+
+### Cancellation Support
+
+Macro playback supports optional cancellation via a cancel flag (`Arc<AtomicBool>`). When enabled:
+
+- The flag is checked before each step and during delays
+- If the flag is set, playback stops immediately and all held modifiers are released
+- Currently, the CLI `play` command does not expose cancellation; it is available for programmatic use
 
 ## Smart Recording Features
 
@@ -392,7 +422,7 @@ pub struct ModifierState {
 }
 ```
 
-This is very important for correctly restoring context during playback. During recording, modifier key events are parsed via `ModifierState::from_virtual_key()` and merged into the current state using the `merge()` method.
+This is very important for correctly restoring context during playback. During recording, modifier key events are tracked via `ModifierState::apply_from_internal_vk()` which updates the current modifier state based on the virtual key code and press/release state.
 
 ### 3. Delay Optimization
 
@@ -410,7 +440,7 @@ For example:
 
 If you need to manually write macro configurations, you may need to know the scan code and virtual key code for specific keys.
 
-For a complete list of key names and scan code/virtual key code对照表, please refer to [keys.md](keys.md).
+For a complete list of key names and scan code/virtual key code reference, please refer to [keys.md](keys.md).
 
 ### Methods to Get Scan Codes
 

@@ -121,6 +121,8 @@ Common use cases:
 - **CapsLock to Ctrl+Alt+Meta**: Turn CapsLock into a Hyper key
 - **RightAlt to Ctrl**: Convenient single-hand operation
 
+> **Hyper Key Behavior**: When a key is remapped to a modifier combination (e.g., `CapsLock = "Ctrl+Alt+Meta"`), it acts as a **pure virtual modifier** — it only updates internal modifier state and does **not** send actual modifier key events to the system. This means the Hyper key itself won't produce unintended characters (like `@`), and the virtual modifier state is merged into subsequent key events automatically.
+
 ### Layer System
 
 Layers allow you to create context-sensitive key mappings.
@@ -369,7 +371,6 @@ Enable network communication for remote control support:
 ```toml
 [network]
 enabled = true
-bind_address = "127.0.0.1:57427"  # Or auto-assign based on instance_id
 instance_id = 0                    # Instance ID (range: 0-255, determines port number)
 auth_key = "your-secret-key-here"  # Authentication key (auto-generated if not provided)
 ```
@@ -380,22 +381,35 @@ auth_key = "your-secret-key-here"  # Authentication key (auto-generated if not p
 - Challenge-response authentication (HMAC-SHA256)
 - Key is never transmitted over the network
 - Random key auto-generated at startup if `auth_key` is not provided
+- Authentication key is securely handled with `zeroize` (memory is cleared when no longer needed)
+
+### Network Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | bool | false | Whether to enable network communication |
+| `instance_id` | u32 | 0 | Instance ID (range: 0-255, determines port: 57427 + instance_id) |
+| `auth_key` | string | null | Pre-shared authentication key (auto-generated 32-char hex if not provided) |
+
+> **Note**: The bind address is automatically computed from `instance_id` as `127.0.0.1:{57427 + instance_id}`. There is no `bind_address` configuration field.
 
 ### Remote Control Examples
 
+> **Note**: Remote control via CLI (`--host` / `--auth-key` options) is not yet available. Currently, all CLI commands connect to the local daemon instance via IPC. Remote control support is planned for a future release.
+
 ```bash
-# Start wakemd on the controlled machine (configure auth_key)
+# Start wakemd on the machine (configure auth_key in config.toml)
 wakem daemon
 
-# Check remote status from another machine
-wakem --host 192.168.1.100 --auth-key "your-secret-key-here" status
+# Check local daemon status
+wakem status
 
-# Reload remote configuration
-wakem --host 192.168.1.100 --auth-key "your-secret-key-here" reload
+# Reload configuration
+wakem reload
 
-# Enable/disable remote mappings
-wakem --host 192.168.1.100 --auth-key "your-secret-key-here" enable
-wakem --host 192.168.1.100 --auth-key "your-secret-key-here" disable
+# Enable/disable mappings
+wakem enable
+wakem disable
 ```
 
 ## Multi-Instance Configuration
@@ -489,7 +503,8 @@ Macros allow you to record a sequence of keyboard and mouse operations, then tri
 # Record a macro
 wakem record my-macro
 # Perform the actions you want to record...
-# Press Ctrl+Shift+Esc to stop recording
+# Stop recording (or press Ctrl+Shift+Esc)
+wakem stop-record
 
 # Play a macro
 wakem play my-macro
@@ -677,6 +692,80 @@ B = "Ctrl+Left"
 "Ctrl+Alt+Win+Equals" = "calc.exe"
 ```
 
+## CLI Reference
+
+### Global Options
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--instance` | `-i` | u32 | 0 | Instance ID for multi-instance support |
+| `--config` | `-c` | path | None | Custom configuration file path (overrides default location) |
+
+### Subcommands
+
+| Command | Arguments | Description |
+|---------|-----------|-------------|
+| `daemon` | None | Start the daemon process |
+| `status` | None | Get daemon status |
+| `reload` | None | Reload configuration |
+| `save` | None | Save current configuration to file |
+| `enable` | None | Enable key/mouse mappings |
+| `disable` | None | Disable key/mouse mappings |
+| `config` | None | Open configuration folder |
+| `instances` | None | List running instances |
+| `tray` | None | Run system tray (explicit) |
+| `record` | `name` | Record a macro with the given name |
+| `stop-record` | None | Stop recording macro |
+| `play` | `name` | Play a macro by name |
+| `macros` | None | List all macros |
+| `bind-macro` | `macro_name`, `trigger` | Bind a macro to a trigger key |
+| `delete-macro` | `name` | Delete a macro by name |
+| `shutdown` | None | Gracefully shutdown the daemon |
+| *(none)* | None | Default: run tray (auto-starts daemon) |
+
+### Usage Examples
+
+```bash
+# Start daemon (background)
+wakem daemon
+
+# Start with specific instance
+wakem daemon --instance 1
+
+# Use custom config file
+wakem daemon --config /path/to/config.toml
+
+# Check status of instance 1
+wakem --instance 1 status
+
+# Reload configuration
+wakem reload
+
+# Save current configuration
+wakem save
+
+# Shutdown daemon
+wakem shutdown
+
+# Record and play macros
+wakem record my-macro
+wakem stop-record
+wakem play my-macro
+wakem bind-macro my-macro F1
+wakem macros
+wakem delete-macro my-macro
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `WAKEM_CONFIG_DIR` | Override the default configuration directory. When set, wakem uses this directory instead of the platform-specific config directory. Primarily used for testing. |
+| `WAKEM_SKIP_ICON_VALIDATION` | When set, skip validation that `icon_path` points to an existing file. Primarily used for testing. |
+| `RUST_LOG` | Standard Rust logging environment variable. When set, overrides the `log_level` setting in the configuration file (e.g., `RUST_LOG=debug`). |
+
+> **Note**: When `WAKEM_CONFIG_DIR` is set, the configuration path cache is bypassed to ensure tests always use the correct temporary directory. The cache is also automatically invalidated when `WAKEM_CONFIG_DIR` changes between calls.
+
 ## Configuration Validation Rules
 
 wakem performs the following validations when loading configuration. Invalid configurations will cause startup failure:
@@ -690,6 +779,10 @@ wakem performs the following validations when loading configuration. Invalid con
 | acceleration_multiplier | Range 0.1-10.0 |
 | layer.activation_key | Must not be an empty string |
 | macro_bindings | Referenced macro names must exist in `[macros]` |
+| icon_path | If specified, the file must exist (can be skipped with `WAKEM_SKIP_ICON_VALIDATION`) |
+| launch commands | Must not be empty strings |
+| keyboard.remap keys | Source keys must be valid key names; target must be a valid key, window action, or modifier combo |
+| window.shortcuts | Shortcut format and window action format must both be valid |
 
 ## Troubleshooting
 
