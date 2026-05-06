@@ -1503,6 +1503,48 @@ test_macro = []
     }
 
     #[test]
+    fn test_parse_shortcut_trigger_backspace() {
+        use crate::types::{InputEvent, KeyEvent, KeyState, ModifierState, Trigger};
+
+        let trigger = parse_shortcut_trigger("Ctrl+Alt+Meta+Backspace").unwrap();
+        if let Trigger::Key {
+            scan_code,
+            virtual_key,
+            modifiers,
+        } = trigger
+        {
+            assert_eq!(scan_code, Some(0x0E), "Backspace scan_code should be 0x0E");
+            assert_eq!(virtual_key, Some(0x08), "Backspace virtual_key should be 0x08");
+            assert!(modifiers.ctrl);
+            assert!(modifiers.alt);
+            assert!(modifiers.meta);
+            assert!(!modifiers.shift);
+
+            let mut event_mods = ModifierState::new();
+            event_mods.ctrl = true;
+            event_mods.alt = true;
+            event_mods.meta = true;
+            let event = InputEvent::Key(
+                KeyEvent::new(0x0E, 0x08, KeyState::Pressed).with_modifiers(event_mods),
+            );
+            assert!(
+                trigger.matches(&event),
+                "Ctrl+Alt+Meta+Backspace trigger should match Backspace key event with Ctrl+Alt+Meta modifiers"
+            );
+        } else {
+            panic!("Expected Key trigger");
+        }
+
+        let key_info = parse_key("Backspace").unwrap();
+        assert_eq!(key_info.scan_code, 0x0E, "parse_key Backspace scan_code");
+        assert_eq!(key_info.virtual_key, 0x08, "parse_key Backspace virtual_key");
+
+        let key_info_lower = parse_key("backspace").unwrap();
+        assert_eq!(key_info_lower.scan_code, 0x0E);
+        assert_eq!(key_info_lower.virtual_key, 0x08);
+    }
+
+    #[test]
     fn test_parse_launch_mapping() {
         let rule = parse_launch_mapping("F1", "notepad.exe").unwrap();
 
