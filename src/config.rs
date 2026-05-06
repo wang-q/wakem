@@ -249,6 +249,10 @@ impl Config {
             }
         }
 
+        rules.sort_by(|a, b| {
+            b.trigger.modifier_count().cmp(&a.trigger.modifier_count())
+        });
+
         rules
     }
 
@@ -1608,6 +1612,61 @@ CapsLock = "Backspace"
         let config = Config::from_str(config_str).unwrap();
         let rules = config.get_all_rules();
         assert!(!rules.is_empty());
+    }
+
+    #[test]
+    fn test_config_rules_sorted_by_modifier_count() {
+        let config_str = r#"
+[window.shortcuts]
+"Ctrl+Alt+Meta+Left" = "LoopWidth(Left)"
+"Ctrl+Alt+Meta+Shift+Left" = "HalfScreen(Left)"
+"Ctrl+Alt+Meta+Right" = "LoopWidth(Right)"
+"Ctrl+Alt+Meta+Shift+Right" = "HalfScreen(Right)"
+"Ctrl+Alt+Meta+Up" = "LoopHeight(Top)"
+"Ctrl+Alt+Meta+Shift+Up" = "HalfScreen(Top)"
+"#;
+
+        let config = Config::from_str(config_str).unwrap();
+        let rules = config.get_all_rules();
+
+        let modifier_counts: Vec<usize> = rules.iter().map(|r| r.trigger.modifier_count()).collect();
+
+        for i in 1..modifier_counts.len() {
+            assert!(
+                modifier_counts[i - 1] >= modifier_counts[i],
+                "Rules should be sorted by modifier count descending, but position {} has {} mods and position {} has {} mods",
+                i - 1,
+                modifier_counts[i - 1],
+                i,
+                modifier_counts[i]
+            );
+        }
+
+        let four_mod_indices: Vec<usize> = modifier_counts
+            .iter()
+            .enumerate()
+            .filter(|(_, &c)| c == 4)
+            .map(|(i, _)| i)
+            .collect();
+        let three_mod_indices: Vec<usize> = modifier_counts
+            .iter()
+            .enumerate()
+            .filter(|(_, &c)| c == 3)
+            .map(|(i, _)| i)
+            .collect();
+
+        assert!(
+            !four_mod_indices.is_empty(),
+            "Should have rules with 4 modifiers"
+        );
+        assert!(
+            !three_mod_indices.is_empty(),
+            "Should have rules with 3 modifiers"
+        );
+        assert!(
+            four_mod_indices[0] < three_mod_indices[0],
+            "4-modifier rules should come before 3-modifier rules"
+        );
     }
 
     #[test]

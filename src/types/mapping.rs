@@ -86,6 +86,16 @@ pub enum Trigger {
 }
 
 impl Trigger {
+    /// Get the number of modifiers in this trigger
+    pub fn modifier_count(&self) -> usize {
+        match self {
+            Trigger::Key { modifiers, .. } | Trigger::MouseButton { modifiers, .. } => {
+                modifiers.count()
+            }
+            _ => 0,
+        }
+    }
+
     /// Check if input event matches this trigger condition
     pub fn matches(&self, event: &InputEvent) -> bool {
         match (self, event) {
@@ -789,5 +799,55 @@ mod tests {
         assert!(matches!(mouse_trigger, Trigger::MouseButton { .. }));
         assert!(matches!(hotstring_trigger, Trigger::HotString { .. }));
         assert!(matches!(always_trigger, Trigger::Always));
+    }
+
+    #[test]
+    fn test_trigger_modifier_count() {
+        let no_mods = Trigger::Key {
+            scan_code: Some(75),
+            virtual_key: Some(0x25),
+            modifiers: ModifierState::new(),
+        };
+        assert_eq!(no_mods.modifier_count(), 0);
+
+        let three_mods = Trigger::Key {
+            scan_code: Some(75),
+            virtual_key: Some(0x25),
+            modifiers: ModifierState {
+                ctrl: true,
+                alt: true,
+                meta: true,
+                shift: false,
+            },
+        };
+        assert_eq!(three_mods.modifier_count(), 3);
+
+        let four_mods = Trigger::Key {
+            scan_code: Some(75),
+            virtual_key: Some(0x25),
+            modifiers: ModifierState {
+                ctrl: true,
+                alt: true,
+                meta: true,
+                shift: true,
+            },
+        };
+        assert_eq!(four_mods.modifier_count(), 4);
+
+        let mouse_with_mods = Trigger::MouseButton {
+            button: crate::types::MouseButton::Left,
+            modifiers: ModifierState {
+                ctrl: true,
+                alt: false,
+                meta: false,
+                shift: true,
+            },
+        };
+        assert_eq!(mouse_with_mods.modifier_count(), 2);
+
+        let hotstring = Trigger::HotString {
+            trigger: "abc".to_string(),
+        };
+        assert_eq!(hotstring.modifier_count(), 0);
     }
 }

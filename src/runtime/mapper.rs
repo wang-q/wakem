@@ -458,4 +458,103 @@ mod tests {
 
         assert!(rule.trigger.matches(&event));
     }
+
+    #[test]
+    fn test_more_modifiers_match_first() {
+        let mut hyper_mods = ModifierState::new();
+        hyper_mods.ctrl = true;
+        hyper_mods.alt = true;
+        hyper_mods.meta = true;
+
+        let mut hyper_shift_mods = ModifierState::new();
+        hyper_shift_mods.ctrl = true;
+        hyper_shift_mods.alt = true;
+        hyper_shift_mods.meta = true;
+        hyper_shift_mods.shift = true;
+
+        let loop_width_rule = MappingRule::new(
+            Trigger::key_with_modifiers(75, 0x27, hyper_mods),
+            Action::window(crate::types::WindowAction::LoopWidth(
+                crate::types::Alignment::Right,
+            )),
+        );
+
+        let half_screen_rule = MappingRule::new(
+            Trigger::key_with_modifiers(75, 0x27, hyper_shift_mods),
+            Action::window(crate::types::WindowAction::HalfScreen(
+                crate::types::Edge::Right,
+            )),
+        );
+
+        let mut mapper = KeyMapper::new();
+        mapper.load_rules(vec![half_screen_rule, loop_width_rule]);
+
+        let event = InputEvent::Key(
+            KeyEvent::new(75, 0x27, KeyState::Pressed).with_modifiers(hyper_shift_mods),
+        );
+
+        let result = mapper.process_event_with_context(&event, None);
+        assert!(result.is_some(), "Should match a rule");
+        let action = result.unwrap();
+        match action {
+            Action::Window(crate::types::WindowAction::HalfScreen(
+                crate::types::Edge::Right,
+            )) => {}
+            other => {
+                panic!(
+                    "HyperShift+Right should match HalfScreen(Right), not {:?}",
+                    other
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_wrong_order_matches_wrong_rule() {
+        let mut hyper_mods = ModifierState::new();
+        hyper_mods.ctrl = true;
+        hyper_mods.alt = true;
+        hyper_mods.meta = true;
+
+        let mut hyper_shift_mods = ModifierState::new();
+        hyper_shift_mods.ctrl = true;
+        hyper_shift_mods.alt = true;
+        hyper_shift_mods.meta = true;
+        hyper_shift_mods.shift = true;
+
+        let loop_width_rule = MappingRule::new(
+            Trigger::key_with_modifiers(75, 0x27, hyper_mods),
+            Action::window(crate::types::WindowAction::LoopWidth(
+                crate::types::Alignment::Right,
+            )),
+        );
+
+        let half_screen_rule = MappingRule::new(
+            Trigger::key_with_modifiers(75, 0x27, hyper_shift_mods),
+            Action::window(crate::types::WindowAction::HalfScreen(
+                crate::types::Edge::Right,
+            )),
+        );
+
+        let mut mapper = KeyMapper::new();
+        mapper.load_rules(vec![loop_width_rule, half_screen_rule]);
+
+        let event = InputEvent::Key(
+            KeyEvent::new(75, 0x27, KeyState::Pressed).with_modifiers(hyper_shift_mods),
+        );
+
+        let result = mapper.process_event_with_context(&event, None);
+        assert!(result.is_some(), "Should match a rule");
+
+        let action = result.unwrap();
+        assert!(
+            matches!(
+                action,
+                Action::Window(crate::types::WindowAction::LoopWidth(_))
+            ),
+            "Mapper uses first-match: when LoopWidth is listed before HalfScreen, \
+             HyperShift+Right incorrectly matches LoopWidth due to subset matching. \
+             This is why config.rs sorts rules by modifier count descending."
+        );
+    }
 }

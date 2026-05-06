@@ -49,6 +49,11 @@ impl ModifierState {
         !self.shift && !self.ctrl && !self.alt && !self.meta
     }
 
+    /// Count the number of active modifier keys
+    pub fn count(&self) -> usize {
+        self.shift as usize + self.ctrl as usize + self.alt as usize + self.meta as usize
+    }
+
     /// Check if this modifier state is a subset of another
     pub fn is_subset_of(&self, other: &Self) -> bool {
         (!self.shift || other.shift)

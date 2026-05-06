@@ -139,7 +139,7 @@ See [examples/window_manager.toml](examples/window_manager.toml) for key binding
 **Resize**
 
 * Fixed aspect ratio windows
-    * Native aspect ratio (cycle zoom: 0.9, 0.7, 0.5). <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
+    * Native aspect ratio (cycle zoom: 1.0, 0.9, 0.7, 0.5). <kbd>HyperShift</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
     * 4:3 aspect ratio (cycle zoom: 1.0, 0.9, 0.7, 0.5). <kbd>Hyper</kbd>+<kbd>M</kbd>/<kbd>Enter</kbd>
 
 * Width adjustment
