@@ -621,4 +621,371 @@ mod tests {
         execute_window_action(&wm, &WindowAction::None, None, None).unwrap();
         assert_eq!(wm.pos_log.borrow().len(), 0);
     }
+
+    struct ClampedTestWindowManager {
+        info: RefCell<TestWindowInfo>,
+        monitors: Vec<MonitorInfo>,
+        pos_log: RefCell<Vec<(i32, i32, i32, i32)>>,
+        min_width: i32,
+        min_height: i32,
+    }
+
+    unsafe impl Sync for ClampedTestWindowManager {}
+
+    impl ClampedTestWindowManager {
+        fn new(
+            monitor: MonitorInfo,
+            window_width: i32,
+            window_height: i32,
+            min_width: i32,
+            min_height: i32,
+        ) -> Self {
+            Self {
+                info: RefCell::new(TestWindowInfo {
+                    x: monitor.x,
+                    y: monitor.y,
+                    width: window_width,
+                    height: window_height,
+                }),
+                monitors: vec![monitor],
+                pos_log: RefCell::new(Vec::new()),
+                min_width,
+                min_height,
+            }
+        }
+
+        fn last_pos(&self) -> (i32, i32, i32, i32) {
+            self.pos_log.borrow().last().copied().unwrap()
+        }
+    }
+
+    impl WindowOperations for ClampedTestWindowManager {
+        fn get_window_info(&self, _window: usize) -> anyhow::Result<WindowInfo> {
+            let info = self.info.borrow();
+            Ok(WindowInfo {
+                id: 0,
+                title: "ClampedTest".to_string(),
+                process_name: "calc.exe".to_string(),
+                executable_path: None,
+                x: info.x,
+                y: info.y,
+                width: info.width,
+                height: info.height,
+            })
+        }
+
+        fn set_window_pos(
+            &self,
+            _window: usize,
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+        ) -> anyhow::Result<()> {
+            let clamped_width = width.max(self.min_width);
+            let clamped_height = height.max(self.min_height);
+            self.pos_log
+                .borrow_mut()
+                .push((x, y, clamped_width, clamped_height));
+            *self.info.borrow_mut() = TestWindowInfo {
+                x,
+                y,
+                width: clamped_width,
+                height: clamped_height,
+            };
+            Ok(())
+        }
+
+        fn minimize_window(&self, _window: usize) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn maximize_window(&self, _window: usize) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn restore_window(&self, _window: usize) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn close_window(&self, _window: usize) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl WindowStateQueries for ClampedTestWindowManager {
+        fn is_window_valid(&self, _window: usize) -> bool {
+            true
+        }
+
+        fn is_minimized(&self, _window: usize) -> bool {
+            false
+        }
+
+        fn is_maximized(&self, _window: usize) -> bool {
+            false
+        }
+
+        fn is_topmost(&self, _window: usize) -> bool {
+            false
+        }
+    }
+
+    impl MonitorOperations for ClampedTestWindowManager {
+        fn get_monitors(&self) -> Vec<MonitorInfo> {
+            self.monitors.clone()
+        }
+
+        fn move_to_monitor(
+            &self,
+            _window: usize,
+            _monitor_index: usize,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl ForegroundWindowOperations for ClampedTestWindowManager {
+        fn get_foreground_window(&self) -> Option<usize> {
+            Some(0)
+        }
+
+        fn set_topmost(&self, _window: usize, _topmost: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl WindowSwitching for ClampedTestWindowManager {}
+
+    #[test]
+    fn test_loop_height_clamped_skips_unreachable_ratios() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let min_height = 300;
+        let wm = ClampedTestWindowManager::new(monitor, 1920, 540, 0, min_height);
+
+        execute_window_action(
+            &wm,
+            &WindowAction::LoopHeight(crate::types::Alignment::Top),
+            None,
+            None,
+        )
+        .unwrap();
+        let (_, _, _, h1) = wm.last_pos();
+
+        assert!(
+            h1 >= min_height,
+            "Height should respect minimum constraint, got {}",
+            h1
+        );
+        assert!(
+            h1 > (1080_f32 * 0.5) as i32,
+            "Should skip 0.25 ratio (270px < min 300px) and try 0.75 (810px), got {}",
+            h1
+        );
+    }
+
+    #[test]
+    fn test_loop_height_clamped_full_cycle() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let min_height = 300;
+        let wm = ClampedTestWindowManager::new(monitor, 1920, 810, 0, min_height);
+
+        let action = WindowAction::LoopHeight(crate::types::Alignment::Top);
+        let mut heights: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            let (_, _, _, h) = wm.last_pos();
+            heights.push(h);
+        }
+
+        let unique: std::collections::HashSet<i32> = heights.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Heights should vary across calls, got all same: {:?}",
+            heights
+        );
+
+        for h in &heights {
+            assert!(
+                *h >= min_height,
+                "All heights should respect minimum constraint, got {}",
+                h
+            );
+        }
+
+        assert!(
+            !heights.contains(&270),
+            "0.25 ratio (270px) should be skipped as it's below minimum 300px, got {:?}",
+            heights
+        );
+    }
+
+    #[test]
+    fn test_loop_width_clamped_skips_unreachable_ratios() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let min_width = 800;
+        let wm = ClampedTestWindowManager::new(monitor, 1440, 1080, min_width, 0);
+
+        execute_window_action(
+            &wm,
+            &WindowAction::LoopWidth(crate::types::Alignment::Left),
+            None,
+            None,
+        )
+        .unwrap();
+        let (_, _, w1, _) = wm.last_pos();
+
+        assert!(
+            w1 >= min_width,
+            "Width should respect minimum constraint, got {}",
+            w1
+        );
+    }
+
+    #[test]
+    fn test_loop_width_clamped_full_cycle() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let min_width = 800;
+        let wm = ClampedTestWindowManager::new(monitor, 1440, 1080, min_width, 0);
+
+        let action = WindowAction::LoopWidth(crate::types::Alignment::Left);
+        let mut widths: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            let (_, _, w, _) = wm.last_pos();
+            widths.push(w);
+        }
+
+        let unique: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Widths should vary across calls, got all same: {:?}",
+            widths
+        );
+
+        for w in &widths {
+            assert!(
+                *w >= min_width,
+                "All widths should respect minimum constraint, got {}",
+                w
+            );
+        }
+    }
+
+    #[test]
+    fn test_fixed_ratio_clamped_full_cycle() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let min_width = 600;
+        let min_height = 500;
+        let wm =
+            ClampedTestWindowManager::new(monitor, 1080, 1080, min_width, min_height);
+
+        let action = WindowAction::FixedRatio {
+            ratio: 4.0 / 3.0,
+            scale_index: 0,
+        };
+
+        let mut widths: Vec<i32> = Vec::new();
+        let mut heights: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            let (_, _, w, h) = wm.last_pos();
+            widths.push(w);
+            heights.push(h);
+        }
+
+        let unique_w: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique_w.len() > 1,
+            "Widths should vary across calls for 4:3 ratio, got all same: {:?}",
+            widths
+        );
+
+        for w in &widths {
+            assert!(
+                *w >= min_width,
+                "All widths should respect minimum constraint, got {}",
+                w
+            );
+        }
+        for h in &heights {
+            assert!(
+                *h >= min_height,
+                "All heights should respect minimum constraint, got {}",
+                h
+            );
+        }
+    }
+
+    #[test]
+    fn test_native_ratio_clamped_full_cycle() {
+        let monitor = MonitorInfo {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let min_width = 600;
+        let min_height = 500;
+        let wm =
+            ClampedTestWindowManager::new(monitor, 1080, 1080, min_width, min_height);
+
+        let action = WindowAction::NativeRatio { scale_index: 0 };
+
+        let mut widths: Vec<i32> = Vec::new();
+        let mut heights: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            let (_, _, w, h) = wm.last_pos();
+            widths.push(w);
+            heights.push(h);
+        }
+
+        let unique_w: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique_w.len() > 1,
+            "Widths should vary across calls for native ratio, got all same: {:?}",
+            widths
+        );
+
+        for w in &widths {
+            assert!(
+                *w >= min_width,
+                "All widths should respect minimum constraint, got {}",
+                w
+            );
+        }
+        for h in &heights {
+            assert!(
+                *h >= min_height,
+                "All heights should respect minimum constraint, got {}",
+                h
+            );
+        }
+    }
 }

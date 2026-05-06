@@ -1,5 +1,4 @@
 //! Windows platform implementation
-#![cfg(target_os = "windows")]
 
 pub mod app_control;
 pub mod context;

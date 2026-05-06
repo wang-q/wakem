@@ -322,14 +322,26 @@ pub trait WindowManagerExt:
         let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let current_ratio = info.width as f32 / monitor.width as f32;
-        let next_ratio = find_next_ratio(&WIDTH_RATIOS, current_ratio);
-        let new_width = (monitor.width as f32 * next_ratio) as i32;
-        let new_x = match align {
-            Alignment::Left => monitor.x,
-            Alignment::Right => monitor.x + monitor.width - new_width,
-            _ => info.x,
-        };
-        self.set_window_pos(window, new_x, info.y, new_width, info.height)
+        let closest_idx = find_closest_ratio_index(&WIDTH_RATIOS, current_ratio);
+
+        for i in 1..=WIDTH_RATIOS.len() {
+            let try_idx = (closest_idx + i) % WIDTH_RATIOS.len();
+            let try_ratio = WIDTH_RATIOS[try_idx];
+            let new_width = (monitor.width as f32 * try_ratio) as i32;
+            let new_x = match align {
+                Alignment::Left => monitor.x,
+                Alignment::Right => monitor.x + monitor.width - new_width,
+                _ => info.x,
+            };
+            self.set_window_pos(window, new_x, info.y, new_width, info.height)?;
+
+            let actual = self.get_window_info(window)?;
+            if actual.width <= new_width + 4 {
+                return Ok(());
+            }
+        }
+
+        Ok(())
     }
 
     fn loop_height(&self, window: WindowId, align: Alignment) -> Result<()> {
@@ -339,14 +351,26 @@ pub trait WindowManagerExt:
         let monitor = find_monitor_for_point(&monitors, info.x, info.y)
             .ok_or_else(|| anyhow::anyhow!("No monitors found"))?;
         let current_ratio = info.height as f32 / monitor.height as f32;
-        let next_ratio = find_next_ratio(&HEIGHT_RATIOS, current_ratio);
-        let new_height = (monitor.height as f32 * next_ratio) as i32;
-        let new_y = match align {
-            Alignment::Top => monitor.y,
-            Alignment::Bottom => monitor.y + monitor.height - new_height,
-            _ => info.y,
-        };
-        self.set_window_pos(window, info.x, new_y, info.width, new_height)
+        let closest_idx = find_closest_ratio_index(&HEIGHT_RATIOS, current_ratio);
+
+        for i in 1..=HEIGHT_RATIOS.len() {
+            let try_idx = (closest_idx + i) % HEIGHT_RATIOS.len();
+            let try_ratio = HEIGHT_RATIOS[try_idx];
+            let new_height = (monitor.height as f32 * try_ratio) as i32;
+            let new_y = match align {
+                Alignment::Top => monitor.y,
+                Alignment::Bottom => monitor.y + monitor.height - new_height,
+                _ => info.y,
+            };
+            self.set_window_pos(window, info.x, new_y, info.width, new_height)?;
+
+            let actual = self.get_window_info(window)?;
+            if actual.height <= new_height + 4 {
+                return Ok(());
+            }
+        }
+
+        Ok(())
     }
 
     fn set_fixed_ratio(
@@ -363,8 +387,15 @@ pub trait WindowManagerExt:
         let base_size = std::cmp::min(monitor.width, monitor.height);
         let base_width = (base_size as f32 * ratio) as i32;
         let base_height = base_size;
-        let next_scale = match scale_index {
-            Some(idx) if idx < SCALES.len() => SCALES[idx],
+
+        match scale_index {
+            Some(idx) if idx < SCALES.len() => {
+                let new_width = (base_width as f32 * SCALES[idx]) as i32;
+                let new_height = (base_height as f32 * SCALES[idx]) as i32;
+                let new_x = monitor.x + (monitor.width - new_width) / 2;
+                let new_y = monitor.y + (monitor.height - new_height) / 2;
+                self.set_window_pos(window, new_x, new_y, new_width, new_height)
+            }
             Some(idx) => {
                 anyhow::bail!(
                     "Scale index {} out of range (0-{})",
@@ -376,14 +407,26 @@ pub trait WindowManagerExt:
                 let current_scale = (info.width as f32 / base_width as f32
                     + info.height as f32 / base_height as f32)
                     / 2.0;
-                find_next_ratio(&SCALES, current_scale)
+                let closest_idx = find_closest_ratio_index(&SCALES, current_scale);
+
+                for i in 1..=SCALES.len() {
+                    let try_idx = (closest_idx + i) % SCALES.len();
+                    let try_scale = SCALES[try_idx];
+                    let new_width = (base_width as f32 * try_scale) as i32;
+                    let new_height = (base_height as f32 * try_scale) as i32;
+                    let new_x = monitor.x + (monitor.width - new_width) / 2;
+                    let new_y = monitor.y + (monitor.height - new_height) / 2;
+                    self.set_window_pos(window, new_x, new_y, new_width, new_height)?;
+
+                    let actual = self.get_window_info(window)?;
+                    if actual.width <= new_width + 4 && actual.height <= new_height + 4 {
+                        return Ok(());
+                    }
+                }
+
+                Ok(())
             }
-        };
-        let new_width = (base_width as f32 * next_scale) as i32;
-        let new_height = (base_height as f32 * next_scale) as i32;
-        let new_x = monitor.x + (monitor.width - new_width) / 2;
-        let new_y = monitor.y + (monitor.height - new_height) / 2;
-        self.set_window_pos(window, new_x, new_y, new_width, new_height)
+        }
     }
 
     fn set_native_ratio(
@@ -428,9 +471,9 @@ pub fn find_monitor_for_point(
         .or_else(|| monitors.first())
 }
 
-/// Find the next ratio in the cycle after the current one
-pub fn find_next_ratio(ratios: &[f32], current: f32) -> f32 {
-    let closest_idx = ratios
+/// Find the index of the ratio closest to the current value
+pub fn find_closest_ratio_index(ratios: &[f32], current: f32) -> usize {
+    ratios
         .iter()
         .enumerate()
         .min_by(|(_, a), (_, b)| {
@@ -440,8 +483,12 @@ pub fn find_next_ratio(ratios: &[f32], current: f32) -> f32 {
                 .unwrap_or(std::cmp::Ordering::Equal)
         })
         .map(|(i, _)| i)
-        .unwrap_or(0);
+        .unwrap_or(0)
+}
 
+/// Find the next ratio in the cycle after the current one
+pub fn find_next_ratio(ratios: &[f32], current: f32) -> f32 {
+    let closest_idx = find_closest_ratio_index(ratios, current);
     ratios[(closest_idx + 1) % ratios.len()]
 }
 

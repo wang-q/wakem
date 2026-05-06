@@ -108,6 +108,103 @@ mod integration_tests {
         BOOL(1)
     }
 
+    #[allow(clippy::zombie_processes)]
+    fn launch_calc() -> u32 {
+        cleanup_calc_windows();
+        thread::sleep(Duration::from_millis(100));
+
+        let child = Command::new("calc.exe")
+            .spawn()
+            .expect("Failed to launch calc.exe");
+
+        let start = std::time::Instant::now();
+        while start.elapsed() < Duration::from_secs(5) {
+            if get_first_calc_hwnd().is_some() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+
+        child.id()
+    }
+
+    fn cleanup_calc_windows() {
+        unsafe {
+            let mut windows_to_close: Vec<HWND> = Vec::new();
+            let _ = EnumWindows(
+                Some(enum_calc_windows),
+                LPARAM(&mut windows_to_close as *mut _ as isize),
+            );
+            for hwnd in windows_to_close {
+                let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+            }
+        }
+
+        let _ = Command::new("taskkill")
+            .args(["/F", "/IM", "Calculator.exe"])
+            .output();
+        let _ = Command::new("taskkill")
+            .args(["/F", "/IM", "calc.exe"])
+            .output();
+        thread::sleep(Duration::from_millis(200));
+    }
+
+    unsafe extern "system" fn enum_calc_windows(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let windows = &mut *(lparam.0 as *mut Vec<HWND>);
+        let mut buffer = [0u16; 256];
+        let len = GetWindowTextW(hwnd, &mut buffer);
+        if len > 0 {
+            let title = String::from_utf16_lossy(&buffer[..len as usize]);
+            if (title.contains("Calculator") || title.contains("计算器"))
+                && IsWindowVisible(hwnd).as_bool()
+            {
+                windows.push(hwnd);
+            }
+        }
+        BOOL(1)
+    }
+
+    fn get_first_calc_hwnd() -> Option<HWND> {
+        unsafe {
+            let mut result: Option<HWND> = None;
+            let _ = EnumWindows(
+                Some(enum_first_calc),
+                LPARAM(&mut result as *mut _ as isize),
+            );
+            result
+        }
+    }
+
+    unsafe extern "system" fn enum_first_calc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let result = &mut *(lparam.0 as *mut Option<HWND>);
+        if result.is_some() {
+            return BOOL(0);
+        }
+        let mut buffer = [0u16; 256];
+        let len = GetWindowTextW(hwnd, &mut buffer);
+        if len > 0 {
+            let title = String::from_utf16_lossy(&buffer[..len as usize]);
+            if (title.contains("Calculator") || title.contains("计算器"))
+                && IsWindowVisible(hwnd).as_bool()
+                && IsWindow(Some(hwnd)).as_bool()
+            {
+                *result = Some(hwnd);
+                return BOOL(0);
+            }
+        }
+        BOOL(1)
+    }
+
+    fn setup_calc() {
+        cleanup_calc_windows();
+        thread::sleep(Duration::from_millis(200));
+    }
+
+    fn teardown_calc() {
+        cleanup_calc_windows();
+        thread::sleep(Duration::from_millis(200));
+    }
+
     fn wait_for_window_stable() {
         thread::sleep(Duration::from_millis(300));
     }
@@ -964,6 +1061,183 @@ mod integration_tests {
         }
 
         teardown();
+    }
+
+    // ==================== Calc.exe Minimum Size Constraint Tests ====================
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_calc_loop_height_does_not_stuck() {
+        setup_calc();
+        let _pid = launch_calc();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_calc_hwnd().expect("Should find calc window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let initial_height = wm.get_window_info(window_id).unwrap().height;
+
+        let mut heights: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            wm.loop_height(window_id, Alignment::Top).unwrap();
+            wait_for_window_stable();
+            let h = wm.get_window_info(window_id).unwrap().height;
+            heights.push(h);
+        }
+
+        let unique: std::collections::HashSet<i32> = heights.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Calc loop_height should not get stuck at same height. \
+             Initial={}, got all same: {:?}",
+            initial_height,
+            heights
+        );
+
+        teardown_calc();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_calc_loop_width_does_not_stuck() {
+        setup_calc();
+        let _pid = launch_calc();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_calc_hwnd().expect("Should find calc window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let initial_width = wm.get_window_info(window_id).unwrap().width;
+
+        let mut widths: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            wm.loop_width(window_id, Alignment::Left).unwrap();
+            wait_for_window_stable();
+            let w = wm.get_window_info(window_id).unwrap().width;
+            widths.push(w);
+        }
+
+        let unique: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Calc loop_width should not get stuck at same width. \
+             Initial={}, got all same: {:?}",
+            initial_width,
+            widths
+        );
+
+        teardown_calc();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_calc_fixed_ratio_does_not_stuck() {
+        setup_calc();
+        let _pid = launch_calc();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_calc_hwnd().expect("Should find calc window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let action = WindowAction::FixedRatio {
+            ratio: 4.0 / 3.0,
+            scale_index: 0,
+        };
+
+        let mut widths: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            wait_for_window_stable();
+            let info = wm.get_window_info(window_id).unwrap();
+            widths.push(info.width);
+        }
+
+        let unique: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Calc FixedRatio should not get stuck at same size, got all same: {:?}",
+            widths
+        );
+
+        teardown_calc();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_calc_native_ratio_does_not_stuck() {
+        setup_calc();
+        let _pid = launch_calc();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_calc_hwnd().expect("Should find calc window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let action = WindowAction::NativeRatio { scale_index: 0 };
+
+        let mut widths: Vec<i32> = Vec::new();
+        for _ in 0..6 {
+            execute_window_action(&wm, &action, None, None).unwrap();
+            wait_for_window_stable();
+            let info = wm.get_window_info(window_id).unwrap();
+            widths.push(info.width);
+        }
+
+        let unique: std::collections::HashSet<i32> = widths.iter().copied().collect();
+        assert!(
+            unique.len() > 1,
+            "Calc NativeRatio should not get stuck at same size, got all same: {:?}",
+            widths
+        );
+
+        teardown_calc();
+    }
+
+    #[test]
+    #[ignore = "Launches real windows - run manually with: cargo test --test e2e_windows_window -- --ignored"]
+    fn test_calc_minimum_size_is_respected() {
+        setup_calc();
+        let _pid = launch_calc();
+        wait_for_window_stable();
+
+        let wm = WindowsWindowManager::new();
+        let hwnd = get_first_calc_hwnd().expect("Should find calc window");
+        let window_id = hwnd_to_id(hwnd);
+
+        let original = wm.get_window_info(window_id).unwrap();
+
+        let monitors = wm.get_monitors();
+        let monitor_height = monitors[0].height;
+        let tiny_height = (monitor_height as f32 * 0.25) as i32;
+
+        let result = wm.set_window_pos(
+            window_id,
+            original.x,
+            original.y,
+            original.width,
+            tiny_height,
+        );
+        assert!(result.is_ok(), "Should set window pos");
+        wait_for_window_stable();
+
+        let after = wm.get_window_info(window_id).unwrap();
+        assert!(
+            after.height >= tiny_height,
+            "Calc height should be at least requested ({}), got {}",
+            tiny_height,
+            after.height
+        );
+        assert!(
+            after.height >= tiny_height,
+            "Calc enforces minimum height: requested={}, actual={}",
+            tiny_height,
+            after.height
+        );
+
+        teardown_calc();
     }
 
     // ==================== Monitor Tests ====================
