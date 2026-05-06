@@ -6,8 +6,46 @@ use crate::types::{
     MouseEventType,
 };
 
-/// WHEEL_DELTA standard value (Windows API standard: 120)
 const WHEEL_DELTA: i32 = 120;
+
+static SUPPRESSED_KEYS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashSet<(u16, u16)>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+static HYPER_KEYS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashSet<(u16, u16)>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+pub fn register_hyper_keys(keys: std::collections::HashSet<(u16, u16)>) {
+    if let Ok(mut guard) = HYPER_KEYS.lock() {
+        *guard = keys;
+        tracing::debug!(
+            key_count = guard.len(),
+            "Registered hyper keys in input hook"
+        );
+    }
+}
+
+fn is_modifier_key(vk: u16) -> bool {
+    matches!(
+        vk,
+        0x10 | 0xA0 | 0xA1 | 0x11 | 0xA2 | 0xA3 | 0x12 | 0xA4 | 0xA5 | 0x5B | 0x5C
+    )
+}
+
+unsafe fn is_any_hyper_key_physically_pressed() -> bool {
+    let vk_list: Vec<i32> = if let Ok(hyper_keys) = HYPER_KEYS.lock() {
+        hyper_keys.iter().map(|&(_, vk)| vk as i32).collect()
+    } else {
+        return false;
+    };
+    for vk in vk_list {
+        if windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(vk) < 0 {
+            return true;
+        }
+    }
+    false
+}
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
@@ -193,11 +231,10 @@ impl RawInputDevice {
 
                 let modifiers = Self::get_current_modifier_state();
 
-                let mut event = KeyEvent::new(
-                    kb_struct.scanCode as u16,
-                    kb_struct.vkCode as u16,
-                    state,
-                );
+                let scan_code = kb_struct.scanCode as u16;
+                let virtual_key = kb_struct.vkCode as u16;
+
+                let mut event = KeyEvent::new(scan_code, virtual_key, state);
                 event.modifiers = modifiers;
 
                 debug!(
@@ -213,6 +250,31 @@ impl RawInputDevice {
                         let _ = sender.send(InputEvent::Key(event));
                     }
                 });
+
+                let hyper_active = is_any_hyper_key_physically_pressed();
+
+                if !hyper_active {
+                    if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
+                        if !suppressed.is_empty() {
+                            suppressed.clear();
+                        }
+                    }
+                }
+
+                if is_key_down && hyper_active && !is_modifier_key(virtual_key) {
+                    if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
+                        suppressed.insert((scan_code, virtual_key));
+                    }
+                    return LRESULT(1);
+                }
+
+                if is_key_up {
+                    if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
+                        if suppressed.remove(&(scan_code, virtual_key)) {
+                            return LRESULT(1);
+                        }
+                    }
+                }
             }
         }
 

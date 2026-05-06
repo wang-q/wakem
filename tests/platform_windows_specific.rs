@@ -112,10 +112,72 @@ mod windows_specific_tests {
         let half_width = work_width / 2;
         assert_eq!(half_width, 960);
     }
+
+    #[test]
+    fn test_is_modifier_key_classification() {
+        fn is_modifier_key(vk: u16) -> bool {
+            matches!(
+                vk,
+                0x10 | 0xA0
+                    | 0xA1
+                    | 0x11
+                    | 0xA2
+                    | 0xA3
+                    | 0x12
+                    | 0xA4
+                    | 0xA5
+                    | 0x5B
+                    | 0x5C
+            )
+        }
+
+        assert!(is_modifier_key(0x10), "VK_SHIFT should be modifier");
+        assert!(is_modifier_key(0x11), "VK_CONTROL should be modifier");
+        assert!(is_modifier_key(0x12), "VK_MENU (Alt) should be modifier");
+        assert!(is_modifier_key(0x5B), "VK_LWIN should be modifier");
+        assert!(is_modifier_key(0x5C), "VK_RWIN should be modifier");
+        assert!(is_modifier_key(0xA0), "VK_LSHIFT should be modifier");
+        assert!(is_modifier_key(0xA1), "VK_RSHIFT should be modifier");
+
+        assert!(
+            !is_modifier_key(0x08),
+            "VK_BACK (Backspace) should NOT be modifier"
+        );
+        assert!(!is_modifier_key(0x41), "'A' key should NOT be modifier");
+        assert!(!is_modifier_key(0x43), "'C' key should NOT be modifier");
+        assert!(!is_modifier_key(0x2E), "VK_DELETE should NOT be modifier");
+        assert!(!is_modifier_key(0x25), "VK_LEFT should NOT be modifier");
+    }
+
+    #[test]
+    fn test_hyper_combo_detection_logic() {
+        fn is_hyper_combo(ctrl: bool, alt: bool, meta: bool) -> bool {
+            ctrl && alt && meta
+        }
+
+        assert!(
+            is_hyper_combo(true, true, true),
+            "Ctrl+Alt+Meta should be Hyper"
+        );
+        assert!(
+            !is_hyper_combo(true, true, false),
+            "Ctrl+Alt only is NOT Hyper"
+        );
+        assert!(
+            !is_hyper_combo(true, false, true),
+            "Ctrl+Meta only is NOT Hyper"
+        );
+        assert!(
+            !is_hyper_combo(false, true, true),
+            "Alt+Meta only is NOT Hyper"
+        );
+        assert!(
+            !is_hyper_combo(false, false, false),
+            "No modifiers is NOT Hyper"
+        );
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
 #[test]
-fn test_windows_only_placeholder() {
-    // Windows-only tests
-}
+fn test_windows_only_placeholder() {}

@@ -249,9 +249,8 @@ impl Config {
             }
         }
 
-        rules.sort_by(|a, b| {
-            b.trigger.modifier_count().cmp(&a.trigger.modifier_count())
-        });
+        rules
+            .sort_by(|a, b| b.trigger.modifier_count().cmp(&a.trigger.modifier_count()));
 
         rules
     }
@@ -1514,7 +1513,11 @@ test_macro = []
         } = trigger
         {
             assert_eq!(scan_code, Some(0x0E), "Backspace scan_code should be 0x0E");
-            assert_eq!(virtual_key, Some(0x08), "Backspace virtual_key should be 0x08");
+            assert_eq!(
+                virtual_key,
+                Some(0x08),
+                "Backspace virtual_key should be 0x08"
+            );
             assert!(modifiers.ctrl);
             assert!(modifiers.alt);
             assert!(modifiers.meta);
@@ -1537,7 +1540,10 @@ test_macro = []
 
         let key_info = parse_key("Backspace").unwrap();
         assert_eq!(key_info.scan_code, 0x0E, "parse_key Backspace scan_code");
-        assert_eq!(key_info.virtual_key, 0x08, "parse_key Backspace virtual_key");
+        assert_eq!(
+            key_info.virtual_key, 0x08,
+            "parse_key Backspace virtual_key"
+        );
 
         let key_info_lower = parse_key("backspace").unwrap();
         assert_eq!(key_info_lower.scan_code, 0x0E);
@@ -1671,7 +1677,8 @@ CapsLock = "Backspace"
         let config = Config::from_str(config_str).unwrap();
         let rules = config.get_all_rules();
 
-        let modifier_counts: Vec<usize> = rules.iter().map(|r| r.trigger.modifier_count()).collect();
+        let modifier_counts: Vec<usize> =
+            rules.iter().map(|r| r.trigger.modifier_count()).collect();
 
         for i in 1..modifier_counts.len() {
             assert!(

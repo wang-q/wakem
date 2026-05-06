@@ -168,6 +168,12 @@ impl ServerState {
                 hyper_key_count = hyper_key_map.len(),
                 "Loaded hyper key mappings"
             );
+            #[cfg(target_os = "windows")]
+            {
+                let keys: std::collections::HashSet<(u16, u16)> =
+                    hyper_key_map.keys().copied().collect();
+                crate::platform::windows::input::register_hyper_keys(keys);
+            }
         }
 
         // 3. Update window preset manager
