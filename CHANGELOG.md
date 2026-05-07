@@ -2,11 +2,29 @@
 
 ## Unreleased - ReleaseDate
 
+### Bug Fixes
+
+- **Hyper Key**: Fixed modifier combo (Ctrl+Alt+Meta) not suppressing Backspace/Delete, causing weird characters (`^¿`) to appear
+- **Hyper Key**: Fixed CapsLock-as-Hyper suppressing all non-modifier keys (including C, M, J, K), which broke shortcuts like Ctrl+C
+
+### Improvements
+
+- **Windows Input**: Improved hyper key detection to support both registered hyper keys (CapsLock) and modifier combinations (Ctrl+Alt+Meta)
+- **Windows Input**: Refined key suppression to only target Backspace (0x08) and Delete (0x2E) when Hyper is active, allowing normal key combinations to pass through
+- **Config**: Added modifier counting and rule sorting to ensure correct matching order for shortcuts with different modifier counts
+
+### Testing
+
+- **E2E**: Moved keyboard event tests that change machine state to `e2e_windows_keyboard.rs` with `#[ignore]` attribute
+- **E2E**: Added comprehensive E2E tests for modifier combo hyper key behavior
+- **Unit**: Added tests for Backspace shortcut parsing and modifier counting
+
 ## 0.1.6 - 2026-05-05
 
 ### Bug Fixes
 
 - Fixed FixedRatio/NativeRatio window stuck at maximum size on repeated hotkey presses
+- Fixed window resizing for applications with minimum size constraints (e.g., Calculator)
 
 ### Features
 
@@ -54,7 +72,6 @@
 - **Input**: Consolidated common input device operations into common module
 - **Platform**: Moved key name parsing to common module
 - **Platform**: Standardized key code handling with Windows virtual key codes as internal representation
-- **Platform**: Renamed `native_handle` to `platform_handle` for clarity
 - **Tray**: Simplified tray API by removing hwnd parameter from register()
 - **IPC**: Removed unused message types and timeout
 - **Types**: Consolidated window context types
