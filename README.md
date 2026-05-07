@@ -4,7 +4,7 @@ A cross-platform window/keyboard/mouse enhancer.
 
 ## Quick Start
 
-Current release: 0.1.7
+Current release: 0.1.8
 
 ### 1. Installation
 

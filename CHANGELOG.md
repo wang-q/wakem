@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.8 - 2026-05-07
+
 ### Bug Fixes
 
 - **Hyper Key**: Generalized key suppression to all mapped key combinations, not just Hyper-only combos. Implemented three-layer suppression (hyper keys, hyper suffix keys, physical modifier combos) in the keyboard hook.
