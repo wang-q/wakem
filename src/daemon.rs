@@ -173,6 +173,20 @@ impl ServerState {
                 let keys: std::collections::HashSet<(u16, u16)> =
                     hyper_key_map.keys().copied().collect();
                 crate::platform::windows::input::register_hyper_keys(keys);
+
+                let suffix_keys = config.get_hyper_suffix_keys();
+                debug!(
+                    suffix_key_count = suffix_keys.len(),
+                    "Loaded hyper suffix keys for suppression"
+                );
+                crate::platform::windows::input::register_hyper_suffix_keys(suffix_keys);
+
+                let combos = config.get_mapped_combos();
+                debug!(
+                    mapped_combo_count = combos.len(),
+                    "Loaded mapped combos for suppression"
+                );
+                crate::platform::windows::input::register_mapped_combos(combos);
             }
         }
 
@@ -509,6 +523,10 @@ impl ServerState {
                         );
                     }
                 }
+                let hyper_active = !active.is_empty();
+                drop(active);
+                #[cfg(target_os = "windows")]
+                crate::platform::windows::input::set_hyper_active(hyper_active);
                 return true;
             }
         }

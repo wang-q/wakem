@@ -282,6 +282,71 @@ impl Config {
         map
     }
 
+    /// Extract all mapped modifier-key combos for suppression in the hook.
+    /// Returns a set of (scan_code, virtual_key, modifier_flags) where
+    /// modifier_flags is a u8 bitmask: bit0=shift, bit1=ctrl, bit2=alt, bit3=meta.
+    /// When the hook detects the exact physical modifier state matches,
+    /// the suffix key is suppressed to prevent the raw keystroke.
+    pub fn get_mapped_combos(&self) -> std::collections::HashSet<(u16, u16, u8)> {
+        let hyper_key_map = self.get_hyper_key_mappings();
+        let rules = self.get_all_rules();
+        let mut combos = std::collections::HashSet::new();
+        for rule in &rules {
+            if let crate::types::Trigger::Key {
+                scan_code: Some(sc),
+                virtual_key: Some(vk),
+                modifiers,
+            } = &rule.trigger
+            {
+                if hyper_key_map.contains_key(&(*sc, *vk)) {
+                    continue;
+                }
+                if modifiers.is_empty() {
+                    continue;
+                }
+                let flags = (modifiers.shift as u8)
+                    | ((modifiers.ctrl as u8) << 1)
+                    | ((modifiers.alt as u8) << 2)
+                    | ((modifiers.meta as u8) << 3);
+                combos.insert((*sc, *vk, flags));
+            }
+        }
+        combos
+    }
+
+    /// Extract keys that should be suppressed when hyper is active.
+    /// Returns a set of (scan_code, virtual_key) for suffix keys that have
+    /// mappings with modifiers matching the hyper key's virtual modifiers.
+    /// These keys are suppressed in the keyboard hook to prevent the raw
+    /// keystroke from reaching applications.
+    pub fn get_hyper_suffix_keys(
+        &self,
+    ) -> std::collections::HashSet<(u16, u16)> {
+        let hyper_key_map = self.get_hyper_key_mappings();
+        if hyper_key_map.is_empty() {
+            return std::collections::HashSet::new();
+        }
+        let rules = self.get_all_rules();
+        let mut keys = std::collections::HashSet::new();
+        for rule in &rules {
+            if let crate::types::Trigger::Key {
+                scan_code: Some(sc),
+                virtual_key: Some(vk),
+                modifiers,
+            } = &rule.trigger
+            {
+                for hyper_mods in hyper_key_map.values() {
+                    if modifiers.is_subset_of(hyper_mods)
+                        && !hyper_key_map.contains_key(&(*sc, *vk))
+                    {
+                        keys.insert((*sc, *vk));
+                    }
+                }
+            }
+        }
+        keys
+    }
+
     /// Parse layer mapping rules
     fn parse_layer_mappings(
         &self,
@@ -1733,6 +1798,112 @@ F5 = "test_macro"
         assert_eq!(
             config.macro_bindings.get("F5"),
             Some(&"test_macro".to_string())
+        );
+    }
+
+    #[test]
+    fn test_get_mapped_combos_empty_config() {
+        let config_str = r#"
+[window.shortcuts]
+"C" = "Center"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let combos = config.get_mapped_combos();
+        assert!(
+            combos.is_empty(),
+            "Mapped combos should be empty when no shortcuts have modifiers"
+        );
+    }
+
+    #[test]
+    fn test_get_mapped_combos_non_hyper_combo() {
+        let config_str = r#"
+[window.shortcuts]
+"Alt+Grave" = "SwitchToNextWindow"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let combos = config.get_mapped_combos();
+        assert!(
+            !combos.is_empty(),
+            "Alt+Grave with a modifier should produce a mapped combo entry"
+        );
+        let alt_flags: u8 = 4;
+        assert!(
+            combos.contains(&(0x29, 0xC0, alt_flags)),
+            "Grave (sc=0x29, vk=0xC0) with Alt modifier (flags=4) should be in mapped combos"
+        );
+    }
+
+    #[test]
+    fn test_get_mapped_combos_includes_hyper_modifier_combos() {
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+
+[window.shortcuts]
+"Ctrl+Alt+Meta+Backspace" = "Center"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let combos = config.get_mapped_combos();
+        assert!(
+            !combos.is_empty(),
+            "Hyper-modifier combos should also be in mapped combos for physical key path"
+        );
+        let ctrl_alt_meta_flags: u8 = 2 | 4 | 8;
+        assert!(
+            combos.contains(&(0x0E, 0x08, ctrl_alt_meta_flags)),
+            "Backspace with physical Ctrl+Alt+Meta should be in mapped combos"
+        );
+    }
+
+    #[test]
+    fn test_get_mapped_combos_skips_hyper_key_identity() {
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let combos = config.get_mapped_combos();
+        let has_capslock = combos.iter().any(|(sc, vk, _)| *sc == 0x3A && *vk == 0x14);
+        assert!(
+            !has_capslock,
+            "Hyper key identity (CapsLock itself) should not appear in mapped combos"
+        );
+    }
+
+    #[test]
+    fn test_get_mapped_combos_with_shift() {
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+
+[window.shortcuts]
+"Ctrl+Alt+Meta+Shift+Left" = "HalfScreen(Left)"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let combos = config.get_mapped_combos();
+        let ctrl_alt_meta_shift_flags: u8 = 1 | 2 | 4 | 8;
+        assert!(
+            combos.contains(&(0x4B, 0x25, ctrl_alt_meta_shift_flags)),
+            "Left arrow with Ctrl+Alt+Meta+Shift should be in mapped combos with all 4 flags"
+        );
+    }
+
+    #[test]
+    fn test_get_mapped_combos_launch_mapping() {
+        let config_str = r#"
+[keyboard.remap]
+CapsLock = "Ctrl+Alt+Meta"
+
+[launch]
+"Ctrl+Alt+Meta+T" = "wt.exe"
+"#;
+        let config = Config::from_str(config_str).unwrap();
+        let combos = config.get_mapped_combos();
+        let ctrl_alt_meta_flags: u8 = 2 | 4 | 8;
+        assert!(
+            combos.contains(&(0x14, 0x54, ctrl_alt_meta_flags)),
+            "T with Ctrl+Alt+Meta from launch mappings should be in mapped combos"
         );
     }
 }

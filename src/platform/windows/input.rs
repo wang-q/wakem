@@ -8,59 +8,50 @@ use crate::types::{
 
 const WHEEL_DELTA: i32 = 120;
 
-static SUPPRESSED_KEYS: std::sync::LazyLock<
-    std::sync::Mutex<std::collections::HashSet<(u16, u16)>>,
-> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::LazyLock;
+use std::sync::RwLock;
 
-static HYPER_KEYS: std::sync::LazyLock<
-    std::sync::Mutex<std::collections::HashSet<(u16, u16)>>,
-> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+static HYPER_KEYS: LazyLock<RwLock<HashSet<(u16, u16)>>> =
+    LazyLock::new(|| RwLock::new(HashSet::new()));
+static HYPER_SUFFIX_KEYS: LazyLock<RwLock<HashSet<(u16, u16)>>> =
+    LazyLock::new(|| RwLock::new(HashSet::new()));
+static HYPER_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// All mapped non-empty modifier combos as (scan_code, vk, modifier_flags).
+/// modifier_flags: bit0=shift, bit1=ctrl, bit2=alt, bit3=meta.
+/// When the physical modifier state exactly matches a rule's modifiers,
+/// the suffix key is suppressed in the hook.
+static MAPPED_COMBOS: LazyLock<RwLock<HashSet<(u16, u16, u8)>>> =
+    LazyLock::new(|| RwLock::new(HashSet::new()));
+
+fn modifier_state_to_flags(ms: &ModifierState) -> u8 {
+    (ms.shift as u8) | ((ms.ctrl as u8) << 1) | ((ms.alt as u8) << 2) | ((ms.meta as u8) << 3)
+}
 
 pub fn register_hyper_keys(keys: std::collections::HashSet<(u16, u16)>) {
-    if let Ok(mut guard) = HYPER_KEYS.lock() {
-        *guard = keys;
-        tracing::debug!(
-            key_count = guard.len(),
-            "Registered hyper keys in input hook"
-        );
+    if let Ok(mut hk) = HYPER_KEYS.write() {
+        *hk = keys;
     }
 }
 
-unsafe fn is_any_hyper_key_physically_pressed() -> bool {
-    let vk_list: Vec<i32> = if let Ok(hyper_keys) = HYPER_KEYS.lock() {
-        hyper_keys.iter().map(|&(_, vk)| vk as i32).collect()
-    } else {
-        return false;
-    };
-    for vk in vk_list {
-        if windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(vk) < 0 {
-            return true;
-        }
-    }
-    false
-}
-
-unsafe fn is_hyper_modifier_combo() -> bool {
-    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-    let ctrl = GetAsyncKeyState(0x11_i32) < 0;
-    let alt = GetAsyncKeyState(0x12_i32) < 0;
-    let meta = GetAsyncKeyState(0x5B_i32) < 0 || GetAsyncKeyState(0x5C_i32) < 0;
-    ctrl && alt && meta
-}
-
-fn is_registered_hyper_key(scan_code: u16, virtual_key: u16) -> bool {
-    if let Ok(hyper_keys) = HYPER_KEYS.lock() {
-        hyper_keys.contains(&(scan_code, virtual_key))
-    } else {
-        false
+pub fn register_hyper_suffix_keys(keys: std::collections::HashSet<(u16, u16)>) {
+    if let Ok(mut hsk) = HYPER_SUFFIX_KEYS.write() {
+        *hsk = keys;
     }
 }
 
-/// Keys that produce weird characters when combined with Ctrl+Alt+Meta on Windows.
-/// Backspace (0x7F DEL) and Delete (0x2E) are suppressed when Hyper is active.
-fn is_suppressible_key(virtual_key: u16) -> bool {
-    matches!(virtual_key, 0x08 | 0x2E)
+pub fn register_mapped_combos(combos: std::collections::HashSet<(u16, u16, u8)>) {
+    if let Ok(mut mc) = MAPPED_COMBOS.write() {
+        *mc = combos;
+    }
 }
+
+pub fn set_hyper_active(active: bool) {
+    HYPER_ACTIVE.store(active, Ordering::SeqCst);
+}
+
 use anyhow::Result;
 use std::cell::RefCell;
 use std::sync::mpsc::Sender;
@@ -103,6 +94,11 @@ impl RawInputDevice {
         CURRENT_SENDER.with(|s| {
             *s.borrow_mut() = Some(event_sender);
         });
+
+        // Pre-initialize statics so the keyboard hook never triggers LazyLock init
+        drop(HYPER_KEYS.read());
+        drop(HYPER_SUFFIX_KEYS.read());
+        drop(MAPPED_COMBOS.read());
 
         let hwnd = Self::create_message_window()?;
 
@@ -252,12 +248,38 @@ impl RawInputDevice {
                 let mut event = KeyEvent::new(scan_code, virtual_key, state);
                 event.modifiers = modifiers;
 
+                let key_id = (scan_code, virtual_key);
+
+                let is_hyper_key = HYPER_KEYS
+                    .read()
+                    .map(|hk| hk.contains(&key_id))
+                    .unwrap_or(false);
+                let hyper_active = HYPER_ACTIVE.load(Ordering::SeqCst);
+
+                let is_suppressed_suffix = hyper_active
+                    && !is_hyper_key
+                    && HYPER_SUFFIX_KEYS
+                        .read()
+                        .map(|hsk| hsk.contains(&key_id))
+                        .unwrap_or(false);
+
+                let mod_flags = modifier_state_to_flags(&modifiers);
+                let is_mapped_combo = !is_hyper_key
+                    && mod_flags != 0
+                    && MAPPED_COMBOS
+                        .read()
+                        .map(|mc| mc.contains(&(scan_code, virtual_key, mod_flags)))
+                        .unwrap_or(false);
+
+                let should_suppress = is_hyper_key || is_suppressed_suffix || is_mapped_combo;
+
                 debug!(
-                    "Keyboard hook: scan_code={:04X}, vk={:04X}, state={:?}, modifiers={:?}",
-                    kb_struct.scanCode,
-                    kb_struct.vkCode,
+                    "Keyboard hook: scan_code={:04X}, vk={:04X}, state={:?}, modifiers={:?}, suppress={}",
+                    scan_code,
+                    virtual_key,
                     state,
-                    modifiers
+                    modifiers,
+                    should_suppress
                 );
 
                 CURRENT_SENDER.with(|s| {
@@ -266,35 +288,8 @@ impl RawInputDevice {
                     }
                 });
 
-                let registered_hyper = is_registered_hyper_key(scan_code, virtual_key);
-                let hyper_active = unsafe { is_any_hyper_key_physically_pressed() }
-                    || (unsafe { is_hyper_modifier_combo() } && !registered_hyper);
-
-                if !hyper_active {
-                    if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
-                        if !suppressed.is_empty() {
-                            suppressed.clear();
-                        }
-                    }
-                }
-
-                if is_key_down && hyper_active {
-                    let should_suppress =
-                        registered_hyper || is_suppressible_key(virtual_key);
-                    if should_suppress {
-                        if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
-                            suppressed.insert((scan_code, virtual_key));
-                        }
-                        return LRESULT(1);
-                    }
-                }
-
-                if is_key_up {
-                    if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
-                        if suppressed.remove(&(scan_code, virtual_key)) {
-                            return LRESULT(1);
-                        }
-                    }
+                if should_suppress {
+                    return LRESULT(1);
                 }
             }
         }
@@ -336,15 +331,15 @@ impl RawInputDevice {
                 let _ = UnhookWindowsHookEx(hook);
             }
             debug!("Keyboard hook uninstalled");
+            let _ = unsafe {
+                windows::Win32::UI::WindowsAndMessaging::PostMessageW(
+                    Some(self.hwnd),
+                    WM_QUIT,
+                    WPARAM(0),
+                    LPARAM(0),
+                )
+            };
         }
-        let _ = unsafe {
-            windows::Win32::UI::WindowsAndMessaging::PostMessageW(
-                Some(self.hwnd),
-                WM_QUIT,
-                WPARAM(0),
-                LPARAM(0),
-            )
-        };
     }
 
     /// Window procedure

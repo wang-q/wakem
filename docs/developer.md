@@ -234,6 +234,9 @@ E2E 测试需要真实的桌面环境，默认 `#[ignore]`，不会影响常规 
 # 窗口管理
 cargo test --test e2e_windows_window -- --ignored --test-threads=1
 
+# 键盘测试
+cargo test --test e2e_windows_keyboard -- --ignored --test-threads=1
+
 # 程序启动器
 cargo test --test e2e_windows_launcher -- --ignored --test-threads=1
 
