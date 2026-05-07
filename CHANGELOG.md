@@ -2,6 +2,8 @@
 
 ## Unreleased - ReleaseDate
 
+## 0.1.7 - 2026-05-07
+
 ### Bug Fixes
 
 - **Hyper Key**: Fixed modifier combo (Ctrl+Alt+Meta) not suppressing Backspace/Delete, causing weird characters (`^¿`) to appear
