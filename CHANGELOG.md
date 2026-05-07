@@ -2,6 +2,11 @@
 
 ## Unreleased - ReleaseDate
 
+### Bug Fixes
+
+- **Hyper Key**: Generalized key suppression to all mapped key combinations, not just Hyper-only combos. Implemented three-layer suppression (hyper keys, hyper suffix keys, physical modifier combos) in the keyboard hook.
+- **E2E Tests**: Fixed hanging test caused by Ctrl+C SendInput triggering console SIGINT; fixed residual `` ` `` character in terminal from injected keystrokes accumulating in console input buffer.
+
 ## 0.1.7 - 2026-05-07
 
 ### Bug Fixes
