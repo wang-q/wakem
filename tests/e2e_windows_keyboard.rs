@@ -16,7 +16,7 @@ mod keyboard_e2e_tests {
     use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, GetKeyState, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT,
-        KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, VIRTUAL_KEY,
+        KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, VIRTUAL_KEY,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, PeekMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
@@ -43,6 +43,25 @@ mod keyboard_e2e_tests {
             wVk: VIRTUAL_KEY(vk),
             wScan: scan,
             dwFlags: KEYEVENTF_SCANCODE,
+            ..Default::default()
+        };
+        if up {
+            input.Anonymous.ki.dwFlags |= KEYEVENTF_KEYUP;
+        }
+        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+        thread::sleep(Duration::from_millis(30));
+        pump_messages();
+    }
+
+    unsafe fn send_extended_key(vk: u16, scan: u16, up: bool) {
+        let mut input = INPUT {
+            r#type: INPUT_KEYBOARD,
+            ..Default::default()
+        };
+        input.Anonymous.ki = KEYBDINPUT {
+            wVk: VIRTUAL_KEY(vk),
+            wScan: scan,
+            dwFlags: KEYEVENTF_SCANCODE | KEYEVENTF_EXTENDEDKEY,
             ..Default::default()
         };
         if up {
@@ -267,6 +286,207 @@ mod keyboard_e2e_tests {
                 capslock_final, capslock_was_toggled,
                 "CapsLock toggle state should be restored after test"
             );
+        }
+    }
+
+    #[ignore = "Sends real keyboard events - run manually with: cargo test --test e2e_windows_keyboard -- --ignored --test-threads=1"]
+    #[test]
+    fn test_modifier_combo_hyper_suppresses_backspace() {
+        use wakem::platform::traits::InputDevice;
+        use wakem::platform::windows::RawInputDevice;
+
+        static BACKSPACE_PASSED: AtomicU32 = AtomicU32::new(0);
+
+        unsafe extern "system" fn monitor_hook_proc(
+            code: i32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+        ) -> LRESULT {
+            if code >= 0 {
+                let kb = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
+                if kb.vkCode == 0x08 && wparam.0 == WM_KEYDOWN as usize {
+                    BACKSPACE_PASSED.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+            CallNextHookEx(None, code, wparam, lparam)
+        }
+
+        unsafe {
+            let monitor_hook =
+                SetWindowsHookExW(WH_KEYBOARD_LL, Some(monitor_hook_proc), None, 0)
+                    .expect("Failed to install monitor hook");
+
+            pump_messages();
+            thread::sleep(Duration::from_millis(50));
+
+            let (tx, _rx) = std::sync::mpsc::channel();
+            let mut raw_input = RawInputDevice::with_sender(tx)
+                .expect("Failed to create RawInputDevice");
+            raw_input
+                .register()
+                .expect("Failed to register RawInputDevice");
+
+            BACKSPACE_PASSED.store(0, Ordering::SeqCst);
+
+            pump_messages();
+            thread::sleep(Duration::from_millis(50));
+
+            send_key(0x11, 0x1D, false); // Ctrl
+            send_extended_key(0x5B, 0x5B, false); // Win (Meta, extended key)
+            send_key(0x12, 0x38, false); // Alt
+            send_key(0x08, 0x0E, false); // Backspace
+            send_key(0x08, 0x0E, true);
+            send_key(0x12, 0x38, true);
+            send_extended_key(0x5B, 0x5B, true);
+            send_key(0x11, 0x1D, true);
+
+            thread::sleep(Duration::from_millis(100));
+            pump_messages();
+
+            let backspace_passed = BACKSPACE_PASSED.load(Ordering::SeqCst);
+            assert_eq!(
+                backspace_passed, 0,
+                "Backspace should be suppressed when Ctrl+Win+Alt (Hyper modifier combo) is held. \
+                 Monitor hook saw {} Backspace events pass through the wakem keyboard hook",
+                backspace_passed
+            );
+
+            raw_input.stop();
+            let _ = UnhookWindowsHookEx(monitor_hook);
+            pump_messages();
+        }
+    }
+
+    #[ignore = "Sends real keyboard events - run manually with: cargo test --test e2e_windows_keyboard -- --ignored --test-threads=1"]
+    #[test]
+    fn test_ctrl_c_not_hijacked_with_modifier_combo() {
+        use wakem::platform::traits::InputDevice;
+        use wakem::platform::windows::RawInputDevice;
+
+        static C_PASSED: AtomicU32 = AtomicU32::new(0);
+
+        unsafe extern "system" fn monitor_hook_proc(
+            code: i32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+        ) -> LRESULT {
+            if code >= 0 {
+                let kb = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
+                if kb.vkCode == 0x43 && wparam.0 == WM_KEYDOWN as usize {
+                    C_PASSED.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+            CallNextHookEx(None, code, wparam, lparam)
+        }
+
+        unsafe {
+            let monitor_hook =
+                SetWindowsHookExW(WH_KEYBOARD_LL, Some(monitor_hook_proc), None, 0)
+                    .expect("Failed to install monitor hook");
+
+            pump_messages();
+            thread::sleep(Duration::from_millis(50));
+
+            let (tx, _rx) = std::sync::mpsc::channel();
+            let mut raw_input = RawInputDevice::with_sender(tx)
+                .expect("Failed to create RawInputDevice");
+            raw_input
+                .register()
+                .expect("Failed to register RawInputDevice");
+
+            C_PASSED.store(0, Ordering::SeqCst);
+
+            pump_messages();
+            thread::sleep(Duration::from_millis(50));
+
+            send_key(0x11, 0x1D, false); // Ctrl
+            send_key(0x43, 0x2E, false); // C
+            send_key(0x43, 0x2E, true);
+            send_key(0x11, 0x1D, true);
+
+            thread::sleep(Duration::from_millis(100));
+            pump_messages();
+
+            let c_passed = C_PASSED.load(Ordering::SeqCst);
+            assert_eq!(
+                c_passed, 1,
+                "Ctrl+C should pass through when no Hyper combo is active. \
+                 Monitor hook saw {} C events",
+                c_passed
+            );
+
+            raw_input.stop();
+            let _ = UnhookWindowsHookEx(monitor_hook);
+            pump_messages();
+        }
+    }
+
+    #[ignore = "Sends real keyboard events - run manually with: cargo test --test e2e_windows_keyboard -- --ignored --test-threads=1"]
+    #[test]
+    fn test_c_not_suppressed_with_modifier_combo_hyper() {
+        use wakem::platform::traits::InputDevice;
+        use wakem::platform::windows::RawInputDevice;
+
+        static C_PASSED: AtomicU32 = AtomicU32::new(0);
+
+        unsafe extern "system" fn monitor_hook_proc(
+            code: i32,
+            wparam: WPARAM,
+            lparam: LPARAM,
+        ) -> LRESULT {
+            if code >= 0 {
+                let kb = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
+                if kb.vkCode == 0x43 && wparam.0 == WM_KEYDOWN as usize {
+                    C_PASSED.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+            CallNextHookEx(None, code, wparam, lparam)
+        }
+
+        unsafe {
+            let monitor_hook =
+                SetWindowsHookExW(WH_KEYBOARD_LL, Some(monitor_hook_proc), None, 0)
+                    .expect("Failed to install monitor hook");
+
+            pump_messages();
+            thread::sleep(Duration::from_millis(50));
+
+            let (tx, _rx) = std::sync::mpsc::channel();
+            let mut raw_input = RawInputDevice::with_sender(tx)
+                .expect("Failed to create RawInputDevice");
+            raw_input
+                .register()
+                .expect("Failed to register RawInputDevice");
+
+            C_PASSED.store(0, Ordering::SeqCst);
+
+            pump_messages();
+            thread::sleep(Duration::from_millis(50));
+
+            send_key(0x11, 0x1D, false); // Ctrl
+            send_extended_key(0x5B, 0x5B, false); // Win (Meta, extended key)
+            send_key(0x12, 0x38, false); // Alt
+            send_key(0x43, 0x2E, false); // C
+            send_key(0x43, 0x2E, true);
+            send_key(0x12, 0x38, true);
+            send_extended_key(0x5B, 0x5B, true);
+            send_key(0x11, 0x1D, true);
+
+            thread::sleep(Duration::from_millis(100));
+            pump_messages();
+
+            let c_passed = C_PASSED.load(Ordering::SeqCst);
+            assert_eq!(
+                c_passed, 1,
+                "C should NOT be suppressed with modifier-combo Hyper. \
+                 Only Backspace/Delete produce weird characters. \
+                 Monitor hook saw {} C events",
+                c_passed
+            );
+
+            raw_input.stop();
+            let _ = UnhookWindowsHookEx(monitor_hook);
+            pump_messages();
         }
     }
 }

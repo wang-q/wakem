@@ -26,13 +26,6 @@ pub fn register_hyper_keys(keys: std::collections::HashSet<(u16, u16)>) {
     }
 }
 
-fn is_modifier_key(vk: u16) -> bool {
-    matches!(
-        vk,
-        0x10 | 0xA0 | 0xA1 | 0x11 | 0xA2 | 0xA3 | 0x12 | 0xA4 | 0xA5 | 0x5B | 0x5C
-    )
-}
-
 unsafe fn is_any_hyper_key_physically_pressed() -> bool {
     let vk_list: Vec<i32> = if let Ok(hyper_keys) = HYPER_KEYS.lock() {
         hyper_keys.iter().map(|&(_, vk)| vk as i32).collect()
@@ -45,6 +38,28 @@ unsafe fn is_any_hyper_key_physically_pressed() -> bool {
         }
     }
     false
+}
+
+unsafe fn is_hyper_modifier_combo() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    let ctrl = GetAsyncKeyState(0x11_i32) < 0;
+    let alt = GetAsyncKeyState(0x12_i32) < 0;
+    let meta = GetAsyncKeyState(0x5B_i32) < 0 || GetAsyncKeyState(0x5C_i32) < 0;
+    ctrl && alt && meta
+}
+
+fn is_registered_hyper_key(scan_code: u16, virtual_key: u16) -> bool {
+    if let Ok(hyper_keys) = HYPER_KEYS.lock() {
+        hyper_keys.contains(&(scan_code, virtual_key))
+    } else {
+        false
+    }
+}
+
+/// Keys that produce weird characters when combined with Ctrl+Alt+Meta on Windows.
+/// Backspace (0x7F DEL) and Delete (0x2E) are suppressed when Hyper is active.
+fn is_suppressible_key(virtual_key: u16) -> bool {
+    matches!(virtual_key, 0x08 | 0x2E)
 }
 use anyhow::Result;
 use std::cell::RefCell;
@@ -251,7 +266,9 @@ impl RawInputDevice {
                     }
                 });
 
-                let hyper_active = is_any_hyper_key_physically_pressed();
+                let registered_hyper = is_registered_hyper_key(scan_code, virtual_key);
+                let hyper_active = unsafe { is_any_hyper_key_physically_pressed() }
+                    || (unsafe { is_hyper_modifier_combo() } && !registered_hyper);
 
                 if !hyper_active {
                     if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
@@ -261,11 +278,15 @@ impl RawInputDevice {
                     }
                 }
 
-                if is_key_down && hyper_active && !is_modifier_key(virtual_key) {
-                    if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
-                        suppressed.insert((scan_code, virtual_key));
+                if is_key_down && hyper_active {
+                    let should_suppress =
+                        registered_hyper || is_suppressible_key(virtual_key);
+                    if should_suppress {
+                        if let Ok(mut suppressed) = SUPPRESSED_KEYS.lock() {
+                            suppressed.insert((scan_code, virtual_key));
+                        }
+                        return LRESULT(1);
                     }
-                    return LRESULT(1);
                 }
 
                 if is_key_up {
